@@ -30,7 +30,7 @@ resource "aws_lambda_function" "process_content" {
   timeout            = 10
   environment {
     variables = {
-      IMAGE_MAGICK_EXE = "/opt/bin/magick"
+      IMAGE_MAGICK_EXE = "/bin/magick"
     }
   }
   layers = [
