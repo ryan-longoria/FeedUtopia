@@ -14,7 +14,6 @@ def lambda_handler(event, context):
 
     local_json = "/tmp/most_recent_post.json"
     s3.download_file(bucket_name, json_key, local_json)
-
     with open(local_json, "r", encoding="utf-8") as f:
         post_data = json.load(f)
 
@@ -38,6 +37,14 @@ def lambda_handler(event, context):
             print("Failed to download image from S3:", e)
             bg_local_path = None
 
+    logo_key = "artifacts/Logo.png"
+    logo_local_path = "/tmp/Logo.png"
+    try:
+        s3.download_file(bucket_name, logo_key, logo_local_path)
+    except Exception as e:
+        print("Failed to download logo:", e)
+        logo_local_path = None
+
     width, height = 1080, 1080
     duration_sec = 10
 
@@ -52,8 +59,17 @@ def lambda_handler(event, context):
     desc_clip = TextClip(txt=description_text, fontsize=40, color='yellow',
                          size=(width, None), method='caption').set_duration(duration_sec).set_position(("center", "center"))
 
-    final_clip = CompositeVideoClip([bg_clip, title_clip, desc_clip], size=(width, height))
-    final_clip = final_clip.set_duration(duration_sec)
+    clips = [bg_clip, title_clip, desc_clip]
+
+    if logo_local_path and os.path.exists(logo_local_path):
+        logo_clip = (ImageClip(logo_local_path)
+                     .set_duration(duration_sec)
+                     .resize(width=100))
+        logo_margin = 10
+        logo_clip = logo_clip.set_position(lambda t: (width - logo_clip.w - logo_margin, height - logo_clip.h - logo_margin))
+        clips.append(logo_clip)
+
+    final_clip = CompositeVideoClip(clips, size=(width, height)).set_duration(duration_sec)
 
     local_mp4 = "/tmp/anime_post.mp4"
     final_clip.write_videofile(local_mp4, fps=24, codec="libx264", audio=False)
