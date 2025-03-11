@@ -38,7 +38,7 @@ def lambda_handler(event, context):
             print("Failed to download image from S3:", e)
             bg_local_path = None
 
-    width, height = 1280, 720
+    width, height = 1080, 1080
     duration_sec = 10
 
     if bg_local_path and os.path.exists(bg_local_path):
