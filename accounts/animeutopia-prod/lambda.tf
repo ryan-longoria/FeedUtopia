@@ -72,7 +72,7 @@ resource "aws_lambda_function" "render_video" {
   environment {
     variables = {
       TARGET_BUCKET = var.s3_bucket_name
-      FFMPEG_PATH   = "/bin/ffmpeg"
+      FFMPEG_PATH   = "/opt/bin/ffmpeg"
     }
   }
 
