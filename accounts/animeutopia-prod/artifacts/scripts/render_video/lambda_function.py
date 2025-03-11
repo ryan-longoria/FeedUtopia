@@ -74,63 +74,52 @@ def lambda_handler(event, context):
     duration_sec = 10
 
     if bg_local_path and os.path.exists(bg_local_path):
-        bg_clip = ImageClip(bg_local_path).resize((width, height)).set_duration(
-            duration_sec
-        )
+        bg_clip = ImageClip(bg_local_path).resize((width, height)).set_duration(duration_sec)
     else:
-        bg_clip = ColorClip(size=(width, height), color=(0, 0, 0)).set_duration(
-            duration_sec
-        )
+        bg_clip = ColorClip(size=(width, height), color=(0, 0, 0)).set_duration(duration_sec)
 
-    transparent_clip = (
-        ColorClip(size=(width, height), color=(0, 0, 0))
-        .set_duration(duration_sec)
-        .set_opacity(0)
-    )
+    transparent_clip = ColorClip(size=(width, height), color=(0, 0, 0)).set_duration(duration_sec).set_opacity(0)
 
     if gradient_local_path and os.path.exists(gradient_local_path):
-        gradient_clip = ImageClip(gradient_local_path).resize((width, height)).set_duration(
-            duration_sec
-        )
+        gradient_clip = ImageClip(gradient_local_path).resize((width, height)).set_duration(duration_sec)
     else:
         gradient_clip = None
 
     if news_local_path and os.path.exists(news_local_path):
-        news_clip = VideoFileClip(news_local_path).set_duration(duration_sec).resize(
-            width=200
-        )
+        news_clip = VideoFileClip(news_local_path).set_duration(duration_sec).resize(width=200)
         news_margin = 10
         news_clip = news_clip.set_position((news_margin, news_margin))
     else:
         news_clip = None
 
-    title_clip = TextClip(
-        txt=title_text,
-        fontsize=60,
-        color="white",
-        size=(width, None),
-        method="caption",
-    ).set_duration(duration_sec).set_position(("center", "top"))
-
+    # Create subtitle clip and position it at the bottom center with a 10px margin.
     desc_clip = TextClip(
         txt=description_text,
         fontsize=40,
         color="yellow",
         size=(width, None),
         method="caption",
-    ).set_duration(duration_sec).set_position(("center", "center"))
+    )
+    desc_clip = desc_clip.set_duration(duration_sec)
+    subtitle_y = height - desc_clip.h - 10
+    desc_clip = desc_clip.set_position(("center", subtitle_y))
+
+    # Create title clip and position it directly above the subtitle with a 10px gap.
+    title_clip = TextClip(
+        txt=title_text,
+        fontsize=60,
+        color="white",
+        size=(width, None),
+        method="caption",
+    )
+    title_clip = title_clip.set_duration(duration_sec)
+    title_y = subtitle_y - title_clip.h - 10
+    title_clip = title_clip.set_position(("center", title_y))
 
     if logo_local_path and os.path.exists(logo_local_path):
-        logo_clip = ImageClip(logo_local_path).set_duration(duration_sec).resize(
-            width=100
-        )
+        logo_clip = ImageClip(logo_local_path).set_duration(duration_sec).resize(width=100)
         logo_margin = 10
-        logo_clip = logo_clip.set_position(
-            lambda t: (
-                width - logo_clip.w - logo_margin,
-                height - logo_clip.h - logo_margin,
-            )
-        )
+        logo_clip = logo_clip.set_position(lambda t: (width - logo_clip.w - logo_margin, height - logo_clip.h - logo_margin))
     else:
         logo_clip = None
 
@@ -142,9 +131,7 @@ def lambda_handler(event, context):
     clips_complete.extend([title_clip, desc_clip])
     if logo_clip:
         clips_complete.append(logo_clip)
-    complete_clip = CompositeVideoClip(clips_complete, size=(width, height)).set_duration(
-        duration_sec
-    )
+    complete_clip = CompositeVideoClip(clips_complete, size=(width, height)).set_duration(duration_sec)
 
     clips_no_text = [bg_clip]
     if gradient_clip:
@@ -153,9 +140,7 @@ def lambda_handler(event, context):
         clips_no_text.append(news_clip)
     if logo_clip:
         clips_no_text.append(logo_clip)
-    no_text_clip = CompositeVideoClip(clips_no_text, size=(width, height)).set_duration(
-        duration_sec
-    )
+    no_text_clip = CompositeVideoClip(clips_no_text, size=(width, height)).set_duration(duration_sec)
 
     clips_no_bg = [transparent_clip]
     if gradient_clip:
@@ -165,9 +150,7 @@ def lambda_handler(event, context):
     clips_no_bg.extend([title_clip, desc_clip])
     if logo_clip:
         clips_no_bg.append(logo_clip)
-    no_bg_clip = CompositeVideoClip(clips_no_bg, size=(width, height)).set_duration(
-        duration_sec
-    )
+    no_bg_clip = CompositeVideoClip(clips_no_bg, size=(width, height)).set_duration(duration_sec)
 
     clips_no_text_no_bg = [transparent_clip]
     if gradient_clip:
@@ -176,27 +159,17 @@ def lambda_handler(event, context):
         clips_no_text_no_bg.append(news_clip)
     if logo_clip:
         clips_no_text_no_bg.append(logo_clip)
-    no_text_no_bg_clip = CompositeVideoClip(
-        clips_no_text_no_bg, size=(width, height)
-    ).set_duration(duration_sec)
+    no_text_no_bg_clip = CompositeVideoClip(clips_no_text_no_bg, size=(width, height)).set_duration(duration_sec)
 
     complete_local = "/tmp/anime_post_complete.mp4"
     no_text_local = "/tmp/anime_post_no_text.mp4"
     no_bg_local = "/tmp/anime_post_no_bg.mov"
     no_text_no_bg_local = "/tmp/anime_post_no_text_no_bg.mov"
 
-    complete_clip.write_videofile(
-        complete_local, fps=24, codec="libx264", audio=False
-    )
-    no_text_clip.write_videofile(
-        no_text_local, fps=24, codec="libx264", audio=False
-    )
-    no_bg_clip.write_videofile(
-        no_bg_local, fps=24, codec="png", audio=False
-    )
-    no_text_no_bg_clip.write_videofile(
-        no_text_no_bg_local, fps=24, codec="png", audio=False
-    )
+    complete_clip.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
+    no_text_clip.write_videofile(no_text_local, fps=24, codec="libx264", audio=False)
+    no_bg_clip.write_videofile(no_bg_local, fps=24, codec="png", audio=False)
+    no_text_no_bg_clip.write_videofile(no_text_no_bg_local, fps=24, codec="png", audio=False)
 
     s3.upload_file(complete_local, bucket_name, complete_key)
     s3.upload_file(no_text_local, bucket_name, no_text_key)
