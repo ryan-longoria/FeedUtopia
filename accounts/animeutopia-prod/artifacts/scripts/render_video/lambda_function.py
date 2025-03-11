@@ -11,6 +11,15 @@ from moviepy.editor import (ColorClip, CompositeVideoClip, ImageClip,
 s3 = boto3.client("s3")
 
 
+def dynamic_font_size(text, max_size, min_size, ideal_length):
+    length = len(text)
+    if length <= ideal_length:
+        return max_size
+    factor = (max_size - min_size) / ideal_length
+    new_size = max_size - (length - ideal_length) * factor
+    return int(new_size) if new_size > min_size else min_size
+
+
 def lambda_handler(event, context):
     bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
     json_key = "most_recent_post.json"
@@ -92,10 +101,12 @@ def lambda_handler(event, context):
     else:
         news_clip = None
 
-    # Create subtitle clip and position it at the bottom center with a 10px margin.
+    title_font_size = dynamic_font_size(title_text, max_size=60, min_size=30, ideal_length=20)
+    subtitle_font_size = dynamic_font_size(description_text, max_size=40, min_size=20, ideal_length=30)
+
     desc_clip = TextClip(
         txt=description_text,
-        fontsize=40,
+        fontsize=subtitle_font_size,
         color="yellow",
         size=(width, None),
         method="caption",
@@ -104,10 +115,9 @@ def lambda_handler(event, context):
     subtitle_y = height - desc_clip.h - 10
     desc_clip = desc_clip.set_position(("center", subtitle_y))
 
-    # Create title clip and position it directly above the subtitle with a 10px gap.
     title_clip = TextClip(
         txt=title_text,
-        fontsize=60,
+        fontsize=title_font_size,
         color="white",
         size=(width, None),
         method="caption",
