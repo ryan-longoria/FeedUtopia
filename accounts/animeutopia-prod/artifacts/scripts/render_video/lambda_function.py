@@ -13,7 +13,7 @@ s3 = boto3.client("s3")
 def lambda_handler(event, context):
     bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
     json_key = "most_recent_post.json"
-    output_key = f"outputs/anime_post_{uuid.uuid4().hex}.mp4"
+    output_key = f"posts/anime_post_{uuid.uuid4().hex}.mp4"
 
     local_json = "/tmp/most_recent_post.json"
     s3.download_file(bucket_name, json_key, local_json)
