@@ -45,6 +45,14 @@ def lambda_handler(event, context):
         print("Failed to download logo:", e)
         logo_local_path = None
 
+    gradient_key = "artifacts/Black Gradient.png"
+    gradient_local_path = "/tmp/Black_Gradient.png"
+    try:
+        s3.download_file(bucket_name, gradient_key, gradient_local_path)
+    except Exception as e:
+        print("Failed to download gradient:", e)
+        gradient_local_path = None
+
     width, height = 1080, 1080
     duration_sec = 10
 
@@ -54,26 +62,27 @@ def lambda_handler(event, context):
         from moviepy.editor import ColorClip
         bg_clip = ColorClip(size=(width, height), color=(0, 0, 0)).set_duration(duration_sec)
 
-    title_clip = TextClip(txt=title_text, fontsize=60, color='white',
-                          size=(width, None), method='caption').set_duration(duration_sec).set_position(("center", "top"))
-    desc_clip = TextClip(txt=description_text, fontsize=40, color='yellow',
-                         size=(width, None), method='caption').set_duration(duration_sec).set_position(("center", "center"))
+    if gradient_local_path and os.path.exists(gradient_local_path):
+        gradient_clip = ImageClip(gradient_local_path).resize((width, height)).set_duration(duration_sec)
+    else:
+        gradient_clip = None
 
-    clips = [bg_clip, title_clip, desc_clip]
+    title_clip = TextClip(txt=title_text, fontsize=60, color='white', size=(width, None), method='caption').set_duration(duration_sec).set_position(("center", "top"))
+    desc_clip = TextClip(txt=description_text, fontsize=40, color='yellow', size=(width, None), method='caption').set_duration(duration_sec).set_position(("center", "center"))
 
+    clips = [bg_clip]
+    if gradient_clip:
+        clips.append(gradient_clip)
+    clips.extend([title_clip, desc_clip])
     if logo_local_path and os.path.exists(logo_local_path):
-        logo_clip = (ImageClip(logo_local_path)
-                     .set_duration(duration_sec)
-                     .resize(width=100))
+        logo_clip = ImageClip(logo_local_path).set_duration(duration_sec).resize(width=100)
         logo_margin = 10
         logo_clip = logo_clip.set_position(lambda t: (width - logo_clip.w - logo_margin, height - logo_clip.h - logo_margin))
         clips.append(logo_clip)
 
     final_clip = CompositeVideoClip(clips, size=(width, height)).set_duration(duration_sec)
-
     local_mp4 = "/tmp/anime_post.mp4"
     final_clip.write_videofile(local_mp4, fps=24, codec="libx264", audio=False)
-
     s3.upload_file(local_mp4, bucket_name, output_key)
 
     return {
