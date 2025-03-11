@@ -16,7 +16,10 @@ def lambda_handler(event, context):
     json_key = "most_recent_post.json"
     timestamp_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     folder = f"posts/animeutopia_{timestamp_str}"
-    output_key = f"{folder}/anime_post_{uuid.uuid4().hex}.mp4"
+    complete_key = f"{folder}/anime_post_complete.mp4"
+    no_text_key = f"{folder}/anime_post_no_text.mp4"
+    no_bg_key = f"{folder}/anime_post_no_bg.mov"
+    no_text_no_bg_key = f"{folder}/anime_post_no_text_no_bg.mov"
 
     local_json = "/tmp/most_recent_post.json"
     s3.download_file(bucket_name, json_key, local_json)
@@ -71,72 +74,55 @@ def lambda_handler(event, context):
     duration_sec = 10
 
     if bg_local_path and os.path.exists(bg_local_path):
-        bg_clip = (
-            ImageClip(bg_local_path)
-            .resize((width, height))
-            .set_duration(duration_sec)
+        bg_clip = ImageClip(bg_local_path).resize((width, height)).set_duration(
+            duration_sec
         )
     else:
         bg_clip = ColorClip(size=(width, height), color=(0, 0, 0)).set_duration(
             duration_sec
         )
 
+    transparent_clip = (
+        ColorClip(size=(width, height), color=(0, 0, 0))
+        .set_duration(duration_sec)
+        .set_opacity(0)
+    )
+
     if gradient_local_path and os.path.exists(gradient_local_path):
-        gradient_clip = (
-            ImageClip(gradient_local_path)
-            .resize((width, height))
-            .set_duration(duration_sec)
+        gradient_clip = ImageClip(gradient_local_path).resize((width, height)).set_duration(
+            duration_sec
         )
     else:
         gradient_clip = None
 
     if news_local_path and os.path.exists(news_local_path):
-        news_clip = (
-            VideoFileClip(news_local_path)
-            .set_duration(duration_sec)
-            .resize(width=200)
+        news_clip = VideoFileClip(news_local_path).set_duration(duration_sec).resize(
+            width=200
         )
         news_margin = 10
         news_clip = news_clip.set_position((news_margin, news_margin))
     else:
         news_clip = None
 
-    title_clip = (
-        TextClip(
-            txt=title_text,
-            fontsize=60,
-            color="white",
-            size=(width, None),
-            method="caption",
-        )
-        .set_duration(duration_sec)
-        .set_position(("center", "top"))
-    )
+    title_clip = TextClip(
+        txt=title_text,
+        fontsize=60,
+        color="white",
+        size=(width, None),
+        method="caption",
+    ).set_duration(duration_sec).set_position(("center", "top"))
 
-    desc_clip = (
-        TextClip(
-            txt=description_text,
-            fontsize=40,
-            color="yellow",
-            size=(width, None),
-            method="caption",
-        )
-        .set_duration(duration_sec)
-        .set_position(("center", "center"))
-    )
-
-    clips = [bg_clip]
-    if gradient_clip:
-        clips.append(gradient_clip)
-    if news_clip:
-        clips.append(news_clip)
-    clips.extend([title_clip, desc_clip])
+    desc_clip = TextClip(
+        txt=description_text,
+        fontsize=40,
+        color="yellow",
+        size=(width, None),
+        method="caption",
+    ).set_duration(duration_sec).set_position(("center", "center"))
 
     if logo_local_path and os.path.exists(logo_local_path):
-        logo_clip = (
-            ImageClip(logo_local_path)
-            .set_duration(duration_sec)
-            .resize(width=100)
+        logo_clip = ImageClip(logo_local_path).set_duration(duration_sec).resize(
+            width=100
         )
         logo_margin = 10
         logo_clip = logo_clip.set_position(
@@ -145,14 +131,84 @@ def lambda_handler(event, context):
                 height - logo_clip.h - logo_margin,
             )
         )
-        clips.append(logo_clip)
+    else:
+        logo_clip = None
 
-    final_clip = CompositeVideoClip(clips, size=(width, height)).set_duration(
+    clips_complete = [bg_clip]
+    if gradient_clip:
+        clips_complete.append(gradient_clip)
+    if news_clip:
+        clips_complete.append(news_clip)
+    clips_complete.extend([title_clip, desc_clip])
+    if logo_clip:
+        clips_complete.append(logo_clip)
+    complete_clip = CompositeVideoClip(clips_complete, size=(width, height)).set_duration(
         duration_sec
     )
-    local_mp4 = "/tmp/anime_post.mp4"
-    final_clip.write_videofile(
-        local_mp4, fps=24, codec="libx264", audio=False
+
+    clips_no_text = [bg_clip]
+    if gradient_clip:
+        clips_no_text.append(gradient_clip)
+    if news_clip:
+        clips_no_text.append(news_clip)
+    if logo_clip:
+        clips_no_text.append(logo_clip)
+    no_text_clip = CompositeVideoClip(clips_no_text, size=(width, height)).set_duration(
+        duration_sec
     )
-    s3.upload_file(local_mp4, bucket_name, output_key)
-    return {"status": "rendered", "video_s3_key": output_key}
+
+    clips_no_bg = [transparent_clip]
+    if gradient_clip:
+        clips_no_bg.append(gradient_clip)
+    if news_clip:
+        clips_no_bg.append(news_clip)
+    clips_no_bg.extend([title_clip, desc_clip])
+    if logo_clip:
+        clips_no_bg.append(logo_clip)
+    no_bg_clip = CompositeVideoClip(clips_no_bg, size=(width, height)).set_duration(
+        duration_sec
+    )
+
+    clips_no_text_no_bg = [transparent_clip]
+    if gradient_clip:
+        clips_no_text_no_bg.append(gradient_clip)
+    if news_clip:
+        clips_no_text_no_bg.append(news_clip)
+    if logo_clip:
+        clips_no_text_no_bg.append(logo_clip)
+    no_text_no_bg_clip = CompositeVideoClip(
+        clips_no_text_no_bg, size=(width, height)
+    ).set_duration(duration_sec)
+
+    complete_local = "/tmp/anime_post_complete.mp4"
+    no_text_local = "/tmp/anime_post_no_text.mp4"
+    no_bg_local = "/tmp/anime_post_no_bg.mov"
+    no_text_no_bg_local = "/tmp/anime_post_no_text_no_bg.mov"
+
+    complete_clip.write_videofile(
+        complete_local, fps=24, codec="libx264", audio=False
+    )
+    no_text_clip.write_videofile(
+        no_text_local, fps=24, codec="libx264", audio=False
+    )
+    no_bg_clip.write_videofile(
+        no_bg_local, fps=24, codec="png", audio=False
+    )
+    no_text_no_bg_clip.write_videofile(
+        no_text_no_bg_local, fps=24, codec="png", audio=False
+    )
+
+    s3.upload_file(complete_local, bucket_name, complete_key)
+    s3.upload_file(no_text_local, bucket_name, no_text_key)
+    s3.upload_file(no_bg_local, bucket_name, no_bg_key)
+    s3.upload_file(no_text_no_bg_local, bucket_name, no_text_no_bg_key)
+
+    return {
+        "status": "rendered",
+        "video_keys": {
+            "complete": complete_key,
+            "no_text": no_text_key,
+            "no_bg": no_bg_key,
+            "no_text_no_bg": no_text_no_bg_key,
+        },
+    }
