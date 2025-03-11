@@ -77,7 +77,7 @@ resource "aws_lambda_function" "render_video" {
   }
 
   layers = [
-    aws_lambda_layer_version.moviepy_layer.arn
+    arn:aws:lambda:us-east-2:481665084477:layer:moviepy_layer:2
   ]
 }
 
