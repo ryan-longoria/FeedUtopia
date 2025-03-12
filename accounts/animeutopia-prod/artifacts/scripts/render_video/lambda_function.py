@@ -6,8 +6,10 @@ import numpy as np
 
 import boto3
 import requests
-from moviepy import (ColorClip, CompositeVideoClip, ImageClip,
-                     TextClip, VideoFileClip)
+
+from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
+from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
+from moviepy.video.io.VideoFileClip import VideoFileClip
 
 s3 = boto3.client("s3")
 
