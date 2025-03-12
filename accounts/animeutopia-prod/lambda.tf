@@ -66,7 +66,7 @@ resource "aws_lambda_function" "render_video" {
   package_type  = "Image"
   image_uri     = "481665084477.dkr.ecr.us-east-2.amazonaws.com/render_video_repository@sha256:06ef568108df1a4c5bb719c11d491a800ca75913a62fca69f89890c57407e886"
   role          = aws_iam_role.lambda_role.arn
-  timeout       = 180
+  timeout       = 300
   environment {
     variables = {
       TARGET_BUCKET = var.s3_bucket_name
