@@ -10,10 +10,9 @@ import requests
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
-from moviepy.video.fx.resize import resize 
+from moviepy.video.fx.all import resize
 
 s3 = boto3.client("s3")
-
 
 def dynamic_font_size(text, max_size, min_size, ideal_length):
     length = len(text)
@@ -22,7 +21,6 @@ def dynamic_font_size(text, max_size, min_size, ideal_length):
     factor = (max_size - min_size) / ideal_length
     new_size = max_size - (length - ideal_length) * factor
     return int(new_size) if new_size > min_size else min_size
-
 
 def lambda_handler(event, context):
     bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
@@ -171,29 +169,4 @@ def lambda_handler(event, context):
         clips_no_text_no_bg.append(news_clip)
     if logo_clip:
         clips_no_text_no_bg.append(logo_clip)
-    no_text_no_bg_clip = CompositeVideoClip(clips_no_text_no_bg, size=(width, height)).set_duration(duration_sec)
-
-    complete_local = "/tmp/anime_post_complete.mp4"
-    no_text_local = "/tmp/anime_post_no_text.mp4"
-    no_bg_local = "/tmp/anime_post_no_bg.mov"
-    no_text_no_bg_local = "/tmp/anime_post_no_text_no_bg.mov"
-
-    complete_clip.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
-    no_text_clip.write_videofile(no_text_local, fps=24, codec="libx264", audio=False)
-    no_bg_clip.write_videofile(no_bg_local, fps=24, codec="png", audio=False)
-    no_text_no_bg_clip.write_videofile(no_text_no_bg_local, fps=24, codec="png", audio=False)
-
-    s3.upload_file(complete_local, bucket_name, complete_key)
-    s3.upload_file(no_text_local, bucket_name, no_text_key)
-    s3.upload_file(no_bg_local, bucket_name, no_bg_key)
-    s3.upload_file(no_text_no_bg_local, bucket_name, no_text_no_bg_key)
-
-    return {
-        "status": "rendered",
-        "video_keys": {
-            "complete": complete_key,
-            "no_text": no_text_key,
-            "no_bg": no_bg_key,
-            "no_text_no_bg": no_text_no_bg_key,
-        },
-    }
+    no_text_no_bg_clip = CompositeVideoClip(clips_no_text_no_bg, size=(wi
