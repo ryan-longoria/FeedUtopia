@@ -7,13 +7,13 @@
 #############################
 
 resource "aws_lambda_function" "fetch_rss" {
-  function_name      = "fetch_rss"
-  filename           = "${path.module}/artifacts/scripts/fetch_rss/fetch_rss.zip"
-  source_code_hash   = filebase64sha256("${path.module}/artifacts/scripts/fetch_rss/fetch_rss.zip")
-  handler            = "lambda_function.lambda_handler"
-  runtime            = "python3.9"
-  role               = aws_iam_role.lambda_role.arn
-  timeout            = 10
+  function_name    = "fetch_rss"
+  filename         = "${path.module}/artifacts/scripts/fetch_rss/fetch_rss.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/fetch_rss/fetch_rss.zip")
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
 }
 
 #############################
@@ -21,13 +21,13 @@ resource "aws_lambda_function" "fetch_rss" {
 #############################
 
 resource "aws_lambda_function" "process_content" {
-  function_name      = "process_content"
-  filename           = "${path.module}/artifacts/scripts/process_content/process_content.zip"
-  source_code_hash   = filebase64sha256("${path.module}/artifacts/scripts/process_content/process_content.zip")
-  handler            = "lambda_function.lambda_handler"
-  runtime            = "python3.9"
-  role               = aws_iam_role.lambda_role.arn
-  timeout            = 10
+  function_name    = "process_content"
+  filename         = "${path.module}/artifacts/scripts/process_content/process_content.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/process_content/process_content.zip")
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
   environment {
     variables = {
       IMAGE_MAGICK_EXE = "/bin/magick"
@@ -43,13 +43,13 @@ resource "aws_lambda_function" "process_content" {
 #############################
 
 resource "aws_lambda_function" "store_data" {
-  function_name      = "store_data"
-  filename           = "${path.module}/artifacts/scripts/store_data/store_data.zip"
-  source_code_hash   = filebase64sha256("${path.module}/artifacts/scripts/store_data/store_data.zip")
-  handler            = "lambda_function.lambda_handler"
-  runtime            = "python3.9"
-  role               = aws_iam_role.lambda_role.arn
-  timeout            = 10
+  function_name    = "store_data"
+  filename         = "${path.module}/artifacts/scripts/store_data/store_data.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/store_data/store_data.zip")
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
   environment {
     variables = {
       BUCKET_NAME = var.s3_bucket_name
@@ -62,23 +62,17 @@ resource "aws_lambda_function" "store_data" {
 #############################
 
 resource "aws_lambda_function" "render_video" {
-  function_name      = "render_video"
-  filename           = "${path.module}/artifacts/scripts/render_video/render_video.zip"
-  source_code_hash   = filebase64sha256("${path.module}/artifacts/scripts/render_video/render_video.zip")
-  handler            = "lambda_function.lambda_handler"
-  runtime            = "python3.9"
-  role               = aws_iam_role.lambda_role.arn
-  timeout            = 180
+  function_name = "render_video"
+  package_type  = "Image"
+  image_uri     = "481665084477.dkr.ecr.us-east-2.amazonaws.com/render_video_repo@sha256:09bc3c104b58d49e3018790da83efaafdbf219ef5b2a989b35a8a4be1127646e"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 180
   environment {
     variables = {
       TARGET_BUCKET = var.s3_bucket_name
       FFMPEG_PATH   = "/opt/bin/ffmpeg"
     }
   }
-
-  layers = [
-    "arn:aws:lambda:us-east-2:481665084477:layer:moviepy_layer:2"
-  ]
 }
 
 #############################
@@ -86,17 +80,17 @@ resource "aws_lambda_function" "render_video" {
 #############################
 
 resource "aws_lambda_function" "notify_post" {
-  function_name      = "notify_post"
-  filename           = "${path.module}/artifacts/scripts/notify_post/notify_post.zip"
-  source_code_hash   = filebase64sha256("${path.module}/artifacts/scripts/notify_post/notify_post.zip")
-  handler            = "lambda_function.lambda_handler"
-  runtime            = "python3.9"
-  role               = aws_iam_role.lambda_role.arn
-  timeout            = 10
+  function_name    = "notify_post"
+  filename         = "${path.module}/artifacts/scripts/notify_post/notify_post.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/notify_post/notify_post.zip")
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
   environment {
     variables = {
       TEAMS_WEBHOOK_URL = var.teams_webhook_url,
-      TARGET_BUCKET   = var.s3_bucket_name
+      TARGET_BUCKET     = var.s3_bucket_name
     }
   }
 }
