@@ -111,8 +111,7 @@ def lambda_handler(event, context):
         color="yellow",
         size=(width, None),
         method="caption",
-    )
-    desc_clip = desc_clip.set_duration(duration_sec)
+    ).set_duration(duration_sec)
     subtitle_y = height - desc_clip.h - 10
     desc_clip = desc_clip.set_position(("center", subtitle_y))
 
@@ -122,8 +121,7 @@ def lambda_handler(event, context):
         color="white",
         size=(width, None),
         method="caption",
-    )
-    title_clip = title_clip.set_duration(duration_sec)
+    ).set_duration(duration_sec)
     title_y = subtitle_y - title_clip.h - 10
     title_clip = title_clip.set_position(("center", title_y))
 
