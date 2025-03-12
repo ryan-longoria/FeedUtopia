@@ -5,7 +5,7 @@ import uuid
 
 import boto3
 import requests
-from moviepy.editor import (ColorClip, CompositeVideoClip, ImageClip,
+from moviepy import (ColorClip, CompositeVideoClip, ImageClip,
                             TextClip, VideoFileClip)
 
 s3 = boto3.client("s3")
