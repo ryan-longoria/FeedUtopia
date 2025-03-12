@@ -10,6 +10,7 @@ import requests
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
+from moviepy.video.fx.resize import resize 
 
 s3 = boto3.client("s3")
 
@@ -86,19 +87,19 @@ def lambda_handler(event, context):
     duration_sec = 10
 
     if bg_local_path and os.path.exists(bg_local_path):
-        bg_clip = ImageClip(bg_local_path).resize((width, height)).set_duration(duration_sec)
+        bg_clip = ImageClip(bg_local_path).fx(resize, newsize=(width, height)).set_duration(duration_sec)
     else:
         bg_clip = ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
 
     transparent_clip = ImageClip(np.zeros((height, width, 4), dtype='uint8'), duration=duration_sec)
 
     if gradient_local_path and os.path.exists(gradient_local_path):
-        gradient_clip = ImageClip(gradient_local_path).resize((width, height)).set_duration(duration_sec)
+        gradient_clip = ImageClip(gradient_local_path).fx(resize, newsize=(width, height)).set_duration(duration_sec)
     else:
         gradient_clip = None
 
     if news_local_path and os.path.exists(news_local_path):
-        news_clip = VideoFileClip(news_local_path).set_duration(duration_sec).resize(width=200)
+        news_clip = VideoFileClip(news_local_path).set_duration(duration_sec).fx(resize, width=200)
         news_margin = 10
         news_clip = news_clip.set_position((news_margin, news_margin))
     else:
@@ -128,7 +129,7 @@ def lambda_handler(event, context):
     title_clip = title_clip.set_position(("center", title_y))
 
     if logo_local_path and os.path.exists(logo_local_path):
-        logo_clip = ImageClip(logo_local_path).set_duration(duration_sec).resize(width=100)
+        logo_clip = ImageClip(logo_local_path).set_duration(duration_sec).fx(resize, width=100)
         logo_margin = 10
         logo_clip = logo_clip.set_position(lambda t: (width - logo_clip.w - logo_margin, height - logo_clip.h - logo_margin))
     else:
