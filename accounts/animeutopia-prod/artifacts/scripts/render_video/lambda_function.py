@@ -169,4 +169,29 @@ def lambda_handler(event, context):
         clips_no_text_no_bg.append(news_clip)
     if logo_clip:
         clips_no_text_no_bg.append(logo_clip)
-    no_text_no_bg_clip = CompositeVideoClip(clips_no_text_no_bg, size=(wi
+    no_text_no_bg_clip = CompositeVideoClip(clips_no_text_no_bg, size=(width, height)).set_duration(duration_sec)
+
+    complete_local = "/tmp/anime_post_complete.mp4"
+    no_text_local = "/tmp/anime_post_no_text.mp4"
+    no_bg_local = "/tmp/anime_post_no_bg.mov"
+    no_text_no_bg_local = "/tmp/anime_post_no_text_no_bg.mov"
+
+    complete_clip.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
+    no_text_clip.write_videofile(no_text_local, fps=24, codec="libx264", audio=False)
+    no_bg_clip.write_videofile(no_bg_local, fps=24, codec="png", audio=False)
+    no_text_no_bg_clip.write_videofile(no_text_no_bg_local, fps=24, codec="png", audio=False)
+
+    s3.upload_file(complete_local, bucket_name, complete_key)
+    s3.upload_file(no_text_local, bucket_name, no_text_key)
+    s3.upload_file(no_bg_local, bucket_name, no_bg_key)
+    s3.upload_file(no_text_no_bg_local, bucket_name, no_text_no_bg_key)
+
+    return {
+        "status": "rendered",
+        "video_keys": {
+            "complete": complete_key,
+            "no_text": no_text_key,
+            "no_bg": no_bg_key,
+            "no_text_no_bg": no_text_no_bg_key,
+        },
+    }
