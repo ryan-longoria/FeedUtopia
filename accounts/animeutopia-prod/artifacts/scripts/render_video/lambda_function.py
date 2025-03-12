@@ -6,7 +6,7 @@ import uuid
 import boto3
 import requests
 from moviepy import (ColorClip, CompositeVideoClip, ImageClip,
-                            TextClip, VideoFileClip)
+                     TextClip, VideoFileClip)
 
 s3 = boto3.client("s3")
 
@@ -85,9 +85,9 @@ def lambda_handler(event, context):
     if bg_local_path and os.path.exists(bg_local_path):
         bg_clip = ImageClip(bg_local_path).resize((width, height)).set_duration(duration_sec)
     else:
-        bg_clip = ColorClip(size=(width, height), color=(0, 0, 0)).set_duration(duration_sec)
+        bg_clip = ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
 
-    transparent_clip = ColorClip(size=(width, height), color=(0, 0, 0)).set_duration(duration_sec).set_opacity(0)
+    transparent_clip = ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec).set_opacity(0)
 
     if gradient_local_path and os.path.exists(gradient_local_path):
         gradient_clip = ImageClip(gradient_local_path).resize((width, height)).set_duration(duration_sec)
