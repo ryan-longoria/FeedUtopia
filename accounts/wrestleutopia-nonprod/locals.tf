@@ -3,5 +3,5 @@
 ################################################################################
 
 locals {
-  project = "project-nonprod"
+  project = "wrestleutopia-nonprod"
 }

@@ -1,3 +1,3 @@
-bucket = "nonprod-project-backend-bucket"
-key    = "tfstate/project/terraform.tfstate"
+bucket = "nonprod-wrestleutopia-backend-bucket"
+key    = "tfstate/wrestleutopia/terraform.tfstate"
 region = "us-east-2"
