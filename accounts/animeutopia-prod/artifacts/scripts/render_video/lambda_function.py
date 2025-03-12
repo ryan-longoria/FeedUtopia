@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import uuid
+import numpy as np
 
 import boto3
 import requests
@@ -87,7 +88,7 @@ def lambda_handler(event, context):
     else:
         bg_clip = ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
 
-    transparent_clip = ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec).set_opacity(0)
+    transparent_clip = ImageClip(np.zeros((height, width, 4), dtype='uint8'), duration=duration_sec)
 
     if gradient_local_path and os.path.exists(gradient_local_path):
         gradient_clip = ImageClip(gradient_local_path).resize((width, height)).set_duration(duration_sec)
