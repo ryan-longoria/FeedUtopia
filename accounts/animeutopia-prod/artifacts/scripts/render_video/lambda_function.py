@@ -31,16 +31,13 @@ def lambda_handler(event, context):
     no_text_key = f"{folder}/anime_post_no_text.mp4"
     no_bg_key = f"{folder}/anime_post_no_bg.mov"
     no_text_no_bg_key = f"{folder}/anime_post_no_text_no_bg.mov"
-
     local_json = "/tmp/most_recent_post.json"
     s3.download_file(bucket_name, json_key, local_json)
     with open(local_json, "r", encoding="utf-8") as f:
         post_data = json.load(f)
-
     title_text = post_data.get("title", "No Title")
     description_text = post_data.get("description", "")
     image_path = post_data.get("image_path", None)
-
     bg_local_path = "/tmp/background.jpg"
     if image_path and image_path.startswith("http"):
         try:
@@ -56,7 +53,6 @@ def lambda_handler(event, context):
         except Exception as e:
             print("Failed to download image from S3:", e)
             bg_local_path = None
-
     logo_key = "artifacts/Logo.png"
     logo_local_path = "/tmp/Logo.png"
     try:
@@ -64,7 +60,6 @@ def lambda_handler(event, context):
     except Exception as e:
         print("Failed to download logo:", e)
         logo_local_path = None
-
     gradient_key = "artifacts/Black Gradient.png"
     gradient_local_path = "/tmp/Black_Gradient.png"
     try:
@@ -72,7 +67,6 @@ def lambda_handler(event, context):
     except Exception as e:
         print("Failed to download gradient:", e)
         gradient_local_path = None
-
     news_key = "artifacts/NEWS.mov"
     news_local_path = "/tmp/NEWS.mov"
     try:
@@ -80,10 +74,8 @@ def lambda_handler(event, context):
     except Exception as e:
         print("Failed to download news video:", e)
         news_local_path = None
-
     width, height = 1080, 1080
     duration_sec = 10
-
     if bg_local_path and os.path.exists(bg_local_path):
         bg_clip = (
             ImageClip(bg_local_path)
@@ -95,12 +87,10 @@ def lambda_handler(event, context):
             ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
             .with_duration(duration_sec)
         )
-
     transparent_clip = (
         ImageClip(np.zeros((height, width, 4), dtype="uint8"))
         .with_duration(duration_sec)
     )
-
     if gradient_local_path and os.path.exists(gradient_local_path):
         gradient_clip = (
             ImageClip(gradient_local_path)
@@ -109,7 +99,6 @@ def lambda_handler(event, context):
         )
     else:
         gradient_clip = None
-
     if news_local_path and os.path.exists(news_local_path):
         raw_news = VideoFileClip(news_local_path).with_duration(duration_sec)
         scale_news = 200 / raw_news.w
@@ -117,15 +106,14 @@ def lambda_handler(event, context):
         news_pos = (10, 10)
     else:
         news_clip = None
-
     title_font_size = dynamic_font_size(title_text, max_size=60, min_size=30, ideal_length=20)
     subtitle_font_size = dynamic_font_size(description_text, max_size=40, min_size=20, ideal_length=30)
-
     desc_clip = (
         TextClip(
             txt=description_text,
             fontsize=subtitle_font_size,
             color="yellow",
+            font="DejaVu-Sans",
             size=(width, None),
             method="caption",
         )
@@ -133,12 +121,12 @@ def lambda_handler(event, context):
     )
     subtitle_y = height - desc_clip.h - 10
     desc_clip = desc_clip.set_position(("center", subtitle_y))
-
     title_clip = (
         TextClip(
             txt=title_text,
             fontsize=title_font_size,
             color="white",
+            font="DejaVu-Sans",
             size=(width, None),
             method="caption",
         )
@@ -146,7 +134,6 @@ def lambda_handler(event, context):
     )
     title_y = subtitle_y - title_clip.h - 10
     title_clip = title_clip.set_position(("center", title_y))
-
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 100 / raw_logo.w
@@ -160,7 +147,6 @@ def lambda_handler(event, context):
         )
     else:
         logo_clip = None
-
     clips_complete = [bg_clip]
     if gradient_clip:
         clips_complete.append(gradient_clip)
@@ -173,7 +159,6 @@ def lambda_handler(event, context):
         CompositeVideoClip(clips_complete, size=(width, height))
         .with_duration(duration_sec)
     )
-
     clips_no_text = [bg_clip]
     if gradient_clip:
         clips_no_text.append(gradient_clip)
@@ -185,7 +170,6 @@ def lambda_handler(event, context):
         CompositeVideoClip(clips_no_text, size=(width, height))
         .with_duration(duration_sec)
     )
-
     clips_no_bg = [transparent_clip]
     if gradient_clip:
         clips_no_bg.append(gradient_clip)
@@ -198,7 +182,6 @@ def lambda_handler(event, context):
         CompositeVideoClip(clips_no_bg, size=(width, height))
         .with_duration(duration_sec)
     )
-
     clips_no_text_no_bg = [transparent_clip]
     if gradient_clip:
         clips_no_text_no_bg.append(gradient_clip)
@@ -210,22 +193,18 @@ def lambda_handler(event, context):
         CompositeVideoClip(clips_no_text_no_bg, size=(width, height))
         .with_duration(duration_sec)
     )
-
     complete_local = "/tmp/anime_post_complete.mp4"
     no_text_local = "/tmp/anime_post_no_text.mp4"
     no_bg_local = "/tmp/anime_post_no_bg.mov"
     no_text_no_bg_local = "/tmp/anime_post_no_text_no_bg.mov"
-
     complete_clip.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
     no_text_clip.write_videofile(no_text_local, fps=24, codec="libx264", audio=False)
     no_bg_clip.write_videofile(no_bg_local, fps=24, codec="png", audio=False)
     no_text_no_bg_clip.write_videofile(no_text_no_bg_local, fps=24, codec="png", audio=False)
-
     s3.upload_file(complete_local, bucket_name, complete_key)
     s3.upload_file(no_text_local, bucket_name, no_text_key)
     s3.upload_file(no_bg_local, bucket_name, no_bg_key)
     s3.upload_file(no_text_no_bg_local, bucket_name, no_text_no_bg_key)
-
     return {
         "status": "rendered",
         "video_keys": {
