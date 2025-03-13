@@ -116,7 +116,7 @@ def extract_core_title_and_description(full_title, anime_titles):
     if match_result:
         title, score = match_result
         logger.info("Matching '%s' with AniList titles: '%s' (Score: %d)", core_title, title, score)
-        if score > 80:
+        if score > 80 and not (title.lower().startswith(core_title.lower()) and len(title) > len(core_title)):
             core_title = title
     else:
         logger.info("No fuzzy match found for: %s", core_title)
