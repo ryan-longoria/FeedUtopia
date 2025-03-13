@@ -26,8 +26,10 @@ def dynamic_font_size(text, max_size, min_size, ideal_length):
 
 def measure_text_width(text, font_path, font_size):
     font = ImageFont.truetype(font_path, font_size)
-    width, _ = font.getsize(text)
+    bbox = font.getbbox(text)
+    width = bbox[2] - bbox[0]
     return width
+
 
 
 def dynamic_split(text, font_path, font_size, max_width):
