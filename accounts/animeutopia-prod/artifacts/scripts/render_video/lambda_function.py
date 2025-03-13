@@ -168,7 +168,7 @@ def lambda_handler(event, context):
     title_top, title_bottom = dynamic_split(title_text.upper(), font_path, top_font_size, available_width)
     subtitle_top, subtitle_bottom = dynamic_split(description_text.upper(), font_path, subtitle_font_size, available_width)
 
-    top_clip = (TextClip(text=title_top,
+    top_clip = (TextClip(text=title_top + "\n",
                          font_size=top_font_size,
                          color="#ec008c",
                          font=font_path,
