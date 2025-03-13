@@ -27,11 +27,6 @@ variable "environment" {
   default     = "nonprod"
 }
 
-variable "ec2_instance_id" {
-  description = "The ID of the Windows EC2 instance with Photoshop installed."
-  type        = string
-}
-
 variable "terraform_backend_bucket" {
   description = "The S3 bucket used to store Terraform state."
   type        = string
