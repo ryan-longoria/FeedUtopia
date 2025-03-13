@@ -1,10 +1,10 @@
-# FeedMatrix
+# FeedUtopia
 
-FeedMatrix is my modular automation platform designed to streamline the creation and distribution of dynamic content across multiple social media profiles. The first implementation focuses on an Anime News Instagram account (AnimeUtopia), but the architecture is built to easily extend to additional accounts and platforms in the future. I'm currently training my own machine learning model to generate content such as memes.
+FeedUtopia is my modular automation platform designed to streamline the creation and distribution of dynamic content across multiple social media profiles. The first implementation focuses on an Anime News Instagram account (AnimeUtopia), but the architecture is built to easily extend to additional accounts and platforms in the future. I'm currently training my own machine learning model to generate content such as memes.
 
 ## Overview
 
-FeedMatrix automates the entire content pipeline from detecting new anime news to rendering a video post using a combination of scripting, Adobe After Effects automation, and AWS cloud services. The system performs the following steps:
+FeedUtopia automates the entire content pipeline from detecting new anime news to rendering a video post using a combination of scripting, Adobe After Effects automation, and AWS cloud services. The system performs the following steps:
 
 1. **RSS Feed Monitoring:** A batch script fetches an RSS feed (from Anime News Network) and checks for new anime-related content.
 2. **Content Extraction & Processing:** A Python script extracts key details (title, description) from the feed and uses the AniList API to verify anime titles and fetch cover images.
@@ -24,7 +24,7 @@ The project leverages AWS and infrastructure-as-code (Terraform) to manage its c
 ## Project Structure
 
 ```
-FeedMatrix/                     # Root
+FeedUtopia/                     # Root
 ├── .gitignore                  # Git ignore file
 ├── atlantis.yaml               # Atlantis CI/CD configuration for Terraform
 ├── LICENSE                     # Project license
