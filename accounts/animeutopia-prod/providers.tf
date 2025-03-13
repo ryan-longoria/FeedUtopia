@@ -13,6 +13,6 @@ provider "aws" {
   }
 
   assume_role {
-    role_arn = "arn:aws:iam::${var.aws_account_ids.animeutopia}:role/TerraformExecutionRole"
+    role_arn = "arn:aws:iam::481665084477:role/TerraformExecutionRole"
   }
 }
