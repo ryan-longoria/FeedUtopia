@@ -2,16 +2,13 @@ import datetime
 import json
 import os
 import uuid
-
 import numpy as np
 import boto3
 import requests
-
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import moviepy.video.fx as vfx
-
 
 s3 = boto3.client("s3")
 
@@ -117,8 +114,7 @@ def lambda_handler(event, context):
         raw_news = VideoFileClip(news_local_path).with_duration(duration_sec)
         scale_news = 200 / raw_news.w
         news_clip = raw_news.with_effects([vfx.Resize(scale_news)])
-        news_margin = 10
-        news_clip = news_clip.set_position((news_margin, news_margin))
+        news_pos = (10, 10)
     else:
         news_clip = None
 
@@ -169,7 +165,7 @@ def lambda_handler(event, context):
     if gradient_clip:
         clips_complete.append(gradient_clip)
     if news_clip:
-        clips_complete.append(news_clip)
+        clips_complete.append((news_clip, news_pos))
     clips_complete.extend([title_clip, desc_clip])
     if logo_clip:
         clips_complete.append(logo_clip)
@@ -182,7 +178,7 @@ def lambda_handler(event, context):
     if gradient_clip:
         clips_no_text.append(gradient_clip)
     if news_clip:
-        clips_no_text.append(news_clip)
+        clips_no_text.append((news_clip, news_pos))
     if logo_clip:
         clips_no_text.append(logo_clip)
     no_text_clip = (
@@ -194,7 +190,7 @@ def lambda_handler(event, context):
     if gradient_clip:
         clips_no_bg.append(gradient_clip)
     if news_clip:
-        clips_no_bg.append(news_clip)
+        clips_no_bg.append((news_clip, news_pos))
     clips_no_bg.extend([title_clip, desc_clip])
     if logo_clip:
         clips_no_bg.append(logo_clip)
@@ -207,7 +203,7 @@ def lambda_handler(event, context):
     if gradient_clip:
         clips_no_text_no_bg.append(gradient_clip)
     if news_clip:
-        clips_no_text_no_bg.append(news_clip)
+        clips_no_text_no_bg.append((news_clip, news_pos))
     if logo_clip:
         clips_no_text_no_bg.append(logo_clip)
     no_text_no_bg_clip = (
