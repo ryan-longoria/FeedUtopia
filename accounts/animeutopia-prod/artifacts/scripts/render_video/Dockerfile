@@ -12,8 +12,8 @@ ENV FFMPEG_PATH="/opt/bin/ffmpeg"
 
 RUN yum install -y fontconfig wget && \
     mkdir -p /usr/share/fonts/truetype/msttcorefonts && \
-    wget -O /tmp/ARIBLK.TTF https://github.com/yourusername/yourrepo/raw/main/ARIBLK.TTF && \
-    mv /tmp/ARIBLK.TTF /usr/share/fonts/truetype/msttcorefonts/ARIBLK.TTF && \
+    wget -O /tmp/ariblk.ttf https://raw.githubusercontent.com/ryan-longoria/FeedMatrix/main/accounts/animeutopia-prod/artifacts/adobe/ariblk.ttf && \
+    mv /tmp/ariblk.ttf /usr/share/fonts/truetype/msttcorefonts/ariblk.ttf && \
     fc-cache -f -v
 
 COPY lambda_function.py /var/task
