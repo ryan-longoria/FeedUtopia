@@ -135,7 +135,7 @@ def lambda_handler(event, context):
     subtitle_font_size = dynamic_font_size(description_text, max_size=40, min_size=20, ideal_length=30)
     desc_clip = (
         TextClip(
-            text=description_text,
+            text=description_text.upper(),
             font_size=subtitle_font_size,
             color="white",
             font=font_path,
