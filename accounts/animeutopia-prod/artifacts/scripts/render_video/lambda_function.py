@@ -10,9 +10,11 @@ import requests
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
-from moviepy.video.fx.all import resize
+
+import moviepy.video.fx as vfx
 
 s3 = boto3.client("s3")
+
 
 def dynamic_font_size(text, max_size, min_size, ideal_length):
     length = len(text)
@@ -21,6 +23,7 @@ def dynamic_font_size(text, max_size, min_size, ideal_length):
     factor = (max_size - min_size) / ideal_length
     new_size = max_size - (length - ideal_length) * factor
     return int(new_size) if new_size > min_size else min_size
+
 
 def lambda_handler(event, context):
     bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
@@ -85,19 +88,37 @@ def lambda_handler(event, context):
     duration_sec = 10
 
     if bg_local_path and os.path.exists(bg_local_path):
-        bg_clip = ImageClip(bg_local_path).fx(resize, newsize=(width, height)).set_duration(duration_sec)
+        bg_clip = (
+            ImageClip(bg_local_path)
+            .with_effects([vfx.Resize(newsize=(width, height))])
+            .with_duration(duration_sec)
+        )
     else:
-        bg_clip = ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
+        bg_clip = (
+            ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
+            .with_duration(duration_sec)
+        )
 
-    transparent_clip = ImageClip(np.zeros((height, width, 4), dtype='uint8'), duration=duration_sec)
+    transparent_clip = (
+        ImageClip(np.zeros((height, width, 4), dtype="uint8"))
+        .with_duration(duration_sec)
+    )
 
     if gradient_local_path and os.path.exists(gradient_local_path):
-        gradient_clip = ImageClip(gradient_local_path).fx(resize, newsize=(width, height)).set_duration(duration_sec)
+        gradient_clip = (
+            ImageClip(gradient_local_path)
+            .with_effects([vfx.Resize(newsize=(width, height))])
+            .with_duration(duration_sec)
+        )
     else:
         gradient_clip = None
 
     if news_local_path and os.path.exists(news_local_path):
-        news_clip = VideoFileClip(news_local_path).set_duration(duration_sec).fx(resize, width=200)
+        news_clip = (
+            VideoFileClip(news_local_path)
+            .with_duration(duration_sec)
+            .with_effects([vfx.Resize(width=200)])
+        )
         news_margin = 10
         news_clip = news_clip.set_position((news_margin, news_margin))
     else:
@@ -106,30 +127,42 @@ def lambda_handler(event, context):
     title_font_size = dynamic_font_size(title_text, max_size=60, min_size=30, ideal_length=20)
     subtitle_font_size = dynamic_font_size(description_text, max_size=40, min_size=20, ideal_length=30)
 
-    desc_clip = TextClip(
-        txt=description_text,
-        fontsize=subtitle_font_size,
-        color="yellow",
-        size=(width, None),
-        method="caption",
-    ).set_duration(duration_sec)
+    desc_clip = (
+        TextClip(
+            txt=description_text,
+            fontsize=subtitle_font_size,
+            color="yellow",
+            size=(width, None),
+            method="caption",
+        )
+        .with_duration(duration_sec)
+    )
     subtitle_y = height - desc_clip.h - 10
     desc_clip = desc_clip.set_position(("center", subtitle_y))
 
-    title_clip = TextClip(
-        txt=title_text,
-        fontsize=title_font_size,
-        color="white",
-        size=(width, None),
-        method="caption",
-    ).set_duration(duration_sec)
+    title_clip = (
+        TextClip(
+            txt=title_text,
+            fontsize=title_font_size,
+            color="white",
+            size=(width, None),
+            method="caption",
+        )
+        .with_duration(duration_sec)
+    )
     title_y = subtitle_y - title_clip.h - 10
     title_clip = title_clip.set_position(("center", title_y))
 
     if logo_local_path and os.path.exists(logo_local_path):
-        logo_clip = ImageClip(logo_local_path).set_duration(duration_sec).fx(resize, width=100)
+        logo_clip = (
+            ImageClip(logo_local_path)
+            .with_duration(duration_sec)
+            .with_effects([vfx.Resize(width=100)])
+        )
         logo_margin = 10
-        logo_clip = logo_clip.set_position(lambda t: (width - logo_clip.w - logo_margin, height - logo_clip.h - logo_margin))
+        logo_clip = logo_clip.set_position(
+            lambda t: (width - logo_clip.w - logo_margin, height - logo_clip.h - logo_margin)
+        )
     else:
         logo_clip = None
 
@@ -141,7 +174,10 @@ def lambda_handler(event, context):
     clips_complete.extend([title_clip, desc_clip])
     if logo_clip:
         clips_complete.append(logo_clip)
-    complete_clip = CompositeVideoClip(clips_complete, size=(width, height)).set_duration(duration_sec)
+    complete_clip = (
+        CompositeVideoClip(clips_complete, size=(width, height))
+        .with_duration(duration_sec)
+    )
 
     clips_no_text = [bg_clip]
     if gradient_clip:
@@ -150,7 +186,10 @@ def lambda_handler(event, context):
         clips_no_text.append(news_clip)
     if logo_clip:
         clips_no_text.append(logo_clip)
-    no_text_clip = CompositeVideoClip(clips_no_text, size=(width, height)).set_duration(duration_sec)
+    no_text_clip = (
+        CompositeVideoClip(clips_no_text, size=(width, height))
+        .with_duration(duration_sec)
+    )
 
     clips_no_bg = [transparent_clip]
     if gradient_clip:
@@ -160,7 +199,10 @@ def lambda_handler(event, context):
     clips_no_bg.extend([title_clip, desc_clip])
     if logo_clip:
         clips_no_bg.append(logo_clip)
-    no_bg_clip = CompositeVideoClip(clips_no_bg, size=(width, height)).set_duration(duration_sec)
+    no_bg_clip = (
+        CompositeVideoClip(clips_no_bg, size=(width, height))
+        .with_duration(duration_sec)
+    )
 
     clips_no_text_no_bg = [transparent_clip]
     if gradient_clip:
@@ -169,7 +211,10 @@ def lambda_handler(event, context):
         clips_no_text_no_bg.append(news_clip)
     if logo_clip:
         clips_no_text_no_bg.append(logo_clip)
-    no_text_no_bg_clip = CompositeVideoClip(clips_no_text_no_bg, size=(width, height)).set_duration(duration_sec)
+    no_text_no_bg_clip = (
+        CompositeVideoClip(clips_no_text_no_bg, size=(width, height))
+        .with_duration(duration_sec)
+    )
 
     complete_local = "/tmp/anime_post_complete.mp4"
     no_text_local = "/tmp/anime_post_no_text.mp4"
