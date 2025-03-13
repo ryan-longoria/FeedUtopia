@@ -173,14 +173,14 @@ def lambda_handler(event, context):
                          color="#ec008c",
                          font=font_path,
                          size=(available_width, None),
-                         method="label")
+                         method="caption")
                 .with_duration(duration_sec))
     bottom_clip = (TextClip(text=title_bottom,
                             font_size=bottom_font_size,
                             color="#ec008c",
                             font=font_path,
                             size=(available_width, None),
-                            method="label")
+                            method="caption")
                    .with_duration(duration_sec))
     desc_top_clip = (TextClip(text=subtitle_top,
                               font_size=subtitle_font_size,
@@ -197,9 +197,9 @@ def lambda_handler(event, context):
                                  method="caption")
                         .with_duration(duration_sec))
 
-    subtitle_bottom_y = height - 40 - desc_bottom_clip.h
+    subtitle_bottom_y = height - 20 - desc_bottom_clip.h
     subtitle_top_y = subtitle_bottom_y - 10 - desc_top_clip.h
-    bottom_title_y = subtitle_top_y - 10 - bottom_clip.h
+    bottom_title_y = subtitle_top_y - 12 - bottom_clip.h
     top_title_y = bottom_title_y - 10 - top_clip.h
 
     top_clip = top_clip.with_position((side_margin, top_title_y))
