@@ -133,7 +133,7 @@ def lambda_handler(event, context):
         .with_duration(duration_sec)
     )
     subtitle_y = height - desc_clip.h - 10
-    desc_clip = desc_clip.set_position(("center", subtitle_y))
+    desc_clip = desc_clip.with_position(("center", subtitle_y))
 
     title_clip = (
         TextClip(
@@ -147,7 +147,7 @@ def lambda_handler(event, context):
         .with_duration(duration_sec)
     )
     title_y = subtitle_y - title_clip.h - 10
-    title_clip = title_clip.set_position(("center", title_y))
+    title_clip = title_clip.with_position(("center", title_y))
 
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
@@ -157,7 +157,7 @@ def lambda_handler(event, context):
             .with_duration(duration_sec)
         )
         logo_margin = 10
-        logo_clip = logo_clip.set_position(
+        logo_clip = logo_clip.with_position(
             lambda t: (width - logo_clip.w - logo_margin, height - logo_clip.h - logo_margin)
         )
     else:
