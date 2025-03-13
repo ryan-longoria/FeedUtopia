@@ -137,7 +137,7 @@ def lambda_handler(event, context):
         TextClip(
             text=description_text,
             font_size=subtitle_font_size,
-            color="yellow",
+            color="white",
             font=font_path,
             size=(width, None),
             method="caption"
