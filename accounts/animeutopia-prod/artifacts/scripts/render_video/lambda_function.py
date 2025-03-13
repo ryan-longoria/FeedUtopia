@@ -27,6 +27,14 @@ def remove_white(frame):
     alpha = np.where(np.all(frame > threshold, axis=-1), 0, 255).astype('uint8')
     return np.dstack((frame, alpha))
 
+def split_title(title_text):
+    words = title_text.split()
+    if len(words) < 2:
+        return title_text, ""
+    split_index = len(words) // 2
+    top_text = " ".join(words[:split_index])
+    bottom_text = " ".join(words[split_index:])
+    return top_text, bottom_text
 
 def lambda_handler(event, context):
     bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
@@ -124,9 +132,7 @@ def lambda_handler(event, context):
     else:
         news_clip = None
 
-    title_font_size = dynamic_font_size(title_text, max_size=60, min_size=30, ideal_length=20)
     subtitle_font_size = dynamic_font_size(description_text, max_size=40, min_size=20, ideal_length=30)
-
     desc_clip = (
         TextClip(
             text=description_text,
@@ -135,25 +141,49 @@ def lambda_handler(event, context):
             font=font_path,
             size=(width, None),
             method="caption",
+            align="center"
         )
         .with_duration(duration_sec)
     )
     subtitle_y = height - desc_clip.h - 10
     desc_clip = desc_clip.with_position(("center", subtitle_y))
 
-    title_clip = (
+    top_text, bottom_text = split_title(title_text)
+    top_font_size = dynamic_font_size(top_text, max_size=60, min_size=30, ideal_length=20)
+    bottom_font_size = top_font_size - 10 if top_font_size - 10 > 0 else top_font_size
+
+    top_clip = (
         TextClip(
-            text=title_text,
-            font_size=title_font_size,
+            text=top_text,
+            font_size=top_font_size,
             color="white",
             font=font_path,
             size=(width, None),
             method="caption",
+            align="center"
         )
         .with_duration(duration_sec)
     )
-    title_y = subtitle_y - title_clip.h - 10
-    title_clip = title_clip.with_position(("center", title_y))
+
+    bottom_clip = (
+        TextClip(
+            text=bottom_text,
+            font_size=bottom_font_size,
+            color="white",
+            font=font_path,
+            size=(width, None),
+            method="caption",
+            align="center"
+        )
+        .with_duration(duration_sec)
+    )
+
+    spacing = 10
+    bottom_title_y = subtitle_y - bottom_clip.h - spacing
+    top_title_y = bottom_title_y - top_clip.h - spacing
+
+    top_clip = top_clip.with_position(("center", top_title_y))
+    bottom_clip = bottom_clip.with_position(("center", bottom_title_y))
 
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
@@ -174,7 +204,7 @@ def lambda_handler(event, context):
         clips_complete.append(gradient_clip)
     if news_clip:
         clips_complete.append(news_clip)
-    clips_complete.extend([title_clip, desc_clip])
+    clips_complete.extend([top_clip, bottom_clip, desc_clip])
     if logo_clip:
         clips_complete.append(logo_clip)
     complete_clip = (
@@ -199,7 +229,7 @@ def lambda_handler(event, context):
         clips_no_bg.append(gradient_clip)
     if news_clip:
         clips_no_bg.append(news_clip)
-    clips_no_bg.extend([title_clip, desc_clip])
+    clips_no_bg.extend([top_clip, bottom_clip, desc_clip])
     if logo_clip:
         clips_no_bg.append(logo_clip)
     no_bg_clip = (
