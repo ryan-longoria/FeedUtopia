@@ -3,7 +3,6 @@
 ################################################################################
 
 provider "aws" {
-  alias  = "sharedservices"
   region = var.aws_region
 
   default_tags {

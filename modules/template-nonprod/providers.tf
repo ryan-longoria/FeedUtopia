@@ -3,7 +3,6 @@
 ################################################################################
 
 provider "aws" {
-  alias  = "project"
   region = var.aws_region
 
   default_tags {
