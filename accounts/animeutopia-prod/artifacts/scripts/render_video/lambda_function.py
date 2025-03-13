@@ -31,7 +31,7 @@ def split_title(title_text):
     words = title_text.split()
     if len(words) < 2:
         return title_text, ""
-    split_index = len(words) // 2
+    split_index = (len(words) + 1) // 2
     top_text = " ".join(words[:split_index])
     bottom_text = " ".join(words[split_index:])
     return top_text, bottom_text
@@ -174,7 +174,6 @@ def lambda_handler(event, context):
         )
         .with_duration(duration_sec)
     )
-
 
     spacing = 10
     bottom_title_y = subtitle_y - bottom_clip.h - spacing
