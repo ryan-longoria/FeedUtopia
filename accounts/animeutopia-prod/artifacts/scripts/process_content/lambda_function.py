@@ -6,7 +6,7 @@ import logging
 import requests
 from fuzzywuzzy import fuzz, process
 
-ANILIST_API_URL = "https://graphql.anilist.com"
+ANILIST_API_URL = "https://graphql.anilist.co"
 IMAGE_MAGICK_EXE = os.environ.get("IMAGE_MAGICK_EXE", "/bin/magick")
 
 logger = logging.getLogger()
