@@ -189,12 +189,8 @@ def lambda_handler(event, context):
             raw_logo.with_effects([vfx.Resize(scale_logo)])
             .with_duration(duration_sec)
         )
-        logo_margin = 10
-        logo_clip = logo_clip.with_position(
-            lambda t: (width - logo_clip.w - logo_margin, height - logo_clip.h - logo_margin)
-        )
-    else:
-        logo_clip = None
+        logo_clip = logo_clip.with_position((width - logo_clip.w, height - logo_clip.h))
+
 
     clips_complete = [bg_clip]
     if gradient_clip:
