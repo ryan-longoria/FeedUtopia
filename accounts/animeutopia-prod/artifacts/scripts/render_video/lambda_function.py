@@ -12,7 +12,7 @@ import moviepy.video.fx as vfx
 
 s3 = boto3.client("s3")
 
-font_path = "/usr/share/fonts/truetype/msttcorefonts/ARIBLK.TTF"
+font_path = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
 
 def dynamic_font_size(text, max_size, min_size, ideal_length):
     length = len(text)
