@@ -135,7 +135,7 @@ def lambda_handler(event, context):
     subtitle_font_size = dynamic_font_size(description_text, max_size=40, min_size=20, ideal_length=30)
     desc_clip = (
         TextClip(
-            text=description_text.upper(),
+            text=description_text.upper() + "\n",
             font_size=subtitle_font_size,
             color="white",
             font=font_path,
@@ -144,7 +144,7 @@ def lambda_handler(event, context):
         )
         .with_duration(duration_sec)
     )
-    subtitle_y = height - desc_clip.h - 10
+    subtitle_y = height - desc_clip.h - 20
     desc_clip = desc_clip.with_position(("center", subtitle_y))
 
     top_text, bottom_text = split_title(title_text)
@@ -191,14 +191,13 @@ def lambda_handler(event, context):
         )
         logo_clip = logo_clip.with_position((width - logo_clip.w, height - logo_clip.h))
 
-
     clips_complete = [bg_clip]
     if gradient_clip:
         clips_complete.append(gradient_clip)
     if news_clip:
         clips_complete.append(news_clip)
     clips_complete.extend([top_clip, bottom_clip, desc_clip])
-    if logo_clip:
+    if logo_local_path and os.path.exists(logo_local_path):
         clips_complete.append(logo_clip)
     complete_clip = (
         CompositeVideoClip(clips_complete, size=(width, height))
@@ -210,7 +209,7 @@ def lambda_handler(event, context):
         clips_no_text.append(gradient_clip)
     if news_clip:
         clips_no_text.append(news_clip)
-    if logo_clip:
+    if logo_local_path and os.path.exists(logo_local_path):
         clips_no_text.append(logo_clip)
     no_text_clip = (
         CompositeVideoClip(clips_no_text, size=(width, height))
@@ -223,7 +222,7 @@ def lambda_handler(event, context):
     if news_clip:
         clips_no_bg.append(news_clip)
     clips_no_bg.extend([top_clip, bottom_clip, desc_clip])
-    if logo_clip:
+    if logo_local_path and os.path.exists(logo_local_path):
         clips_no_bg.append(logo_clip)
     no_bg_clip = (
         CompositeVideoClip(clips_no_bg, size=(width, height))
@@ -235,7 +234,7 @@ def lambda_handler(event, context):
         clips_no_text_no_bg.append(gradient_clip)
     if news_clip:
         clips_no_text_no_bg.append(news_clip)
-    if logo_clip:
+    if logo_local_path and os.path.exists(logo_local_path):
         clips_no_text_no_bg.append(logo_clip)
     no_text_no_bg_clip = (
         CompositeVideoClip(clips_no_text_no_bg, size=(width, height))
