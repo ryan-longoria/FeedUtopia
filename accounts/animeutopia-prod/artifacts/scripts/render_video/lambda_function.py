@@ -149,7 +149,7 @@ def lambda_handler(event, context):
     base_margin = 20
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
-        scale_logo = 200 / raw_logo.w
+        scale_logo = 150 / raw_logo.w
         logo_clip = (raw_logo.with_effects([vfx.Resize(scale_logo)])
                      .with_duration(duration_sec))
         logo_clip = logo_clip.with_position((width - logo_clip.w - base_margin, height - logo_clip.h - base_margin))
