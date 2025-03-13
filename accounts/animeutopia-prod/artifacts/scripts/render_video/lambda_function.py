@@ -146,7 +146,7 @@ def lambda_handler(event, context):
     else:
         news_clip = None
 
-    base_margin = 20
+    base_margin = 15
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
