@@ -1,77 +1,104 @@
 version: 3
 
 workflows:
+  ########################################################################
+  # animeutopia-nonprod
+  ########################################################################
   animeutopia-nonprod:
     plan:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
+
         - init:
-            extra_args: ["--backend-config", "backends/nonprod-ue2-animeutopia.backend.tfvars", "--reconfigure"]
+            extra_args:
+              - "--backend-config"
+              - "backends/nonprod-ue2-animeutopia.backend.tfvars"
+              - "--reconfigure"
+
         - plan:
             extra_args:
               - "-var-file=tfvars/nonprod-ue2-animeutopia.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-animeutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-multiaccounts.tfvars"
+
     apply:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - apply:
             extra_args:
               - "-var-file=tfvars/nonprod-ue2-animeutopia.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-animeutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-multiaccounts.tfvars"
 
+  ########################################################################
+  # animeutopia-prod
+  ########################################################################
   animeutopia-prod:
     plan:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - init:
-            extra_args: ["--backend-config", "backends/prod-ue2-animeutopia.backend.tfvars", "--reconfigure"]
+            extra_args:
+              - "--backend-config"
+              - "backends/prod-ue2-animeutopia.backend.tfvars"
+              - "--reconfigure"
         - plan:
             extra_args:
               - "-var-file=tfvars/prod-ue2-animeutopia.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/prod-ue2-animeutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
     apply:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - apply:
             extra_args:
               - "-var-file=tfvars/prod-ue2-animeutopia.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/prod-ue2-animeutopia.tfvars"
-  
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+
+  ########################################################################
+  # sharedservices-nonprod
+  ########################################################################
   sharedservices-nonprod:
     plan:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - init:
-            extra_args: ["--backend-config", "backends/nonprod-sharedservices.backend.tfvars", "--reconfigure"]
+            extra_args:
+              - "--backend-config"
+              - "backends/nonprod-sharedservices.backend.tfvars"
+              - "--reconfigure"
         - plan:
             extra_args:
               - "-var-file=tfvars/nonprod-ue2-sharedservices.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-sharedservices.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-multiaccounts.tfvars"
     apply:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - apply:
             extra_args:
               - "-var-file=tfvars/nonprod-ue2-sharedservices.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-sharedservices.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-multiaccounts.tfvars"
 
+  ########################################################################
+  # sharedservices-prod
+  ########################################################################
   sharedservices-prod:
     plan:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - init:
-            extra_args: ["--backend-config", "backends/prod-sharedservices.backend.tfvars", "--reconfigure"]
+            extra_args:
+              - "--backend-config"
+              - "backends/prod-sharedservices.backend.tfvars"
+              - "--reconfigure"
         - plan:
             extra_args:
               - "-var-file=tfvars/prod-ue2-sharedservices.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/prod-ue2-sharedservices.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
     apply:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - apply:
             extra_args:
               - "-var-file=tfvars/prod-ue2-sharedservices.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/prod-ue2-sharedservices.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
 projects:
   - name: animeutopia-nonprod
@@ -95,7 +122,7 @@ projects:
     apply_requirements: [mergeable, undiverged]
     repo_locks:
       mode: on_plan
-  
+
   - name: sharedservices-nonprod
     workflow: sharedservices-nonprod
     dir: accounts/sharedservices-nonprod
