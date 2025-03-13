@@ -155,7 +155,7 @@ def lambda_handler(event, context):
         TextClip(
             text=top_text,
             font_size=top_font_size,
-            color="white",
+            color="#ec008c",
             font=font_path,
             size=(width, None),
             method="caption"
@@ -167,13 +167,14 @@ def lambda_handler(event, context):
         TextClip(
             text=bottom_text,
             font_size=bottom_font_size,
-            color="white",
+            color="#ec008c",
             font=font_path,
             size=(width, None),
             method="caption"
         )
         .with_duration(duration_sec)
     )
+
 
     spacing = 10
     bottom_title_y = subtitle_y - bottom_clip.h - spacing
