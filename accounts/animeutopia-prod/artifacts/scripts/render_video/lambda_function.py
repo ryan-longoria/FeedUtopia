@@ -12,6 +12,7 @@ import moviepy.video.fx as vfx
 
 s3 = boto3.client("s3")
 
+font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 def dynamic_font_size(text, max_size, min_size, ideal_length):
     length = len(text)
@@ -20,7 +21,6 @@ def dynamic_font_size(text, max_size, min_size, ideal_length):
     factor = (max_size - min_size) / ideal_length
     new_size = max_size - (length - ideal_length) * factor
     return int(new_size) if new_size > min_size else min_size
-
 
 def lambda_handler(event, context):
     bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
@@ -31,16 +31,16 @@ def lambda_handler(event, context):
     no_text_key = f"{folder}/anime_post_no_text.mp4"
     no_bg_key = f"{folder}/anime_post_no_bg.mov"
     no_text_no_bg_key = f"{folder}/anime_post_no_text_no_bg.mov"
-
+    
     local_json = "/tmp/most_recent_post.json"
     s3.download_file(bucket_name, json_key, local_json)
     with open(local_json, "r", encoding="utf-8") as f:
         post_data = json.load(f)
-
+    
     title_text = post_data.get("title", "No Title")
     description_text = post_data.get("description", "")
     image_path = post_data.get("image_path", None)
-
+    
     bg_local_path = "/tmp/background.jpg"
     if image_path and image_path.startswith("http"):
         try:
@@ -126,7 +126,7 @@ def lambda_handler(event, context):
             text=description_text,
             font_size=subtitle_font_size,
             color="yellow",
-            font="DejaVu-Sans",
+            font=font_path,
             size=(width, None),
             method="caption",
         )
@@ -140,7 +140,7 @@ def lambda_handler(event, context):
             text=title_text,
             font_size=title_font_size,
             color="white",
-            font="DejaVu-Sans",
+            font=font_path,
             size=(width, None),
             method="caption",
         )
