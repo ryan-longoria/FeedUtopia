@@ -12,8 +12,6 @@ import moviepy.video.fx as vfx
 
 s3 = boto3.client("s3")
 
-font_path = "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"
-
 def dynamic_font_size(text, max_size, min_size, ideal_length):
     length = len(text)
     if length <= ideal_length:
@@ -138,7 +136,7 @@ def lambda_handler(event, context):
             text=description_text.upper(),
             font_size=subtitle_font_size,
             color="white",
-            font=font_path,
+            font="Arial-Black",
             size=(width, None),
             method="caption"
         )
@@ -156,7 +154,7 @@ def lambda_handler(event, context):
             text=top_text,
             font_size=top_font_size,
             color="#ec008c",
-            font=font_path,
+            font="Arial-Black",
             size=(width, None),
             method="caption"
         )
