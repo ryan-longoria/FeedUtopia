@@ -132,56 +132,9 @@ def lambda_handler(event, context):
     else:
         news_clip = None
 
-    subtitle_font_size = dynamic_font_size(description_text, max_size=40, min_size=20, ideal_length=30)
-    desc_clip = (
-        TextClip(
-            text=description_text.upper() + "\n",
-            font_size=subtitle_font_size,
-            color="white",
-            font=font_path,
-            size=(width, None),
-            method="caption"
-        )
-        .with_duration(duration_sec)
-    )
-    subtitle_y = height - desc_clip.h - 20
-    desc_clip = desc_clip.with_position(("center", subtitle_y))
-
     top_text, bottom_text = split_title(title_text)
-    top_font_size = dynamic_font_size(top_text, max_size=60, min_size=30, ideal_length=20)
-    bottom_font_size = top_font_size - 10 if top_font_size - 10 > 0 else top_font_size
 
-    top_clip = (
-        TextClip(
-            text=top_text,
-            font_size=top_font_size,
-            color="#ec008c",
-            font=font_path,
-            size=(width, None),
-            method="caption"
-        )
-        .with_duration(duration_sec)
-    )
-
-    bottom_clip = (
-        TextClip(
-            text=bottom_text,
-            font_size=bottom_font_size,
-            color="#ec008c",
-            font=font_path,
-            size=(width, None),
-            method="caption"
-        )
-        .with_duration(duration_sec)
-    )
-
-    spacing = 10
-    bottom_title_y = subtitle_y - bottom_clip.h - spacing
-    top_title_y = bottom_title_y - top_clip.h - spacing
-
-    top_clip = top_clip.with_position(("center", top_title_y))
-    bottom_clip = bottom_clip.with_position(("center", bottom_title_y))
-
+    base_margin = 20
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 200 / raw_logo.w
@@ -189,7 +142,53 @@ def lambda_handler(event, context):
             raw_logo.with_effects([vfx.Resize(scale_logo)])
             .with_duration(duration_sec)
         )
-        logo_clip = logo_clip.with_position((width - logo_clip.w, height - logo_clip.h))
+        logo_clip = logo_clip.with_position((base_margin, height - logo_clip.h - base_margin))
+        side_margin = max(logo_clip.w + base_margin, base_margin)
+    else:
+        logo_clip = None
+        side_margin = base_margin
+
+    available_width = width - (2 * side_margin)
+
+    top_font_size = dynamic_font_size(top_text, max_size=60, min_size=30, ideal_length=20)
+    bottom_font_size = top_font_size - 10 if top_font_size - 10 > 0 else top_font_size
+    subtitle_font_size = dynamic_font_size(description_text, max_size=40, min_size=20, ideal_length=30)
+
+    top_clip = TextClip(
+        text=top_text,
+        font_size=top_font_size,
+        color="#ec008c",
+        font=font_path,
+        size=(available_width, None),
+        method="caption"
+    ).with_duration(duration_sec)
+
+    bottom_clip = TextClip(
+        text=bottom_text,
+        font_size=bottom_font_size,
+        color="#ec008c",
+        font=font_path,
+        size=(available_width, None),
+        method="caption"
+    ).with_duration(duration_sec)
+
+    desc_clip = TextClip(
+        text=description_text.upper() + "\n",
+        font_size=subtitle_font_size,
+        color="white",
+        font=font_path,
+        size=(available_width, None),
+        method="caption"
+    ).with_duration(duration_sec)
+
+    subtitle_y = height - desc_clip.h - 20
+    spacing = 10
+    bottom_title_y = subtitle_y - bottom_clip.h - spacing
+    top_title_y = bottom_title_y - top_clip.h - spacing
+
+    top_clip = top_clip.with_position((side_margin, top_title_y))
+    bottom_clip = bottom_clip.with_position((side_margin, bottom_title_y))
+    desc_clip = desc_clip.with_position((side_margin, subtitle_y))
 
     clips_complete = [bg_clip]
     if gradient_clip:
@@ -197,7 +196,7 @@ def lambda_handler(event, context):
     if news_clip:
         clips_complete.append(news_clip)
     clips_complete.extend([top_clip, bottom_clip, desc_clip])
-    if logo_local_path and os.path.exists(logo_local_path):
+    if logo_clip:
         clips_complete.append(logo_clip)
     complete_clip = (
         CompositeVideoClip(clips_complete, size=(width, height))
@@ -209,7 +208,7 @@ def lambda_handler(event, context):
         clips_no_text.append(gradient_clip)
     if news_clip:
         clips_no_text.append(news_clip)
-    if logo_local_path and os.path.exists(logo_local_path):
+    if logo_clip:
         clips_no_text.append(logo_clip)
     no_text_clip = (
         CompositeVideoClip(clips_no_text, size=(width, height))
@@ -222,7 +221,7 @@ def lambda_handler(event, context):
     if news_clip:
         clips_no_bg.append(news_clip)
     clips_no_bg.extend([top_clip, bottom_clip, desc_clip])
-    if logo_local_path and os.path.exists(logo_local_path):
+    if logo_clip:
         clips_no_bg.append(logo_clip)
     no_bg_clip = (
         CompositeVideoClip(clips_no_bg, size=(width, height))
@@ -234,7 +233,7 @@ def lambda_handler(event, context):
         clips_no_text_no_bg.append(gradient_clip)
     if news_clip:
         clips_no_text_no_bg.append(news_clip)
-    if logo_local_path and os.path.exists(logo_local_path):
+    if logo_clip:
         clips_no_text_no_bg.append(logo_clip)
     no_text_no_bg_clip = (
         CompositeVideoClip(clips_no_text_no_bg, size=(width, height))
