@@ -166,7 +166,7 @@ def lambda_handler(event, context):
             text=bottom_text,
             font_size=bottom_font_size,
             color="#ec008c",
-            font=font_path,
+            font="Arial-Black",
             size=(width, None),
             method="caption"
         )
