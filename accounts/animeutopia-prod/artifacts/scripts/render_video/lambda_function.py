@@ -142,7 +142,7 @@ def lambda_handler(event, context):
         raw_news = VideoFileClip(news_local_path).with_duration(duration_sec)
         scale_news = 750 / raw_news.w
         news_clip = raw_news.with_effects([vfx.Resize(scale_news, keep_center=False)])
-        news_clip = news_clip.transform(lambda gf, t: remove_white(gf(t))).with_position(("left", "top"))
+        news_clip = news_clip.transform(lambda gf, t: remove_white(gf(t))).with_position((0, 0))
     else:
         news_clip = None
 
