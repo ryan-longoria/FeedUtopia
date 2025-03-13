@@ -73,7 +73,7 @@ def lambda_handler(event, context):
     with open(local_json, "r", encoding="utf-8") as f:
         post_data = json.load(f)
 
-    title_text = post_data.get("title", "No Title")
+    title_text = post_data.get("title", "No Title").upper()
     description_text = post_data.get("description", "")
     image_path = post_data.get("image_path", None)
 
@@ -165,7 +165,7 @@ def lambda_handler(event, context):
     subtitle_font_size = dynamic_font_size(description_text, max_size=40, min_size=20, ideal_length=30)
     subtitle_font_size = min(subtitle_font_size, top_font_size)
 
-    title_top, title_bottom = dynamic_split(title_text, font_path, top_font_size, available_width)
+    title_top, title_bottom = dynamic_split(title_text.upper(), font_path, top_font_size, available_width)
     subtitle_top, subtitle_bottom = dynamic_split(description_text.upper(), font_path, subtitle_font_size, available_width)
 
     top_clip = (TextClip(text=title_top,
