@@ -6,7 +6,7 @@ import logging
 import requests
 from fuzzywuzzy import fuzz, process
 
-ANILIST_API_URL = "https://graphql.anilist.com"
+ANILIST_API_URL = "https://graphql.anilist.co"
 IMAGE_MAGICK_EXE = os.environ.get("IMAGE_MAGICK_EXE", "/bin/magick")
 
 logger = logging.getLogger()
@@ -97,7 +97,7 @@ def download_image(url):
 def extract_core_title_and_description(full_title, anime_titles):
     separators = [
         " Anime ", " Gets ", " Announces ", " Reveals ", " Confirmed ",
-        " Premieres ", " Debuts ", " Trailer ", " English Dub "
+        " Premieres ", " Debuts ", " Trailer ", " English Dub ", " Season "
     ]
     separator_pattern = "(" + "|".join(map(re.escape, separators)) + ")"
     match = re.search(separator_pattern, full_title, flags=re.IGNORECASE)
@@ -116,7 +116,7 @@ def extract_core_title_and_description(full_title, anime_titles):
     if match_result:
         title, score = match_result
         logger.info("Matching '%s' with AniList titles: '%s' (Score: %d)", core_title, title, score)
-        if score > 80:
+        if score > 80 and not (title.lower().startswith(core_title.lower()) and len(title) > len(core_title)):
             core_title = title
     else:
         logger.info("No fuzzy match found for: %s", core_title)
