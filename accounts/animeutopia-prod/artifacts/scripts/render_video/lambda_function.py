@@ -31,16 +31,16 @@ def lambda_handler(event, context):
     no_text_key = f"{folder}/anime_post_no_text.mp4"
     no_bg_key = f"{folder}/anime_post_no_bg.mov"
     no_text_no_bg_key = f"{folder}/anime_post_no_text_no_bg.mov"
-    
+
     local_json = "/tmp/most_recent_post.json"
     s3.download_file(bucket_name, json_key, local_json)
     with open(local_json, "r", encoding="utf-8") as f:
         post_data = json.load(f)
-    
+
     title_text = post_data.get("title", "No Title")
     description_text = post_data.get("description", "")
     image_path = post_data.get("image_path", None)
-    
+
     bg_local_path = "/tmp/background.jpg"
     if image_path and image_path.startswith("http"):
         try:
@@ -113,8 +113,7 @@ def lambda_handler(event, context):
     if news_local_path and os.path.exists(news_local_path):
         raw_news = VideoFileClip(news_local_path).with_duration(duration_sec)
         scale_news = 200 / raw_news.w
-        news_clip = raw_news.with_effects([vfx.Resize(scale_news)])
-        news_pos = (10, 10)
+        news_clip = raw_news.with_effects([vfx.Resize(scale_news)]).with_position((10, 10))
     else:
         news_clip = None
 
@@ -167,7 +166,7 @@ def lambda_handler(event, context):
     if gradient_clip:
         clips_complete.append(gradient_clip)
     if news_clip:
-        clips_complete.append((news_clip, news_pos))
+        clips_complete.append(news_clip)
     clips_complete.extend([title_clip, desc_clip])
     if logo_clip:
         clips_complete.append(logo_clip)
@@ -180,7 +179,7 @@ def lambda_handler(event, context):
     if gradient_clip:
         clips_no_text.append(gradient_clip)
     if news_clip:
-        clips_no_text.append((news_clip, news_pos))
+        clips_no_text.append(news_clip)
     if logo_clip:
         clips_no_text.append(logo_clip)
     no_text_clip = (
@@ -192,7 +191,7 @@ def lambda_handler(event, context):
     if gradient_clip:
         clips_no_bg.append(gradient_clip)
     if news_clip:
-        clips_no_bg.append((news_clip, news_pos))
+        clips_no_bg.append(news_clip)
     clips_no_bg.extend([title_clip, desc_clip])
     if logo_clip:
         clips_no_bg.append(logo_clip)
@@ -205,7 +204,7 @@ def lambda_handler(event, context):
     if gradient_clip:
         clips_no_text_no_bg.append(gradient_clip)
     if news_clip:
-        clips_no_text_no_bg.append((news_clip, news_pos))
+        clips_no_text_no_bg.append(news_clip)
     if logo_clip:
         clips_no_text_no_bg.append(logo_clip)
     no_text_no_bg_clip = (
