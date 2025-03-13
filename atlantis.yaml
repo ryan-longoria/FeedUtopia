@@ -18,7 +18,7 @@ workflows:
         - plan:
             extra_args:
               - "-var-file=tfvars/nonprod-ue2-animeutopia.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-animeutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-multiaccounts.tfvars"
 
     apply:
       steps:
@@ -26,7 +26,7 @@ workflows:
         - apply:
             extra_args:
               - "-var-file=tfvars/nonprod-ue2-animeutopia.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-multiaanimeutopiaccounts.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-multiaccounts.tfvars"
 
   ########################################################################
   # animeutopia-prod
@@ -43,14 +43,14 @@ workflows:
         - plan:
             extra_args:
               - "-var-file=tfvars/prod-ue2-animeutopia.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/prod-ue2-animeutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
     apply:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - apply:
             extra_args:
               - "-var-file=tfvars/prod-ue2-animeutopia.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/prod-ue2-animeutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
   ########################################################################
   # sharedservices-nonprod
@@ -67,14 +67,14 @@ workflows:
         - plan:
             extra_args:
               - "-var-file=tfvars/nonprod-ue2-sharedservices.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-sharedservices.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-multiaccounts.tfvars"
     apply:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - apply:
             extra_args:
               - "-var-file=tfvars/nonprod-ue2-sharedservices.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-sharedservices.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/nonprod-ue2-multiaccounts.tfvars"
 
   ########################################################################
   # sharedservices-prod
@@ -91,14 +91,14 @@ workflows:
         - plan:
             extra_args:
               - "-var-file=tfvars/prod-ue2-sharedservices.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/prod-ue2-sharedservices.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
     apply:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - apply:
             extra_args:
               - "-var-file=tfvars/prod-ue2-sharedservices.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/prod-ue2-sharedservices.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
 projects:
   - name: animeutopia-nonprod
