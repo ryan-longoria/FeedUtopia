@@ -10,11 +10,10 @@ RUN chmod +x /opt/bin/ffmpeg
 
 ENV FFMPEG_PATH="/opt/bin/ffmpeg"
 
-RUN yum install -y epel-release && \
-    yum install -y cabextract fontconfig wget && \
+RUN yum install -y fontconfig wget && \
     mkdir -p /usr/share/fonts/truetype/msttcorefonts && \
-    wget -O /tmp/arialblk.ttf https://downloads.sourceforge.net/corefonts/arialblk.ttf && \
-    mv /tmp/arialblk.ttf /usr/share/fonts/truetype/msttcorefonts/arialblk.ttf && \
+    wget -O /tmp/ARIBLK.TTF https://github.com/yourusername/yourrepo/raw/main/ARIBLK.TTF && \
+    mv /tmp/ARIBLK.TTF /usr/share/fonts/truetype/msttcorefonts/ARIBLK.TTF && \
     fc-cache -f -v
 
 COPY lambda_function.py /var/task
