@@ -3,5 +3,5 @@
 ################################################################################
 
 locals {
-  project = "sharedservices-nonprod"
+  project = "backstage-prod"
 }
