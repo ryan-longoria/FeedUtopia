@@ -5,7 +5,6 @@
 
 resource "aws_s3_bucket" "media_bucket" {
   bucket = var.s3_bucket_name
-  # other configuration
 }
 
 resource "aws_s3_bucket_versioning" "media_bucket_versioning" {
