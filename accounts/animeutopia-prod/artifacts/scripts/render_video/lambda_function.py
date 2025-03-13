@@ -22,6 +22,12 @@ def dynamic_font_size(text, max_size, min_size, ideal_length):
     new_size = max_size - (length - ideal_length) * factor
     return int(new_size) if new_size > min_size else min_size
 
+def remove_white(frame):
+    threshold = 240
+    alpha = np.where(np.all(frame > threshold, axis=-1), 0, 255).astype('uint8')
+    return np.dstack((frame, alpha))
+
+
 def lambda_handler(event, context):
     bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
     json_key = "most_recent_post.json"
@@ -114,8 +120,7 @@ def lambda_handler(event, context):
         raw_news = VideoFileClip(news_local_path).with_duration(duration_sec)
         scale_news = 200 / raw_news.w
         news_clip = raw_news.with_effects([vfx.Resize(scale_news)])
-        news_clip = vfx.mask_color(news_clip, color=[255, 255, 255], thr=100, s=5)
-        news_clip = news_clip.with_position((10, 10))
+        news_clip = news_clip.fl_image(remove_white).with_position((10, 10))
     else:
         news_clip = None
 
