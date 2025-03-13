@@ -64,7 +64,7 @@ resource "aws_lambda_function" "store_data" {
 resource "aws_lambda_function" "render_video" {
   function_name = "render_video"
   package_type  = "Image"
-  image_uri     = "481665084477.dkr.ecr.us-east-2.amazonaws.com/render_video_repository@sha256:9e8aba8291e68af94065bb065209740a5590b4457ed7de89ba8842ac3eb80eab"
+  image_uri     = "481665084477.dkr.ecr.us-east-2.amazonaws.com/render_video_repository@sha256:0b56802a9b5f6d44a7b03cbd0d20749ff4b365d5903b784a06a678deb868b8a5"
   role          = aws_iam_role.lambda_role.arn
   timeout       = 300
   environment {
