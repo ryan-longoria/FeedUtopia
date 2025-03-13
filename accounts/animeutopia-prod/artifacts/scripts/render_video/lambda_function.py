@@ -9,10 +9,11 @@ from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import moviepy.video.fx as vfx
+from PIL import ImageFont, ImageDraw, Image
 
 s3 = boto3.client("s3")
-
 font_path = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
+
 
 def dynamic_font_size(text, max_size, min_size, ideal_length):
     length = len(text)
@@ -22,19 +23,38 @@ def dynamic_font_size(text, max_size, min_size, ideal_length):
     new_size = max_size - (length - ideal_length) * factor
     return int(new_size) if new_size > min_size else min_size
 
+
+def measure_text_width(text, font_path, font_size):
+    font = ImageFont.truetype(font_path, font_size)
+    width, _ = font.getsize(text)
+    return width
+
+
+def dynamic_split(text, font_path, font_size, max_width):
+    if measure_text_width(text, font_path, font_size) <= max_width:
+        return text, ""
+    words = text.split()
+    top_line = ""
+    for i in range(1, len(words) + 1):
+        candidate = " ".join(words[:i])
+        if measure_text_width(candidate, font_path, font_size) <= max_width:
+            top_line = candidate
+        else:
+            break
+    bottom_line = " ".join(words[len(top_line.split()):])
+    if len(words) - len(top_line.split()) > len(top_line.split()):
+        candidate = " ".join(words[:len(top_line.split()) + 1])
+        if measure_text_width(candidate, font_path, font_size) <= max_width:
+            top_line = candidate
+            bottom_line = " ".join(words[len(top_line.split()):])
+    return top_line, bottom_line
+
+
 def remove_white(frame):
     threshold = 240
     alpha = np.where(np.all(frame > threshold, axis=-1), 0, 255).astype("uint8")
     return np.dstack((frame, alpha))
 
-def split_title(title_text):
-    words = title_text.split()
-    if len(words) < 2:
-        return title_text, ""
-    split_index = (len(words) + 1) // 2
-    top_text = " ".join(words[:split_index])
-    bottom_text = " ".join(words[split_index:])
-    return top_text, bottom_text
 
 def lambda_handler(event, context):
     bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
@@ -99,28 +119,20 @@ def lambda_handler(event, context):
     duration_sec = 10
 
     if bg_local_path and os.path.exists(bg_local_path):
-        bg_clip = (
-            ImageClip(bg_local_path)
-            .with_effects([vfx.Resize((width, height))])
-            .with_duration(duration_sec)
-        )
+        bg_clip = (ImageClip(bg_local_path)
+                   .with_effects([vfx.Resize((width, height))])
+                   .with_duration(duration_sec))
     else:
-        bg_clip = (
-            ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
-            .with_duration(duration_sec)
-        )
+        bg_clip = (ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
+                   .with_duration(duration_sec))
 
-    transparent_clip = (
-        ImageClip(np.zeros((height, width, 4), dtype="uint8"))
-        .with_duration(duration_sec)
-    )
+    transparent_clip = (ImageClip(np.zeros((height, width, 4), dtype="uint8"))
+                        .with_duration(duration_sec))
 
     if gradient_local_path and os.path.exists(gradient_local_path):
-        gradient_clip = (
-            ImageClip(gradient_local_path)
-            .with_effects([vfx.Resize((width, height))])
-            .with_duration(duration_sec)
-        )
+        gradient_clip = (ImageClip(gradient_local_path)
+                         .with_effects([vfx.Resize((width, height))])
+                         .with_duration(duration_sec))
     else:
         gradient_clip = None
 
@@ -132,16 +144,12 @@ def lambda_handler(event, context):
     else:
         news_clip = None
 
-    top_text, bottom_text = split_title(title_text)
-
     base_margin = 20
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 200 / raw_logo.w
-        logo_clip = (
-            raw_logo.with_effects([vfx.Resize(scale_logo)])
-            .with_duration(duration_sec)
-        )
+        logo_clip = (raw_logo.with_effects([vfx.Resize(scale_logo)])
+                     .with_duration(duration_sec))
         logo_clip = logo_clip.with_position((base_margin, height - logo_clip.h - base_margin))
         side_margin = max(logo_clip.w + base_margin, base_margin)
     else:
@@ -150,58 +158,62 @@ def lambda_handler(event, context):
 
     available_width = width - (2 * side_margin)
 
-    top_font_size = dynamic_font_size(top_text, max_size=60, min_size=30, ideal_length=20)
+    top_font_size = dynamic_font_size(title_text, max_size=60, min_size=30, ideal_length=20)
     bottom_font_size = top_font_size - 10 if top_font_size - 10 > 0 else top_font_size
     subtitle_font_size = dynamic_font_size(description_text, max_size=40, min_size=20, ideal_length=30)
 
-    top_clip = TextClip(
-        text=top_text,
-        font_size=top_font_size,
-        color="#ec008c",
-        font=font_path,
-        size=(available_width, None),
-        method="caption"
-    ).with_duration(duration_sec)
+    title_top, title_bottom = dynamic_split(title_text, font_path, top_font_size, available_width)
+    subtitle_top, subtitle_bottom = dynamic_split(description_text.upper(), font_path, subtitle_font_size, available_width)
 
-    bottom_clip = TextClip(
-        text=bottom_text,
-        font_size=bottom_font_size,
-        color="#ec008c",
-        font=font_path,
-        size=(available_width, None),
-        method="caption"
-    ).with_duration(duration_sec)
+    top_clip = (TextClip(text=title_top,
+                         font_size=top_font_size,
+                         color="#ec008c",
+                         font=font_path,
+                         size=(available_width, None),
+                         method="caption")
+                .with_duration(duration_sec))
+    bottom_clip = (TextClip(text=title_bottom,
+                            font_size=bottom_font_size,
+                            color="#ec008c",
+                            font=font_path,
+                            size=(available_width, None),
+                            method="caption")
+                   .with_duration(duration_sec))
+    desc_top_clip = (TextClip(text=subtitle_top,
+                              font_size=subtitle_font_size,
+                              color="white",
+                              font=font_path,
+                              size=(available_width, None),
+                              method="caption")
+                     .with_duration(duration_sec))
+    desc_bottom_clip = (TextClip(text=subtitle_bottom,
+                                 font_size=subtitle_font_size,
+                                 color="white",
+                                 font=font_path,
+                                 size=(available_width, None),
+                                 method="caption")
+                        .with_duration(duration_sec))
 
-    desc_clip = TextClip(
-        text=description_text.upper() + "\n",
-        font_size=subtitle_font_size,
-        color="white",
-        font=font_path,
-        size=(available_width, None),
-        method="caption"
-    ).with_duration(duration_sec)
-
-    subtitle_y = height - desc_clip.h - 20
-    spacing = 10
-    bottom_title_y = subtitle_y - bottom_clip.h - spacing
-    top_title_y = bottom_title_y - top_clip.h - spacing
+    subtitle_bottom_y = height - 20 - desc_bottom_clip.h
+    subtitle_top_y = subtitle_bottom_y - 10 - desc_top_clip.h
+    bottom_title_y = subtitle_top_y - 10 - bottom_clip.h
+    top_title_y = bottom_title_y - 10 - top_clip.h
 
     top_clip = top_clip.with_position((side_margin, top_title_y))
     bottom_clip = bottom_clip.with_position((side_margin, bottom_title_y))
-    desc_clip = desc_clip.with_position((side_margin, subtitle_y))
+    desc_top_clip = desc_top_clip.with_position((side_margin, subtitle_top_y))
+    desc_bottom_clip = desc_bottom_clip.with_position((side_margin, subtitle_bottom_y))
 
     clips_complete = [bg_clip]
     if gradient_clip:
         clips_complete.append(gradient_clip)
     if news_clip:
         clips_complete.append(news_clip)
-    clips_complete.extend([top_clip, bottom_clip, desc_clip])
+    clips_complete.extend([top_clip, bottom_clip, desc_top_clip, desc_bottom_clip])
     if logo_clip:
         clips_complete.append(logo_clip)
-    complete_clip = (
-        CompositeVideoClip(clips_complete, size=(width, height))
-        .with_duration(duration_sec)
-    )
+    complete_clip = (CompositeVideoClip(clips_complete, size=(width, height))
+                     .with_duration(duration_sec))
 
     clips_no_text = [bg_clip]
     if gradient_clip:
@@ -210,23 +222,19 @@ def lambda_handler(event, context):
         clips_no_text.append(news_clip)
     if logo_clip:
         clips_no_text.append(logo_clip)
-    no_text_clip = (
-        CompositeVideoClip(clips_no_text, size=(width, height))
-        .with_duration(duration_sec)
-    )
+    no_text_clip = (CompositeVideoClip(clips_no_text, size=(width, height))
+                    .with_duration(duration_sec))
 
     clips_no_bg = [transparent_clip]
     if gradient_clip:
         clips_no_bg.append(gradient_clip)
     if news_clip:
         clips_no_bg.append(news_clip)
-    clips_no_bg.extend([top_clip, bottom_clip, desc_clip])
+    clips_no_bg.extend([top_clip, bottom_clip, desc_top_clip, desc_bottom_clip])
     if logo_clip:
         clips_no_bg.append(logo_clip)
-    no_bg_clip = (
-        CompositeVideoClip(clips_no_bg, size=(width, height))
-        .with_duration(duration_sec)
-    )
+    no_bg_clip = (CompositeVideoClip(clips_no_bg, size=(width, height))
+                  .with_duration(duration_sec))
 
     clips_no_text_no_bg = [transparent_clip]
     if gradient_clip:
@@ -235,10 +243,8 @@ def lambda_handler(event, context):
         clips_no_text_no_bg.append(news_clip)
     if logo_clip:
         clips_no_text_no_bg.append(logo_clip)
-    no_text_no_bg_clip = (
-        CompositeVideoClip(clips_no_text_no_bg, size=(width, height))
-        .with_duration(duration_sec)
-    )
+    no_text_no_bg_clip = (CompositeVideoClip(clips_no_text_no_bg, size=(width, height))
+                          .with_duration(duration_sec))
 
     complete_local = "/tmp/anime_post_complete.mp4"
     no_text_local = "/tmp/anime_post_no_text.mp4"
