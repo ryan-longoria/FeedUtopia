@@ -199,8 +199,8 @@ def lambda_handler(event, context):
 
     subtitle_bottom_y = height - 40 - desc_bottom_clip.h
     subtitle_top_y = subtitle_bottom_y - 10 - desc_top_clip.h
-    bottom_title_y = subtitle_top_y - 20 - bottom_clip.h
-    top_title_y = bottom_title_y - 20 - top_clip.h
+    bottom_title_y = subtitle_top_y - 10 - bottom_clip.h
+    top_title_y = bottom_title_y - 10 - top_clip.h
 
     top_clip = top_clip.with_position((side_margin, top_title_y))
     bottom_clip = bottom_clip.with_position((side_margin, bottom_title_y))
