@@ -2,16 +2,16 @@ import datetime
 import json
 import os
 import uuid
-import numpy as np
 
+import numpy as np
 import boto3
 import requests
 
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
-
 import moviepy.video.fx as vfx
+
 
 s3 = boto3.client("s3")
 
@@ -90,7 +90,7 @@ def lambda_handler(event, context):
     if bg_local_path and os.path.exists(bg_local_path):
         bg_clip = (
             ImageClip(bg_local_path)
-            .with_effects([vfx.Resize(newsize=(width, height))])
+            .with_effects([vfx.Resize((width, height))])
             .with_duration(duration_sec)
         )
     else:
@@ -107,18 +107,16 @@ def lambda_handler(event, context):
     if gradient_local_path and os.path.exists(gradient_local_path):
         gradient_clip = (
             ImageClip(gradient_local_path)
-            .with_effects([vfx.Resize(newsize=(width, height))])
+            .with_effects([vfx.Resize((width, height))])
             .with_duration(duration_sec)
         )
     else:
         gradient_clip = None
 
     if news_local_path and os.path.exists(news_local_path):
-        news_clip = (
-            VideoFileClip(news_local_path)
-            .with_duration(duration_sec)
-            .with_effects([vfx.Resize(width=200)])
-        )
+        raw_news = VideoFileClip(news_local_path).with_duration(duration_sec)
+        scale_news = 200 / raw_news.w
+        news_clip = raw_news.with_effects([vfx.Resize(scale_news)])
         news_margin = 10
         news_clip = news_clip.set_position((news_margin, news_margin))
     else:
@@ -154,10 +152,11 @@ def lambda_handler(event, context):
     title_clip = title_clip.set_position(("center", title_y))
 
     if logo_local_path and os.path.exists(logo_local_path):
+        raw_logo = ImageClip(logo_local_path)
+        scale_logo = 100 / raw_logo.w
         logo_clip = (
-            ImageClip(logo_local_path)
+            raw_logo.with_effects([vfx.Resize(scale_logo)])
             .with_duration(duration_sec)
-            .with_effects([vfx.Resize(width=100)])
         )
         logo_margin = 10
         logo_clip = logo_clip.set_position(
