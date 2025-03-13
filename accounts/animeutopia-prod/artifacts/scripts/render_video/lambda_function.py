@@ -124,7 +124,7 @@ def lambda_handler(event, context):
     desc_clip = (
         TextClip(
             text=description_text,
-            fontsize=subtitle_font_size,
+            font_size=subtitle_font_size,
             color="yellow",
             font="DejaVu-Sans",
             size=(width, None),
@@ -138,7 +138,7 @@ def lambda_handler(event, context):
     title_clip = (
         TextClip(
             text=title_text,
-            fontsize=title_font_size,
+            font_size=title_font_size,
             color="white",
             font="DejaVu-Sans",
             size=(width, None),
