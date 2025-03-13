@@ -126,7 +126,7 @@ def lambda_handler(event, context):
 
     if news_local_path and os.path.exists(news_local_path):
         raw_news = VideoFileClip(news_local_path).with_duration(duration_sec)
-        scale_news = 300 / raw_news.w
+        scale_news = 500 / raw_news.w
         news_clip = raw_news.with_effects([vfx.Resize(scale_news)])
         news_clip = news_clip.transform(lambda gf, t: remove_white(gf(t))).with_position((10, 10))
     else:
@@ -187,7 +187,7 @@ def lambda_handler(event, context):
 
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
-        scale_logo = 300 / raw_logo.w
+        scale_logo = 200 / raw_logo.w
         logo_clip = (
             raw_logo.with_effects([vfx.Resize(scale_logo)])
             .with_duration(duration_sec)
