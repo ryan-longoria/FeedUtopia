@@ -31,7 +31,6 @@ def measure_text_width(text, font_path, font_size):
     return width
 
 
-
 def dynamic_split(text, font_path, font_size, max_width):
     if measure_text_width(text, font_path, font_size) <= max_width:
         return text, ""
@@ -159,6 +158,8 @@ def lambda_handler(event, context):
         side_margin = base_margin
 
     available_width = width - (2 * side_margin)
+    subtitle_side_margin = side_margin + 10
+    available_subtitle_width = width - (2 * subtitle_side_margin)
 
     top_font_size = dynamic_font_size(title_text, max_size=60, min_size=30, ideal_length=20)
     bottom_font_size = top_font_size - 10 if top_font_size - 10 > 0 else top_font_size
@@ -166,7 +167,7 @@ def lambda_handler(event, context):
     subtitle_font_size = min(subtitle_font_size, top_font_size)
 
     title_top, title_bottom = dynamic_split(title_text.upper(), font_path, top_font_size, available_width)
-    subtitle_top, subtitle_bottom = dynamic_split(description_text.upper(), font_path, subtitle_font_size, available_width)
+    subtitle_top, subtitle_bottom = dynamic_split(description_text.upper(), font_path, subtitle_font_size, available_subtitle_width)
 
     top_clip = (TextClip(text=title_top,
                          font_size=top_font_size,
@@ -186,14 +187,14 @@ def lambda_handler(event, context):
                               font_size=subtitle_font_size,
                               color="white",
                               font=font_path,
-                              size=(available_width, None),
+                              size=(available_subtitle_width, None),
                               method="caption")
                      .with_duration(duration_sec))
     desc_bottom_clip = (TextClip(text=subtitle_bottom,
                                  font_size=subtitle_font_size,
                                  color="white",
                                  font=font_path,
-                                 size=(available_width, None),
+                                 size=(available_subtitle_width, None),
                                  method="caption")
                         .with_duration(duration_sec))
 
@@ -204,8 +205,8 @@ def lambda_handler(event, context):
 
     top_clip = top_clip.with_position((side_margin, top_title_y))
     bottom_clip = bottom_clip.with_position((side_margin, bottom_title_y))
-    desc_top_clip = desc_top_clip.with_position((side_margin, subtitle_top_y))
-    desc_bottom_clip = desc_bottom_clip.with_position((side_margin, subtitle_bottom_y))
+    desc_top_clip = desc_top_clip.with_position((subtitle_side_margin, subtitle_top_y))
+    desc_bottom_clip = desc_bottom_clip.with_position((subtitle_side_margin, subtitle_bottom_y))
 
     clips_complete = [bg_clip]
     if gradient_clip:
