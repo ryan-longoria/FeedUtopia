@@ -47,23 +47,30 @@ resource "aws_security_group" "ecs" {
   name        = "backstage-ecs-sg"
   description = "Allow ALB to access ECS tasks on Backstage port"
   vpc_id      = aws_vpc.main.id
-  ingress = [
-    {
-      description     = "Allow Backstage port from ALB"
-      from_port       = 7007
-      to_port         = 7007
-      protocol        = "tcp"
-      security_groups = [aws_security_group.alb.id]
-    }
-  ]
-  egress = [
-    {
-      from_port   = 0
-      to_port     = 0
-      protocol    = "-1"
-      cidr_blocks = ["0.0.0.0/0"]
-    }
-  ]
+
+  ingress {
+    description      = "Allow Backstage port from ALB"
+    from_port        = 7007
+    to_port          = 7007
+    protocol         = "tcp"
+    security_groups  = [aws_security_group.alb.id]
+    cidr_blocks      = []
+    ipv6_cidr_blocks = []
+    prefix_list_ids  = []
+    self             = false
+  }
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = []
+    prefix_list_ids  = []
+    security_groups  = []
+    self             = false
+  }
+
   tags = { Name = "backstage-ecs-sg" }
 }
 
