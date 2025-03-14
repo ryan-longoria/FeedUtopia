@@ -16,3 +16,10 @@ auth:
       signIn:
         resolvers:
           - resolver: emailMatchingUserEntityProfileEmail
+
+techdocs:
+  builder: 'external'    
+  publisher:
+    type: 'awsS3'   
+    awsS3:
+      bucketName: 'backstage-techdocs-feedutopia'
