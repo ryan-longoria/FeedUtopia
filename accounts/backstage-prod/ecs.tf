@@ -27,17 +27,15 @@ resource "aws_ecs_task_definition" "backstage" {
         { name : "PGPASSWORD", value : var.db_password },
         { name : "PGDATABASE", value : var.db_name },
         { name : "APP_CONFIG_app_baseUrl", value : "https://${var.backstage_domain}" },
-        { name : "APP_CONFIG_backend_baseUrl", value : "https://${var.backstage_domain}" }
-      ]
-      environment = concat(environment, [
+        { name : "APP_CONFIG_backend_baseUrl", value : "https://${var.backstage_domain}" },
         { name : "AWS_REGION", value : var.aws_region }
-      ])
+      ]
       logConfiguration = {
-        logDriver : "awslogs",
-        options : {
-          awslogs-group : "/ecs/${var.app_name}",
-          awslogs-region : var.aws_region,
-          awslogs-stream-prefix : "ecs"
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = "/ecs/${var.app_name}"
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "ecs"
         }
       }
     }
