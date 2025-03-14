@@ -3,11 +3,6 @@ resource "aws_s3_bucket" "techdocs" {
   tags   = { Name = "backstage-techdocs-bucket" }
 }
 
-resource "aws_s3_bucket_acl" "techdocs_acl" {
-  bucket = aws_s3_bucket.techdocs.id
-  acl    = "private"
-}
-
 resource "aws_s3_bucket_versioning" "techdocs_versioning" {
   bucket = aws_s3_bucket.techdocs.id
   versioning_configuration {
