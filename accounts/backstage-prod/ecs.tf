@@ -18,7 +18,7 @@ resource "aws_ecs_task_definition" "backstage" {
   container_definitions = jsonencode([
     {
       name         = "backstage"
-      image        = "${aws_ecr_repository.backstage.repository_url}:latest"
+      image        = "825765422855.dkr.ecr.us-east-2.amazonaws.com/backstage-repo:latest"
       portMappings = [{ containerPort = 7000, hostPort = 7000 }]
       environment = [
         { name : "NODE_ENV", value : "production" },
