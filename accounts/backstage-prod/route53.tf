@@ -1,30 +1,29 @@
-resource "aws_route53_zone" "feedutopia" {
-  name = "feedutopia.com"
+data "aws_route53_zone" "feedutopia" {
+  name         = "feedutopia.com"
+  private_zone = false
 }
+
 
 resource "aws_acm_certificate" "cert" {
   domain_name       = "backstage.feedutopia.com"
   validation_method = "DNS"
 }
 
-resource "aws_acm_certificate_validation" "cert_validation_complete" {
-  certificate_arn         = aws_acm_certificate.cert.arn
-
-  validation_record_fqdns = [
-    aws_route53_record.cert_validation.fqdn
-  ]
-}
-
 resource "aws_route53_record" "cert_validation" {
   name    = tolist(aws_acm_certificate.cert.domain_validation_options)[0].resource_record_name
   type    = tolist(aws_acm_certificate.cert.domain_validation_options)[0].resource_record_type
-  zone_id = aws_route53_zone.feedutopia.zone_id
+  zone_id = data.aws_route53_zone.feedutopia.zone_id
   records = [tolist(aws_acm_certificate.cert.domain_validation_options)[0].resource_record_value]
   ttl     = 60
 }
 
+resource "aws_acm_certificate_validation" "cert_validation_complete" {
+  certificate_arn         = aws_acm_certificate.cert.arn
+  validation_record_fqdns = [aws_route53_record.cert_validation.fqdn]
+}
+
 resource "aws_route53_record" "backstage_domain" {
-  zone_id = aws_route53_zone.feedutopia.zone_id
+  zone_id = data.aws_route53_zone.feedutopia.zone_id
   name    = "backstage.feedutopia.com"
   type    = "A"
 
