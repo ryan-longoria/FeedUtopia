@@ -1,6 +1,5 @@
 data "aws_route53_zone" "feedutopia" {
-  name         = "feedutopia.com"
-  private_zone = false
+  zone_id = "Z0783926A0QGXSW1QXG0"
 }
 
 
