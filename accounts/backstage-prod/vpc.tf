@@ -1,13 +1,13 @@
 resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
+  cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
-  tags                 = { Name = "backstage-vpc" }
+  tags                 = { Name = "${var.app_name}-vpc" }
 }
 
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
-  tags   = { Name = "backstage-igw" }
+  tags   = { Name = "${var.app_name}-igw" }
 }
 
 resource "aws_subnet" "public1" {
@@ -15,14 +15,14 @@ resource "aws_subnet" "public1" {
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "us-east-2a"
   map_public_ip_on_launch = true
-  tags                    = { Name = "backstage-public-1" }
+  tags                    = { Name = "${var.app_name}-public-1" }
 }
 resource "aws_subnet" "public2" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.2.0/24"
   availability_zone       = "us-east-2b"
   map_public_ip_on_launch = true
-  tags                    = { Name = "backstage-public-2" }
+  tags                    = { Name = "${var.app_name}-public-2" }
 }
 
 resource "aws_subnet" "private1" {
@@ -30,14 +30,14 @@ resource "aws_subnet" "private1" {
   cidr_block              = "10.0.11.0/24"
   availability_zone       = "us-east-2a"
   map_public_ip_on_launch = false
-  tags                    = { Name = "backstage-private-1" }
+  tags                    = { Name = "${var.app_name}-private-1" }
 }
 resource "aws_subnet" "private2" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.12.0/24"
   availability_zone       = "us-east-2b"
   map_public_ip_on_launch = false
-  tags                    = { Name = "backstage-private-2" }
+  tags                    = { Name = "${var.app_name}-private-2" }
 }
 
 resource "aws_eip" "nat_eip" {
@@ -46,7 +46,7 @@ resource "aws_eip" "nat_eip" {
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.nat_eip.id
   subnet_id     = aws_subnet.public1.id
-  tags          = { Name = "backstage-nat" }
+  tags          = { Name = "${var.app_name}-nat" }
 }
 
 resource "aws_route_table" "public" {
@@ -55,7 +55,7 @@ resource "aws_route_table" "public" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw.id
   }
-  tags = { Name = "backstage-public-rt" }
+  tags = { Name = "${var.app_name}-public-rt" }
 }
 
 resource "aws_route_table" "private" {
@@ -64,7 +64,7 @@ resource "aws_route_table" "private" {
     cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.nat.id
   }
-  tags = { Name = "backstage-private-rt" }
+  tags = { Name = "${var.app_name}-private-rt" }
 }
 
 resource "aws_route_table_association" "pub1" {
