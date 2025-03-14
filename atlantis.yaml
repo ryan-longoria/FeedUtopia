@@ -62,7 +62,7 @@ workflows:
         - init:
             extra_args:
               - "--backend-config"
-              - "backends/nonprod-backstage.backend.tfvars"
+              - "backends/nonprod-ue2-backstage.backend.tfvars"
               - "--reconfigure"
         - plan:
             extra_args:
@@ -86,7 +86,7 @@ workflows:
         - init:
             extra_args:
               - "--backend-config"
-              - "backends/prod-backstage.backend.tfvars"
+              - "backends/prod-ue2-backstage.backend.tfvars"
               - "--reconfigure"
         - plan:
             extra_args:
