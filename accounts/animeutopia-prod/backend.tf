@@ -7,6 +7,6 @@ terraform {
     bucket   = "prod-animeutopia-backend-bucket"
     key      = "tfstate/animeutopia/terraform.tfstate"
     region   = "us-east-2"
-    role_arn = "arn:aws:iam::481665084477:role/TerraformExecutionRole"
+    role_arn = "arn:aws:iam::${var.aws_account_ids.animeutopia}:role/TerraformExecutionRole"
   }
 }
