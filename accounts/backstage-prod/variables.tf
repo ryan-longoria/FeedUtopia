@@ -18,7 +18,7 @@ variable "aws_region" {
 variable "environment" {
   description = "The environment name (nonprod, prod)."
   type        = string
-  default     = "nonprod"
+  default     = "prod"
 }
 
 variable "terraform_backend_bucket" {
@@ -77,7 +77,7 @@ variable "backstage_domain" {
 variable "acm_certificate_arn" {
   description = "ARN of the ACM cert for the Backstage domain."
   type        = string
-  default     = ""
+  default     = "arn:aws:acm:us-east-2:825765422855:certificate/20392fd3-e0a5-4c7d-ab03-b9fcb1afc1dd"
 }
 
 variable "cognito_domain" {
