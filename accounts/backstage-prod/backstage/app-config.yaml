@@ -16,4 +16,3 @@ auth:
       signIn:
         resolvers:
           - resolver: emailMatchingUserEntityProfileEmail
-

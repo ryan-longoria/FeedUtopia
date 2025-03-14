@@ -57,7 +57,14 @@ const app = createApp({
     });
   },
   components: {
-    SignInPage: props => <SignInPage {...props} auto providers={['guest']} />,
+    <SignInPage
+  auto
+  provider={{
+    awsalb: {
+      title: 'Sign in with FeedUtopia',
+    },
+  }}
+/>,
   },
 });
 
