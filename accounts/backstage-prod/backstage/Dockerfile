@@ -2,7 +2,7 @@ FROM node:18-bullseye as builder
 WORKDIR /app
 
 COPY . .
-RUN yarn install --immutable && yarn build
+RUN yarn install --immutable && yarn tsc && yarn build:backend
 
 FROM node:18-bullseye
 WORKDIR /app
