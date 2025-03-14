@@ -27,7 +27,7 @@ resource "aws_cognito_user_pool_domain" "backstage" {
 resource "aws_cognito_user_pool_client" "backstage" {
   name            = "backstage-alb-client"
   user_pool_id    = aws_cognito_user_pool.backstage.id
-  generate_secret = false
+  generate_secret = true
 
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code"]
@@ -36,5 +36,4 @@ resource "aws_cognito_user_pool_client" "backstage" {
 
   callback_urls = ["https://backstage.feedutopia.com/oauth2/idpresponse"]
   logout_urls   = ["https://backstage.feedutopia.com/"]
-
 }
