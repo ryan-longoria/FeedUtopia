@@ -1,8 +1,0 @@
-database:
-  client: pg
-  connection:
-    host: ${POSTGRES_HOST}
-    port: 5432
-    user: ${POSTGRES_USER}
-    password: ${POSTGRES_PASSWORD}
-    database: ${POSTGRES_DB}

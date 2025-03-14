@@ -1,0 +1,19 @@
+database:
+  client: pg
+  connection:
+    host: ${POSTGRES_HOST}
+    port: 5432
+    user: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    database: ${POSTGRES_DB}
+
+auth:
+  providers:
+    awsalb:
+      issuer: 'https://backstage-auth-feedutopia.auth.us-east-2.amazoncognito.com'
+      signer: 'arn:aws:elasticloadbalancing:us-east-2:825765422855:loadbalancer/app/backstage-alb/da6d56c961fa9ce6'
+      region: 'us-east-2'
+      signIn:
+        resolvers:
+          - resolver: emailMatchingUserEntityProfileEmail
+
