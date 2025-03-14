@@ -9,9 +9,9 @@ resource "aws_security_group" "rds" {
     to_port          = 5432
     protocol         = "tcp"
     security_groups  = [aws_security_group.ecs.id]
-    cidr_blocks      = []             # Explicitly provide an empty list
-    ipv6_cidr_blocks = []             # if not used
-    prefix_list_ids  = []             # if not used
+    cidr_blocks      = []             
+    ipv6_cidr_blocks = []             
+    prefix_list_ids  = []             
     self             = false
   }
 
@@ -21,9 +21,9 @@ resource "aws_security_group" "rds" {
     to_port          = 0
     protocol         = "-1"
     cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = []             # Explicitly provide an empty list
-    prefix_list_ids  = []             # if not used
-    security_groups  = []             # if not used
+    ipv6_cidr_blocks = []             
+    prefix_list_ids  = []             
+    security_groups  = []             
     self             = false
   }
 
