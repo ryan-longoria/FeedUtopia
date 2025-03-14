@@ -4,8 +4,8 @@
 
 terraform {
   backend "s3" {
-    bucket   = "prod-animeutopia-backend-bucket"
-    key      = "tfstate/animeutopia/terraform.tfstate"
+    bucket   = "prod-backstage-backend-bucket"
+    key      = "tfstate/backstage/terraform.tfstate"
     region   = "us-east-2"
     role_arn = "arn:aws:iam::${var.aws_account_ids.sharedservices}:role/TerraformExecutionRole"
   }
