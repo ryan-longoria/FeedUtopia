@@ -19,7 +19,7 @@ resource "aws_ecs_task_definition" "backstage" {
   container_definitions = jsonencode([
     {
       name  = "backstage"
-      image = "825765422855.dkr.ecr.us-east-2.amazonaws.com/backstage-repo@sha256:435634fa38af582868c4b921e17350e56d195f9f914b844e64c38caa5bef82da"
+      image = "825765422855.dkr.ecr.us-east-2.amazonaws.com/backstage-repo@sha256:cc9c67d6e3995fd9ec455a2a13a95db41e3a57eef5ac036041a0a70263624147"
       portMappings = [
         {
           containerPort = 7007
