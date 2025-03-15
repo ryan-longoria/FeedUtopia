@@ -31,7 +31,7 @@ def lambda_handler(event, context):
 
     video_keys = event.get("video_keys")
     if not video_keys:
-        complete_key = event.get("complete")
+        complete_key = event.get("video_key")
         if complete_key:
             video_keys = {"complete": complete_key}
         else:
@@ -49,7 +49,7 @@ def lambda_handler(event, context):
         url = s3.generate_presigned_url(
             "get_object",
             Params={"Bucket": bucket, "Key": complete_key},
-            ExpiresIn=604800  # 7 days
+            ExpiresIn=604800
         )
     except Exception as e:
         logger.exception("Error generating presigned URL for complete video: %s", e)
