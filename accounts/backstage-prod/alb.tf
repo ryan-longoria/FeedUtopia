@@ -85,7 +85,7 @@ resource "aws_lb" "frontend" {
 
 resource "aws_lb_target_group" "backstage" {
   name        = "backstage-tg"
-  port        = 7000
+  port        = 7007
   protocol    = "HTTP"
   target_type = "ip"
   vpc_id      = aws_vpc.main.id

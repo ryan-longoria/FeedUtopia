@@ -11,6 +11,6 @@ COPY --from=builder /app/packages/app/dist ./packages/app/dist
 COPY --from=builder /app/yarn.lock /app/package.json ./
 RUN yarn workspaces focus --all --production
 ENV NODE_ENV=production \
-    PORT=7000
-EXPOSE 7000
+    PORT=7007
+EXPOSE 7007
 CMD ["node", "packages/backend/dist/index.js"]
