@@ -14,4 +14,5 @@ ENV NODE_ENV=production \
     PORT=7007
 EXPOSE 7007
 
-CMD ["sh", "-c", "tar -xzf packages/backend/dist/bundle.tar.gz -C /app && node /app/index.js"]
+CMD ["sh", "-c", "tar -xzf packages/backend/dist/bundle.tar.gz && node packages/backend --config app-config.yaml --config app-config.production.yaml"]
+
