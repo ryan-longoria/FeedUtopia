@@ -29,11 +29,15 @@ def lambda_handler(event, context):
     timestamp = datetime.datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     unique_id = uuid.uuid4().hex
 
-    video_keys = event.get("video_keys", {})
+    video_keys = event.get("video_keys")
     if not video_keys:
-        error_msg = "No video keys found in event."
-        logger.error(error_msg)
-        return {"error": error_msg}
+        complete_key = event.get("complete")
+        if complete_key:
+            video_keys = {"complete": complete_key}
+        else:
+            error_msg = "No video keys found in event."
+            logger.error(error_msg)
+            return {"error": error_msg}
 
     complete_key = video_keys.get("complete")
     if not complete_key:
