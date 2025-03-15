@@ -26,9 +26,6 @@ COPY --from=builder /app/package.json /app/yarn.lock ./
 # 5. Copy the built dist
 COPY --from=builder /app/packages/backend/dist packages/backend/dist
 
-COPY --from=builder /app/app-config.yaml ./app-config.yaml
-COPY --from=builder /app/app-config.production.yaml ./app-config.production.yaml
-
 ENV NODE_ENV=production
 ENV PORT=7007
 EXPOSE 7007
