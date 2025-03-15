@@ -16,9 +16,7 @@ techdocs:
       bucketName: 'backstage-techdocs-feedutopia'
 
 backend:
-  # The baseUrl should be the externally accessible URL to the backend.
   baseUrl: https://backstage.feedutopia.com
-  # Binding on all interfaces. Adjust to your environment if needed.
   listen: ':7007'
 
   database:
@@ -30,7 +28,6 @@ backend:
       password: ${POSTGRES_PASSWORD}
 
 catalog:
-  # Replace or remove these example catalog locations for your production setup.
   locations:
     - type: file
       target: ./examples/entities.yaml
