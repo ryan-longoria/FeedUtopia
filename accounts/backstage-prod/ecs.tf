@@ -22,8 +22,8 @@ resource "aws_ecs_task_definition" "backstage" {
       image = "825765422855.dkr.ecr.us-east-2.amazonaws.com/backstage-repo@sha256:a177f578d67e890c783189c40399351262a3a632b714bfa0ab4afae4ff4fc8d4"
       portMappings = [
         {
-          containerPort = 700
-          hostPort      = 700
+          containerPort = 7007
+          hostPort      = 7007
         }
       ]
       environment = [
@@ -65,7 +65,7 @@ resource "aws_ecs_service" "backstage" {
   load_balancer {
     target_group_arn = aws_lb_target_group.backstage.arn
     container_name   = "backstage"
-    container_port   = 7000
+    container_port   = 7007
   }
 
   depends_on = [aws_lb_listener.frontend_https]
