@@ -51,21 +51,12 @@ def dynamic_split(text, font_path, font_size, max_width):
     return top_line, bottom_line
 
 
-def remove_white(frame):
-    threshold = 240
-    alpha = np.where(np.all(frame > threshold, axis=-1), 0, 255).astype("uint8")
-    return np.dstack((frame, alpha))
-
-
 def lambda_handler(event, context):
     bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
     json_key = "most_recent_post.json"
     timestamp_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     folder = f"posts/animeutopia_{timestamp_str}"
     complete_key = f"{folder}/anime_post_complete.mp4"
-    no_text_key = f"{folder}/anime_post_no_text.mp4"
-    no_bg_key = f"{folder}/anime_post_no_bg.mov"
-    no_text_no_bg_key = f"{folder}/anime_post_no_text_no_bg.mov"
 
     local_json = "/tmp/most_recent_post.json"
     s3.download_file(bucket_name, json_key, local_json)
@@ -119,6 +110,7 @@ def lambda_handler(event, context):
     width, height = 1080, 1080
     duration_sec = 10
 
+    # Create background clip
     if bg_local_path and os.path.exists(bg_local_path):
         bg_clip = (ImageClip(bg_local_path)
                    .with_effects([vfx.Resize((width, height))])
@@ -127,9 +119,7 @@ def lambda_handler(event, context):
         bg_clip = (ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
                    .with_duration(duration_sec))
 
-    transparent_clip = (ImageClip(np.zeros((height, width, 4), dtype="uint8"))
-                        .with_duration(duration_sec))
-
+    # Gradient
     if gradient_local_path and os.path.exists(gradient_local_path):
         gradient_clip = (ImageClip(gradient_local_path)
                          .with_effects([vfx.Resize((width, height))])
@@ -137,25 +127,30 @@ def lambda_handler(event, context):
     else:
         gradient_clip = None
 
+    # News overlay (ProRes with alpha, if available)
     if news_local_path and os.path.exists(news_local_path):
         raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
-        scale_news = raw_news.w
-        news_clip = raw_news.with_effects([vfx.Resize(scale_news)])
+        # Example scaling
+        scale_factor = 750 / raw_news.w
+        news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
     else:
         news_clip = None
 
+    # Logo
     base_margin = 15
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
         logo_clip = (raw_logo.with_effects([vfx.Resize(scale_logo)])
                      .with_duration(duration_sec))
-        logo_clip = logo_clip.with_position((width - logo_clip.w - base_margin, height - logo_clip.h - base_margin))
+        logo_clip = logo_clip.with_position((width - logo_clip.w - base_margin, 
+                                             height - logo_clip.h - base_margin))
         side_margin = max(logo_clip.w + base_margin, base_margin)
     else:
         logo_clip = None
         side_margin = base_margin
 
+    # Title/Description
     available_width = width - (2 * side_margin)
     subtitle_side_margin = side_margin + 10
     available_subtitle_width = width - (2 * subtitle_side_margin)
@@ -197,6 +192,7 @@ def lambda_handler(event, context):
                                  method="caption")
                         .with_duration(duration_sec))
 
+    # Positioning
     subtitle_bottom_y = height - 20 - desc_bottom_clip.h
     subtitle_top_y = subtitle_bottom_y - 10 - desc_top_clip.h
     bottom_title_y = subtitle_top_y - 12 - bottom_clip.h
@@ -207,6 +203,7 @@ def lambda_handler(event, context):
     desc_top_clip = desc_top_clip.with_position((subtitle_side_margin, subtitle_top_y))
     desc_bottom_clip = desc_bottom_clip.with_position((subtitle_side_margin, subtitle_bottom_y))
 
+    # Composite final clip
     clips_complete = [bg_clip]
     if gradient_clip:
         clips_complete.append(gradient_clip)
@@ -215,61 +212,17 @@ def lambda_handler(event, context):
     clips_complete.extend([top_clip, bottom_clip, desc_top_clip, desc_bottom_clip])
     if logo_clip:
         clips_complete.append(logo_clip)
-    complete_clip = (CompositeVideoClip(clips_complete, size=(width, height))
-                     .with_duration(duration_sec))
+    complete_clip = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
 
-    clips_no_text = [bg_clip]
-    if gradient_clip:
-        clips_no_text.append(gradient_clip)
-    if news_clip:
-        clips_no_text.append(news_clip)
-    if logo_clip:
-        clips_no_text.append(logo_clip)
-    no_text_clip = (CompositeVideoClip(clips_no_text, size=(width, height))
-                    .with_duration(duration_sec))
-
-    clips_no_bg = [transparent_clip]
-    if gradient_clip:
-        clips_no_bg.append(gradient_clip)
-    if news_clip:
-        clips_no_bg.append(news_clip)
-    clips_no_bg.extend([top_clip, bottom_clip, desc_top_clip, desc_bottom_clip])
-    if logo_clip:
-        clips_no_bg.append(logo_clip)
-    no_bg_clip = (CompositeVideoClip(clips_no_bg, size=(width, height))
-                  .with_duration(duration_sec))
-
-    clips_no_text_no_bg = [transparent_clip]
-    if gradient_clip:
-        clips_no_text_no_bg.append(gradient_clip)
-    if news_clip:
-        clips_no_text_no_bg.append(news_clip)
-    if logo_clip:
-        clips_no_text_no_bg.append(logo_clip)
-    no_text_no_bg_clip = (CompositeVideoClip(clips_no_text_no_bg, size=(width, height))
-                          .with_duration(duration_sec))
-
+    # Render single output
     complete_local = "/tmp/anime_post_complete.mp4"
-    no_text_local = "/tmp/anime_post_no_text.mp4"
-    no_bg_local = "/tmp/anime_post_no_bg.mov"
-    no_text_no_bg_local = "/tmp/anime_post_no_text_no_bg.mov"
-
     complete_clip.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
-    no_text_clip.write_videofile(no_text_local, fps=24, codec="libx264", audio=False)
-    no_bg_clip.write_videofile(no_bg_local, fps=24, codec="png", audio=False)
-    no_text_no_bg_clip.write_videofile(no_text_no_bg_local, fps=24, codec="png", audio=False)
 
+    # Upload to S3
     s3.upload_file(complete_local, bucket_name, complete_key)
-    s3.upload_file(no_text_local, bucket_name, no_text_key)
-    s3.upload_file(no_bg_local, bucket_name, no_bg_key)
-    s3.upload_file(no_text_no_bg_local, bucket_name, no_text_no_bg_key)
 
+    # Return result
     return {
         "status": "rendered",
-        "video_keys": {
-            "complete": complete_key,
-            "no_text": no_text_key,
-            "no_bg": no_bg_key,
-            "no_text_no_bg": no_text_no_bg_key,
-        },
+        "video_key": complete_key
     }
