@@ -20,8 +20,6 @@ WORKDIR /app
 # 4. Copy the entire node_modules from builder
 COPY --from=builder /app/node_modules ./node_modules
 
-RUN yarn install --production
-
 # Also copy any Yarn lockfiles if you want them
 COPY --from=builder /app/package.json /app/yarn.lock ./
 
