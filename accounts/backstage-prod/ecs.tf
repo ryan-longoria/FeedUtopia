@@ -33,8 +33,8 @@ resource "aws_ecs_task_definition" "backstage" {
         { name = "POSTGRES_PASSWORD", value = var.db_password },
         { name = "POSTGRES_DB", value = aws_db_instance.backstage.db_name },
         { name = "TECHDOCS_S3_BUCKET", value = aws_s3_bucket.techdocs.id },
-        { name : "APP_CONFIG_app__baseUrl", value : "https://${var.backstage_domain}" },
-        { name : "APP_CONFIG_backend__baseUrl", value : "https://${var.backstage_domain}" },
+        { name : "APP_CONFIG_app_baseUrl", value : "https://${var.backstage_domain}" },
+        { name : "APP_CONFIG_backend_baseUrl", value : "https://${var.backstage_domain}" },
         { name : "AWS_REGION", value : var.aws_region }
       ]
       logConfiguration = {
