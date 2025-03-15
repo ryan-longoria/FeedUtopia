@@ -12,14 +12,15 @@ resource "aws_internet_gateway" "igw" {
 
 resource "aws_subnet" "public1" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
+  cidr_block              = var.public_subnet_cidrs[0]
   availability_zone       = "us-east-2a"
   map_public_ip_on_launch = true
   tags                    = { Name = "backstage-public-1" }
 }
+
 resource "aws_subnet" "public2" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
+  cidr_block              = var.public_subnet_cidrs[1]
   availability_zone       = "us-east-2b"
   map_public_ip_on_launch = true
   tags                    = { Name = "backstage-public-2" }
@@ -27,14 +28,15 @@ resource "aws_subnet" "public2" {
 
 resource "aws_subnet" "private1" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.11.0/24"
+  cidr_block              = var.private_subnet_cidrs[0]
   availability_zone       = "us-east-2a"
   map_public_ip_on_launch = false
   tags                    = { Name = "backstage-private-1" }
 }
+
 resource "aws_subnet" "private2" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.12.0/24"
+  cidr_block              = var.private_subnet_cidrs[1]
   availability_zone       = "us-east-2b"
   map_public_ip_on_launch = false
   tags                    = { Name = "backstage-private-2" }
@@ -81,6 +83,7 @@ resource "aws_route_table_association" "priv1" {
   subnet_id      = aws_subnet.private1.id
   route_table_id = aws_route_table.private.id
 }
+
 resource "aws_route_table_association" "priv2" {
   subnet_id      = aws_subnet.private2.id
   route_table_id = aws_route_table.private.id
