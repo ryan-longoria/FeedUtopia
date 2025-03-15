@@ -56,7 +56,7 @@ const app = createApp({
     });
   },
   components: {
-    SignInPage: () => null,
+    SignInPage: false,
   },
 });
 
