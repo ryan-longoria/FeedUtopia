@@ -15,7 +15,7 @@ logger.setLevel(logging.INFO)
 def fetch_anilist_titles_and_image(core_title):
     query = """
     query ($searchTitle: String) {
-      Media(type: ANIME, search: $searchTitle) {
+      Media(type: ANIME, search: Naruto) {
         title {
           romaji
           english
