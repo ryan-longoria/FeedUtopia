@@ -10,8 +10,8 @@ database:
 auth:
   providers:
     awsalb:
-      issuer: 'https://backstage-auth-feedutopia.auth.us-east-2.amazoncognito.com'
-      signer: 'arn:aws:elasticloadbalancing:us-east-2:825765422855:loadbalancer/app/backstage-alb/da6d56c961fa9ce6'
+      issuer: 'https://cognito-idp.us-east-2.amazonaws.com/us-east-2_jQ1zS0Ruj'
+      signer: 'arn:aws:elasticloadbalancing:us-east-2:825765422855:loadbalancer/app/backstage-alb/1a85036fb16efdde'
       region: 'us-east-2'
       signIn:
         resolvers:
