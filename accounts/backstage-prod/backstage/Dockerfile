@@ -13,5 +13,5 @@ RUN yarn workspaces focus --all --production
 ENV NODE_ENV=production \
     PORT=7007
 EXPOSE 7007
-CMD ["node", "packages/backend/dist/index.cjs.js"]
 
+CMD ["sh", "-c", "tar -xzf packages/backend/dist/bundle.tar.gz -C /app && node /app/index.js"]
