@@ -54,5 +54,9 @@
       "prettier --write"
     ]
   },
-  "packageManager": "yarn@4.4.1"
+  "packageManager": "yarn@4.4.1",
+  "dependencies": {
+    "@types/prop-types": "^15.7.14",
+    "prop-types": "^15.8.1"
+  }
 }

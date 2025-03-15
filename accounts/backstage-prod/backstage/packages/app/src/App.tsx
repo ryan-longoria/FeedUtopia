@@ -38,6 +38,8 @@ import { CatalogGraphPage } from '@backstage/plugin-catalog-graph';
 import { RequirePermission } from '@backstage/plugin-permission-react';
 import { catalogEntityCreatePermission } from '@backstage/plugin-catalog-common/alpha';
 
+import { IdentityApi } from '@backstage/core-plugin-api';
+
 const customProviderConfig: SignInProviderConfig = {
   id: 'awsalb',
   title: 'Sign in with FeedUtopia',
@@ -69,7 +71,7 @@ const app = createApp({
       <SignInPage
         auto
         provider={customProviderConfig}
-        onSignInSuccess={(identityApi) => {
+        onSignInSuccess={(identityApi: IdentityApi) => {
           console.log('Sign in successful!', identityApi);
         }}
       />
