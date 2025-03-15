@@ -15,7 +15,7 @@ logger.setLevel(logging.INFO)
 def fetch_anilist_titles_and_image(core_title):
     query = """
     query ($searchTitle: String) {
-      Media(type: ANIME, search: Naruto) {
+      Media(type: ANIME, search: $searchTitle) {
         title {
           romaji
           english
@@ -131,6 +131,8 @@ def lambda_handler(event, context):
     full_title = post.get("title", "")
     if not full_title:
         return {"status": "error", "error": "No title provided in post."}
+
+    full_title = "Naruto"
 
     anime_titles, image_path = fetch_anilist_titles_and_image(full_title)
     if not anime_titles:
