@@ -140,13 +140,3 @@ resource "aws_lb_listener" "frontend_http" {
     }
   }
 }
-
-resource "aws_security_group_rule" "allow_alb_to_ecs" {
-  description       = "Allow ALB to reach Backstage ECS"
-  type              = "ingress"
-  from_port         = 7007
-  to_port           = 7007
-  protocol          = "tcp"
-  security_group_id = aws_security_group.ecs.id       
-  source_security_group_id = aws_security_group.alb.id
-}
