@@ -44,3 +44,6 @@ catalog:
       target: ./examples/org.yaml
       rules:
         - allow: [User, Group]
+    
+    - type: file
+      target: ./catalog/users.yaml
