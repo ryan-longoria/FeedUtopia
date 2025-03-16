@@ -205,7 +205,15 @@ def lambda_handler(event, context):
     complete_clip = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
 
     complete_clip.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
-    s3.upload_file(complete_local, bucket_name, complete_key)
+    s3.upload_file(
+        complete_local, 
+        bucket_name, 
+        complete_key, 
+        ExtraArgs={
+            "ContentType": "video/mp4",
+            "ContentDisposition": "attachment; filename=\"anime_post_complete.mp4\""
+        }
+    )
 
     return {
         "status": "rendered",
