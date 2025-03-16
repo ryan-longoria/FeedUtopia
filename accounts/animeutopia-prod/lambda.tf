@@ -78,6 +78,15 @@ resource "aws_lambda_function" "render_video" {
       FFMPEG_PATH   = "/opt/bin/ffmpeg"
     }
   }
+  vpc_config {
+    subnet_ids         = [aws_subnet.private_subnet.id]
+    security_group_ids = [aws_security_group.lambda_sg.id]
+  }
+
+  file_system_config {
+    arn              = aws_efs_access_point.lambda_ap.arn
+    local_mount_path = "/mnt/efs"
+  }
 }
 
 #############################
