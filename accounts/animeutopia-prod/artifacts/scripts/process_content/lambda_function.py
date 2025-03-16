@@ -82,7 +82,7 @@ def download_image(url):
             logger.error("File size too small, likely incomplete.")
             return None
 
-        converted_path = os.path.join(os.getcwd(), "backgroundimage_converted.jpg")
+        converted_path = "/tmp/backgroundimage_converted.jpg"
         try:
             subprocess.run([IMAGE_MAGICK_EXE, file_path, converted_path], check=True)
             logger.info("Converted image saved to: %s", converted_path)

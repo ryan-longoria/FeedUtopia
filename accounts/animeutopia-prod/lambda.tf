@@ -27,7 +27,11 @@ resource "aws_lambda_function" "process_content" {
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
-  timeout          = 10
+  timeout          = 15
+  vpc_config {
+    security_group_ids = [aws_security_group.lambda_sg.id]
+    subnet_ids         = [aws_subnet.private_subnet.id]
+  }
   environment {
     variables = {
       IMAGE_MAGICK_EXE = "/bin/magick"
@@ -64,7 +68,7 @@ resource "aws_lambda_function" "store_data" {
 resource "aws_lambda_function" "render_video" {
   function_name = "render_video"
   package_type  = "Image"
-  image_uri     = "481665084477.dkr.ecr.us-east-2.amazonaws.com/render_video_repository@sha256:62d0bd0bc8a36c68201ec227e08739523cf6fff83bf57f15954f9e49120fb658"
+  image_uri     = "481665084477.dkr.ecr.us-east-2.amazonaws.com/render_video_repository@sha256:52931861e7b2483cdf57967d3e5b42ebe111c3e31e04492db00809c75b4da3d9"
   role          = aws_iam_role.lambda_role.arn
   timeout       = 300
   memory_size   = 3008
@@ -73,6 +77,15 @@ resource "aws_lambda_function" "render_video" {
       TARGET_BUCKET = var.s3_bucket_name
       FFMPEG_PATH   = "/opt/bin/ffmpeg"
     }
+  }
+  vpc_config {
+    subnet_ids         = [aws_subnet.private_subnet.id]
+    security_group_ids = [aws_security_group.lambda_sg.id]
+  }
+
+  file_system_config {
+    arn              = aws_efs_access_point.lambda_ap.arn
+    local_mount_path = "/mnt/efs"
   }
 }
 

@@ -29,48 +29,38 @@ def lambda_handler(event, context):
     timestamp = datetime.datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     unique_id = uuid.uuid4().hex
 
-    video_keys = event.get("video_keys", {})
+    video_keys = event.get("video_keys")
     if not video_keys:
-        error_msg = "No video keys found in event."
+        complete_key = event.get("video_key")
+        if complete_key:
+            video_keys = {"complete": complete_key}
+        else:
+            error_msg = "No video keys found in event."
+            logger.error(error_msg)
+            return {"error": error_msg}
+
+    complete_key = video_keys.get("complete")
+    if not complete_key:
+        error_msg = "No 'complete' video key found in event."
         logger.error(error_msg)
         return {"error": error_msg}
 
-    presigned_urls = {}
-    for variant, key in video_keys.items():
-        try:
-            url = s3.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": bucket, "Key": key},
-                ExpiresIn=604800
-            )
-            presigned_urls[variant] = url
-        except Exception as e:
-            logger.exception("Error generating presigned URL for %s: %s", variant, e)
-            presigned_urls[variant] = None
+    try:
+        url = s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": complete_key},
+            ExpiresIn=604800
+        )
+    except Exception as e:
+        logger.exception("Error generating presigned URL for complete video: %s", e)
+        url = None
 
-    descriptions = {
-        "complete": (
-            "Complete Post: Contains background image, gradient, title & subtitle, "
-            "news clip, and logo."
-        ),
-        "no_text": (
-            "No Text: Contains background image, gradient, news clip, and logo; "
-            "omits title & subtitle."
-        ),
-        "no_bg": (
-            "No Background: Uses a transparent background (no background image) along with "
-            "gradient, title & subtitle, news clip, and logo."
-        ),
-        "no_text_no_bg": (
-            "No Text & No Background: Uses a transparent background and omits title & subtitle, "
-            "leaving only gradient, news clip, and logo."
-        ),
-    }
-
-    message_text = "Your new post has been processed!\n\n"
-    for variant, url in presigned_urls.items():
-        desc = descriptions.get(variant, variant)
-        message_text += f"**{desc}**: [View Video]({url})\n\n"
+    message_text = (
+        "Your new post has been processed!\n\n"
+        "**Complete Post:** Contains background image, gradient, title & subtitle, "
+        "news clip, and logo.\n\n"
+        f"[View Video]({url})\n\n"
+    )
 
     teams_payload = {"text": message_text}
     try:
@@ -87,6 +77,6 @@ def lambda_handler(event, context):
     logger.info("Message posted to Microsoft Teams successfully.")
     return {
         "status": "message_posted",
-        "video_keys": video_keys,
-        "video_urls": presigned_urls,
+        "video_key": complete_key,
+        "video_url": url,
     }
