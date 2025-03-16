@@ -65,7 +65,7 @@ def lambda_handler(event, context):
     description_text = post_data.get("description", "")
     image_path = post_data.get("image_path", None)
 
-    bg_local_path = "/tmp/background.jpg"
+    bg_local_path = "/tmp/backgroundimage_converted.jpg"
     if image_path and image_path.startswith("http"):
         try:
             resp = requests.get(image_path, timeout=10)
