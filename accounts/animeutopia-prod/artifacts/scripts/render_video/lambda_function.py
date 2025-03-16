@@ -125,7 +125,7 @@ def lambda_handler(event, context):
 
     if news_local_path and os.path.exists(news_local_path):
         raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
-        scale_factor = 150 / raw_news.w
+        scale_factor = 250 / raw_news.w
         news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
     else:
         news_clip = None
