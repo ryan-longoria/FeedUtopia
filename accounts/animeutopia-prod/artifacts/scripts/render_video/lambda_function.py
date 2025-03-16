@@ -28,6 +28,25 @@ def measure_text_width(text, font_path, font_size):
     width = bbox[2] - bbox[0]
     return width
 
+def dynamic_split(text, font_path, font_size, max_width):
+    if measure_text_width(text, font_path, font_size) <= max_width:
+        return text, ""
+    words = text.split()
+    top_line = ""
+    for i in range(1, len(words) + 1):
+        candidate = " ".join(words[:i])
+        if measure_text_width(candidate, font_path, font_size) <= max_width:
+            top_line = candidate
+        else:
+            break
+    bottom_line = " ".join(words[len(top_line.split()):])
+    if len(words) - len(top_line.split()) > len(top_line.split()):
+        candidate = " ".join(words[:len(top_line.split()) + 1])
+        if measure_text_width(candidate, font_path, font_size) <= max_width:
+            top_line = candidate
+            bottom_line = " ".join(words[len(top_line.split()):])
+    return top_line, bottom_line
+
 def lambda_handler(event, context):
     bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
     json_key = "most_recent_post.json"
@@ -106,7 +125,7 @@ def lambda_handler(event, context):
 
     if news_local_path and os.path.exists(news_local_path):
         raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
-        scale_factor = 250 / raw_news.w
+        scale_factor = 300 / raw_news.w
         news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
     else:
         news_clip = None
@@ -114,7 +133,7 @@ def lambda_handler(event, context):
     base_margin = 15
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
-        scale_logo = 300 / raw_logo.w
+        scale_logo = 150 / raw_logo.w
         logo_clip = (raw_logo.with_effects([vfx.Resize(scale_logo)])
                      .with_duration(duration_sec))
         logo_clip = logo_clip.with_position((width - logo_clip.w - base_margin, 
@@ -129,51 +148,60 @@ def lambda_handler(event, context):
     available_subtitle_width = width - (2 * subtitle_side_margin)
 
     top_font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
+    bottom_font_size = top_font_size - 10 if top_font_size - 10 > 0 else top_font_size
     subtitle_font_size = dynamic_font_size(description_text, max_size=50, min_size=25, ideal_length=30)
     subtitle_font_size = min(subtitle_font_size, top_font_size)
 
-    title_clip = (
-        TextClip(
-            text=title_text,
-            font_size=top_font_size,
-            color="#ec008c",
-            font=font_path,
-            size=(available_width, None),
-            method="caption"
-        )
-        .with_duration(duration_sec)
-    )
-    title_h = title_clip.h
+    title_top, title_bottom = dynamic_split(title_text.upper(), font_path, top_font_size, available_width)
+    subtitle_top, subtitle_bottom = dynamic_split(description_text.upper(), font_path, subtitle_font_size, available_subtitle_width)
 
-    desc_clip = (
-        TextClip(
-            text=description_text,
-            font_size=subtitle_font_size,
-            color="white",
-            font=font_path,
-            size=(available_subtitle_width, None), 
-            method="caption"
-        )
-        .with_duration(duration_sec)
-    )
-    desc_h = desc_clip.h
+    top_clip = (TextClip(text=title_top,
+                         font_size=top_font_size,
+                         color="#ec008c",
+                         font=font_path,
+                         size=(available_width, None),
+                         method="caption")
+                .with_duration(duration_sec))
+    bottom_clip = (TextClip(text=title_bottom,
+                            font_size=bottom_font_size,
+                            color="#ec008c",
+                            font=font_path,
+                            size=(available_width, None),
+                            method="caption")
+                   .with_duration(duration_sec))
+    desc_top_clip = (TextClip(text=subtitle_top,
+                              font_size=subtitle_font_size,
+                              color="white",
+                              font=font_path,
+                              size=(available_subtitle_width, None),
+                              method="caption")
+                     .with_duration(duration_sec))
+    desc_bottom_clip = (TextClip(text=subtitle_bottom,
+                                 font_size=subtitle_font_size,
+                                 color="white",
+                                 font=font_path,
+                                 size=(available_subtitle_width, None),
+                                 method="caption")
+                        .with_duration(duration_sec))
 
-    desc_bottom_y = height - 20 - desc_h
-    desc_clip = desc_clip.with_position((subtitle_side_margin, desc_bottom_y))
+    subtitle_bottom_y = height - 20 - desc_bottom_clip.h
+    subtitle_top_y = subtitle_bottom_y - 10 - desc_top_clip.h
+    bottom_title_y = subtitle_top_y - 12 - bottom_clip.h
+    top_title_y = bottom_title_y - 10 - top_clip.h
 
-    spacing_between = 20
-    title_y = desc_bottom_y - spacing_between - title_h
-    title_clip = title_clip.with_position((side_margin, title_y))
+    top_clip = top_clip.with_position((side_margin, top_title_y))
+    bottom_clip = bottom_clip.with_position((side_margin, bottom_title_y))
+    desc_top_clip = desc_top_clip.with_position((subtitle_side_margin, subtitle_top_y))
+    desc_bottom_clip = desc_bottom_clip.with_position((subtitle_side_margin, subtitle_bottom_y))
 
     clips_complete = [bg_clip]
     if gradient_clip:
         clips_complete.append(gradient_clip)
     if news_clip:
         clips_complete.append(news_clip)
-    clips_complete.extend([title_clip, desc_clip])
+    clips_complete.extend([top_clip, bottom_clip, desc_top_clip, desc_bottom_clip])
     if logo_clip:
         clips_complete.append(logo_clip)
-
     complete_clip = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
 
     complete_clip.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
