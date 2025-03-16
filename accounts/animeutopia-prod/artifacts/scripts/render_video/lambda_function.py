@@ -147,9 +147,9 @@ def lambda_handler(event, context):
     subtitle_side_margin = side_margin + 10
     available_subtitle_width = width - (2 * subtitle_side_margin)
 
-    top_font_size = dynamic_font_size(title_text, max_size=130, min_size=30, ideal_length=20)
+    top_font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
     bottom_font_size = top_font_size - 10 if top_font_size - 10 > 0 else top_font_size
-    subtitle_font_size = dynamic_font_size(description_text, max_size=70, min_size=50, ideal_length=30)
+    subtitle_font_size = dynamic_font_size(description_text, max_size=50, min_size=25, ideal_length=30)
     subtitle_font_size = min(subtitle_font_size, top_font_size)
 
     title_top, title_bottom = dynamic_split(title_text.upper(), font_path, top_font_size, available_width)
