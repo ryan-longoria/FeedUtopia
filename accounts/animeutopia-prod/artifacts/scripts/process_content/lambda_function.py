@@ -132,8 +132,6 @@ def lambda_handler(event, context):
     if not full_title:
         return {"status": "error", "error": "No title provided in post."}
 
-    full_title = "Naruto"
-
     anime_titles, image_path = fetch_anilist_titles_and_image(full_title)
     if not anime_titles:
         logger.info("No anime titles returned from AniList; defaulting to full title.")
