@@ -33,6 +33,11 @@ resource "aws_iam_role_policy_attachment" "lambda_xray_write_access" {
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_s3_full_access" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.s3_full_policy.arn
+}
+
 resource "aws_security_group" "lambda_sg" {
   name        = "${var.project_name}-lambda-sg"
   description = "Allow Lambda to call out to the internet"

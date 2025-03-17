@@ -29,6 +29,39 @@ resource "aws_lambda_function" "fetch_data" {
 }
 
 #############################
+# check_duplicate
+#############################
+
+resource "aws_lambda_function" "check_duplicate" {
+  function_name    = "check_duplicate"
+  filename         = "${path.module}/artifacts/scripts/check_duplicate/check_duplicate.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/check_duplicate/check_duplicate.zip")
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
+
+  environment {
+    variables = {
+      IDEMPOTENCY_BUCKET = var.s3_bucket_name
+    }
+  }
+
+  layers = [
+    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+  ]
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+}
+
+
+#############################
 # process_content
 #############################
 
@@ -84,7 +117,7 @@ resource "aws_lambda_function" "store_data" {
       BUCKET_NAME = var.s3_bucket_name
     }
   }
-    
+
   layers = [
     "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
   ]

@@ -5,14 +5,26 @@
     "FetchData": {
       "Type": "Task",
       "Resource": "${fetch_data_arn}",
-      "ResultPath": "$.Data",
+      "ResultPath": "$.fetched",
+      "Next": "CheckDuplicate"
+    },
+    "CheckDuplicate": {
+      "Type": "Task",
+      "Resource": "${check_duplicate_arn}",
+      "InputPath": "$.fetched",
+      "ResultPath": "$.dupCheck",
       "Next": "CheckPost"
     },
     "CheckPost": {
       "Type": "Choice",
       "Choices": [
         {
-          "Variable": "$.Data.status",
+          "Variable": "$.dupCheck.status",
+          "StringEquals": "duplicate",
+          "Next": "EndWorkflow"
+        },
+        {
+          "Variable": "$.dupCheck.status",
           "StringEquals": "post_found",
           "Next": "ProcessContent"
         }
@@ -22,6 +34,7 @@
     "ProcessContent": {
       "Type": "Task",
       "Resource": "${process_content_arn}",
+      "InputPath": "$",
       "ResultPath": "$.processedContent",
       "Next": "StoreData"
     },
