@@ -94,7 +94,7 @@ resource "aws_cloudwatch_metric_alarm" "dlq_alarm" {
   statistic           = "Average"
   threshold           = 0
 
-  alarm_description   = "Triggers if there are any messages in the DLQ."
+  alarm_description = "Triggers if there are any messages in the DLQ."
 
   dimensions = {
     QueueName = aws_sqs_queue.lambda_dlq.name

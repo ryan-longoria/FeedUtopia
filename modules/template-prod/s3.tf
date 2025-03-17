@@ -18,7 +18,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "media_bucket_lifecycle" {
   bucket = aws_s3_bucket.media_bucket.id
 
   rule {
-    id     = "delete_posts_after_1_week"
+    id = "delete_posts_after_1_week"
     filter {
       prefix = "posts/"
     }

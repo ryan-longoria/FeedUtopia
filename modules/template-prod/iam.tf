@@ -163,12 +163,12 @@ data "aws_iam_policy_document" "dlq_policy_document" {
   statement {
     sid       = "AllowLambdaServiceToSendMessage"
     effect    = "Allow"
-    actions   = [ "sqs:SendMessage" ]
-    resources = [ aws_sqs_queue.lambda_dlq.arn ]
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.lambda_dlq.arn]
 
     principals {
       type        = "Service"
-      identifiers = [ "lambda.amazonaws.com" ]
+      identifiers = ["lambda.amazonaws.com"]
     }
   }
 }

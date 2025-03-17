@@ -8,48 +8,48 @@ resource "aws_cloudwatch_dashboard" "networking_dashboard" {
     widgets = [
       {
         "type" : "metric",
-        "x"    : 0,
-        "y"    : 0,
+        "x" : 0,
+        "y" : 0,
         "width" : 12,
-        "height": 6,
+        "height" : 6,
         "properties" : {
-          "title"  : "NAT Gateway Bytes",
+          "title" : "NAT Gateway Bytes",
           "region" : var.aws_region,
-          "metrics": [
-            [ "AWS/NATGateway", "BytesInFromDestination", "NatGatewayId", aws_nat_gateway.nat.id ],
-            [ ".", "BytesOutToDestination", ".", "." ]
+          "metrics" : [
+            ["AWS/NATGateway", "BytesInFromDestination", "NatGatewayId", aws_nat_gateway.nat.id],
+            [".", "BytesOutToDestination", ".", "."]
           ],
-          "period": 300,
-          "stat"  : "Sum"
+          "period" : 300,
+          "stat" : "Sum"
         }
       },
 
       {
         "type" : "metric",
-        "x"    : 12,
-        "y"    : 0,
+        "x" : 12,
+        "y" : 0,
         "width" : 12,
-        "height": 6,
+        "height" : 6,
         "properties" : {
-          "title"  : "NAT Gateway Connections",
+          "title" : "NAT Gateway Connections",
           "region" : var.aws_region,
-          "metrics": [
-            [ "AWS/NATGateway", "ActiveConnectionCount", "NatGatewayId", aws_nat_gateway.nat.id ],
-            [ ".", "ConnectionAttemptCount", ".", "." ]
+          "metrics" : [
+            ["AWS/NATGateway", "ActiveConnectionCount", "NatGatewayId", aws_nat_gateway.nat.id],
+            [".", "ConnectionAttemptCount", ".", "."]
           ],
-          "period": 300,
-          "stat"  : "Sum"
+          "period" : 300,
+          "stat" : "Sum"
         }
       },
 
       {
         "type" : "alarm",
-        "x"    : 0,
-        "y"    : 6,
+        "x" : 0,
+        "y" : 6,
         "width" : 24,
-        "height": 6,
+        "height" : 6,
         "properties" : {
-          "title"  : "Network-Related Alarms",
+          "title" : "Network-Related Alarms",
           "alarms" : [
             aws_cloudwatch_metric_alarm.nat_gateway_bytes_out_alarm.arn,
           ]
@@ -65,54 +65,54 @@ resource "aws_cloudwatch_dashboard" "lambdas_dashboard" {
     widgets = [
       {
         "type" : "metric",
-        "x"    : 0,
-        "y"    : 0,
+        "x" : 0,
+        "y" : 0,
         "width" : 12,
-        "height": 6,
+        "height" : 6,
         "properties" : {
-          "title"  : "Lambda Errors",
+          "title" : "Lambda Errors",
           "region" : var.aws_region,
-          "metrics": [
-            [ "AWS/Lambda", "Errors", "FunctionName", aws_lambda_function.fetch_data.function_name ],
-            [ ".", "Errors", "FunctionName", aws_lambda_function.process_content.function_name ],
-            [ ".", "Errors", "FunctionName", aws_lambda_function.store_data.function_name ],
-            [ ".", "Errors", "FunctionName", aws_lambda_function.render_video.function_name ],
-            [ ".", "Errors", "FunctionName", aws_lambda_function.notify_post.function_name ],
+          "metrics" : [
+            ["AWS/Lambda", "Errors", "FunctionName", aws_lambda_function.fetch_data.function_name],
+            [".", "Errors", "FunctionName", aws_lambda_function.process_content.function_name],
+            [".", "Errors", "FunctionName", aws_lambda_function.store_data.function_name],
+            [".", "Errors", "FunctionName", aws_lambda_function.render_video.function_name],
+            [".", "Errors", "FunctionName", aws_lambda_function.notify_post.function_name],
           ],
-          "period": 300,
-          "stat"  : "Sum"
+          "period" : 300,
+          "stat" : "Sum"
         }
       },
 
       {
         "type" : "metric",
-        "x"    : 12,
-        "y"    : 0,
+        "x" : 12,
+        "y" : 0,
         "width" : 12,
-        "height": 6,
+        "height" : 6,
         "properties" : {
-          "title"  : "Lambda Throttles",
+          "title" : "Lambda Throttles",
           "region" : var.aws_region,
-          "metrics": [
-            [ "AWS/Lambda", "Throttles", "FunctionName", aws_lambda_function.fetch_data.function_name ],
-            [ ".", "Throttles", "FunctionName", aws_lambda_function.process_content.function_name ],
-            [ ".", "Throttles", "FunctionName", aws_lambda_function.store_data.function_name ],
-            [ ".", "Throttles", "FunctionName", aws_lambda_function.render_video.function_name ],
-            [ ".", "Throttles", "FunctionName", aws_lambda_function.notify_post.function_name ],
+          "metrics" : [
+            ["AWS/Lambda", "Throttles", "FunctionName", aws_lambda_function.fetch_data.function_name],
+            [".", "Throttles", "FunctionName", aws_lambda_function.process_content.function_name],
+            [".", "Throttles", "FunctionName", aws_lambda_function.store_data.function_name],
+            [".", "Throttles", "FunctionName", aws_lambda_function.render_video.function_name],
+            [".", "Throttles", "FunctionName", aws_lambda_function.notify_post.function_name],
           ],
-          "period": 300,
-          "stat"  : "Sum"
+          "period" : 300,
+          "stat" : "Sum"
         }
       },
 
       {
         "type" : "alarm",
-        "x"    : 0,
-        "y"    : 6,
+        "x" : 0,
+        "y" : 6,
         "width" : 24,
-        "height": 6,
+        "height" : 6,
         "properties" : {
-          "title"  : "Lambda Alarms",
+          "title" : "Lambda Alarms",
           "alarms" : [
             aws_cloudwatch_metric_alarm.fetch_data_errors.arn,
           ]
@@ -128,31 +128,31 @@ resource "aws_cloudwatch_dashboard" "step_functions_dashboard" {
     widgets = [
       {
         "type" : "metric",
-        "x"    : 0,
-        "y"    : 0,
+        "x" : 0,
+        "y" : 0,
         "width" : 12,
-        "height": 6,
+        "height" : 6,
         "properties" : {
-          "title"  : "Step Function Executions",
+          "title" : "Step Function Executions",
           "region" : var.aws_region,
-          "metrics": [
-            [ "AWS/States", "ExecutionsStarted",   "StateMachineArn", aws_sfn_state_machine.automated_workflow.arn ],
-            [ ".",          "ExecutionsSucceeded", ".",               "." ],
-            [ ".",          "ExecutionsFailed",    ".",               "." ]
+          "metrics" : [
+            ["AWS/States", "ExecutionsStarted", "StateMachineArn", aws_sfn_state_machine.automated_workflow.arn],
+            [".", "ExecutionsSucceeded", ".", "."],
+            [".", "ExecutionsFailed", ".", "."]
           ],
-          "period": 300, 
-          "stat"  : "Sum"
+          "period" : 300,
+          "stat" : "Sum"
         }
       },
 
       {
         "type" : "alarm",
-        "x"    : 12,
-        "y"    : 0,
+        "x" : 12,
+        "y" : 0,
         "width" : 12,
-        "height": 6,
+        "height" : 6,
         "properties" : {
-          "title"  : "Step Function Alarms",
+          "title" : "Step Function Alarms",
           "alarms" : [
             aws_cloudwatch_metric_alarm.step_functions_failures.arn
           ]
