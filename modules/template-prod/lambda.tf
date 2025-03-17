@@ -14,7 +14,7 @@ resource "aws_lambda_function" "fetch_data" {
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
   timeout          = 10
-  
+
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
@@ -36,22 +36,22 @@ resource "aws_lambda_function" "process_content" {
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
   timeout          = 15
-  
+
   vpc_config {
     security_group_ids = [aws_security_group.lambda_sg.id]
     subnet_ids         = [aws_subnet.private_subnet.id]
   }
-  
+
   environment {
     variables = {
       IMAGE_MAGICK_EXE = "/bin/magick"
     }
   }
-  
+
   layers = [
     "arn:aws:lambda:us-east-2:825765422855:layer:imagick-layer:2"
   ]
-  
+
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
@@ -73,13 +73,13 @@ resource "aws_lambda_function" "store_data" {
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
   timeout          = 10
-  
+
   environment {
     variables = {
       BUCKET_NAME = var.s3_bucket_name
     }
   }
-  
+
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
@@ -100,14 +100,14 @@ resource "aws_lambda_function" "render_video" {
   role          = aws_iam_role.lambda_role.arn
   timeout       = 300
   memory_size   = 3008
-  
+
   environment {
     variables = {
       TARGET_BUCKET = var.s3_bucket_name
       FFMPEG_PATH   = "/opt/bin/ffmpeg"
     }
   }
-  
+
   vpc_config {
     subnet_ids         = [aws_subnet.private_subnet.id]
     security_group_ids = [aws_security_group.lambda_sg.id]
@@ -139,18 +139,18 @@ resource "aws_lambda_function" "notify_post" {
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
   timeout          = 10
-  
+
   environment {
     variables = {
       TEAMS_WEBHOOK_URL = var.teams_webhook_url,
       TARGET_BUCKET     = var.s3_bucket_name
     }
   }
-  
+
   layers = [
     "arn:aws:lambda:us-east-2:825765422855:layer:Python_Requests:1"
   ]
-  
+
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
@@ -172,13 +172,13 @@ resource "aws_lambda_function" "sns_to_teams" {
   filename         = "${path.module}/artifacts/scripts/sns_to_teams/sns_to_teams.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/sns_to_teams/sns_to_teams.zip")
   timeout          = 10
-  
+
   environment {
     variables = {
       TEAMS_WEBHOOK_URL = var.teams_incident_webhook_url
     }
   }
-  
+
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
