@@ -117,20 +117,35 @@ resource "aws_iam_role_policy" "step_functions_policy" {
   name = "${var.project_name}_step_functions_policy"
   role = aws_iam_role.step_functions_role.id
   policy = jsonencode({
-    Version : "2012-10-17",
-    Statement : [
+    Version = "2012-10-17",
+    Statement = [
       {
-        Effect : "Allow",
-        Action : [
+        Effect = "Allow",
+        Action = [
           "lambda:InvokeFunction"
         ],
-        Resource : [
+        Resource = [
           aws_lambda_function.fetch_data.arn,
           aws_lambda_function.process_content.arn,
           aws_lambda_function.store_data.arn,
           aws_lambda_function.render_video.arn,
+          aws_lambda_function.check_duplicate.arn,
           aws_lambda_function.notify_post.arn
         ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogDelivery",
+          "logs:GetLogDelivery",
+          "logs:UpdateLogDelivery",
+          "logs:DeleteLogDelivery",
+          "logs:ListLogDeliveries",
+          "logs:PutResourcePolicy",
+          "logs:DescribeResourcePolicies",
+          "logs:DescribeLogGroups"
+        ],
+        Resource = "*"
       }
     ]
   })
@@ -168,6 +183,11 @@ resource "aws_iam_policy" "eventbridge_policy" {
 resource "aws_iam_role_policy_attachment" "attach_eventbridge_policy" {
   role       = aws_iam_role.eventbridge_role.name
   policy_arn = aws_iam_policy.eventbridge_policy.arn
+}
+
+resource "aws_cloudwatch_log_group" "step_function_log_group" {
+  name              = "/aws/vendedlogs/states/automated_${var.project_name}_workflow"
+  retention_in_days = 14
 }
 
 #############################

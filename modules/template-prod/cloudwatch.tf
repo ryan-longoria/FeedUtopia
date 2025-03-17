@@ -54,6 +54,11 @@ resource "aws_cloudwatch_metric_alarm" "step_functions_failures" {
   ]
 }
 
+resource "aws_cloudwatch_log_group" "step_function_log_group" {
+  name              = "/aws/vendedlogs/states/automated_${var.project_name}_workflow"
+  retention_in_days = 2
+}
+
 resource "aws_cloudwatch_log_group" "fetch_data_log_group" {
   name              = "/aws/lambda/fetch_data"
   retention_in_days = 2
