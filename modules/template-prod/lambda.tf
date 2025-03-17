@@ -193,10 +193,6 @@ resource "aws_lambda_function" "sns_to_teams" {
     }
   }
 
-  layers = [
-    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
-  ]
-
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
