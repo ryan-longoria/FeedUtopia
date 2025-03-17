@@ -3,5 +3,5 @@
 ################################################################################
 
 locals {
-  project = "project-prod"
+  project = "${var.project_name}-prod"
 }
