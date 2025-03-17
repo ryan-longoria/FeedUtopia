@@ -15,6 +15,10 @@ resource "aws_lambda_function" "fetch_data" {
   role             = aws_iam_role.lambda_role.arn
   timeout          = 10
 
+  layers = [
+    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+  ]
+
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
@@ -49,7 +53,8 @@ resource "aws_lambda_function" "process_content" {
   }
 
   layers = [
-    "arn:aws:lambda:us-east-2:825765422855:layer:imagick-layer:2"
+    "arn:aws:lambda:us-east-2:825765422855:layer:imagick-layer:2",
+    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
   ]
 
   dead_letter_config {
@@ -79,6 +84,10 @@ resource "aws_lambda_function" "store_data" {
       BUCKET_NAME = var.s3_bucket_name
     }
   }
+    
+  layers = [
+    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+  ]
 
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
@@ -107,6 +116,10 @@ resource "aws_lambda_function" "render_video" {
       FFMPEG_PATH   = "/opt/bin/ffmpeg"
     }
   }
+
+  layers = [
+    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+  ]
 
   vpc_config {
     subnet_ids         = [aws_subnet.private_subnet.id]
@@ -148,7 +161,8 @@ resource "aws_lambda_function" "notify_post" {
   }
 
   layers = [
-    "arn:aws:lambda:us-east-2:825765422855:layer:Python_Requests:1"
+    "arn:aws:lambda:us-east-2:825765422855:layer:Python_Requests:1",
+    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
   ]
 
   dead_letter_config {
@@ -178,6 +192,10 @@ resource "aws_lambda_function" "sns_to_teams" {
       TEAMS_WEBHOOK_URL = var.teams_incident_webhook_url
     }
   }
+
+  layers = [
+    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+  ]
 
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn

@@ -65,6 +65,11 @@ resource "aws_lambda_permission" "allow_sns_invoke" {
   source_arn    = aws_sns_topic.monitoring_topic.arn
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_insights_policy" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy"
+}
+
 #############################
 # IAM Policy for S3
 #############################
