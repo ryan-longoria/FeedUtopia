@@ -62,42 +62,42 @@ resource "aws_cloudwatch_metric_alarm" "step_functions_failures" {
 
 resource "aws_cloudwatch_log_group" "automated_step_function_log_group" {
   name              = "/aws/vendedlogs/states/automated_${var.project_name}_workflow"
-  retention_in_days = 2
+  retention_in_days = 3
 }
 
 resource "aws_cloudwatch_log_group" "manual_step_function_log_group" {
   name              = "/aws/vendedlogs/states/manual_${var.project_name}_workflow"
-  retention_in_days = 2
+  retention_in_days = 3
 }
 
 resource "aws_cloudwatch_log_group" "fetch_data_log_group" {
   name              = "/aws/lambda/fetch_data"
-  retention_in_days = 2
+  retention_in_days = 3
 }
 
 resource "aws_cloudwatch_log_group" "notify_post_log_group" {
   name              = "/aws/lambda/notify_post"
-  retention_in_days = 2
+  retention_in_days = 3
 }
 
 resource "aws_cloudwatch_log_group" "process_content_log_group" {
   name              = "/aws/lambda/process_content"
-  retention_in_days = 2
+  retention_in_days = 3
 }
 
 resource "aws_cloudwatch_log_group" "render_video_log_group" {
   name              = "/aws/lambda/render_video"
-  retention_in_days = 2
+  retention_in_days = 3
 }
 
 resource "aws_cloudwatch_log_group" "store_data_log_group" {
   name              = "/aws/lambda/store_data"
-  retention_in_days = 2
+  retention_in_days = 3
 }
 
 resource "aws_cloudwatch_log_group" "sns_to_teams_log_group" {
   name              = "/aws/lambda/sns_to_teams"
-  retention_in_days = 2
+  retention_in_days = 3
 }
 
 resource "aws_cloudwatch_metric_alarm" "dlq_alarm" {
@@ -123,7 +123,7 @@ resource "aws_cloudwatch_metric_alarm" "dlq_alarm" {
 
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name              = "/aws/vpc/flow_logs/${aws_vpc.main.id}"
-  retention_in_days = 2
+  retention_in_days = 3
 }
 
 resource "aws_cloudwatch_metric_alarm" "lambda_invocations_anomaly" {
