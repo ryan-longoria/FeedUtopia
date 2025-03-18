@@ -16,7 +16,7 @@ resource "aws_lambda_function" "fetch_data" {
   timeout          = 10
 
   layers = [
-    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
   ]
 
   dead_letter_config {
@@ -48,7 +48,7 @@ resource "aws_lambda_function" "check_duplicate" {
   }
 
   layers = [
-    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
   ]
 
   dead_letter_config {
@@ -76,7 +76,7 @@ resource "aws_lambda_function" "process_content" {
 
   vpc_config {
     security_group_ids = [aws_security_group.lambda_sg.id]
-    subnet_ids         = [aws_subnet.private_subnet.id]
+    subnet_ids         = [aws_subnet.public_subnet.id]
   }
 
   environment {
@@ -87,7 +87,7 @@ resource "aws_lambda_function" "process_content" {
 
   layers = [
     "arn:aws:lambda:us-east-2:825765422855:layer:imagick-layer:2",
-    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
   ]
 
   dead_letter_config {
@@ -119,7 +119,7 @@ resource "aws_lambda_function" "store_data" {
   }
 
   layers = [
-    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
   ]
 
   dead_letter_config {
@@ -151,7 +151,7 @@ resource "aws_lambda_function" "render_video" {
   }
 
   layers = [
-    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
   ]
 
   vpc_config {
@@ -195,7 +195,7 @@ resource "aws_lambda_function" "notify_post" {
 
   layers = [
     "arn:aws:lambda:us-east-2:825765422855:layer:Python_Requests:1",
-    "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:14"
+    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
   ]
 
   dead_letter_config {

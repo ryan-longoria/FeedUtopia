@@ -11,7 +11,7 @@ resource "aws_efs_file_system" "lambda_efs" {
 resource "aws_security_group" "efs_sg" {
   name        = "efs_lambda_sg"
   description = "Security group for EFS mount for Lambda"
-  vpc_id      = aws_vpc.example_vpc.id
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port   = 2049
@@ -30,7 +30,7 @@ resource "aws_security_group" "efs_sg" {
 
 resource "aws_efs_mount_target" "efs_mount" {
   file_system_id  = aws_efs_file_system.lambda_efs.id
-  subnet_id       = aws_subnet.private_subnet.id
+  subnet_id       = aws_subnet.public_subnet.id
   security_groups = [aws_security_group.efs_sg.id]
 }
 

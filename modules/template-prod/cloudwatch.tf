@@ -23,10 +23,15 @@ resource "aws_cloudwatch_metric_alarm" "fetch_data_errors" {
   period              = 300
   statistic           = "Sum"
   threshold           = 1
-  alarm_description   = "Alert if fetch_data Lambda function returns any errors in a 5-minute window."
+  alarm_description   = "Alert if Lambda functions return any errors in a 5-minute window."
 
   dimensions = {
-    FunctionName = aws_lambda_function.fetch_data.function_name
+    FunctionName = aws_lambda_function.fetch_data.function_name,
+    FunctionName = aws_lambda_function.check_duplicate.function_name,
+    FunctionName = aws_lambda_function.process_content.function_name,
+    FunctionName = aws_lambda_function.store_data.function_name,
+    FunctionName = aws_lambda_function.render_video.function_name,
+    FunctionName = aws_lambda_function.notify_post.function_name
   }
 
   alarm_actions = [
@@ -46,7 +51,8 @@ resource "aws_cloudwatch_metric_alarm" "step_functions_failures" {
   alarm_description   = "Alert if any Step Function executions fail within a 5-minute window."
 
   dimensions = {
-    StateMachineArn = aws_sfn_state_machine.automated_workflow.arn
+    StateMachineArn = aws_sfn_state_machine.automated_workflow.arn,
+    StateMachineArn = aws_sfn_state_machine.manual_workflow.arn
   }
 
   alarm_actions = [
@@ -54,8 +60,13 @@ resource "aws_cloudwatch_metric_alarm" "step_functions_failures" {
   ]
 }
 
-resource "aws_cloudwatch_log_group" "step_function_log_group" {
+resource "aws_cloudwatch_log_group" "automated_step_function_log_group" {
   name              = "/aws/vendedlogs/states/automated_${var.project_name}_workflow"
+  retention_in_days = 2
+}
+
+resource "aws_cloudwatch_log_group" "manual_step_function_log_group" {
+  name              = "/aws/vendedlogs/states/manual_${var.project_name}_workflow"
   retention_in_days = 2
 }
 
@@ -80,7 +91,7 @@ resource "aws_cloudwatch_log_group" "render_video_log_group" {
 }
 
 resource "aws_cloudwatch_log_group" "store_data_log_group" {
-  name              = "/aws/lambda/fetch_data"
+  name              = "/aws/lambda/store_data"
   retention_in_days = 2
 }
 
@@ -115,26 +126,6 @@ resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   retention_in_days = 2
 }
 
-resource "aws_cloudwatch_metric_alarm" "nat_gateway_bytes_out_alarm" {
-  alarm_name          = "nat-gateway-high-bytes-out"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "BytesOutToDestination"
-  namespace           = "AWS/NATGateway"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 50000000
-  alarm_description   = "Triggers if NAT Gateway sends more than 50 MB out in 5 minutes"
-
-  dimensions = {
-    NatGatewayId = aws_nat_gateway.nat.id
-  }
-
-  alarm_actions = [
-    aws_sns_topic.monitoring_topic.arn
-  ]
-}
-
 resource "aws_cloudwatch_metric_alarm" "lambda_invocations_anomaly" {
   alarm_name                = "LambdaInvocationsAnomaly"
   comparison_operator       = "GreaterThanUpperThreshold"
@@ -150,7 +141,12 @@ resource "aws_cloudwatch_metric_alarm" "lambda_invocations_anomaly" {
   ok_actions                = []
 
   dimensions = {
-    FunctionName = aws_lambda_function.fetch_data.function_name
+    FunctionName = aws_lambda_function.fetch_data.function_name,
+    FunctionName = aws_lambda_function.check_duplicate.function_name,
+    FunctionName = aws_lambda_function.process_content.function_name,
+    FunctionName = aws_lambda_function.store_data.function_name,
+    FunctionName = aws_lambda_function.render_video.function_name,
+    FunctionName = aws_lambda_function.notify_post.function_name
   }
 
   metric_query {
@@ -163,7 +159,12 @@ resource "aws_cloudwatch_metric_alarm" "lambda_invocations_anomaly" {
       period      = 300
       stat        = "Sum"
       dimensions = {
-        FunctionName = aws_lambda_function.fetch_data.function_name
+        FunctionName = aws_lambda_function.fetch_data.function_name,
+        FunctionName = aws_lambda_function.check_duplicate.function_name,
+        FunctionName = aws_lambda_function.process_content.function_name,
+        FunctionName = aws_lambda_function.store_data.function_name,
+        FunctionName = aws_lambda_function.render_video.function_name,
+        FunctionName = aws_lambda_function.notify_post.function_name
       }
     }
   }
