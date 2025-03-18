@@ -47,7 +47,7 @@ variable "teams_webhooks" {
   })
 }
 
-variable "teams_incident_webhook" {
+variable "incidents_teams_webhook" {
   description = "The Teams webhook URL used to notify when an incident occurs."
   type        = string
 }
