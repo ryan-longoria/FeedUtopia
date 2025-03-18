@@ -52,6 +52,9 @@ workflows:
 
 projects:
 
+  ########################################################################
+  # animeutopia-prod
+  ########################################################################
   - name: animeutopia-prod
     workflow: animeutopia-prod
     dir: accounts/animeutopia-prod
@@ -63,6 +66,9 @@ projects:
     repo_locks:
       mode: on_plan
 
+  ########################################################################
+  # sharedservices-prod
+  ########################################################################
   - name: sharedservices-prod
     workflow: sharedservices-prod
     dir: accounts/backstage-prod
