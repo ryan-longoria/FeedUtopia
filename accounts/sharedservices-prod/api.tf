@@ -22,7 +22,7 @@ resource "aws_api_gateway_stage" "api_stage" {
 
 resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
   domain_name     = "api.feedutopia.com"
-  certificate_arn = data.aws_acm_certificate.api_cert.arn
+  certificate_arn = "arn:aws:acm:us-east-2:825765422855:certificate/8e28f7dc-9a39-43dc-b615-fcb4a8e4a2c8"
 
   endpoint_configuration {
     types = ["REGIONAL"]
