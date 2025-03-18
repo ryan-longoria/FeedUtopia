@@ -110,42 +110,14 @@ data "aws_iam_policy_document" "sfn_policy" {
   }
 }
 
-resource "aws_iam_role" "allow_sharedservices_invoke" {
-  name = "AllowSharedServicesInvokeRole"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        AWS = "arn:aws:iam::${var.aws_account_ids.sharedservices}:root"
-      },
-      Action = "sts:AssumeRole"
-    }]
-  })
-}
-
-data "aws_iam_policy_document" "allow_start_exec_sfn" {
-  statement {
-    effect = "Allow"
-
-    actions = [
-      "states:StartExecution"
-    ]
-
-    resources = [
-      aws_sfn_state_machine.manual_workflow.arn
-    ]
+resource "null_resource" "attach_sfn_policy" {
+  provisioner "local-exec" {
+    command = <<EOT
+      aws stepfunctions set-permissions --state-machine-arn ${aws_sfn_state_machine.manual_workflow.arn} --policy '${jsonencode(data.aws_iam_policy_document.sfn_policy.json)}'
+    EOT
   }
-}
 
-resource "aws_iam_policy" "allow_start_exec_sfn_policy" {
-  name   = "AllowSharedServicesStartExecAnime"
-  policy = data.aws_iam_policy_document.allow_start_exec_sfn.json
-}
-
-resource "aws_iam_role_policy_attachment" "attach_sfn_invoke" {
-  role       = aws_iam_role.allow_sharedservices_invoke.name
-  policy_arn = aws_iam_policy.allow_start_exec_sfn_policy.arn
+  depends_on = [aws_sfn_state_machine.manual_workflow]
 }
 
 resource "aws_iam_role" "step_functions_role" {
