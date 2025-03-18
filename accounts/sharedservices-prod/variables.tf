@@ -12,13 +12,15 @@ variable "aws_account_ids" {
   type = object({
     sharedservices = string
     animeutopia    = string
+    wrestleutopia  = string
   })
 }
 
 variable "stepfunctions_arns" {
   type = map(string)
   default = {
-    animeutopia = "arn:aws:states:us-east-2:481665084477:stateMachine:anime_workflow"
+    animeutopia   = "arn:aws:states:us-east-2:481665084477:stateMachine:anime_workflow",
+    wrestleutopia = "arn:aws:states:us-east-2:390402544450:stateMachine:automated_workflow"
   }
 }
 
