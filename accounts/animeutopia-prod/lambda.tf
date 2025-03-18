@@ -103,7 +103,7 @@ resource "aws_lambda_function" "notify_post" {
   timeout          = 10
   environment {
     variables = {
-      TEAMS_WEBHOOK_URL = var.teams_webhook_url,
+      TEAMS_WEBHOOK_URL = var.teams_webhooks.animeutopia.auto,
       TARGET_BUCKET     = var.s3_bucket_name
     }
   }

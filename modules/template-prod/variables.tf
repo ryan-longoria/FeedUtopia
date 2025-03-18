@@ -36,9 +36,14 @@ variable "terraform_backend_bucket" {
   type        = string
 }
 
-variable "teams_webhook_url" {
-  description = "The Teams webhook URL used to notify when a new post is ready."
-  type        = string
+variable "teams_webhooks" {
+  description = "Microsoft Teams account specific webhooks"
+  type = object({
+    project = object({
+      auto   = string
+      manual = string
+    })
+  })
 }
 
 variable "teams_incident_webhook_url" {
@@ -81,7 +86,7 @@ variable "common_tags" {
   type        = map(string)
   default = {
     DeployedBy  = "Terraform"
-    Project     = var.project_name
-    Environment = var.environment
+    Project     = "project"
+    Environment = "prod"
   }
 }

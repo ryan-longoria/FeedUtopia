@@ -97,7 +97,8 @@ def download_image(url):
 def extract_core_title_and_description(full_title, anime_titles):
     separators = [
         " Anime ", " Gets ", " Announces ", " Reveals ", " Confirmed ",
-        " Premieres ", " Debuts ", " Trailer ", " English Dub ", " Season "
+        " Premieres ", " Debuts ", " Trailer ", " English Dub ", " Season ",
+        " Anime's ", " Manda ", " Teaser ", " Novel ", " Light Novel "
     ]
     separator_pattern = "(" + "|".join(map(re.escape, separators)) + ")"
     match = re.search(separator_pattern, full_title, flags=re.IGNORECASE)

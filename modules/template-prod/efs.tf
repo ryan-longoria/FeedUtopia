@@ -5,7 +5,7 @@
 resource "aws_efs_file_system" "lambda_efs" {
   creation_token   = "lambda-efs"
   performance_mode = "generalPurpose"
-  encrypted        = false
+  encrypted        = true
 }
 
 resource "aws_security_group" "efs_sg" {
