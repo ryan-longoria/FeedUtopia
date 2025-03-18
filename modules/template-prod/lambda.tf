@@ -222,7 +222,7 @@ resource "aws_lambda_function" "sns_to_teams" {
 
   environment {
     variables = {
-      TEAMS_WEBHOOK_URL = var.teams_incident_webhook_url
+      TEAMS_WEBHOOK_URL = var.teams_incident_webhook
     }
   }
 
