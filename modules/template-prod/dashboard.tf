@@ -2,63 +2,6 @@
 ## Cloudwatch Dashboards
 ################################################################################
 
-resource "aws_cloudwatch_dashboard" "networking_dashboard" {
-  dashboard_name = "NetworkingDashboard"
-  dashboard_body = jsonencode({
-    widgets = [
-      {
-        "type" : "metric",
-        "x" : 0,
-        "y" : 0,
-        "width" : 12,
-        "height" : 6,
-        "properties" : {
-          "title" : "NAT Gateway Bytes",
-          "region" : var.aws_region,
-          "metrics" : [
-            ["AWS/NATGateway", "BytesInFromDestination", "NatGatewayId", aws_nat_gateway.nat.id],
-            [".", "BytesOutToDestination", ".", "."]
-          ],
-          "period" : 300,
-          "stat" : "Sum"
-        }
-      },
-
-      {
-        "type" : "metric",
-        "x" : 12,
-        "y" : 0,
-        "width" : 12,
-        "height" : 6,
-        "properties" : {
-          "title" : "NAT Gateway Connections",
-          "region" : var.aws_region,
-          "metrics" : [
-            ["AWS/NATGateway", "ActiveConnectionCount", "NatGatewayId", aws_nat_gateway.nat.id],
-            [".", "ConnectionAttemptCount", ".", "."]
-          ],
-          "period" : 300,
-          "stat" : "Sum"
-        }
-      },
-
-      {
-        "type" : "alarm",
-        "x" : 0,
-        "y" : 6,
-        "width" : 24,
-        "height" : 6,
-        "properties" : {
-          "title" : "Network-Related Alarms",
-          "alarms" : [
-            aws_cloudwatch_metric_alarm.nat_gateway_bytes_out_alarm.arn,
-          ]
-        }
-      }
-    ]
-  })
-}
-
 resource "aws_cloudwatch_dashboard" "lambdas_dashboard" {
   dashboard_name = "LambdaDashboard"
   dashboard_body = jsonencode({

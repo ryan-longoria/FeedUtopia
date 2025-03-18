@@ -41,24 +41,13 @@ resource "aws_iam_role_policy_attachment" "lambda_s3_full_access" {
 resource "aws_security_group" "lambda_sg" {
   name        = "${var.project_name}-lambda-sg"
   description = "Allow Lambda to call out to the internet"
-  vpc_id      = aws_vpc.vpc.id
+  vpc_id      = aws_vpc.main.id
 
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["10.0.0.0/16"]
-  }
-
-  tags = {
-    Name = "lambda-sg"
   }
 }
 
@@ -100,6 +89,64 @@ resource "aws_iam_policy" "s3_full_policy" {
 #############################
 # IAM Policy for Step Functions
 #############################
+
+data "aws_iam_policy_document" "sfn_policy" {
+  statement {
+    sid = "AllowCrossAccountStartExecution"
+
+    effect = "Allow"
+    actions = [
+      "states:StartExecution"
+    ]
+
+    principals {
+      type        = "AWS"
+      identifiers = [
+        "arn:aws:iam:::role/APIGW-StepFunctions-CrossAccountRole"
+      ]
+    }
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role" "allow_sharedservices_invoke" {
+  name = "AllowSharedServicesInvokeRole"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        AWS = "arn:aws:iam::${var.aws_account_ids.sharedservices}:root"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+data "aws_iam_policy_document" "allow_start_exec_sfn" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "states:StartExecution"
+    ]
+
+    resources = [
+      aws_sfn_state_machine.manual_workflow.arn
+    ]
+  }
+}
+
+resource "aws_iam_policy" "allow_start_exec_sfn_policy" {
+  name   = "AllowSharedServicesStartExecAnime"
+  policy = data.aws_iam_policy_document.allow_start_exec_sfn.json
+}
+
+resource "aws_iam_role_policy_attachment" "attach_sfn_invoke" {
+  role       = aws_iam_role.allow_sharedservices_invoke.name
+  policy_arn = aws_iam_policy.allow_start_exec_sfn_policy.arn
+}
 
 resource "aws_iam_role" "step_functions_role" {
   name = "${var.project_name}_step_functions_role"
@@ -175,7 +222,7 @@ resource "aws_iam_policy" "eventbridge_policy" {
     Statement = [{
       Effect   = "Allow",
       Action   = "states:StartExecution",
-      Resource = aws_sfn_state_machine.anime_workflow.arn
+      Resource = aws_sfn_state_machine.automated_workflow.arn
     }]
   })
 }

@@ -11,6 +11,7 @@ variable "aws_account_ids" {
   description = "The AWS Account ID. Used for configuring the provider and defining ECS resources."
   type = object({
     project = string
+    sharedservices = string
   })
 }
 
@@ -58,11 +59,6 @@ variable "vpc_cidr" {
 
 variable "public_subnet_count" {
   description = "Number of public subnets (and AZs) to create."
-  type        = number
-}
-
-variable "private_subnet_count" {
-  description = "Number of private subnets to create."
   type        = number
 }
 
