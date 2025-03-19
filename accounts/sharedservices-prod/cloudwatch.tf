@@ -25,3 +25,18 @@ resource "aws_lambda_permission" "allow_eventbridge_trigger" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.crossaccount_schedule.arn
 }
+
+resource "aws_cloudwatch_log_group" "sns_to_teams_log_group" {
+  name              = "/aws/lambda/sns_to_teams"
+  retention_in_days = 3
+}
+
+resource "aws_cloudwatch_log_group" "crossaccount_invoker" {
+  name              = "/aws/lambda/crossaccount_invoker"
+  retention_in_days = 3
+}
+
+resource "aws_cloudwatch_log_group" "api_router" {
+  name              = "/aws/lambda/api_router"
+  retention_in_days = 3
+}
