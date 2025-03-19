@@ -130,24 +130,11 @@ resource "aws_cloudwatch_metric_alarm" "lambda_invocations_anomaly" {
   alarm_name                = "LambdaInvocationsAnomaly"
   comparison_operator       = "GreaterThanUpperThreshold"
   evaluation_periods        = 2
-  metric_name               = "Invocations"
-  namespace                 = "AWS/Lambda"
-  statistic                 = "Sum"
-  period                    = 300
   threshold_metric_id       = "e1"
   alarm_description         = "Alert if Lambda invocations deviates from normal"
   alarm_actions             = [aws_sns_topic.monitoring_topic.arn]
   insufficient_data_actions = []
   ok_actions                = []
-
-  dimensions = {
-    FunctionName = aws_lambda_function.fetch_data.function_name,
-    FunctionName = aws_lambda_function.check_duplicate.function_name,
-    FunctionName = aws_lambda_function.process_content.function_name,
-    FunctionName = aws_lambda_function.store_data.function_name,
-    FunctionName = aws_lambda_function.render_video.function_name,
-    FunctionName = aws_lambda_function.notify_post.function_name
-  }
 
   metric_query {
     id          = "m1"
