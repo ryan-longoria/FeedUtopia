@@ -227,6 +227,31 @@ data "aws_iam_policy_document" "dlq_policy_document" {
   }
 }
 
+resource "aws_iam_role_policy" "lambda_sqs_send_message" {
+  name = "${var.project_name}_lambda_sqs_send_message"
+  role = aws_iam_role.lambda_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "sqs:SendMessage",
+          "sqs:GetQueueAttributes"
+        ],
+        Resource = [
+          aws_sqs_queue.lambda_dlq.arn
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_sqs_send_message" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"
+}
+
 resource "aws_sqs_queue_policy" "lambda_dlq_policy" {
   queue_url = aws_sqs_queue.lambda_dlq.id
   policy    = data.aws_iam_policy_document.dlq_policy_document.json
