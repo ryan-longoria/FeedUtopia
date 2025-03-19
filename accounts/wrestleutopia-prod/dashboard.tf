@@ -81,7 +81,11 @@ resource "aws_cloudwatch_dashboard" "step_functions_dashboard" {
           "metrics" : [
             ["AWS/States", "ExecutionsStarted", "StateMachineArn", aws_sfn_state_machine.automated_workflow.arn],
             [".", "ExecutionsSucceeded", ".", "."],
-            [".", "ExecutionsFailed", ".", "."]
+            [".", "ExecutionsFailed", ".", "."],
+
+            ["AWS/States", "ExecutionsStarted", "StateMachineArn", aws_sfn_state_machine.manual_workflow.arn],
+            [".",          "ExecutionsSucceeded", ".", "."],
+            [".",          "ExecutionsFailed",    ".", "."]
           ],
           "period" : 300,
           "stat" : "Sum"
@@ -97,7 +101,8 @@ resource "aws_cloudwatch_dashboard" "step_functions_dashboard" {
         "properties" : {
           "title" : "Step Function Alarms",
           "alarms" : [
-            aws_cloudwatch_metric_alarm.step_functions_failures.arn
+            aws_cloudwatch_metric_alarm.automated_workflow_failures.arn,
+            aws_cloudwatch_metric_alarm.manual_workflow_failures.arn
           ]
         }
       }
