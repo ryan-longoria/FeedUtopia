@@ -76,7 +76,7 @@ resource "aws_lambda_function" "process_content" {
 
   vpc_config {
     security_group_ids = [aws_security_group.lambda_sg.id]
-    subnet_ids         = [aws_subnet.public_subnet.id]
+    subnet_ids         = aws_subnet.public_subnet[*].id
   }
 
   environment {
@@ -155,8 +155,8 @@ resource "aws_lambda_function" "render_video" {
   ]
 
   vpc_config {
-    subnet_ids         = [aws_subnet.public_subnet.id]
     security_group_ids = [aws_security_group.lambda_sg.id]
+    subnet_ids         = aws_subnet.public_subnet[*].id
   }
 
   file_system_config {
