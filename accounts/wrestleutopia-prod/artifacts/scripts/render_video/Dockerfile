@@ -1,14 +1,21 @@
 FROM public.ecr.aws/lambda/python:3.9
 
-RUN yum install -y ffmpeg aws-cli
-
-RUN mkdir -p /assets/fonts
-
-RUN aws s3 cp s3://utopia-account-artifacts/fonts/ariblk.ttf /assets/fonts/ariblk.ttf
-
 COPY requirements.txt .
-RUN pip install -r requirements.txt
 
-COPY render_video.py ./
+RUN python3 -m pip install --no-cache-dir --force-reinstall -r requirements.txt
 
-CMD [ "render_video.handler" ]
+RUN mkdir -p /opt/bin
+COPY bin/ffmpeg /opt/bin/ffmpeg
+RUN chmod +x /opt/bin/ffmpeg
+
+ENV FFMPEG_PATH="/opt/bin/ffmpeg"
+
+RUN yum install -y fontconfig wget && \
+    mkdir -p /usr/share/fonts/truetype/msttcorefonts && \
+    wget -O /tmp/ariblk.ttf https://raw.githubusercontent.com/ryan-longoria/FeedMatrix/main/accounts/animeutopia-prod/artifacts/adobe/ariblk.ttf && \
+    mv /tmp/ariblk.ttf /usr/share/fonts/truetype/msttcorefonts/ariblk.ttf && \
+    fc-cache -f -v
+
+COPY lambda_function.py /var/task
+
+CMD [ "lambda_function.lambda_handler" ]
