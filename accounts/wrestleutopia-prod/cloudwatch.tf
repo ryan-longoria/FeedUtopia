@@ -175,7 +175,7 @@ resource "aws_cloudwatch_metric_alarm" "manual_workflow_failures" {
 }
 
 resource "aws_cloudwatch_log_group" "automated_step_function_log_group" {
-  name              = "/aws/vendedlogs/states/automated_${var.project_name}_workflow"
+  name              = "/aws/vendedlogs/states/automated_${var.project_name}_workflow2"
   retention_in_days = 3
 }
 
