@@ -110,16 +110,6 @@ data "aws_iam_policy_document" "sfn_policy" {
   }
 }
 
-resource "null_resource" "attach_sfn_policy" {
-  provisioner "local-exec" {
-    command = <<EOT
-      aws stepfunctions set-permissions --state-machine-arn ${aws_sfn_state_machine.manual_workflow.arn} --policy '${jsonencode(data.aws_iam_policy_document.sfn_policy.json)}'
-    EOT
-  }
-
-  depends_on = [aws_sfn_state_machine.manual_workflow]
-}
-
 resource "aws_iam_role" "step_functions_role" {
   name = "${var.project_name}_step_functions_role"
   assume_role_policy = jsonencode({
