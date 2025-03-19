@@ -49,7 +49,7 @@ resource "aws_lambda_function" "crossaccounts_invoker" {
   runtime       = "python3.9"
   role          = aws_iam_role.external_lambda_role.arn
   handler       = "lambda_function.lambda_handler"
-  filename         = "${path.module}/artifacts/scripts/crossaccount_invoker.zip"
+  filename         = "${path.module}/artifacts/scripts/crossaccount_invoker/crossaccount_invoker.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/crossaccount_invoker/crossaccount_invoker.zip")
 
   environment {
