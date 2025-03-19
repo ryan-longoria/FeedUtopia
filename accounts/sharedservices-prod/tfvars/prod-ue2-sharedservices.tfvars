@@ -13,6 +13,5 @@ stepfunctions_arns = {
   wrestleutopia = "arn:aws:states:us-east-2:390402544450:stateMachine:automated_workflow"
 }
 cross_account_role_arns = [
-  "arn:aws:iam::481665084477:role/CrossAccountStartExecutionRole",
   "arn:aws:iam::390402544450:role/CrossAccountStartExecutionRole"
 ]
