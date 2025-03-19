@@ -90,6 +90,22 @@ resource "aws_lambda_permission" "allow_api_gateway_invoke_api_router" {
   source_arn    = "arn:aws:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${aws_api_gateway_rest_api.api.id}/*"
 }
 
+resource "aws_iam_role_policy" "allow_start_exec_remote" {
+  name = "AllowStartExecRemote"
+  role = aws_iam_role.lambda_role.name
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = "states:StartExecution",
+        Resource = values(var.stepfunctions_arns)
+      }
+    ]
+  })
+}
+
 #############################
 # IAM Policy for VPC Flow Logs
 #############################
