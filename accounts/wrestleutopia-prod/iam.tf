@@ -90,26 +90,6 @@ resource "aws_iam_policy" "s3_full_policy" {
 # IAM Policy for Step Functions
 #############################
 
-data "aws_iam_policy_document" "sfn_policy" {
-  statement {
-    sid = "AllowCrossAccountStartExecution"
-
-    effect = "Allow"
-    actions = [
-      "states:StartExecution"
-    ]
-
-    principals {
-      type        = "AWS"
-      identifiers = [
-        "arn:aws:iam:::role/APIGW-StepFunctions-CrossAccountRole"
-      ]
-    }
-
-    resources = ["*"]
-  }
-}
-
 resource "aws_iam_role" "step_functions_role" {
   name = "${var.project_name}_step_functions_role"
   assume_role_policy = jsonencode({
