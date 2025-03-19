@@ -16,7 +16,6 @@ def lambda_handler(event, context):
         assumed = sts_client.assume_role(
             RoleArn=role_arn,
             RoleSessionName="CrossAccountStartExec",
-            DurationSeconds=43200
         )
         creds = assumed["Credentials"]
 
