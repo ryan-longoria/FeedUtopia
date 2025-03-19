@@ -13,3 +13,12 @@ provider "aws" {
     role_arn = "arn:aws:iam::${var.aws_account_ids.project}:role/TerraformExecutionRole"
   }
 }
+
+provider "awscc" {
+  region = var.aws_region
+
+  assume_role = {
+    role_arn     = "arn:aws:iam::${var.aws_account_ids.project}:role/TerraformExecutionRole"
+    session_name = "Session"
+  }
+}
