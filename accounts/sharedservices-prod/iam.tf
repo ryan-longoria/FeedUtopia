@@ -80,6 +80,8 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
+data "aws_caller_identity" "current" {}
+
 resource "aws_lambda_permission" "allow_api_gateway_invoke_api_router" {
   statement_id  = "AllowAPIGatewayInvokeApiRouter"
   action        = "lambda:InvokeFunction"
