@@ -293,12 +293,23 @@ resource "aws_iam_role" "cross_account_sfn_role" {
   assume_role_policy = data.aws_iam_policy_document.cross_account_trust.json
 }
 
-data "aws_iam_policy_document" "cross_account_sfn_policy" {
+data "aws_iam_policy_document" "cross_account_sfn_resource_policy" {
   statement {
     effect = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = [
+        "arn:aws:iam::${var.aws_account_ids.sharedservices}:role/CrossAccountStartExecutionRole",
+
+        "arn:aws:iam::${var.aws_account_ids.sharedservices}:role/sharedservices_lambda_role"
+      ]
+    }
+
     actions = ["states:StartExecution"]
+
     resources = [
-      aws_sfn_state_machine.manual_workflow.arn
+      "aws_sfn_state_machine.manual_${var.project_name}_workflow.arn"
     ]
   }
 }
