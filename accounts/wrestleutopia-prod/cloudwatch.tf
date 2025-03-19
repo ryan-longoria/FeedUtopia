@@ -253,7 +253,7 @@ resource "aws_cloudwatch_metric_alarm" "fetch_data_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "FetchDataInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -286,7 +286,7 @@ resource "aws_cloudwatch_metric_alarm" "check_duplicate_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "CheckDuplicateInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -319,7 +319,7 @@ resource "aws_cloudwatch_metric_alarm" "process_content_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "ProcessContentInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -352,7 +352,7 @@ resource "aws_cloudwatch_metric_alarm" "store_data_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "StoreDataInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -385,7 +385,7 @@ resource "aws_cloudwatch_metric_alarm" "render_video_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "RenderVideoInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -418,7 +418,7 @@ resource "aws_cloudwatch_metric_alarm" "notify_post_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "NotifyPostInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -451,7 +451,7 @@ resource "aws_cloudwatch_metric_alarm" "sns_to_teams_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "SnsToTeamsInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
