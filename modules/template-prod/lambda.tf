@@ -155,7 +155,7 @@ resource "aws_lambda_function" "render_video" {
   ]
 
   vpc_config {
-    subnet_ids         = [aws_subnet.private_subnet.id]
+    subnet_ids         = [aws_subnet.public_subnet.id]
     security_group_ids = [aws_security_group.lambda_sg.id]
   }
 
