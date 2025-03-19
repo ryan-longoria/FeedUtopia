@@ -194,11 +194,6 @@ resource "aws_iam_role_policy_attachment" "attach_eventbridge_policy" {
   policy_arn = aws_iam_policy.eventbridge_policy.arn
 }
 
-resource "aws_cloudwatch_log_group" "step_function_log_group" {
-  name              = "/aws/vendedlogs/states/automated_${var.project_name}_workflow2"
-  retention_in_days = 14
-}
-
 #############################
 # IAM Policy for SQS
 #############################
