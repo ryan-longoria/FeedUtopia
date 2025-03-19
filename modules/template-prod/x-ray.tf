@@ -32,5 +32,5 @@ resource "aws_xray_sampling_rule" "fallback_rule" {
 
 resource "aws_xray_group" "production_group" {
   group_name        = "ProductionTraces"
-  filter_expression = "annotation.stage = 'prod'"
+  filter_expression = "annotation.stage = \"prod\""
 }
