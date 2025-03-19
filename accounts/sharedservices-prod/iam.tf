@@ -125,39 +125,33 @@ resource "aws_iam_role_policy" "api_vpc_flow_logs_role_policy" {
 ## Cross-Account Role for Step Functions Invocation
 #############################
 
-data "aws_iam_policy_document" "cross_account_trust" {
+data "aws_iam_policy_document" "lambda_assume" {
   statement {
-    effect = "Allow"
-
+    effect    = "Allow"
+    actions   = ["sts:AssumeRole"]
     principals {
-      type        = "AWS"
-      identifiers = [
-        "arn:aws:iam::${var.aws_account_ids.sharedservices}:root"
-      ]
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
     }
-
-    actions = ["sts:AssumeRole"]
   }
 }
 
-resource "aws_iam_role" "cross_account_sfn_role" {
-  name               = "CrossAccountStartExecutionRole"
-  max_session_duration = 43200
-  assume_role_policy = data.aws_iam_policy_document.cross_account_trust.json
+resource "aws_iam_role" "external_lambda_role" {
+  name               = "ExternalLambdaRole"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
 }
 
-data "aws_iam_policy_document" "cross_account_sfn_policy" {
+data "aws_iam_policy_document" "external_lambda_permissions" {
   statement {
-    effect = "Allow"
-    actions = ["states:StartExecution"]
-    resources = [
-      aws_sfn_state_machine.manual_workflow.arn
-    ]
+    effect   = "Allow"
+    actions  = ["sts:AssumeRole"]
+
+    resources = var.cross_account_role_arns
   }
 }
 
-resource "aws_iam_role_policy" "allow_sfn_execution" {
-  name   = "AllowCrossAccountStartExecution"
-  role   = aws_iam_role.cross_account_sfn_role.id
-  policy = data.aws_iam_policy_document.cross_account_sfn_policy.json
+resource "aws_iam_role_policy" "external_lambda_policy" {
+  name   = "AllowAssumeRoleInMultipleHosts"
+  role   = aws_iam_role.external_lambda_role.id
+  policy = data.aws_iam_policy_document.external_lambda_permissions.json
 }

@@ -18,10 +18,6 @@ variable "aws_account_ids" {
 
 variable "stepfunctions_arns" {
   type = map(string)
-  default = {
-    animeutopia   = "arn:aws:states:us-east-2:481665084477:stateMachine:anime_workflow",
-    wrestleutopia = "arn:aws:states:us-east-2:390402544450:stateMachine:automated_workflow"
-  }
 }
 
 variable "aws_region" {
@@ -64,4 +60,9 @@ variable "common_tags" {
     Project     = "sharedservices"
     Environment = "prod"
   }
+}
+
+variable "cross_account_role_arns" {
+  type        = list(string)
+  description = "List of cross-account role ARNs that can be assumed"
 }
