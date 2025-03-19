@@ -150,10 +150,6 @@ resource "aws_lambda_function" "render_video" {
     }
   }
 
-  layers = [
-    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
-  ]
-
   vpc_config {
     security_group_ids = [aws_security_group.lambda_sg.id]
     subnet_ids         = aws_subnet.public_subnet[*].id
