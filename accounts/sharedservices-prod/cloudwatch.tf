@@ -9,7 +9,7 @@ resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
 
 resource "aws_cloudwatch_event_rule" "crossaccount_schedule" {
   name                = "crossaccount-invoker-schedule"
-  schedule_expression = "rate(10 hours)" 
+  schedule_expression = "rate(1 hour)" 
 }
 
 resource "aws_cloudwatch_event_target" "crossaccount_target" {
