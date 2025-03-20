@@ -18,16 +18,12 @@ resource "aws_ssm_document" "attach_sfn_policy" {
     "PolicyJson": {
       "type": "String"
     },
-    "AutomationAssumeRole": {
-      "type": "String"
-    }
   },
   "mainSteps": [
     {
       "action": "aws:executeAwsApi",
       "name": "AttachPolicy",
       "inputs": {
-        "RoleArn": "{{ AutomationAssumeRole }}",
         "Service": "StepFunctions",
         "Api": "PutResourcePolicy",
         "ResourceArn": "{{ ResourceArn }}",
