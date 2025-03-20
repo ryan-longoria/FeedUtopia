@@ -43,6 +43,20 @@ resource "aws_ssm_document" "attach_sfn_policy" {
   DOC
 }
 
+resource "aws_iam_role" "ssm_automation_role" {
+  name = "SSMAutomationRole"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "ssm.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
 resource "aws_ssm_association" "attach_policy_scheduled" {
   name                = aws_ssm_document.attach_sfn_policy.name
   schedule_expression = "rate(12 hours)"
