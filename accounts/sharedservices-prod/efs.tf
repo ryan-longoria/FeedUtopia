@@ -29,7 +29,7 @@ resource "aws_security_group" "efs_sg" {
 }
 
 resource "aws_efs_mount_target" "efs_mount" {
-  for_each = { for idx, sb in aws_subnet.public_subnet : idx => sb }
+  for_each = { for idx, sb in aws_subnet.API_public_subnet_1 : idx => sb }
 
   file_system_id  = aws_efs_file_system.lambda_efs.id
   subnet_id       = each.value.id
