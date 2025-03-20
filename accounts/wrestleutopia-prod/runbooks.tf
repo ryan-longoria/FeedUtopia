@@ -17,7 +17,7 @@ content = <<-DOC
     "ResourceArn": {
       "type": "String"
     },
-    "PolicyJson": {
+    "PolicyB64": {
       "type": "String"
     },
     "AutomationAssumeRole": {
