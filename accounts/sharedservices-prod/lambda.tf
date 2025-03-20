@@ -20,6 +20,14 @@ resource "aws_lambda_function" "start_sfn" {
       STATE_MACHINE_ARN = aws_sfn_state_machine.manual_workflow.arn
     }
   }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
 }
 
 #############################
@@ -42,6 +50,14 @@ resource "aws_lambda_function" "get_logo" {
       ACCOUNT_MAP = jsonencode(local.account_map)
     }
   }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
 }
 
 #############################
@@ -61,6 +77,17 @@ resource "aws_lambda_function" "render_video" {
       TARGET_BUCKET = "prod-sharedservices-artifacts-bucket"
       FFMPEG_PATH   = "/opt/bin/ffmpeg"
     }
+  }
+
+  vpc_config {
+    subnet_ids         = [
+      aws_subnet.API_public_subnet_1.id,
+      aws_subnet.API_public_subnet_2.id
+    ]
+
+    security_group_ids = [
+      aws_security_group.efs_sg.id
+    ]
   }
 
   file_system_config {
@@ -96,6 +123,14 @@ resource "aws_lambda_function" "delete_logo" {
       CROSSACCOUNT_READ_ROLE_NAME = "CrossAccountS3ReadRole"
       ACCOUNT_MAP = jsonencode(local.account_map)
     }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
   }
 }
 
@@ -150,5 +185,13 @@ resource "aws_lambda_function" "sns_to_teams" {
     variables = {
       TEAMS_WEBHOOK_URL = var.incidents_teams_webhook
     }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
   }
 }
