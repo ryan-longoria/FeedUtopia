@@ -81,6 +81,15 @@ resource "aws_iam_role_policy_attachment" "lambda_insights_policy" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy"
 }
 
+resource "aws_lambda_permission" "allow_apigw_invoke_start_sfn" {
+  statement_id  = "AllowAPIGatewayInvokeStartSFN"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.start_sfn.function_name
+
+  principal = "apigateway.amazonaws.com"
+  source_arn = "arn:aws:execute-api:us-east-2:825765422855:${aws_api_gateway_rest_api.api.id}/*/POST/start-execution"
+}
+
 #############################
 # IAM Policy for S3
 #############################
