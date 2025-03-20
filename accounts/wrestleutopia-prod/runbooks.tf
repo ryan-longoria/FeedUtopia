@@ -6,7 +6,7 @@ resource "aws_ssm_document" "attach_sfn_policy" {
   name            = "AttachSFNResourcePolicy"
   document_type   = "Automation"
   document_format = "JSON"
-  depends_on      = [aws_iam_role.ssm_automation_rolee]
+  depends_on      = [aws_iam_role.ssm_automation_role]
 
   content = <<-DOC
     {
