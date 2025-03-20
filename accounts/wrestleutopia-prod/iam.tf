@@ -352,7 +352,7 @@ resource "aws_iam_role_policy" "ssm_automation_allow_putresourcepolicy" {
     Statement = [
       {
         Effect   = "Allow",
-        Action   = ["states:PutResourcePolicy"],
+        Action   = ["ssm:PutResourcePolicy"],
         Resource = "*"
       }
     ]
