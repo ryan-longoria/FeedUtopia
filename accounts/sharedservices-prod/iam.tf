@@ -90,6 +90,26 @@ resource "aws_lambda_permission" "allow_apigw_invoke_start_sfn" {
   source_arn = "arn:aws:execute-api:us-east-2:825765422855:${aws_api_gateway_rest_api.api.id}/*/POST/start-execution"
 }
 
+resource "aws_iam_role_policy" "lambda_sfn_execution" {
+  name = "AllowStatesStartExecution"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "states:StartExecution"
+        ],
+        Resource = [
+          aws_sfn_state_machine.manual_workflow.arn
+        ]
+      }
+    ]
+  })
+}
+
 #############################
 # IAM Policy for S3
 #############################
