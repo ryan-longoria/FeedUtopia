@@ -351,25 +351,6 @@ resource "aws_iam_role_policy_attachment" "attach_ssm_automation" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole"
 }
 
-data "aws_iam_policy_document" "ssm_role_ec2tag" {
-  statement {
-    actions   = ["ec2:CreateTag", "ec2:Describe*", "logs:*"]
-    resources = ["*"]
-    effect    = "Allow"
-  }
-}
-
-resource "aws_iam_policy" "policy_ec2tag" {
-  name        = "poc-ssm-ec2tagging-policy"
-  description = "allow ec2 tagging for SSM poc"
-  policy      = data.aws_iam_policy_document.ssm_role_ec2tag.json
-}
-
-resource "aws_iam_role_policy_attachment" "attach_passrole" {
-  role       = aws_iam_role.ssm_automation_role.name
-  policy_arn = aws_iam_policy.policy_ec2tag.arn
-}
-
 resource "aws_iam_role_policy" "ssm_automation_allow_putresourcepolicy" {
   name   = "SSMAutomationAllowPutResourcePolicy"
   role   = aws_iam_role.ssm_automation_role.id
