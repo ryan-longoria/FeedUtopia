@@ -320,12 +320,7 @@ data "aws_iam_policy_document" "cross_account_sfn_resource_policy" {
     actions = ["states:StartExecution"]
 
     resources = [
-      "aws_sfn_state_machine.manual_${var.project_name}_workflow.arn"
+      "aws_sfn_state_machine.manual_workflow.arn"
     ]
   }
-}
-
-resource "aws_sfn_state_machine_policy" "manual_post_policy" {
-  state_machine_arn = "aws_sfn_state_machine.manual_${var.project_name}_workflow.arn"
-  policy            = data.aws_iam_policy_document.cross_account_sfn_resource_policy.json
 }
