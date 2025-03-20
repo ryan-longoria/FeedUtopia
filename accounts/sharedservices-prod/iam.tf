@@ -110,6 +110,27 @@ resource "aws_iam_role_policy" "lambda_sfn_execution" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_assume_crossaccount" {
+  name = "AllowAssumeCrossAccountS3ReadRole"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "sts:AssumeRole"
+        ],
+        Resource = [
+          "arn:aws:iam::390402544450:role/CrossAccountS3ReadRole"
+        ]
+      }
+    ]
+  })
+}
+
+
 #############################
 # IAM Policy for S3
 #############################
