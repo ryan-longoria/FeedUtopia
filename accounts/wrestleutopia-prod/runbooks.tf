@@ -43,7 +43,7 @@ resource "aws_ssm_association" "attach_policy_scheduled" {
   schedule_expression = "rate(12 hours)"
 
   parameters = {
-    "ResourceArn" = "aws_sfn_state_machine.manual_workflow.arn"
+    "ResourceArn" = aws_sfn_state_machine.manual_workflow.arn
     "PolicyJson"  = data.aws_iam_policy_document.cross_account_sfn_resource_policy.json
   }
 }
