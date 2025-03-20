@@ -9,30 +9,38 @@ resource "aws_ssm_document" "attach_sfn_policy" {
 
   content = <<-DOC
     {
-      "schemaVersion": "0.3",
-      "description": "Attach a Step Functions resource-based policy if missing",
-      "parameters": {
-        "ResourceArn": { "type": "String" },
-        "PolicyJson": { "type": "String" },
-        "AutomationAssumeRole": { "type": "String" }
-      },
-      "mainSteps": [
+    "schemaVersion": "0.3",
+    "description": "Attach a Step Functions resource-based policy if missing",
+    "parameters": {
+        "ResourceArn": {
+        "type": "String",
+        "description": "The ARN of the Step Functions state machine or resource."
+        },
+        "PolicyJson": {
+        "type": "String",
+        "description": "The JSON representing the resource policy."
+        },
+        "AutomationAssumeRole": {
+        "type": "String",
+        "description": "(Recommended) The IAM role the runbook will assume. If omitted, the runbook will use the credentials of the user or service calling the runbook."
+        }
+    },
+    "mainSteps": [
         {
-          "action": "aws:executeAwsApi",
-          "name": "AttachPolicy",
-          "inputs": {
+        "action": "aws:executeAwsApi",
+        "name": "AttachPolicy",
+        "inputs": {
             "RoleArn": "{{ AutomationAssumeRole }}",
             "Service": "StepFunctions",
             "Api": "PutResourcePolicy",
             "ResourceArn": "{{ ResourceArn }}",
             "Policy": "{{ PolicyJson }}"
-          }
         }
-      ]
+        }
+    ]
     }
   DOC
 }
-
 
 resource "aws_ssm_association" "attach_policy_scheduled" {
   name                = aws_ssm_document.attach_sfn_policy.name
