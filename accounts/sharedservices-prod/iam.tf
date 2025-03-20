@@ -20,9 +20,26 @@ resource "aws_iam_role" "apigw_logs_role" {
   })
 }
 
+data "aws_iam_policy_document" "apigw_logs_trust" {
+  statement {
+    effect = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["apigateway.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "apigw_logs_role" {
+  name               = "APIGatewayLogsRole"
+  assume_role_policy = data.aws_iam_policy_document.apigw_logs_trust.json
+}
+
 resource "aws_iam_role_policy_attachment" "apigw_logs_role_attachment" {
   role       = aws_iam_role.apigw_logs_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/APIGatewayPushToCloudWatchLogs"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
 }
 
 resource "aws_api_gateway_account" "apigw_account" {
