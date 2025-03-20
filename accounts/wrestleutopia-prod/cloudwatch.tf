@@ -159,11 +159,6 @@ resource "aws_cloudwatch_log_group" "automated_step_function_log_group" {
   retention_in_days = 3
 }
 
-resource "aws_cloudwatch_log_group" "manual_step_function_log_group" {
-  name              = "/aws/vendedlogs/states/manual_workflow"
-  retention_in_days = 3
-}
-
 resource "aws_cloudwatch_log_group" "fetch_data_log_group" {
   name              = "/aws/lambda/fetch_data"
   retention_in_days = 3
