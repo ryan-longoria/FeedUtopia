@@ -2,6 +2,11 @@
 ## Cloudwatch
 ################################################################################
 
+resource "aws_cloudwatch_log_group" "apigw_access_logs" {
+  name              = "/aws/apigateway/${aws_api_gateway_rest_api.api.name}/access-logs"
+  retention_in_days = 7
+}
+
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name              = "/aws/vpc/flow_logs/${aws_vpc.API_vpc.id}"
   retention_in_days = 3

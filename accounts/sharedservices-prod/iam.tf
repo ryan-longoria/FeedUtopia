@@ -6,7 +6,28 @@
 # IAM Policy for API Gateway
 #############################
 
+resource "aws_iam_role" "apigw_logs_role" {
+  name = "APIGatewayLogsRole"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "apigateway.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
 
+resource "aws_iam_role_policy_attachment" "apigw_logs_role_attachment" {
+  role       = aws_iam_role.apigw_logs_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/APIGatewayPushToCloudWatchLogs"
+}
+
+resource "aws_api_gateway_account" "apigw_account" {
+  cloudwatch_role_arn = aws_iam_role.apigw_logs_role.arn
+}
 
 #############################
 # IAM Policy for Lambda

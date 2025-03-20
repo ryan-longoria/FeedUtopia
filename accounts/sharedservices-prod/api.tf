@@ -23,7 +23,33 @@ resource "aws_api_gateway_stage" "api_stage" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   deployment_id = aws_api_gateway_deployment.api_deployment.id
   stage_name    = "prod"
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.apigw_access_logs.arn
+    format          = jsonencode({
+      requestId = "$context.requestId",
+      ip        = "$context.identity.sourceIp",
+      caller    = "$context.identity.caller",
+      user      = "$context.identity.user",
+      requestTime = "$context.requestTime",
+      httpMethod  = "$context.httpMethod",
+      resourcePath = "$context.resourcePath",
+      status      = "$context.status",
+      protocol    = "$context.protocol",
+      responseLength = "$context.responseLength",
+      errorMessage   = "$context.error.messageString"
+    })
+  }
+
+  xray_tracing_enabled = true
+
+  depends_on = [
+    aws_api_gateway_deployment.api_deployment,
+    aws_cloudwatch_log_group.apigw_access_logs,
+    aws_api_gateway_account.apigw_account
+  ]
 }
+
 
 resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
   domain_name     = "api.feedutopia.com"
@@ -50,6 +76,7 @@ resource "aws_api_gateway_method" "start_execution_post" {
   resource_id   = aws_api_gateway_resource.start_execution.id
   http_method   = "POST"
   authorization = "NONE"
+  api_key_required = false
 }
 
 resource "aws_api_gateway_integration" "start_execution_integration" {
