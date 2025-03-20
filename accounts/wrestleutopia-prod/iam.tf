@@ -338,10 +338,7 @@ resource "aws_iam_role" "ssm_automation_role" {
     {
       "Effect": "Allow",
       "Principal": {
-        "Service": [
-          "ssm.amazonaws.com",
-          "ssm.us-east-2.amazonaws.com"
-        ]
+        "Service": "ssm.amazonaws.com"
       },
       "Action": "sts:AssumeRole"
     }
