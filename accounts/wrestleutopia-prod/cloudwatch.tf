@@ -470,22 +470,3 @@ resource "aws_cloudwatch_metric_alarm" "sns_to_teams_invocations_anomaly" {
     return_data = true
   }
 }
-
-resource "aws_cloudwatch_event_rule" "sfn_attach_policy_schedule" {
-  name                = "AttachSFNPolicyEvery12Hours"
-  schedule_expression = "rate(12 hours)"
-}
-
-resource "aws_cloudwatch_event_target" "sfn_attach_policy_target" {
-  rule      = aws_cloudwatch_event_rule.sfn_attach_policy_schedule.name
-  target_id = "InvokeStartAutomationLambda"
-  arn       = aws_lambda_function.put_sfn_schedule.arn
-}
-
-resource "aws_lambda_permission" "allow_eventbridge_invoke" {
-  statement_id  = "AllowEventBridgeInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.put_sfn_schedule.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.sfn_attach_policy_schedule.arn
-}
