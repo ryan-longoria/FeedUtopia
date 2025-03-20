@@ -296,10 +296,10 @@ data "aws_iam_policy_document" "crossaccount_s3_read_policy_doc" {
     sid     = "AllowGetLogo"
     effect  = "Allow"
     actions = [
-      "s3:GetObject"
+      "s3:*"
     ]
     resources = [
-      "arn:aws:s3:::prod-${var.project_name}-artifacts-bucket/*"
+      "arn:aws:s3:::prod-${var.project_name}-artifacts-bucket/logo.png"
     ]
   }
 }
