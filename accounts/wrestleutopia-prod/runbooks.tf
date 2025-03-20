@@ -27,9 +27,9 @@ content = <<-DOC
   "mainSteps": [
     {
       "action": "aws:invokeLambdaFunction",
-      "name": "PutResourcePolicyViaLambda",
+      "name": "put_sfn_policy",
       "inputs": {
-        "FunctionName": "MyPutResourcePolicyFunction",
+        "FunctionName": "put_sfn_policy",
         "Payload": "{\"ResourceArn\": \"{{ ResourceArn }}\", \"PolicyJson\": \"{{ PolicyJson }}\"}"
       }
     }
