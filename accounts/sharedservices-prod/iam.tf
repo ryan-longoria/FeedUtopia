@@ -6,45 +6,7 @@
 # IAM Policy for API Gateway
 #############################
 
-resource "aws_iam_role" "apigw_stepfunctions_role" {
-  name = "APIGW-StepFunctions-CrossAccountRole"
 
-  assume_role_policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "apigateway.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-EOF
-  tags = {
-    Name = "API-Gateway-to-StepFunctions-Role"
-  }
-}
-
-resource "aws_iam_role_policy" "apigw_stepfunctions_policy" {
-  name = "AllowStartExecutionInMultipleAccounts"
-  role = aws_iam_role.apigw_stepfunctions_role.id
-
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "states:StartExecution",
-      "Resource": ${jsonencode(values(var.stepfunctions_arns))}
-    }
-  ]
-}
-EOF
-}
 
 #############################
 # IAM Policy for Lambda
@@ -78,32 +40,6 @@ resource "aws_lambda_permission" "allow_sns_invoke" {
 resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
-data "aws_caller_identity" "current" {}
-
-resource "aws_lambda_permission" "allow_api_gateway_invoke_api_router" {
-  statement_id  = "AllowAPIGatewayInvokeApiRouter"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.api_router.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "arn:aws:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${aws_api_gateway_rest_api.api.id}/*"
-}
-
-resource "aws_iam_role_policy" "allow_start_exec_remote" {
-  name = "AllowStartExecRemote"
-  role = aws_iam_role.lambda_role.name
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect   = "Allow",
-        Action   = "states:StartExecution",
-        Resource = values(var.stepfunctions_arns)
-      }
-    ]
-  })
 }
 
 #############################
@@ -145,39 +81,4 @@ resource "aws_iam_role_policy" "api_vpc_flow_logs_role_policy" {
       }
     ]
   })
-}
-
-#############################
-## Cross-Account Role for Step Functions Invocation
-#############################
-
-data "aws_iam_policy_document" "lambda_assume" {
-  statement {
-    effect    = "Allow"
-    actions   = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_role" "external_lambda_role" {
-  name               = "ExternalLambdaRole"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-}
-
-data "aws_iam_policy_document" "external_lambda_permissions" {
-  statement {
-    effect   = "Allow"
-    actions  = ["sts:AssumeRole"]
-
-    resources = var.cross_account_role_arns
-  }
-}
-
-resource "aws_iam_role_policy" "external_lambda_policy" {
-  name   = "AllowAssumeRoleInMultipleHosts"
-  role   = aws_iam_role.external_lambda_role.id
-  policy = data.aws_iam_policy_document.external_lambda_permissions.json
 }

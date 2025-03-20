@@ -16,8 +16,14 @@ variable "aws_account_ids" {
   })
 }
 
-variable "stepfunctions_arns" {
-  type = map(string)
+variable "teams_webhooks" {
+  description = "Microsoft Teams account specific webhooks"
+  type = object({
+    wrestleutopia = object({
+      auto   = string
+      manual = string
+    })
+  })
 }
 
 variable "aws_region" {
@@ -60,9 +66,4 @@ variable "common_tags" {
     Project     = "sharedservices"
     Environment = "prod"
   }
-}
-
-variable "cross_account_role_arns" {
-  type        = list(string)
-  description = "List of cross-account role ARNs that can be assumed"
 }
