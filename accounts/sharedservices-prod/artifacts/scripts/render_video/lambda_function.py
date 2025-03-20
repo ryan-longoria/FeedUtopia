@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import uuid
+import logging
 import numpy as np
 import boto3
 import requests
@@ -10,6 +11,9 @@ from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import moviepy.video.fx as vfx
 from PIL import ImageFont, ImageDraw, Image
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 s3 = boto3.client("s3")
 font_path = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
@@ -48,6 +52,7 @@ def dynamic_split(text, font_path, font_size, max_width):
     return top_line, bottom_line
 
 def lambda_handler(event, context):
+    logger.info("Render video lambda started")
     bucket_name = os.environ.get("TARGET_BUCKET")
     timestamp_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     folder = f"posts/post_{timestamp_str}"
@@ -59,47 +64,66 @@ def lambda_handler(event, context):
     description_text = post_data.get("description", "")
     image_path = post_data.get("image_path", None)
 
+    logger.info(f"Title: {title_text}, Description: {description_text}, Image Path: {image_path}")
+
     bg_local_path = "/tmp/backgroundimage_converted.jpg"
     if image_path and image_path.startswith("http"):
         try:
+            logger.info("Attempting to download HTTP image")
             resp = requests.get(image_path, timeout=10)
             with open(bg_local_path, "wb") as f:
                 f.write(resp.content)
+            logger.info("HTTP image downloaded successfully")
         except Exception as e:
+            logger.error(f"Error downloading HTTP image: {e}")
             bg_local_path = None
     elif image_path:
         try:
+            logger.info("Attempting to download image from S3")
             s3.download_file(bucket_name, image_path, bg_local_path)
+            logger.info("S3 image downloaded successfully")
         except Exception as e:
+            logger.error(f"Error downloading S3 image: {e}")
             bg_local_path = None
 
     logo_key = "artifacts/Logo.png"
     logo_local_path = "/tmp/Logo.png"
     try:
+        logger.info("Downloading logo from S3")
         s3.download_file(bucket_name, logo_key, logo_local_path)
+        logger.info("Logo downloaded")
     except Exception as e:
+        logger.error(f"Error downloading logo: {e}")
         logo_local_path = None
 
     gradient_key = "artifacts/Black Gradient.png"
     gradient_local_path = "/tmp/Black_Gradient.png"
     try:
+        logger.info("Downloading gradient from S3")
         s3.download_file(bucket_name, gradient_key, gradient_local_path)
+        logger.info("Gradient downloaded")
     except Exception as e:
+        logger.error(f"Error downloading gradient: {e}")
         gradient_local_path = None
 
     news_key = "artifacts/NEWS.mov"
     news_local_path = "/tmp/NEWS.mov"
     try:
+        logger.info("Downloading news clip from S3")
         s3.download_file(bucket_name, news_key, news_local_path)
+        logger.info("News clip downloaded")
     except Exception as e:
+        logger.error(f"Error downloading news clip: {e}")
         news_local_path = None
 
     width, height = 1080, 1080
     duration_sec = 10
 
     if bg_local_path and os.path.exists(bg_local_path):
+        logger.info("Using background image")
         bg_clip = ImageClip(bg_local_path).fx(vfx.resize, (width, height)).set_duration(duration_sec)
     else:
+        logger.info("Using default color background")
         bg_clip = ColorClip(size=(width, height), color=(0, 0, 0)).set_duration(duration_sec)
 
     if gradient_local_path and os.path.exists(gradient_local_path):
@@ -108,6 +132,7 @@ def lambda_handler(event, context):
         gradient_clip = None
 
     if news_local_path and os.path.exists(news_local_path):
+        logger.info("Including news clip")
         raw_news = VideoFileClip(news_local_path, has_mask=True).set_duration(duration_sec)
         scale_factor = 300 / raw_news.w
         news_clip = raw_news.fx(vfx.resize, scale_factor)
@@ -116,6 +141,7 @@ def lambda_handler(event, context):
 
     base_margin = 15
     if logo_local_path and os.path.exists(logo_local_path):
+        logger.info("Including logo clip")
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
         logo_clip = raw_logo.fx(vfx.resize, scale_logo).set_duration(duration_sec)
@@ -162,9 +188,11 @@ def lambda_handler(event, context):
     if logo_clip:
         clips_complete.append(logo_clip)
 
+    logger.info("Starting final composite video")
     complete_clip = CompositeVideoClip(clips_complete, size=(width, height)).set_duration(duration_sec)
+    logger.info("Writing video file")
     complete_clip.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
-
+    logger.info("Uploading final video")
     s3.upload_file(
         complete_local,
         bucket_name,
@@ -174,6 +202,7 @@ def lambda_handler(event, context):
             "ContentDisposition": "attachment; filename=\"complete_post.mp4\""
         }
     )
+    logger.info("Render video complete")
 
     return {
         "status": "rendered",
