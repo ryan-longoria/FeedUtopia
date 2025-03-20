@@ -11,13 +11,13 @@ resource "aws_efs_file_system" "lambda_efs" {
 resource "aws_security_group" "efs_sg" {
   name        = "efs_lambda_sg"
   description = "Security group for EFS mount for Lambda"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = aws_vpc.API_vpc.id
 
   ingress {
     from_port   = 2049
     to_port     = 2049
     protocol    = "tcp"
-    cidr_blocks = [aws_vpc.main.cidr_block]
+    cidr_blocks = [aws_vpc.API_vpc.cidr_block]
   }
 
   egress {
