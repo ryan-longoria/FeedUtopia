@@ -69,7 +69,7 @@ resource "aws_lambda_function" "render_video" {
   package_type  = "Image"
   image_uri     = var.render_video_image_uri
   role          = aws_iam_role.lambda_role.arn
-  timeout       = 300
+  timeout       = 500
   memory_size   = 3008
 
   environment {
