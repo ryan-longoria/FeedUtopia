@@ -331,20 +331,16 @@ data "aws_iam_policy_document" "cross_account_sfn_resource_policy" {
 
 resource "aws_iam_role" "ssm_automation_role" {
   name = "SSMAutomationRole"
-  assume_role_policy = <<-EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "ssm.amazonaws.com"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "ssm.amazonaws.com"
       },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-EOF
+      Action = "sts:AssumeRole"
+    }]
+  })
 }
 
 resource "aws_iam_role_policy" "ssm_automation_allow_putresourcepolicy" {
