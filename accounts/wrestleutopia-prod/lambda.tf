@@ -256,3 +256,38 @@ resource "aws_lambda_function" "put_sfn_policy" {
     mode = "Active"
   }
 }
+
+#############################
+# put_sfn_schedule
+#############################
+
+resource "aws_lambda_function" "put_sfn_schedule" {
+  function_name    = "put_sfn_schedule"
+  filename         = "${path.module}/artifacts/scripts/put_sfn_schedule/put_sfn_schedule.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/put_sfn_schedule/put_sfn_schedule.zip")
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 15
+
+  environment {
+    variables = {
+      SSM_DOCUMENT_NAME = "AttachSFNResourcePolicy"
+      AUTOMATION_ROLE   = aws_iam_role.ssm_automation_role.arn
+      RESOURCE_ARN      = aws_sfn_state_machine.manual_workflow.arn
+      POLICY_B64        = base64encode(data.aws_iam_policy_document.cross_account_sfn_resource_policy.json)
+    }
+  }
+
+  layers = [
+    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
+  ]
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+}

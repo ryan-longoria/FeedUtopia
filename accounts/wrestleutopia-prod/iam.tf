@@ -81,6 +81,21 @@ resource "aws_iam_role_policy" "lambda_stepfunctions_policy" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_ssm_automation" {
+  name = "LambdaSSMAutomationPolicy"
+  role = aws_iam_role.lambda_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = "ssm:StartAutomationExecution",
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 #############################
 # IAM Policy for S3
 #############################
