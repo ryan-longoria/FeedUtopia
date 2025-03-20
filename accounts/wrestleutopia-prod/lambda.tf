@@ -208,7 +208,7 @@ resource "aws_lambda_function" "notify_post" {
 #############################
 
 resource "aws_lambda_function" "sns_to_teams" {
-  function_name    = "${var.project_name}-sns-to-teams"
+  function_name    = "sns_to_teams"
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
@@ -235,8 +235,8 @@ resource "aws_lambda_function" "sns_to_teams" {
 # invoke_sfnapi
 #############################
 
-resource "aws_lambda_function" "put_sfn_policy_lambda" {
-  function_name    = "MyPutResourcePolicyFunction"
+resource "aws_lambda_function" "put_sfn_policy" {
+  function_name    = "put_sfn_policy"
   filename         = "${path.module}/artifacts/scripts/put_sfn_policy/put_sfn_policy.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/put_sfn_policy/put_sfn_policy.zip")
   handler          = "lambda_function.lambda_handler"
