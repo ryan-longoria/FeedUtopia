@@ -2,12 +2,14 @@
 ## Lambda
 ################################################################################
 
-
+#############################
+# start_sfn
+#############################
 
 resource "aws_lambda_function" "start_sfn" {
   function_name = "start_sfn"
   filename      = "${path.module}/artifacts/scripts/start_sfn/start_sfn.zip"
-  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/notify_post/notify_post.zip")
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/start_sfn/start_sfn.zip")
   handler       = "lambda_function.lambda_handler"
   runtime       = "python3.9"
   role          = aws_iam_role.lambda_role.arn
@@ -16,6 +18,28 @@ resource "aws_lambda_function" "start_sfn" {
   environment {
     variables = {
       STATE_MACHINE_ARN = aws_sfn_state_machine.manual_workflow.arn
+    }
+  }
+}
+
+#############################
+# get_logo
+#############################
+
+resource "aws_lambda_function" "get_logo" {
+  function_name = "get_logo"
+  filename      = "${path.module}/artifacts/scripts/get_logo/get_logo.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/get_logo/get_logo.zip")
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.9"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 10
+
+  environment {
+    variables = {
+      TARGET_BUCKET = "prod-sharedservices-artifacts-bucket"
+      CROSSACCOUNT_READ_ROLE_NAME = "CrossAccountS3ReadRole"
+      ACCOUNT_MAP = jsonencode(local.account_map)
     }
   }
 }
