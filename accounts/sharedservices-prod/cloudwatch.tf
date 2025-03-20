@@ -52,11 +52,6 @@ resource "aws_cloudwatch_log_group" "sns_to_teams_log_group" {
   retention_in_days = 3
 }
 
-resource "aws_cloudwatch_log_group" "get_logo_log_group" {
-  name              = "/aws/lambda/get_logo"
-  retention_in_days = 3
-}
-
 resource "aws_cloudwatch_log_group" "delete_logo_log_group" {
   name              = "/aws/lambda/delete_logo"
   retention_in_days = 3
