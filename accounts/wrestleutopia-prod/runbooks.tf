@@ -3,38 +3,40 @@
 ################################################################################
 
 resource "aws_ssm_document" "attach_sfn_policy" {
-  name            = "AttachSFNResourcePolicy"                 # Must be unique
+  name            = "AttachSFNResourcePolicy"
   document_type   = "Automation"
   document_format = "JSON"
 
   content = <<-DOC
-  {
-    "schemaVersion": "0.3",
-    "description": "Attach Step Functions resource-based policy if missing",
-    "parameters": {
-      "ResourceArn": {
-        "type": "String",
-        "description": "ARN of the Step Functions state machine"
-      },
-      "PolicyJson": {
-        "type": "String",
-        "description": "The resource-based policy JSON to attach"
-      }
+{
+  "schemaVersion": "0.3",
+  "description": "Attach Step Functions resource-based policy if missing",
+  "parameters": {
+    "ResourceArn": {
+      "type": "String"
     },
-    "mainSteps": [
-      {
-        "action": "aws:executeAwsApi",
-        "name": "AttachPolicy",
-        "inputs": {
-          "Service": "StepFunctions",
-          "Api": "PutResourcePolicy",
-          "ResourceArn": "{{ ResourceArn }}",
-          "Policy": "{{ PolicyJson }}"
-        }
+    "PolicyJson": {
+      "type": "String"
+    },
+    "AutomationAssumeRole": {
+      "type": "String"
+    }
+  },
+  "mainSteps": [
+    {
+      "action": "aws:executeAwsApi",
+      "name": "AttachPolicy",
+      "inputs": {
+        "RoleArn": "{{ AutomationAssumeRole }}",
+        "Service": "StepFunctions",
+        "Api": "PutResourcePolicy",
+        "ResourceArn": "{{ ResourceArn }}",
+        "Policy": "{{ PolicyJson }}"
       }
-    ]
-  }
-  DOC
+    }
+  ]
+}
+DOC
 }
 
 resource "aws_ssm_association" "attach_policy_scheduled" {
