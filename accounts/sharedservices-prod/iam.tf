@@ -80,6 +80,32 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
+data "aws_caller_identity" "current" {}
+
+resource "aws_lambda_permission" "allow_api_gateway_invoke_api_router" {
+  statement_id  = "AllowAPIGatewayInvokeApiRouter"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api_router.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "arn:aws:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${aws_api_gateway_rest_api.api.id}/*"
+}
+
+resource "aws_iam_role_policy" "allow_start_exec_remote" {
+  name = "AllowStartExecRemote"
+  role = aws_iam_role.lambda_role.name
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = "states:StartExecution",
+        Resource = values(var.stepfunctions_arns)
+      }
+    ]
+  })
+}
+
 #############################
 # IAM Policy for VPC Flow Logs
 #############################
@@ -119,4 +145,39 @@ resource "aws_iam_role_policy" "api_vpc_flow_logs_role_policy" {
       }
     ]
   })
+}
+
+#############################
+## Cross-Account Role for Step Functions Invocation
+#############################
+
+data "aws_iam_policy_document" "lambda_assume" {
+  statement {
+    effect    = "Allow"
+    actions   = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "external_lambda_role" {
+  name               = "ExternalLambdaRole"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+}
+
+data "aws_iam_policy_document" "external_lambda_permissions" {
+  statement {
+    effect   = "Allow"
+    actions  = ["sts:AssumeRole"]
+
+    resources = var.cross_account_role_arns
+  }
+}
+
+resource "aws_iam_role_policy" "external_lambda_policy" {
+  name   = "AllowAssumeRoleInMultipleHosts"
+  role   = aws_iam_role.external_lambda_role.id
+  policy = data.aws_iam_policy_document.external_lambda_permissions.json
 }

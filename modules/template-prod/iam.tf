@@ -90,36 +90,6 @@ resource "aws_iam_policy" "s3_full_policy" {
 # IAM Policy for Step Functions
 #############################
 
-data "aws_iam_policy_document" "sfn_policy" {
-  statement {
-    sid = "AllowCrossAccountStartExecution"
-
-    effect = "Allow"
-    actions = [
-      "states:StartExecution"
-    ]
-
-    principals {
-      type        = "AWS"
-      identifiers = [
-        "arn:aws:iam:::role/APIGW-StepFunctions-CrossAccountRole"
-      ]
-    }
-
-    resources = ["*"]
-  }
-}
-
-resource "null_resource" "attach_sfn_policy" {
-  provisioner "local-exec" {
-    command = <<EOT
-      aws stepfunctions set-permissions --state-machine-arn ${aws_sfn_state_machine.manual_workflow.arn} --policy '${jsonencode(data.aws_iam_policy_document.sfn_policy.json)}'
-    EOT
-  }
-
-  depends_on = [aws_sfn_state_machine.manual_workflow]
-}
-
 resource "aws_iam_role" "step_functions_role" {
   name = "${var.project_name}_step_functions_role"
   assume_role_policy = jsonencode({
@@ -232,6 +202,31 @@ resource "aws_sqs_queue_policy" "lambda_dlq_policy" {
   policy    = data.aws_iam_policy_document.dlq_policy_document.json
 }
 
+resource "aws_iam_role_policy" "lambda_sqs_send_message" {
+  name = "${var.project_name}_lambda_sqs_send_message"
+  role = aws_iam_role.lambda_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "sqs:SendMessage",
+          "sqs:GetQueueAttributes"
+        ],
+        Resource = [
+          aws_sqs_queue.lambda_dlq.arn
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_sqs_send_message" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"
+}
+
 #############################
 # IAM Policy for VPC Flow Logs
 #############################
@@ -271,4 +266,56 @@ resource "aws_iam_role_policy" "vpc_flow_logs_role_policy" {
       }
     ]
   })
+}
+
+#############################
+## Cross-Account Role for Step Functions Invocation
+#############################
+
+data "aws_iam_policy_document" "cross_account_trust" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = [
+        "arn:aws:iam::${var.aws_account_ids.project}:root"
+      ]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_iam_role" "cross_account_sfn_role" {
+  name               = "CrossAccountStartExecutionRole"
+  max_session_duration = 43200
+  assume_role_policy = data.aws_iam_policy_document.cross_account_trust.json
+}
+
+data "aws_iam_policy_document" "cross_account_sfn_resource_policy" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = [
+        "arn:aws:iam::${var.aws_account_ids.sharedservices}:role/CrossAccountStartExecutionRole",
+
+        "arn:aws:iam::${var.aws_account_ids.sharedservices}:role/sharedservices_lambda_role"
+      ]
+    }
+
+    actions = ["states:StartExecution"]
+
+    resources = [
+      "aws_sfn_state_machine.manual_workflow.arn"
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "allow_sfn_execution" {
+  name   = "AllowCrossAccountStartExecution"
+  role   = aws_iam_role.cross_account_sfn_role.id
+  policy = data.aws_iam_policy_document.cross_account_sfn_policy.json
 }

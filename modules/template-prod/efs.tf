@@ -17,7 +17,7 @@ resource "aws_security_group" "efs_sg" {
     from_port   = 2049
     to_port     = 2049
     protocol    = "tcp"
-    cidr_blocks = [aws_vpc.example_vpc.cidr_block]
+    cidr_blocks = [aws_vpc.main.cidr_block]
   }
 
   egress {
@@ -29,10 +29,13 @@ resource "aws_security_group" "efs_sg" {
 }
 
 resource "aws_efs_mount_target" "efs_mount" {
+  for_each = { for idx, sb in aws_subnet.public_subnet : idx => sb }
+
   file_system_id  = aws_efs_file_system.lambda_efs.id
-  subnet_id       = aws_subnet.public_subnet.id
+  subnet_id       = each.value.id
   security_groups = [aws_security_group.efs_sg.id]
 }
+
 
 resource "aws_efs_access_point" "lambda_ap" {
   file_system_id = aws_efs_file_system.lambda_efs.id

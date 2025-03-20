@@ -12,14 +12,12 @@ variable "aws_account_ids" {
   type = object({
     sharedservices = string
     animeutopia    = string
+    wrestleutopia  = string
   })
 }
 
 variable "stepfunctions_arns" {
   type = map(string)
-  default = {
-    animeutopia = "arn:aws:states:us-east-2:481665084477:stateMachine:anime_workflow"
-  }
 }
 
 variable "aws_region" {
@@ -39,7 +37,7 @@ variable "terraform_backend_bucket" {
   type        = string
 }
 
-variable "teams_incident_webhook_url" {
+variable "incidents_teams_webhook" {
   description = "The Teams webhook URL used to notify when an incident occurs."
   type        = string
 }
@@ -62,4 +60,9 @@ variable "common_tags" {
     Project     = "sharedservices"
     Environment = "prod"
   }
+}
+
+variable "cross_account_role_arns" {
+  type        = list(string)
+  description = "List of cross-account role ARNs that can be assumed"
 }

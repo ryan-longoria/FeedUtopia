@@ -6,12 +6,10 @@ provider "aws" {
   region = var.aws_region
 
   default_tags {
-    tags = {
-      DeployedBy = "Terraform"
-    }
+    tags = var.common_tags
   }
 
   assume_role {
-    role_arn = "arn:aws:iam::${var.aws_account_id}:role/TerraformExecutionRole"
+    role_arn = "arn:aws:iam::${var.aws_account_ids.wrestleutopia}:role/TerraformExecutionRole"
   }
 }

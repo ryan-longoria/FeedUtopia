@@ -17,7 +17,7 @@ resource "aws_lambda_function" "sns_to_teams" {
 
   environment {
     variables = {
-      TEAMS_WEBHOOK_URL = var.teams_incident_webhook_url
+      TEAMS_WEBHOOK_URL = var.incidents_teams_webhook
     }
   }
 }
@@ -36,6 +36,25 @@ resource "aws_lambda_function" "api_router" {
   environment {
     variables = {
       STEPFUNCTIONS_ARNS_JSON = jsonencode(var.stepfunctions_arns)
+    }
+  }
+}
+
+#############################
+# crossaccount_invoker
+#############################
+
+resource "aws_lambda_function" "crossaccounts_invoker" {
+  function_name = "crossaccount_invoker"
+  runtime       = "python3.9"
+  role          = aws_iam_role.external_lambda_role.arn
+  handler       = "lambda_function.lambda_handler"
+  filename         = "${path.module}/artifacts/scripts/crossaccount_invoker/crossaccount_invoker.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/crossaccount_invoker/crossaccount_invoker.zip")
+
+  environment {
+    variables = {
+      CROSS_ACCT_ROLES = jsonencode(var.cross_account_role_arns)
     }
   }
 }
