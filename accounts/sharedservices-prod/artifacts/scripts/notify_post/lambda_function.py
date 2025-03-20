@@ -1,82 +1,77 @@
-import datetime
+# notify_post/lambda_function.py (or similar name)
 import json
 import os
 import uuid
-
-import boto3
 import logging
 import requests
-from datetime import timezone
+import boto3
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+s3 = boto3.client("s3")
 
 def lambda_handler(event, context):
-    bucket = os.environ.get("TARGET_BUCKET")
-    if not bucket:
-        error_msg = "TARGET_BUCKET environment variable not set."
-        logger.error(error_msg)
-        return {"error": error_msg}
+    teams_map_str = os.environ.get("TEAMS_WEBHOOKS_JSON")
+    if not teams_map_str:
+        msg = "TEAMS_WEBHOOKS_JSON not found in environment"
+        logger.error(msg)
+        return {"error": msg}
 
-    teams_webhook_url = os.environ.get("TEAMS_WEBHOOK_URL")
-    if not teams_webhook_url:
-        error_msg = "TEAMS_WEBHOOK_URL environment variable not set."
-        logger.error(error_msg)
-        return {"error": error_msg}
+    teams_map = json.loads(teams_map_str)
 
-    s3 = boto3.client("s3")
-    timestamp = datetime.datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    unique_id = uuid.uuid4().hex
+    account_name = event.get("accountName")
+    if not account_name:
+        msg = "No accountName found in event input"
+        logger.error(msg)
+        return {"error": msg}
 
-    video_keys = event.get("video_keys")
+    try:
+        teams_webhook_url = teams_map[account_name]["manual"]
+    except KeyError:
+        msg = f"accountName '{account_name}' not in teams_map, or missing 'manual'"
+        logger.error(msg)
+        return {"error": msg}
+
+    video_keys = event.get("videoResult", {}).get("video_key")
     if not video_keys:
-        complete_key = event.get("video_key")
-        if complete_key:
-            video_keys = {"complete": complete_key}
-        else:
-            error_msg = "No video keys found in event."
-            logger.error(error_msg)
-            return {"error": error_msg}
+        logger.warning("No video_key in event. Using fallback message.")
+        video_keys = "No final video key?"
 
-    complete_key = video_keys.get("complete")
-    if not complete_key:
-        error_msg = "No 'complete' video key found in event."
-        logger.error(error_msg)
-        return {"error": error_msg}
+    bucket = os.environ.get("TARGET_BUCKET")
+    url = None
+    if bucket and isinstance(video_keys, str):
+        try:
+            url = s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": bucket, "Key": video_keys},
+                ExpiresIn=604800
+            )
+        except Exception as e:
+            logger.exception("Error generating presigned URL: %s", e)
+            url = None
 
+    if url:
+        message_text = f"Your new post is ready!\n\n[View Video]({url})"
+    else:
+        message_text = "Your new post is ready!\n\n(No URL available)"
+
+    payload = {"text": message_text}
     try:
-        url = s3.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": bucket, "Key": complete_key},
-            ExpiresIn=604800
-        )
-    except Exception as e:
-        logger.exception("Error generating presigned URL for complete video: %s", e)
-        url = None
-
-    message_text = (
-        "Your new post has been processed!\n\n"
-        "**Complete Post:** Contains background image, gradient, title & subtitle, "
-        "news clip, and logo.\n\n"
-        f"[View Video]({url})\n\n"
-    )
-
-    teams_payload = {"text": message_text}
-    try:
-        response = requests.post(
+        resp = requests.post(
             teams_webhook_url,
             headers={"Content-Type": "application/json"},
-            data=json.dumps(teams_payload)
+            data=json.dumps(payload)
         )
-        response.raise_for_status()
+        resp.raise_for_status()
+        logger.info("Posted to Teams successfully.")
     except Exception as e:
-        logger.exception("Error posting message to Microsoft Teams: %s", e)
-        return {"error": "Failed to post to Microsoft Teams channel."}
+        logger.exception("Failed to post to Teams: %s", e)
+        return {"error": str(e)}
 
-    logger.info("Message posted to Microsoft Teams successfully.")
     return {
         "status": "message_posted",
-        "video_key": complete_key,
-        "video_url": url,
+        "accountName": account_name,
+        "videoKey": video_keys,
+        "videoUrl": url
     }

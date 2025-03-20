@@ -58,14 +58,9 @@ resource "aws_lambda_function" "render_video" {
 
   environment {
     variables = {
-      TARGET_BUCKET = var.s3_bucket_name
+      TARGET_BUCKET = "prod-sharedservices-artifacts-bucket"
       FFMPEG_PATH   = "/opt/bin/ffmpeg"
     }
-  }
-
-  vpc_config {
-    subnet_ids         = aws_subnet.public_subnet[*].id
-    security_group_ids = [aws_security_group.lambda_sg.id]
   }
 
   file_system_config {
@@ -79,6 +74,28 @@ resource "aws_lambda_function" "render_video" {
 
   tracing_config {
     mode = "Active"
+  }
+}
+
+#############################
+# delete_logo
+#############################
+
+resource "aws_lambda_function" "delete_logo" {
+  function_name = "delete_logo"
+  filename      = "${path.module}/artifacts/scripts/delete_logo/delete_logo.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/delete_logo/delete_logo.zip")
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.9"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 10
+
+  environment {
+    variables = {
+      TARGET_BUCKET = "prod-sharedservices-artifacts-bucket"
+      CROSSACCOUNT_READ_ROLE_NAME = "CrossAccountS3ReadRole"
+      ACCOUNT_MAP = jsonencode(local.account_map)
+    }
   }
 }
 
@@ -97,8 +114,8 @@ resource "aws_lambda_function" "notify_post" {
 
   environment {
     variables = {
-      TEAMS_WEBHOOK_URL = local.TEAMS_WEBHOOK_URL,
-      TARGET_BUCKET     = var.s3_bucket_name
+      TEAMS_WEBHOOKS_JSON = jsonencode(var.teams_webhooks)
+      TARGET_BUCKET       = var.s3_bucket_name
     }
   }
 

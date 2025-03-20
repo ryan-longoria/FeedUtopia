@@ -64,38 +64,6 @@ resource "aws_iam_role_policy_attachment" "lambda_insights_policy" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy"
 }
 
-resource "aws_iam_role_policy" "lambda_stepfunctions_policy" {
-  name = "${var.project_name}_lambda_stepfunctions_policy"
-  role = aws_iam_role.lambda_role.id
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect   = "Allow",
-        Action   = [
-          "states:PutResourcePolicy"
-        ],
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "lambda_ssm_automation" {
-  name = "LambdaSSMAutomationPolicy"
-  role = aws_iam_role.lambda_role.id
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect   = "Allow",
-        Action   = "ssm:StartAutomationExecution",
-        Resource = "*"
-      }
-    ]
-  })
-}
-
 #############################
 # IAM Policy for S3
 #############################
@@ -355,4 +323,46 @@ data "aws_iam_policy_document" "cross_account_sfn_resource_policy" {
       "aws_sfn_state_machine.manual_workflow.arn"
     ]
   }
+}
+
+data "aws_iam_policy_document" "crossaccount_s3_read_role_trust" {
+  statement {
+    sid     = "AllowSharedServicesAssumeRole"
+    effect  = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = [
+        "arn:aws:iam::${var.aws_account_ids.sharedservices}:root"
+      ]
+    }
+
+    actions = [
+      "sts:AssumeRole"
+    ]
+  }
+}
+
+resource "aws_iam_role" "crossaccount_s3_read_role" {
+  name               = "CrossAccountS3ReadRole"
+  assume_role_policy = data.aws_iam_policy_document.crossaccount_s3_read_role_trust.json
+}
+
+data "aws_iam_policy_document" "crossaccount_s3_read_policy_doc" {
+  statement {
+    sid     = "AllowGetLogo"
+    effect  = "Allow"
+    actions = [
+      "s3:GetObject"
+    ]
+    resources = [
+      "arn:aws:s3:::prod-${var.aws_account_ids.wrestleutopia}-artifacts-bucket/Logo.png"
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "crossaccount_s3_read_policy" {
+  name   = "WrestleUtopiaReadLogo"
+  role   = aws_iam_role.crossaccount_s3_read_role.id
+  policy = data.aws_iam_policy_document.crossaccount_s3_read_policy_doc.json
 }

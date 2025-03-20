@@ -22,6 +22,10 @@ variable "teams_webhooks" {
     wrestleutopia = object({
       auto   = string
       manual = string
+    }),
+    animeutopia = object({
+      auto   = string
+      manual = string
     })
   })
 }
@@ -36,6 +40,11 @@ variable "environment" {
   description = "The environment name (nonprod, prod)."
   type        = string
   default     = "prod"
+}
+
+variable "s3_bucket_name" {
+  description = "Name of the S3 bucket for storing processed data."
+  type        = string
 }
 
 variable "terraform_backend_bucket" {
@@ -56,6 +65,11 @@ variable "vpc_cidr" {
 variable "aws_availability_zones" {
   description = "List of availability zones to use."
   type        = list(string)
+}
+
+variable "render_video_image_uri" {
+  description = "The uri used to render lambda function render_video."
+  type        = string
 }
 
 variable "common_tags" {

@@ -4,7 +4,7 @@
   "States": {
     "GetLogo": {
       "Type": "Task",
-      "Resource": "${get_logo_arn}", 
+      "Resource": "${get_logo_arn}",
       "ResultPath": "$.logoResult",
       "Next": "RenderVideo"
     },
@@ -12,6 +12,12 @@
       "Type": "Task",
       "Resource": "${render_video_arn}",
       "ResultPath": "$.videoResult",
+      "Next": "DeleteLogo"
+    },
+    "DeleteLogo": {
+      "Type": "Task",
+      "Resource": "${delete_logo_arn}",
+      "ResultPath": "$.deleteLogoResult",
       "Next": "NotifyUser"
     },
     "NotifyUser": {
