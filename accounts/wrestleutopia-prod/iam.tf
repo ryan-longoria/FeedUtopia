@@ -331,14 +331,17 @@ data "aws_iam_policy_document" "cross_account_sfn_resource_policy" {
 
 resource "aws_iam_role" "ssm_automation_role" {
   name = "SSMAutomationRole"
-  assume_role_policy = <<EOF
+  assume_role_policy = <<-EOF
 {
   "Version": "2012-10-17",
   "Statement": [
     {
       "Effect": "Allow",
       "Principal": {
-        "Service": "ssm.amazonaws.com"
+        "Service": [
+          "ssm.amazonaws.com",
+          "ssm.us-east-2.amazonaws.com"
+        ]
       },
       "Action": "sts:AssumeRole"
     }
