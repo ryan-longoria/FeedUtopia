@@ -49,14 +49,14 @@ def lambda_handler(event, context):
     )
 
     remote_bucket_name = f"prod-{target_account_id}-artifacts-bucket"
-    remote_logo_key    = "Logo.png"
+    remote_logo_key    = "logo.png"
     local_logo_path    = "/tmp/Logo.png"
 
     try:
         s3_account.download_file(remote_bucket_name, remote_logo_key, local_logo_path)
-        logger.info(f"Downloaded Logo.png from {remote_bucket_name}")
+        logger.info(f"Downloaded logo.png from {remote_bucket_name}")
     except Exception as e:
-        logger.error(f"Failed to download Logo.png from {remote_bucket_name}: {e}")
+        logger.error(f"Failed to download logo.png from {remote_bucket_name}: {e}")
         raise
 
     shared_logo_key = "artifacts/Logo.png"
