@@ -12,12 +12,8 @@ resource "aws_ssm_document" "attach_sfn_policy" {
   "schemaVersion": "0.3",
   "description": "Attach Step Functions resource-based policy if missing",
   "parameters": {
-    "ResourceArn": {
-      "type": "String"
-    },
-    "PolicyJson": {
-      "type": "String"
-    },
+    "ResourceArn": { "type": "String" },
+    "PolicyJson":  { "type": "String" }
   },
   "mainSteps": [
     {
