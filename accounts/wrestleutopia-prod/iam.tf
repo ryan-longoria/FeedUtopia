@@ -64,6 +64,23 @@ resource "aws_iam_role_policy_attachment" "lambda_insights_policy" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy"
 }
 
+resource "aws_iam_role_policy" "lambda_stepfunctions_policy" {
+  name = "${var.project_name}_lambda_stepfunctions_policy"
+  role = aws_iam_role.lambda_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = [
+          "states:PutResourcePolicy"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 #############################
 # IAM Policy for S3
 #############################

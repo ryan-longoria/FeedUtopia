@@ -149,7 +149,7 @@ resource "aws_lambda_function" "render_video" {
       FFMPEG_PATH   = "/opt/bin/ffmpeg"
     }
   }
-  
+
   vpc_config {
     subnet_ids         = aws_subnet.public_subnet[*].id
     security_group_ids = [aws_security_group.lambda_sg.id]
@@ -224,5 +224,35 @@ resource "aws_lambda_function" "sns_to_teams" {
 
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+}
+
+#############################
+# invoke_sfnapi
+#############################
+
+resource "aws_lambda_function" "put_sfn_policy_lambda" {
+  function_name    = "MyPutResourcePolicyFunction"
+  filename         = "${path.module}/artifacts/scripts/put_sfn_policy/put_sfn_policy.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/put_sfn_policy/put_sfn_policy.zip")
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 15
+
+  layers = [
+    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
+  ]
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
   }
 }

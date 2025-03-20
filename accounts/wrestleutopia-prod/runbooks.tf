@@ -9,37 +9,35 @@ resource "aws_ssm_document" "attach_sfn_policy" {
   depends_on      = [aws_iam_role.ssm_automation_role]
 
   content = <<-DOC
-    {
-    "schemaVersion": "0.3",
-    "description": "Attach a Step Functions resource-based policy if missing",
-    "assumeRole": "{{AutomationAssumeRole}}",
-    "parameters": {
-        "ResourceArn": {
-        "type": "String",
-        "description": "The ARN of the Step Functions state machine or resource."
-        },
-        "PolicyJson": {
-        "type": "String",
-        "description": "The JSON representing the resource policy."
-        },
-        "AutomationAssumeRole": {
-        "type": "String",
-        "description": "(Recommended) The IAM role the runbook will assume. If omitted, the runbook will use the credentials of the user or service calling the runbook."
-        }
+{
+  "schemaVersion": "0.3",
+  "description": "Attach a resource-based policy to a Step Functions state machine (via Lambda)",
+  "assumeRole": "{{ AutomationAssumeRole }}",
+  "parameters": {
+    "ResourceArn": {
+      "type": "String"
     },
-    "mainSteps": [
-        {
-        "action": "aws:executeAwsApi",
-        "name": "AttachPolicy",
-        "inputs": {
-            "Service": "states",
-            "Api": "PutResourcePolicy",
-            "ResourceArn": "{{ ResourceArn }}",
-            "Policy": "{{ PolicyJson }}"
-        }
-        }
-    ]
+    "PolicyJson": {
+      "type": "String"
+    },
+    "AutomationAssumeRole": {
+      "type": "String"
     }
+  },
+  "mainSteps": [
+    {
+      "action": "aws:invokeLambdaFunction",
+      "name": "PutResourcePolicyViaLambda",
+      "inputs": {
+        "FunctionName": "MyPutResourcePolicyFunction",
+        "Payload": {
+          "ResourceArn": "{{ ResourceArn }}",
+          "PolicyJson": "{{ PolicyJson }}"
+        }
+      }
+    }
+  ]
+}
   DOC
 }
 
