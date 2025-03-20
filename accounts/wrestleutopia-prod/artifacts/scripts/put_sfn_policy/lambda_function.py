@@ -1,18 +1,14 @@
-import boto3
-import json
+import json, base64, boto3
 
 def lambda_handler(event, context):
-    sfn_client = boto3.client("stepfunctions")
+    sfn = boto3.client('stepfunctions')
 
     resource_arn = event["ResourceArn"]
-    policy = event["PolicyJson"]
+    policy_b64 = event["PolicyB64"]
+    policy_json = base64.b64decode(policy_b64).decode("utf-8")
 
-    resp = sfn_client.put_resource_policy(
+    resp = sfn.put_resource_policy(
         resourceArn=resource_arn,
-        policy=policy
+        policy=policy_json
     )
-
-    return {
-        "statusCode": 200,
-        "body": resp
-    }
+    return resp

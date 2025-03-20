@@ -30,7 +30,7 @@ content = <<-DOC
       "name": "put_sfn_policy",
       "inputs": {
         "FunctionName": "put_sfn_policy",
-        "Payload": "{\"ResourceArn\": \"{{ ResourceArn }}\", \"PolicyJson\": \"{{ PolicyJson }}\"}"
+        "Payload": "{\"ResourceArn\": \"{{ ResourceArn }}\", \"PolicyB64\": \"{{ PolicyB64 }}\"}"
       }
     }
   ]
@@ -45,7 +45,8 @@ resource "aws_ssm_association" "attach_policy_scheduled" {
 
   parameters = {
     ResourceArn          = aws_sfn_state_machine.manual_workflow.arn
-    PolicyJson           = data.aws_iam_policy_document.cross_account_sfn_resource_policy.json
     AutomationAssumeRole = aws_iam_role.ssm_automation_role.arn
+
+    PolicyB64 = base64encode(data.aws_iam_policy_document.cross_account_sfn_resource_policy.json)
   }
 }

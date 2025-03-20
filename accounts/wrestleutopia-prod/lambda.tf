@@ -232,7 +232,7 @@ resource "aws_lambda_function" "sns_to_teams" {
 }
 
 #############################
-# invoke_sfnapi
+# put_sfn_policy
 #############################
 
 resource "aws_lambda_function" "put_sfn_policy" {
