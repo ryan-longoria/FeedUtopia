@@ -347,7 +347,7 @@ resource "aws_iam_role" "ssm_automation_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "attach_ssm_automation" {
-  role       = aws_iam_role.ssm_role.name
+  role       = aws_iam_role.ssm_automation_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole"
 }
 
