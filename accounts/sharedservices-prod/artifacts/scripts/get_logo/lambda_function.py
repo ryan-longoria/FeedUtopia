@@ -48,7 +48,7 @@ def lambda_handler(event, context):
         aws_session_token=creds["SessionToken"]
     )
 
-    remote_bucket_name = f"prod-{target_account_id}-artifacts-bucket"
+    remote_bucket_name = f"prod-{account_name}-artifacts-bucket"
     remote_logo_key    = "logo.png"
     local_logo_path    = "/tmp/Logo.png"
 
