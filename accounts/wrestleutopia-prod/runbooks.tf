@@ -8,11 +8,11 @@ resource "aws_ssm_document" "attach_sfn_policy" {
   document_format = "JSON"
   depends_on      = [aws_iam_role.ssm_automation_role]
 
-  content = <<-DOC
+content = <<-DOC
 {
   "schemaVersion": "0.3",
   "description": "Attach a resource-based policy to a Step Functions state machine (via Lambda)",
-  "assumeRole": "{{ AutomationAssumeRole }}",
+  "assumeRole": "{{AutomationAssumeRole}}",
   "parameters": {
     "ResourceArn": {
       "type": "String"
@@ -30,15 +30,12 @@ resource "aws_ssm_document" "attach_sfn_policy" {
       "name": "PutResourcePolicyViaLambda",
       "inputs": {
         "FunctionName": "MyPutResourcePolicyFunction",
-        "Payload": {
-          "ResourceArn": "{{ ResourceArn }}",
-          "PolicyJson": "{{ PolicyJson }}"
-        }
+        "Payload": "{\"ResourceArn\": \"{{ ResourceArn }}\", \"PolicyJson\": \"{{ PolicyJson }}\"}"
       }
     }
   ]
 }
-  DOC
+DOC
 }
 
 resource "aws_ssm_association" "attach_policy_scheduled" {
