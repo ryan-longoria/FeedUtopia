@@ -9,7 +9,7 @@ def lambda_handler(event, context):
     account_name = body.get('accountName')
     title = body.get('title')
     description = body.get('description')
-    background_image_url = body.get('backgroundImageUrl')
+    image_path = body.get('image_path')
 
     response = sfn_client.start_execution(
         stateMachineArn=os.environ['STATE_MACHINE_ARN'],
@@ -17,7 +17,7 @@ def lambda_handler(event, context):
             "accountName": account_name,
             "title": title,
             "description": description,
-            "backgroundImageUrl": background_image_url
+            "image_path": image_path
         })
     )
 
