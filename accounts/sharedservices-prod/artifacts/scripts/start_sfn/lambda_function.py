@@ -10,20 +10,20 @@ def extract_value(field):
     return field
 
 def lambda_handler(event, context):
-    body = json.loads(event.get("body", "{}"))
+    body = json.loads(event.get('body', '{}'))
 
-    raw_account = body.get("accountName")
-    raw_title   = body.get("title")
-    raw_desc    = body.get("description")
-    raw_image   = body.get("image_path")
+    raw_account_name = body.get('accountName')
+    raw_title        = body.get('title')
+    raw_description  = body.get('description')
+    raw_image_path   = body.get('image_path')
 
-    account_name = extract_value(raw_account) or ""
+    account_name = extract_value(raw_account_name) or ""
     title        = extract_value(raw_title) or ""
-    description  = extract_value(raw_desc) or ""
-    image_path   = extract_value(raw_image) or ""
+    description  = extract_value(raw_description) or ""
+    image_path   = extract_value(raw_image_path) or ""
 
     response = sfn_client.start_execution(
-        stateMachineArn=os.environ["STATE_MACHINE_ARN"],
+        stateMachineArn=os.environ['STATE_MACHINE_ARN'],
         input=json.dumps({
             "accountName": account_name,
             "title": title,
@@ -36,6 +36,6 @@ def lambda_handler(event, context):
       "statusCode": 200,
       "body": json.dumps({
          "message": "Step Function started",
-         "executionArn": response["executionArn"]
+         "executionArn": response['executionArn']
       })
     }
