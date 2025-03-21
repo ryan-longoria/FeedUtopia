@@ -60,9 +60,9 @@ def lambda_handler(event, context):
     complete_local = "/mnt/efs/complete_post.mp4"
 
     post_data = event.get("post_data", {})
-    title_text = post_data.get("title", "No Title").upper()
-    description_text = post_data.get("description", "")
-    image_path = post_data.get("image_path", None)
+    title_text = event.get("title", "").upper()
+    description_text = event.get("description", "")
+    image_path = event.get("image_path", None)
 
     logger.info(f"Title: {title_text}, Description: {description_text}, Image Path: {image_path}")
 
