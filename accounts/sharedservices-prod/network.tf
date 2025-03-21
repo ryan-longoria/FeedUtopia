@@ -51,3 +51,11 @@ resource "aws_route" "API_default_route_public" {
   destination_cidr_block = "0.0.0.0/0"
   gateway_id             = aws_internet_gateway.API_igw.id
 }
+
+resource "aws_vpc_endpoint" "s3_endpoint" {
+  vpc_id            = aws_vpc.API_vpc.id
+  service_name      = "com.amazonaws.us-east-2.s3"
+  route_table_ids   = [
+    aws_route_table.API_public_rt.id
+  ]
+}
