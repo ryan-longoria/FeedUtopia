@@ -10,7 +10,6 @@ sts_client = boto3.client("sts")
 s3_shared  = boto3.client("s3")
 
 def lambda_handler(event, context):
-    logger.info("Event received: %s", json.dumps(event))
     target_bucket    = os.environ["TARGET_BUCKET"]
     role_name        = os.environ["CROSSACCOUNT_READ_ROLE_NAME"]
     account_map_json = os.environ["ACCOUNT_MAP"]
