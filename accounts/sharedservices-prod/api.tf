@@ -62,7 +62,8 @@ resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
 
 resource "aws_api_gateway_base_path_mapping" "api_base_mapping" {
   domain_name = aws_api_gateway_domain_name.api_feedutopia_domain.domain_name
-  api_id     = aws_api_gateway_rest_api.api.id
+  api_id      = aws_api_gateway_rest_api.api.id
+  stage_name  = aws_api_gateway_stage.api_stage.stage_name
 }
 
 resource "aws_api_gateway_resource" "start_execution" {
