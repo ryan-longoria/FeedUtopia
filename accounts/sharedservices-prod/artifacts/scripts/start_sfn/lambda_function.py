@@ -2,17 +2,28 @@ import os
 import json
 import boto3
 
-sfn_client = boto3.client('stepfunctions')
-def lambda_handler(event, context):
-    body = json.loads(event.get('body', '{}'))
+sfn_client = boto3.client("stepfunctions")
 
-    account_name = body.get('accountName')
-    title = body.get('title')
-    description = body.get('description')
-    image_path = body.get('image_path')
+def extract_value(field):
+    if isinstance(field, dict) and "value" in field:
+        return field["value"]
+    return field
+
+def lambda_handler(event, context):
+    body = json.loads(event.get("body", "{}"))
+
+    raw_account = body.get("accountName")
+    raw_title   = body.get("title")
+    raw_desc    = body.get("description")
+    raw_image   = body.get("image_path")
+
+    account_name = extract_value(raw_account) or ""
+    title        = extract_value(raw_title) or ""
+    description  = extract_value(raw_desc) or ""
+    image_path   = extract_value(raw_image) or ""
 
     response = sfn_client.start_execution(
-        stateMachineArn=os.environ['STATE_MACHINE_ARN'],
+        stateMachineArn=os.environ["STATE_MACHINE_ARN"],
         input=json.dumps({
             "accountName": account_name,
             "title": title,
@@ -25,6 +36,6 @@ def lambda_handler(event, context):
       "statusCode": 200,
       "body": json.dumps({
          "message": "Step Function started",
-         "executionArn": response['executionArn']
+         "executionArn": response["executionArn"]
       })
     }
