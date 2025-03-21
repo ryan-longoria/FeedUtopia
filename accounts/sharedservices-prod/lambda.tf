@@ -150,7 +150,7 @@ resource "aws_lambda_function" "notify_post" {
   environment {
     variables = {
       TEAMS_WEBHOOKS_JSON = jsonencode(var.teams_webhooks)
-      TARGET_BUCKET       = var.s3_bucket_name
+      TARGET_BUCKET       = "prod-sharedservices-artifacts-bucket"
     }
   }
 

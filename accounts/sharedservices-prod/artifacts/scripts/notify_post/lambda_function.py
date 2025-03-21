@@ -1,4 +1,3 @@
-# notify_post/lambda_function.py (or similar name)
 import json
 import os
 import uuid
