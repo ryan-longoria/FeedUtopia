@@ -23,7 +23,7 @@
     "NotifyUser": {
       "Type": "Task",
       "Resource": "${notify_post_arn}",
-      "InputPath": "$.videoResult",
+      "InputPath": "$",
       "ResultPath": "$.notificationResult",
       "End": true
     }
