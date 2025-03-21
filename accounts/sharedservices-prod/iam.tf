@@ -185,6 +185,7 @@ resource "aws_iam_role_policy" "step_functions_policy" {
         Resource = [
           aws_lambda_function.get_logo.arn,
           aws_lambda_function.render_video.arn,
+          aws_lambda_function.delete_logo.arn,
           aws_lambda_function.notify_post.arn
         ]
       },
