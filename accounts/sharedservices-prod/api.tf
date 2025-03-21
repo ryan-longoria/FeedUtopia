@@ -50,7 +50,6 @@ resource "aws_api_gateway_stage" "api_stage" {
   ]
 }
 
-
 resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
   domain_name     = "api.feedutopia.com"
   regional_certificate_arn = "arn:aws:acm:us-east-2:825765422855:certificate/8e28f7dc-9a39-43dc-b615-fcb4a8e4a2c8"
@@ -62,7 +61,7 @@ resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
 
 resource "aws_api_gateway_base_path_mapping" "api_base_mapping" {
   domain_name = aws_api_gateway_domain_name.api_feedutopia_domain.domain_name
-  api_id      = aws_api_gateway_rest_api.api.id
+  api_id     = aws_api_gateway_rest_api.api.id
   stage_name  = aws_api_gateway_stage.api_stage.stage_name
 }
 
