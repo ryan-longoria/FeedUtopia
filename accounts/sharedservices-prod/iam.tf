@@ -306,6 +306,6 @@ resource "aws_iam_user" "ms-copilot" {
 
 resource "aws_iam_user_policy_attachment" "ms-copilot_attach_policy" {
   user       = aws_iam_user.ms-copilot.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+  policy_arn = aws_iam_policy.s3_full_policy.arn
 }
 
