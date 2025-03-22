@@ -15,7 +15,6 @@ def extract_value(field):
     return field
 
 def lambda_handler(event, context):
-
     logger.info("Received event: %s", json.dumps(event))
 
     target_bucket = os.environ.get("TARGET_BUCKET", "NOT_SET")
@@ -40,16 +39,21 @@ def lambda_handler(event, context):
     title = extract_value(raw_title) or ""
     description = extract_value(raw_description) or ""
 
-    logger.info("Extracted fields -> accountName: '%s', title: '%s', description: '%s'",
-                account_name, title, description)
+    logger.info(
+        "Extracted fields -> accountName: '%s', title: '%s', description: '%s'",
+        account_name, title, description
+    )
 
     image_info = body.get("image_path")
     logger.info("image_path info: %s", json.dumps(image_info) if image_info else "No image_path provided")
 
     presigned_url = ""
+    bucket = ""
+    key = ""
+
     if image_info and isinstance(image_info, dict):
-        bucket = image_info.get("bucket")
-        key = image_info.get("key")
+        bucket = image_info.get("bucket", "")
+        key = image_info.get("key", "")
 
         if bucket and key:
             logger.info("Bucket: '%s', Key: '%s'", bucket, key)
@@ -72,8 +76,8 @@ def lambda_handler(event, context):
         "accountName": account_name,
         "title": title,
         "description": description,
-        "s3_bucket": bucket if image_info else "",
-        "s3_key": key if image_info else "",
+        "s3_bucket": bucket,
+        "s3_key": key,
         "image_path": presigned_url
     }
     logger.info("Final Step Functions input: %s", json.dumps(sf_input))
