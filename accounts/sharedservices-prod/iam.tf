@@ -295,3 +295,17 @@ resource "aws_iam_role_policy" "api_vpc_flow_logs_role_policy" {
     ]
   })
 }
+
+#############################
+# IAM for Microsoft Copilot Studio Put/Get
+#############################
+
+resource "aws_iam_user" "ms-copilot" {
+  name = "ms-copilot"
+}
+
+resource "aws_iam_user_policy_attachment" "ms-copilot_attach_policy" {
+  user       = aws_iam_user.ms-copilot.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+
