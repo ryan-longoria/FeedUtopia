@@ -27,13 +27,15 @@ def lambda_handler(event, context):
     logger.info("Start_sfn invoked. Full event: %s", json.dumps(event))
     
     body_str = event.get("body", "{}")
+    logger.info("Raw body string: %s", body_str)
+    
     try:
         body = json.loads(body_str)
+        logger.info("Parsed body successfully: %s", json.dumps(body))
     except Exception as e:
         logger.error("Error parsing body as JSON: %s", e)
         body = {}
-    logger.info("Parsed body: %s", json.dumps(body))
-    
+
     raw_account_name = body.get("accountName")
     raw_title = body.get("title")
     raw_description = body.get("description")
@@ -59,7 +61,7 @@ def lambda_handler(event, context):
                 unique_id = uuid.uuid4().hex
                 upload_key = f"uploads/{unique_id}_{file_name}"
                 target_bucket = os.environ["TARGET_BUCKET"]
-                logger.info("Uploading file to bucket: '%s' with key: '%s'", target_bucket, upload_key)
+                logger.info("Uploading file to bucket '%s' with key '%s'", target_bucket, upload_key)
                 s3_client.put_object(
                     Bucket=target_bucket,
                     Key=upload_key,
@@ -86,7 +88,7 @@ def lambda_handler(event, context):
         "description": description,
         "image_path": image_path
     }
-    logger.info("Passing to Step Functions: %s", json.dumps(sf_input))
+    logger.info("Passing the following input to Step Functions: %s", json.dumps(sf_input))
     
     try:
         response = sfn_client.start_execution(
@@ -97,7 +99,7 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error("Error starting Step Functions execution: %s", e)
         raise
-
+    
     return {
         "statusCode": 200,
         "body": json.dumps({
