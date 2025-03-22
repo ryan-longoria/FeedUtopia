@@ -8,6 +8,8 @@ COPY bin/ffmpeg /opt/bin/ffmpeg
 RUN chmod +x /opt/bin/ffmpeg
 ENV FFMPEG_PATH="/opt/bin/ffmpeg"
 
+RUN yum install -y libwebp libwebp-devel
+
 RUN yum install -y fontconfig wget unzip curl && \
     mkdir -p /usr/share/fonts/truetype/msttcorefonts && \
     wget -O /tmp/ariblk.ttf \
