@@ -18,6 +18,7 @@ resource "aws_lambda_function" "start_sfn" {
   environment {
     variables = {
       STATE_MACHINE_ARN = aws_sfn_state_machine.manual_workflow.arn
+      TARGET_BUCKET = "prod-sharedservices-artifacts-bucket"
     }
   }
 
