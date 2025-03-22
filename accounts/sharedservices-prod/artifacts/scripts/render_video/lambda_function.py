@@ -1,240 +1,100 @@
-import datetime
-import json
 import os
-import uuid
+import json
 import logging
-import numpy as np
 import boto3
-import requests
-from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
-from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
-from moviepy.video.io.VideoFileClip import VideoFileClip
-import moviepy.video.fx as vfx
-from PIL import ImageFont, ImageDraw, Image
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-s3 = boto3.client("s3")
-font_path = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
+sfn_client = boto3.client("stepfunctions")
+s3_client = boto3.client("s3")
 
-def dynamic_font_size(text, max_size, min_size, ideal_length):
-    length = len(text)
-    if length <= ideal_length:
-        return max_size
-    factor = (max_size - min_size) / ideal_length
-    new_size = max_size - (length - ideal_length) * factor
-    return int(new_size) if new_size > min_size else min_size
-
-def measure_text_width(text, font_path, font_size):
-    font = ImageFont.truetype(font_path, font_size)
-    bbox = font.getbbox(text)
-    width = bbox[2] - bbox[0]
-    return width
-
-def dynamic_split(text, font_path, font_size, max_width):
-    if measure_text_width(text, font_path, font_size) <= max_width:
-        return text, ""
-    words = text.split()
-    top_line = ""
-    for i in range(1, len(words) + 1):
-        candidate = " ".join(words[:i])
-        if measure_text_width(candidate, font_path, font_size) <= max_width:
-            top_line = candidate
-        else:
-            break
-    bottom_line = " ".join(words[len(top_line.split()):])
-    if len(words) - len(top_line.split()) > len(top_line.split()):
-        candidate = " ".join(words[:len(top_line.split()) + 1])
-        if measure_text_width(candidate, font_path, font_size) <= max_width:
-            top_line = candidate
-            bottom_line = " ".join(words[len(top_line.split()):])
-    return top_line, bottom_line
+def extract_value(field):
+    if isinstance(field, dict) and "value" in field:
+        return field["value"]
+    return field
 
 def lambda_handler(event, context):
-    logger.info("Render video lambda started")
-    bucket_name = os.environ.get("TARGET_BUCKET")
-    timestamp_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    folder = f"posts/post_{timestamp_str}"
-    complete_key = f"{folder}/complete_post.mp4"
-    complete_local = "/mnt/efs/complete_post.mp4"
 
-    post_data = event.get("post_data", {})
-    title_text = event.get("title", "").upper()
-    description_text = event.get("description", "")
-    image_path = event.get("image_path", None)
+    logger.info("Received event: %s", json.dumps(event))
 
-    logger.info(f"Title: {title_text}, Description: {description_text}, Image Path: {image_path}")
+    target_bucket = os.environ.get("TARGET_BUCKET", "NOT_SET")
+    state_machine_arn = os.environ.get("STATE_MACHINE_ARN", "NOT_SET")
+    logger.info("TARGET_BUCKET: %s", target_bucket)
+    logger.info("STATE_MACHINE_ARN: %s", state_machine_arn)
 
-    bg_local_path = "/tmp/backgroundimage_converted.jpg"
-    if image_path and image_path.startswith("http"):
-        try:
-            logger.info("Attempting to download HTTP image")
-            resp = requests.get(image_path, timeout=10)
-            with open(bg_local_path, "wb") as f:
-                f.write(resp.content)
-            logger.info("HTTP image downloaded successfully")
-        except Exception as e:
-            logger.error(f"Error downloading HTTP image: {e}")
-            bg_local_path = None
-    elif image_path:
-        try:
-            logger.info("Attempting to download image from S3")
-            s3.download_file(bucket_name, image_path, bg_local_path)
-            logger.info("S3 image downloaded successfully")
-        except Exception as e:
-            logger.error(f"Error downloading S3 image: {e}")
-            bg_local_path = None
-
-    logo_key = "artifacts/Logo.png"
-    logo_local_path = "/tmp/Logo.png"
+    body_str = event.get("body", "{}")
+    logger.info("Raw body string: %s", body_str)
     try:
-        logger.info("Downloading logo from S3")
-        s3.download_file(bucket_name, logo_key, logo_local_path)
-        logger.info("Logo downloaded")
+        body = json.loads(body_str)
+        logger.info("Parsed body JSON: %s", json.dumps(body))
     except Exception as e:
-        logger.error(f"Error downloading logo: {e}")
-        logo_local_path = None
+        logger.error("Error parsing body as JSON: %s", e)
+        body = {}
 
-    gradient_key = "artifacts/Black Gradient.png"
-    gradient_local_path = "/tmp/Black_Gradient.png"
-    try:
-        logger.info("Downloading gradient from S3")
-        s3.download_file(bucket_name, gradient_key, gradient_local_path)
-        logger.info("Gradient downloaded")
-    except Exception as e:
-        logger.error(f"Error downloading gradient: {e}")
-        gradient_local_path = None
+    raw_account_name = body.get("accountName")
+    raw_title = body.get("title")
+    raw_description = body.get("description")
 
-    news_key = "artifacts/NEWS.mov"
-    news_local_path = "/tmp/NEWS.mov"
-    try:
-        logger.info("Downloading news clip from S3")
-        s3.download_file(bucket_name, news_key, news_local_path)
-        logger.info("News clip downloaded")
-    except Exception as e:
-        logger.error(f"Error downloading news clip: {e}")
-        news_local_path = None
+    account_name = extract_value(raw_account_name) or ""
+    title = extract_value(raw_title) or ""
+    description = extract_value(raw_description) or ""
 
-    width, height = 1080, 1080
-    duration_sec = 10
+    logger.info("Extracted fields -> accountName: '%s', title: '%s', description: '%s'",
+                account_name, title, description)
 
-    if bg_local_path and os.path.exists(bg_local_path):
-        logger.info("Using background image")
-        bg_clip = (ImageClip(bg_local_path)
-                   .with_effects([vfx.Resize((width, height))])
-                   .with_duration(duration_sec))
+    image_info = body.get("image_path")
+    logger.info("image_path info: %s", json.dumps(image_info) if image_info else "No image_path provided")
+
+    presigned_url = ""
+    if image_info and isinstance(image_info, dict):
+        bucket = image_info.get("bucket")
+        key = image_info.get("key")
+
+        if bucket and key:
+            logger.info("Bucket: '%s', Key: '%s'", bucket, key)
+            try:
+                presigned_url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": bucket, "Key": key},
+                    ExpiresIn=3600
+                )
+                logger.info("Generated presigned URL: %s", presigned_url)
+            except Exception as e:
+                logger.error("Error generating presigned URL: %s", e)
+                presigned_url = ""
+        else:
+            logger.warning("Either 'bucket' or 'key' is missing in 'image_path'")
     else:
-        logger.info("Using default color background")
-        bg_clip = (ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
-                   .with_duration(duration_sec))
+        logger.info("No valid 'image_path' object found. Skipping presigned URL generation.")
 
-    if gradient_local_path and os.path.exists(gradient_local_path):
-        gradient_clip = (ImageClip(gradient_local_path)
-                         .with_effects([vfx.Resize((width, height))])
-                         .with_duration(duration_sec))
-    else:
-        gradient_clip = None
-
-    if news_local_path and os.path.exists(news_local_path):
-        logger.info("Including news clip")
-        raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
-        scale_factor = 300 / raw_news.w
-        news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
-    else:
-        news_clip = None
-
-    base_margin = 15
-    if logo_local_path and os.path.exists(logo_local_path):
-        logger.info("Including logo clip")
-        raw_logo = ImageClip(logo_local_path)
-        scale_logo = 150 / raw_logo.w
-        logo_clip = (raw_logo.with_effects([vfx.Resize(scale_logo)])
-                     .with_duration(duration_sec))
-        logo_clip = logo_clip.with_position((width - logo_clip.w - base_margin, 
-                                             height - logo_clip.h - base_margin))
-        side_margin = max(logo_clip.w + base_margin, base_margin)
-    else:
-        logo_clip = None
-        side_margin = base_margin
-
-    available_width = width - (2 * side_margin)
-    subtitle_side_margin = side_margin + 10
-    available_subtitle_width = width - (2 * subtitle_side_margin)
-
-    top_font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
-    bottom_font_size = top_font_size - 10 if top_font_size - 10 > 0 else top_font_size
-    subtitle_font_size = dynamic_font_size(description_text, max_size=50, min_size=25, ideal_length=30)
-    subtitle_font_size = min(subtitle_font_size, top_font_size)
-
-    title_top, title_bottom = dynamic_split(title_text.upper(), font_path, top_font_size, available_width)
-    subtitle_top, subtitle_bottom = dynamic_split(description_text.upper(), font_path, subtitle_font_size, available_subtitle_width)
-
-    top_clip = (TextClip(text=title_top,
-                         font_size=top_font_size,
-                         color="#ec008c",
-                         font=font_path,
-                         size=(available_width, None),
-                         method="caption")
-                .with_duration(duration_sec))
-    bottom_clip = (TextClip(text=title_bottom,
-                            font_size=bottom_font_size,
-                            color="#ec008c",
-                            font=font_path,
-                            size=(available_width, None),
-                            method="caption")
-                   .with_duration(duration_sec))
-    desc_top_clip = (TextClip(text=subtitle_top,
-                              font_size=subtitle_font_size,
-                              color="white",
-                              font=font_path,
-                              size=(available_subtitle_width, None),
-                              method="caption")
-                     .with_duration(duration_sec))
-    desc_bottom_clip = (TextClip(text=subtitle_bottom,
-                                 font_size=subtitle_font_size,
-                                 color="white",
-                                 font=font_path,
-                                 size=(available_subtitle_width, None),
-                                 method="caption")
-                        .with_duration(duration_sec))
-
-    subtitle_bottom_y = height - 20 - desc_bottom_clip.h
-    subtitle_top_y = subtitle_bottom_y - 10 - desc_top_clip.h
-    bottom_title_y = subtitle_top_y - 12 - bottom_clip.h
-    top_title_y = bottom_title_y - 10 - top_clip.h
-
-    top_clip = top_clip.with_position((side_margin, top_title_y))
-    bottom_clip = bottom_clip.with_position((side_margin, bottom_title_y))
-    desc_top_clip = desc_top_clip.with_position((subtitle_side_margin, subtitle_top_y))
-    desc_bottom_clip = desc_bottom_clip.with_position((subtitle_side_margin, subtitle_bottom_y))
-
-    clips_complete = [bg_clip]
-    if gradient_clip:
-        clips_complete.append(gradient_clip)
-    if news_clip:
-        clips_complete.append(news_clip)
-    clips_complete.extend([top_clip, bottom_clip, desc_top_clip, desc_bottom_clip])
-    if logo_clip:
-        clips_complete.append(logo_clip)
-
-    logger.info("Starting final composite video")
-    complete_clip = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
-    logger.info("Writing video file")
-    complete_clip.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
-    logger.info("Uploading final video")
-    s3.upload_file(
-        complete_local,
-        bucket_name,
-        complete_key,
-        ExtraArgs={
-            "ContentType": "video/mp4",
-            "ContentDisposition": "attachment; filename=\"complete_post.mp4\""
-        }
-    )
-    logger.info("Render video complete")
-
-    return {
-        "status": "rendered",
-        "video_key": complete_key
+    sf_input = {
+        "accountName": account_name,
+        "title": title,
+        "description": description,
+        "s3_bucket": bucket if image_info else "",
+        "s3_key": key if image_info else "",
+        "image_path": presigned_url
     }
+    logger.info("Final Step Functions input: %s", json.dumps(sf_input))
+
+    try:
+        response = sfn_client.start_execution(
+            stateMachineArn=state_machine_arn,
+            input=json.dumps(sf_input)
+        )
+        logger.info("Step Function started successfully: %s", response["executionArn"])
+        execution_arn = response["executionArn"]
+    except Exception as e:
+        logger.error("Error starting Step Function execution: %s", e)
+        raise
+
+    result = {
+        "statusCode": 200,
+        "body": json.dumps({
+            "message": "Step Function started",
+            "executionArn": execution_arn
+        })
+    }
+    logger.info("Lambda returning: %s", json.dumps(result))
+    return result
