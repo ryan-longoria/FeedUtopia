@@ -16,8 +16,18 @@ variable "aws_account_ids" {
   })
 }
 
-variable "stepfunctions_arns" {
-  type = map(string)
+variable "teams_webhooks" {
+  description = "Microsoft Teams account specific webhooks"
+  type = object({
+    wrestleutopia = object({
+      auto   = string
+      manual = string
+    }),
+    animeutopia = object({
+      auto   = string
+      manual = string
+    })
+  })
 }
 
 variable "aws_region" {
@@ -30,6 +40,11 @@ variable "environment" {
   description = "The environment name (nonprod, prod)."
   type        = string
   default     = "prod"
+}
+
+variable "s3_bucket_name" {
+  description = "Name of the S3 bucket for storing processed data."
+  type        = string
 }
 
 variable "terraform_backend_bucket" {
@@ -52,6 +67,11 @@ variable "aws_availability_zones" {
   type        = list(string)
 }
 
+variable "render_video_image_uri" {
+  description = "The uri used to render lambda function render_video."
+  type        = string
+}
+
 variable "common_tags" {
   description = "A map of common tags to apply to all resources."
   type        = map(string)
@@ -60,9 +80,4 @@ variable "common_tags" {
     Project     = "sharedservices"
     Environment = "prod"
   }
-}
-
-variable "cross_account_role_arns" {
-  type        = list(string)
-  description = "List of cross-account role ARNs that can be assumed"
 }
