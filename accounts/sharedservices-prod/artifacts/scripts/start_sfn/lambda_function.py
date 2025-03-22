@@ -1,11 +1,8 @@
 import os
 import json
-import base64
-import uuid
 import logging
 import boto3
 
-# Create a logger
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -18,7 +15,6 @@ def extract_value(field):
     return field
 
 def lambda_handler(event, context):
-
     logger.info("Received event: %s", json.dumps(event))
 
     target_bucket = os.environ.get("TARGET_BUCKET", "NOT_SET")
@@ -43,56 +39,46 @@ def lambda_handler(event, context):
     title = extract_value(raw_title) or ""
     description = extract_value(raw_description) or ""
 
-    logger.info("Extracted fields -> accountName: '%s', title: '%s', description: '%s'",
-                account_name, title, description)
+    logger.info(
+        "Extracted fields -> accountName: '%s', title: '%s', description: '%s'",
+        account_name, title, description
+    )
 
-    image_path = ""
-    file_info = body.get("file")
-    logger.info("File info (if any): %s", json.dumps(file_info) if file_info else "No file info provided")
+    image_info = body.get("image_path")
+    logger.info("image_path info: %s", json.dumps(image_info) if image_info else "No image_path provided")
 
-    if file_info and isinstance(file_info, dict):
-        file_name = file_info.get("name", "upload.jpg")
-        logger.info("Detected file name: '%s'", file_name)
+    presigned_url = ""
+    bucket = ""
+    key = ""
 
-        content_bytes = file_info.get("contentBytes")
-        if content_bytes:
-            logger.info("contentBytes length: %d", len(content_bytes))
+    if image_info and isinstance(image_info, dict):
+        bucket = image_info.get("bucket", "")
+        key = image_info.get("key", "")
+
+        if bucket and key:
+            logger.info("Bucket: '%s', Key: '%s'", bucket, key)
             try:
-                file_data = base64.b64decode(content_bytes)
-                logger.info("Decoded file size in bytes: %d", len(file_data))
-
-                unique_id = uuid.uuid4().hex
-                upload_key = f"uploads/{unique_id}_{file_name}"
-                logger.info("S3 upload key will be: '%s'", upload_key)
-
-                s3_client.put_object(
-                    Bucket=target_bucket,
-                    Key=upload_key,
-                    Body=file_data,
-                    ContentType="image/jpeg"
-                )
-                logger.info("File uploaded to S3 bucket '%s' at key '%s'", target_bucket, upload_key)
-
-                image_path = s3_client.generate_presigned_url(
+                presigned_url = s3_client.generate_presigned_url(
                     "get_object",
-                    Params={"Bucket": target_bucket, "Key": upload_key},
+                    Params={"Bucket": bucket, "Key": key},
                     ExpiresIn=3600
                 )
-                logger.info("Generated presigned URL for the uploaded file: %s", image_path)
-
+                logger.info("Generated presigned URL: %s", presigned_url)
             except Exception as e:
-                logger.error("Error processing file upload: %s", e)
-                image_path = ""
+                logger.error("Error generating presigned URL: %s", e)
+                presigned_url = ""
         else:
-            logger.warning("No 'contentBytes' found in 'file' object. Skipping file upload.")
+            logger.warning("Either 'bucket' or 'key' is missing in 'image_path'")
     else:
-        logger.info("No valid 'file' object found in request body. Skipping file handling.")
+        logger.info("No valid 'image_path' object found. Skipping presigned URL generation.")
 
     sf_input = {
         "accountName": account_name,
         "title": title,
         "description": description,
-        "image_path": image_path
+        "s3_bucket": bucket,
+        "s3_key": key,
+        "image_path": presigned_url
     }
     logger.info("Final Step Functions input: %s", json.dumps(sf_input))
 
