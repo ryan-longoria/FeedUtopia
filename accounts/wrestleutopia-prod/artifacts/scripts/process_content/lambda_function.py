@@ -13,11 +13,11 @@ IMAGE_MAGICK_EXE = os.environ.get("IMAGE_MAGICK_EXE", "/bin/magick")
 
 def fetch_wwe_roster() -> List[str]:
     """
-    Fetch the 'List_of_WWE_personnel' page via the Wikipedia Action API,
-    parse the HTML, and return a list of wrestler names found in the navbox
-    under the Men's/Women's divisions.
+    Fetch the 'List_of_WWE_personnel' page via Wikipedia's Action API.
+    Parse the HTML and return a list of wrestler names found in the navbox
+    under the men's/women's divisions.
     """
-    logger.info("Starting to fetch the WWE roster from Wikipedia (List_of_WWE_personnel).")
+    logger.info("Fetching WWE roster from 'List_of_WWE_personnel'.")
     wiki_api_url = "https://en.wikipedia.org/w/api.php"
     params = {
         "action": "parse",
@@ -25,54 +25,61 @@ def fetch_wwe_roster() -> List[str]:
         "prop": "text",
         "format": "json",
     }
+
     try:
-        logger.debug(f"Making GET request to {wiki_api_url} with params={params}")
+        logger.debug("Sending GET request to fetch roster data.")
         resp = requests.get(wiki_api_url, params=params, timeout=10)
         resp.raise_for_status()
         logger.info("Successfully fetched 'List_of_WWE_personnel' page from Wikipedia.")
-    except Exception as e:
-        logger.error("Error during requests.get or resp.raise_for_status()", exc_info=True)
+    except Exception as exc:
+        logger.error("Failed to fetch WWE roster.", exc_info=True)
         raise
 
     data = resp.json()
 
-    logger.debug(f"Response JSON keys: {list(data.keys())}")
-    if "parse" not in data or "text" not in data["parse"] or "*" not in data["parse"]["text"]:
-        logger.warning("Wikipedia data structure is unexpected! 'parse' or 'text' key missing.")
+    if ("parse" not in data
+            or "text" not in data["parse"]
+            or "*" not in data["parse"]["text"]):
+        logger.warning("Unexpected JSON structure for 'List_of_WWE_personnel'.")
         return []
 
     raw_html = data["parse"]["text"]["*"]
     soup = BeautifulSoup(raw_html, "html.parser")
 
-    logger.debug("Searching for <div> whose id starts with 'WWE_personnel'...")
-    wwe_personnel_navbox = soup.find("div", id=lambda x: x and x.startswith("WWE_personnel"))
-    if not wwe_personnel_navbox:
-        logger.warning("Could not find 'WWE_personnel' navbox on the 'List_of_WWE_personnel' page.")
+    navbox = soup.find("div", id=lambda x: x and x.startswith("WWE_personnel"))
+    if not navbox:
+        logger.warning("Could not find 'WWE_personnel' navbox in the HTML.")
         return []
 
+    all_subgroup_tables = navbox.find_all("table", class_="navbox-subgroup")
+    logger.debug("Found %d <table class='navbox-subgroup'> elements.", 
+                 len(all_subgroup_tables))
+
     wrestler_names = set()
-
-    all_subgroup_tables = wwe_personnel_navbox.find_all("table", class_="navbox-subgroup")
-    logger.debug(f"Found {len(all_subgroup_tables)} <table class='navbox-subgroup'> elements.")
-
     for table_idx, table in enumerate(all_subgroup_tables, start=1):
-        logger.debug(f"Processing table #{table_idx}")
+        logger.debug("Processing table #%d for rosters.", table_idx)
         all_rows = table.find_all("tr")
-        logger.debug(f"Found {len(all_rows)} <tr> in table #{table_idx}")
+        logger.debug("Table #%d has %d <tr> rows.", table_idx, len(all_rows))
+
         for tr in all_rows:
             heading_th = tr.find("th", class_="navbox-group")
             if not heading_th:
                 continue
-
             heading_text = heading_th.get_text(strip=True)
-            logger.debug(f"Found heading: {heading_text}")
+            logger.debug("Heading found: '%s'.", heading_text)
+
             if heading_text in ["Men's division", "Women's division"]:
                 td = tr.find("td", class_="navbox-list")
                 if not td:
-                    logger.debug("No matching <td> found under this heading. Skipping.")
+                    logger.debug("No <td> found under heading '%s'. Skipping.", 
+                                 heading_text)
                     continue
+
                 li_tags = td.find_all("li")
-                logger.debug(f"Found {len(li_tags)} <li> elements under {heading_text}")
+                logger.debug(
+                    "Found %d <li> elements under heading '%s'.",
+                    len(li_tags), heading_text
+                )
                 for li in li_tags:
                     a = li.find("a", href=True, title=True)
                     if a:
@@ -80,22 +87,28 @@ def fetch_wwe_roster() -> List[str]:
                         if name and not name.startswith("^"):
                             wrestler_names.add(name)
 
-    logger.info(f"Finished parsing roster. Found {len(wrestler_names)} unique wrestler names.")
+    logger.info("Completed roster parse. Found %d unique wrestlers.",
+                len(wrestler_names))
     return sorted(wrestler_names)
 
 
 def class_lambda(value: str) -> bool:
-    """Helper function to match 'wikitable' (optionally 'sortable') classes."""
+    """
+    Helper for BeautifulSoup to match 'wikitable' or something containing
+    the 'wikitable' class. Adjust if needed for 'sortable' or other classes.
+    """
     return value and ("wikitable" in value)
 
 
 def fetch_wwe_events() -> List[str]:
     """
-    Fetch the 'List_of_WWE_pay-per-view_and_livestreaming_supercards' page
-    via the Wikipedia Action API, parse the HTML, and return a list of event
-    names from the 'Event' column in each 'wikitable'.
+    Fetch the 'List_of_WWE_pay-per-view_and_livestreaming_supercards' page 
+    via Wikipedia's Action API. Parse the HTML and return a list of event 
+    names found in the 'Event' column of each 'wikitable'.
     """
-    logger.info("Starting to fetch WWE events from Wikipedia (List_of_WWE_pay-per-view...).")
+    logger.info(
+        "Fetching WWE events from 'List_of_WWE_pay-per-view_and_livestreaming_supercards'."
+    )
     wiki_api_url = "https://en.wikipedia.org/w/api.php"
     params = {
         "action": "parse",
@@ -103,52 +116,52 @@ def fetch_wwe_events() -> List[str]:
         "prop": "text",
         "format": "json",
     }
+
     try:
-        logger.debug(f"Making GET request to {wiki_api_url} with params={params}")
+        logger.debug("Sending GET request to fetch events data.")
         resp = requests.get(wiki_api_url, params=params, timeout=10)
         resp.raise_for_status()
-        logger.info("Successfully fetched 'List_of_WWE_pay-per-view_and_livestreaming_supercards'.")
-    except Exception as e:
-        logger.error("Error during requests.get or resp.raise_for_status()", exc_info=True)
+        logger.info("Successfully fetched 'List_of_WWE_pay-per-view...' page from Wikipedia.")
+    except Exception as exc:
+        logger.error("Failed to fetch WWE events.", exc_info=True)
         raise
 
     data = resp.json()
 
-    logger.debug(f"Response JSON keys: {list(data.keys())}")
-    if "parse" not in data or "text" not in data["parse"] or "*" not in data["parse"]["text"]:
-        logger.warning("Wikipedia event page structure is unexpected! 'parse' or 'text' missing.")
+    if ("parse" not in data
+            or "text" not in data["parse"]
+            or "*" not in data["parse"]["text"]):
+        logger.warning("Unexpected JSON structure for pay-per-view events page.")
         return []
 
     raw_html = data["parse"]["text"]["*"]
     soup = BeautifulSoup(raw_html, "html.parser")
 
     wikitables = soup.find_all("table", class_lambda)
-    logger.debug(f"Found {len(wikitables)} tables with class 'wikitable'.")
+    logger.debug("Found %d tables with class 'wikitable'.", len(wikitables))
 
     event_names = set()
-
-    for table_idx, table in enumerate(wikitables, start=1):
-        logger.debug(f"Processing wikitable #{table_idx}")
+    for tbl_idx, table in enumerate(wikitables, start=1):
         rows = table.find_all("tr")
-        logger.debug(f"Table #{table_idx} has {len(rows)} <tr> rows.")
-
+        logger.debug("Table #%d has %d rows.", tbl_idx, len(rows))
         if not rows:
             continue
 
         header_cells = rows[0].find_all(["th", "td"])
         event_col_idx = None
-        for idx, header_cell in enumerate(header_cells):
-            header_text = header_cell.get_text(strip=True).lower()
+        for idx, cell in enumerate(header_cells):
+            header_text = cell.get_text(strip=True).lower()
             if "event" in header_text:
                 event_col_idx = idx
-                logger.debug(f"'Event' column found at index={event_col_idx} in table #{table_idx}")
+                logger.debug("'Event' column found at index %d in table #%d.",
+                             event_col_idx, tbl_idx)
                 break
 
         if event_col_idx is None:
-            logger.debug(f"No 'Event' column found in table #{table_idx}. Skipping.")
+            logger.debug("No 'Event' column found in table #%d. Skipping.", tbl_idx)
             continue
 
-        for row_idx, row in enumerate(rows[1:], start=2):
+        for row_idx, row in enumerate(rows[1:], start=1):
             cells = row.find_all(["td", "th"])
             if len(cells) <= event_col_idx:
                 continue
@@ -162,51 +175,79 @@ def fetch_wwe_events() -> List[str]:
 
             if event_text:
                 event_names.add(event_text)
-                logger.debug(f"Row #{row_idx}: Found event '{event_text}'.")
+                logger.debug("Row #%d in table #%d: found event '%s'.",
+                             row_idx, tbl_idx, event_text)
 
-    logger.info(f"Finished parsing events. Found {len(event_names)} unique events.")
+    logger.info("Completed events parse. Found %d unique events.",
+                len(event_names))
     return sorted(event_names)
+
+
+def find_all_matches_in_title(
+    title: str, roster_list: List[str], events_list: List[str]
+) -> List[str]:
+    """
+    Search 'title' for each item from both 'roster_list' and 'events_list'
+    using a case-insensitive substring match.
+    Return ALL matches found (do NOT stop after the first).
+    """
+    logger.debug("Searching title for matches. Title='%s'", title)
+    found_matches = []
+    lower_title = title.lower()
+
+    for name in roster_list:
+        if name.lower() in lower_title:
+            logger.debug("Matched wrestler: '%s'", name)
+            found_matches.append(name)
+
+    for event_name in events_list:
+        if event_name.lower() in lower_title:
+            logger.debug("Matched event: '%s'", event_name)
+            found_matches.append(event_name)
+
+    logger.info("Found %d matches in title.", len(found_matches))
+    return found_matches
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    Process the incoming event containing post data.
-
-    1) Checks for the "post" data within the event.
-    2) If missing, return an error.
-    3) Otherwise, fetch the WWE roster & events from Wikipedia.
-    4) Attach them to the 'post' object.
-    5) Fill placeholders for title, description, image_path.
-    6) Return the processed result.
+    AWS Lambda handler that:
+      1) Retrieves 'post' data from event.
+      2) Fetches WWE roster & events from Wikipedia.
+      3) Attaches them to 'post' and finds all matches in 'post["title"]'.
+      4) Returns the processed post in the response.
     """
-    logger.info("Lambda handler invoked. Checking for 'post' in the event...")
-
+    logger.info("Lambda handler invoked. Checking for 'post' in the event.")
     post = event.get("post") or event.get("processedContent", {}).get("post")
+
     if not post or not isinstance(post, dict):
         error_msg = "No valid 'post' data found in event."
         logger.error(error_msg)
         return {"status": "error", "error": error_msg}
 
-    logger.info("Post object found. Proceeding to fetch WWE data from Wikipedia.")
-
     try:
+        logger.info("Fetching data from Wikipedia (roster + events).")
         wwe_roster = fetch_wwe_roster()
-        logger.debug(f"WWE roster returned: {wwe_roster}")
-
         wwe_events = fetch_wwe_events()
-        logger.debug(f"WWE events returned: {wwe_events}")
 
         post["wrestler_names"] = wwe_roster
         post["events"] = wwe_events
 
-    except Exception as e:
-        logger.exception("Failed to fetch or parse Wikipedia data.")
-        return {"status": "error", "error": str(e)}
+        title_text = post.get("title", "")
+        found_matches = find_all_matches_in_title(title_text, wwe_roster, wwe_events)
+        post["found_matches"] = found_matches
 
-    post["title"] = ""
+    except Exception as exc:
+        logger.exception("An error occurred while processing Wikipedia data.")
+        return {"status": "error", "error": str(exc)}
+
+    if "title" not in post:
+        post["title"] = ""
     post["description"] = ""
     post["image_path"] = ""
-    logger.info("Filled post placeholders (title, description, image_path).")
 
     logger.info("Lambda processing complete. Returning success.")
-    return {"status": "processed", "post": post}
+    return {
+        "status": "processed",
+        "post": post
+    }
