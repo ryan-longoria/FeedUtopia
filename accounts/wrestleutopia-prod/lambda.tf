@@ -75,11 +75,6 @@ resource "aws_lambda_function" "process_content" {
   role             = aws_iam_role.lambda_role.arn
   timeout          = 15
 
-  vpc_config {
-    security_group_ids = [aws_security_group.lambda_sg.id]
-    subnet_ids         = aws_subnet.public_subnet[*].id
-  }
-
   environment {
     variables = {
       IMAGE_MAGICK_EXE = "/bin/magick"
