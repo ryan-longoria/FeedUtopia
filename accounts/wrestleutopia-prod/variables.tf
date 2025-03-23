@@ -77,11 +77,6 @@ variable "render_video_image_uri" {
   type        = string
 }
 
-variable "logo_bucket_name" {
-  description = "Name of the S3 bucket containing the logo"
-  type        = string
-}
-
 variable "common_tags" {
   description = "A map of common tags to apply to all resources."
   type        = map(string)

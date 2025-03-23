@@ -151,8 +151,8 @@ resource "aws_lambda_function" "render_video" {
   }
 
   vpc_config {
-    security_group_ids = [aws_security_group.lambda_sg.id]
     subnet_ids         = aws_subnet.public_subnet[*].id
+    security_group_ids = [aws_security_group.lambda_sg.id]
   }
 
   file_system_config {
@@ -208,7 +208,7 @@ resource "aws_lambda_function" "notify_post" {
 #############################
 
 resource "aws_lambda_function" "sns_to_teams" {
-  function_name    = "${var.project_name}-sns-to-teams"
+  function_name    = "sns_to_teams"
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
@@ -224,5 +224,9 @@ resource "aws_lambda_function" "sns_to_teams" {
 
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
   }
 }
