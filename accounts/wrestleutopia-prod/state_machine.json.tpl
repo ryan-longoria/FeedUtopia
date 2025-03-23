@@ -34,7 +34,7 @@
     "ProcessContent": {
       "Type": "Task",
       "Resource": "${process_content_arn}",
-      "InputPath": "$",
+      "InputPath": "$.fetched",
       "ResultPath": "$.processedContent",
       "Next": "StoreData"
     },
