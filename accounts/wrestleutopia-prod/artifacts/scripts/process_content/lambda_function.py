@@ -277,7 +277,7 @@ def find_all_matches_in_title(
     return matched_wrestlers, matched_events
 
 
-def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     AWS Lambda handler:
       1) Validates 'post' data in the event.
