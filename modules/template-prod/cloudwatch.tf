@@ -154,34 +154,8 @@ resource "aws_cloudwatch_metric_alarm" "automated_workflow_failures" {
   ]
 }
 
-resource "aws_cloudwatch_metric_alarm" "manual_workflow_failures" {
-  alarm_name          = "${var.project_name}-manual-workflow-failures"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 1
-  metric_name         = "ExecutionsFailed"
-  namespace           = "AWS/States"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 1
-  alarm_description   = "Alert if the manual Step Function fails within a 5-minute window."
-
-  dimensions = {
-    StateMachineArn = aws_sfn_state_machine.manual_workflow.arn
-  }
-
-  alarm_actions = [
-    aws_sns_topic.monitoring_topic.arn
-  ]
-}
-
-
 resource "aws_cloudwatch_log_group" "automated_step_function_log_group" {
-  name              = "/aws/vendedlogs/states/automated_workflow"
-  retention_in_days = 3
-}
-
-resource "aws_cloudwatch_log_group" "manual_step_function_log_group" {
-  name              = "/aws/vendedlogs/states/manual_workflow"
+  name              = "/aws/vendedlogs/states/automated_workfloww"
   retention_in_days = 3
 }
 
@@ -254,7 +228,7 @@ resource "aws_cloudwatch_metric_alarm" "fetch_data_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "FetchDataInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -287,7 +261,7 @@ resource "aws_cloudwatch_metric_alarm" "check_duplicate_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "CheckDuplicateInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -320,7 +294,7 @@ resource "aws_cloudwatch_metric_alarm" "process_content_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "ProcessContentInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -353,7 +327,7 @@ resource "aws_cloudwatch_metric_alarm" "store_data_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "StoreDataInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -386,7 +360,7 @@ resource "aws_cloudwatch_metric_alarm" "render_video_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "RenderVideoInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -419,7 +393,7 @@ resource "aws_cloudwatch_metric_alarm" "notify_post_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "NotifyPostInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"
@@ -452,7 +426,7 @@ resource "aws_cloudwatch_metric_alarm" "sns_to_teams_invocations_anomaly" {
   metric_query {
     id          = "m1"
     label       = "SnsToTeamsInvocationsWithAnomalyDetection"
-    return_data = false
+    return_data = true
     metric {
       metric_name = "Invocations"
       namespace   = "AWS/Lambda"

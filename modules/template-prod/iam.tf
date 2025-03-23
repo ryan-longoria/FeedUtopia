@@ -174,11 +174,6 @@ resource "aws_iam_role_policy_attachment" "attach_eventbridge_policy" {
   policy_arn = aws_iam_policy.eventbridge_policy.arn
 }
 
-resource "aws_cloudwatch_log_group" "step_function_log_group" {
-  name              = "/aws/vendedlogs/states/automated_${var.project_name}_workflow"
-  retention_in_days = 14
-}
-
 #############################
 # IAM Policy for SQS
 #############################
@@ -195,11 +190,6 @@ data "aws_iam_policy_document" "dlq_policy_document" {
       identifiers = ["lambda.amazonaws.com"]
     }
   }
-}
-
-resource "aws_sqs_queue_policy" "lambda_dlq_policy" {
-  queue_url = aws_sqs_queue.lambda_dlq.id
-  policy    = data.aws_iam_policy_document.dlq_policy_document.json
 }
 
 resource "aws_iam_role_policy" "lambda_sqs_send_message" {
@@ -225,6 +215,11 @@ resource "aws_iam_role_policy" "lambda_sqs_send_message" {
 resource "aws_iam_role_policy_attachment" "lambda_sqs_send_message" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"
+}
+
+resource "aws_sqs_queue_policy" "lambda_dlq_policy" {
+  queue_url = aws_sqs_queue.lambda_dlq.id
+  policy    = data.aws_iam_policy_document.dlq_policy_document.json
 }
 
 #############################
@@ -272,50 +267,44 @@ resource "aws_iam_role_policy" "vpc_flow_logs_role_policy" {
 ## Cross-Account Role for Step Functions Invocation
 #############################
 
-data "aws_iam_policy_document" "cross_account_trust" {
+data "aws_iam_policy_document" "crossaccount_s3_read_role_trust" {
   statement {
-    effect = "Allow"
+    sid     = "AllowSharedServicesAssumeRole"
+    effect  = "Allow"
 
     principals {
       type        = "AWS"
       identifiers = [
-        "arn:aws:iam::${var.aws_account_ids.project}:root"
+        "arn:aws:iam::${var.aws_account_ids.sharedservices}:root"
       ]
     }
 
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-resource "aws_iam_role" "cross_account_sfn_role" {
-  name               = "CrossAccountStartExecutionRole"
-  max_session_duration = 43200
-  assume_role_policy = data.aws_iam_policy_document.cross_account_trust.json
-}
-
-data "aws_iam_policy_document" "cross_account_sfn_resource_policy" {
-  statement {
-    effect = "Allow"
-
-    principals {
-      type        = "AWS"
-      identifiers = [
-        "arn:aws:iam::${var.aws_account_ids.sharedservices}:role/CrossAccountStartExecutionRole",
-
-        "arn:aws:iam::${var.aws_account_ids.sharedservices}:role/sharedservices_lambda_role"
-      ]
-    }
-
-    actions = ["states:StartExecution"]
-
-    resources = [
-      "aws_sfn_state_machine.manual_workflow.arn"
+    actions = [
+      "sts:AssumeRole"
     ]
   }
 }
 
-resource "aws_iam_role_policy" "allow_sfn_execution" {
-  name   = "AllowCrossAccountStartExecution"
-  role   = aws_iam_role.cross_account_sfn_role.id
-  policy = data.aws_iam_policy_document.cross_account_sfn_policy.json
+resource "aws_iam_role" "crossaccount_s3_read_role" {
+  name               = "CrossAccountS3ReadRole"
+  assume_role_policy = data.aws_iam_policy_document.crossaccount_s3_read_role_trust.json
+}
+
+data "aws_iam_policy_document" "crossaccount_s3_read_policy_doc" {
+  statement {
+    sid     = "AllowGetLogo"
+    effect  = "Allow"
+    actions = [
+      "s3:*"
+    ]
+    resources = [
+      "arn:aws:s3:::prod-${var.project_name}-artifacts-bucket/*"
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "crossaccount_s3_read_policy" {
+  name   = "WrestleUtopiaReadLogo"
+  role   = aws_iam_role.crossaccount_s3_read_role.id
+  policy = data.aws_iam_policy_document.crossaccount_s3_read_policy_doc.json
 }

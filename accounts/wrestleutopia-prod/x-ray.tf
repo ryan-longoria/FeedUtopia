@@ -6,7 +6,7 @@ resource "aws_xray_sampling_rule" "critical_service_rule" {
   rule_name      = "CriticalService"
   priority       = 10
   reservoir_size = 2
-  fixed_rate     = 1.0 # 100%
+  fixed_rate     = 1.0
   host           = "*"
   http_method    = "*"
   service_name   = "my-critical-service"
