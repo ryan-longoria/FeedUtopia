@@ -23,7 +23,7 @@ resource "aws_subnet" "public_subnet" {
   cidr_block              = cidrsubnet(var.vpc_cidr, 4, count.index)
   availability_zone       = element(var.aws_availability_zones, count.index)
   map_public_ip_on_launch = true
-  count = var.public_subnet_count
+  count                   = var.public_subnet_count
 }
 
 resource "aws_route_table" "public_rt" {
@@ -35,7 +35,7 @@ resource "aws_route_table" "public_rt" {
 }
 
 resource "aws_route_table_association" "public_rta" {
-  for_each = { for idx, sb in aws_subnet.public_subnet : idx => sb }
+  for_each       = { for idx, sb in aws_subnet.public_subnet : idx => sb }
   subnet_id      = each.value.id
   route_table_id = aws_route_table.public_rt.id
 }

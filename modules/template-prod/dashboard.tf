@@ -66,13 +66,13 @@ resource "aws_cloudwatch_dashboard" "lambdas_dashboard" {
           "title" : "Lambda Duration (Average)",
           "region" : var.aws_region,
           "metrics" : [
-            ["AWS/Lambda", "Duration", "FunctionName", aws_lambda_function.fetch_data.function_name, { "stat": "Average" }],
-            [".", "Duration", "FunctionName", aws_lambda_function.check_duplicate.function_name, { "stat": "Average" }],
-            [".", "Duration", "FunctionName", aws_lambda_function.process_content.function_name, { "stat": "Average" }],
-            [".", "Duration", "FunctionName", aws_lambda_function.store_data.function_name, { "stat": "Average" }],
-            [".", "Duration", "FunctionName", aws_lambda_function.render_video.function_name, { "stat": "Average" }],
-            [".", "Duration", "FunctionName", aws_lambda_function.notify_post.function_name, { "stat": "Average" }],
-            [".", "Duration", "FunctionName", aws_lambda_function.sns_to_teams.function_name, { "stat": "Average" }]
+            ["AWS/Lambda", "Duration", "FunctionName", aws_lambda_function.fetch_data.function_name, { "stat" : "Average" }],
+            [".", "Duration", "FunctionName", aws_lambda_function.check_duplicate.function_name, { "stat" : "Average" }],
+            [".", "Duration", "FunctionName", aws_lambda_function.process_content.function_name, { "stat" : "Average" }],
+            [".", "Duration", "FunctionName", aws_lambda_function.store_data.function_name, { "stat" : "Average" }],
+            [".", "Duration", "FunctionName", aws_lambda_function.render_video.function_name, { "stat" : "Average" }],
+            [".", "Duration", "FunctionName", aws_lambda_function.notify_post.function_name, { "stat" : "Average" }],
+            [".", "Duration", "FunctionName", aws_lambda_function.sns_to_teams.function_name, { "stat" : "Average" }]
           ],
           "period" : 300
         }
@@ -118,11 +118,11 @@ resource "aws_cloudwatch_dashboard" "step_functions_dashboard" {
           "title" : "Step Function Executions",
           "region" : var.aws_region,
           "metrics" : [
-            ["AWS/States", "ExecutionsStarted",  "StateMachineArn", aws_sfn_state_machine.automated_workflow.arn],
-            [".",          "ExecutionsSucceeded", ".",              "."],
-            [".",          "ExecutionsFailed",    ".",              "."],
-            [".",          "ExecutionsTimedOut",  ".",              "."],
-            [".",          "ExecutionsAborted",   ".",              "."]
+            ["AWS/States", "ExecutionsStarted", "StateMachineArn", aws_sfn_state_machine.automated_workflow.arn],
+            [".", "ExecutionsSucceeded", ".", "."],
+            [".", "ExecutionsFailed", ".", "."],
+            [".", "ExecutionsTimedOut", ".", "."],
+            [".", "ExecutionsAborted", ".", "."]
           ],
           "period" : 300,
           "stat" : "Sum"
@@ -158,93 +158,93 @@ resource "aws_cloudwatch_dashboard" "efs_dashboard" {
   dashboard_body = jsonencode({
     widgets = [
       {
-        "type"    = "metric"
-        "x"       = 0
-        "y"       = 0
-        "width"   = 6
-        "height"  = 6
+        "type"   = "metric"
+        "x"      = 0
+        "y"      = 0
+        "width"  = 6
+        "height" = 6
         "properties" = {
-          "title"   = "BurstCreditBalance"
-          "region"  = var.aws_region
+          "title"  = "BurstCreditBalance"
+          "region" = var.aws_region
           "metrics" = [
-            [ "AWS/EFS", "BurstCreditBalance", "FileSystemId", aws_efs_file_system.lambda_efs.id ]
+            ["AWS/EFS", "BurstCreditBalance", "FileSystemId", aws_efs_file_system.lambda_efs.id]
           ]
-          "stat"    = "Average"
+          "stat" = "Average"
         }
       },
       {
-        "type"    = "metric"
-        "x"       = 6
-        "y"       = 0
-        "width"   = 6
-        "height"  = 6
+        "type"   = "metric"
+        "x"      = 6
+        "y"      = 0
+        "width"  = 6
+        "height" = 6
         "properties" = {
-          "title"   = "ClientConnections"
-          "region"  = var.aws_region
+          "title"  = "ClientConnections"
+          "region" = var.aws_region
           "metrics" = [
-            [ "AWS/EFS", "ClientConnections", "FileSystemId", aws_efs_file_system.lambda_efs.id ]
+            ["AWS/EFS", "ClientConnections", "FileSystemId", aws_efs_file_system.lambda_efs.id]
           ]
-          "stat"    = "Average"
+          "stat" = "Average"
         }
       },
       {
-        "type"    = "metric"
-        "x"       = 0
-        "y"       = 6
-        "width"   = 6
-        "height"  = 6
+        "type"   = "metric"
+        "x"      = 0
+        "y"      = 6
+        "width"  = 6
+        "height" = 6
         "properties" = {
-          "title"   = "DataReadIOBytes"
-          "region"  = var.aws_region
+          "title"  = "DataReadIOBytes"
+          "region" = var.aws_region
           "metrics" = [
-            [ "AWS/EFS", "DataReadIOBytes", "FileSystemId", aws_efs_file_system.lambda_efs.id ]
+            ["AWS/EFS", "DataReadIOBytes", "FileSystemId", aws_efs_file_system.lambda_efs.id]
           ]
-          "stat"    = "Sum"
+          "stat" = "Sum"
         }
       },
       {
-        "type"    = "metric"
-        "x"       = 6
-        "y"       = 6
-        "width"   = 6
-        "height"  = 6
+        "type"   = "metric"
+        "x"      = 6
+        "y"      = 6
+        "width"  = 6
+        "height" = 6
         "properties" = {
-          "title"   = "DataWriteIOBytes"
-          "region"  = var.aws_region
+          "title"  = "DataWriteIOBytes"
+          "region" = var.aws_region
           "metrics" = [
-            [ "AWS/EFS", "DataWriteIOBytes", "FileSystemId", aws_efs_file_system.lambda_efs.id ]
+            ["AWS/EFS", "DataWriteIOBytes", "FileSystemId", aws_efs_file_system.lambda_efs.id]
           ]
-          "stat"    = "Sum"
+          "stat" = "Sum"
         }
       },
       {
-        "type"    = "metric"
-        "x"       = 0
-        "y"       = 12
-        "width"   = 6
-        "height"  = 6
+        "type"   = "metric"
+        "x"      = 0
+        "y"      = 12
+        "width"  = 6
+        "height" = 6
         "properties" = {
-          "title"   = "PercentIOLimit"
-          "region"  = var.aws_region
+          "title"  = "PercentIOLimit"
+          "region" = var.aws_region
           "metrics" = [
-            [ "AWS/EFS", "PercentIOLimit", "FileSystemId", aws_efs_file_system.lambda_efs.id ]
+            ["AWS/EFS", "PercentIOLimit", "FileSystemId", aws_efs_file_system.lambda_efs.id]
           ]
-          "stat"    = "Average"
+          "stat" = "Average"
         }
       },
       {
-        "type"    = "metric"
-        "x"       = 6
-        "y"       = 12
-        "width"   = 6
-        "height"  = 6
+        "type"   = "metric"
+        "x"      = 6
+        "y"      = 12
+        "width"  = 6
+        "height" = 6
         "properties" = {
-          "title"   = "TotalIOBytes"
-          "region"  = var.aws_region
+          "title"  = "TotalIOBytes"
+          "region" = var.aws_region
           "metrics" = [
-            [ "AWS/EFS", "TotalIOBytes", "FileSystemId", aws_efs_file_system.lambda_efs.id ]
+            ["AWS/EFS", "TotalIOBytes", "FileSystemId", aws_efs_file_system.lambda_efs.id]
           ]
-          "stat"    = "Sum"
+          "stat" = "Sum"
         }
       }
     ]
@@ -267,14 +267,14 @@ resource "aws_cloudwatch_dashboard" "vpc_monitoring" {
         "width"  = 12
         "height" = 6
         "properties" = {
-          "region"  = var.aws_region
-          "title"   = "Rejected Traffic Over Time"
-          "period"  = 300
-          "stat"    = "Sum"
+          "region" = var.aws_region
+          "title"  = "Rejected Traffic Over Time"
+          "period" = 300
+          "stat"   = "Sum"
           "metrics" = [
-            [ "VPCFlowLogs", "NumRejectedRequests" ],
+            ["VPCFlowLogs", "NumRejectedRequests"],
           ]
-          title = "Rejected Traffic Over Time"
+          title  = "Rejected Traffic Over Time"
           period = 300
           stat   = "Sum"
         }

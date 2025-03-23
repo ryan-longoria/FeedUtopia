@@ -10,7 +10,7 @@ variable "project_name" {
 variable "aws_account_ids" {
   description = "The AWS Account ID. Used for configuring the provider and defining ECS resources."
   type = object({
-    wrestleutopia = string
+    wrestleutopia  = string
     sharedservices = string
   })
 }

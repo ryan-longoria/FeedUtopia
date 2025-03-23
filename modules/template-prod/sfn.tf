@@ -19,7 +19,7 @@ resource "aws_sfn_state_machine" "automated_workflow" {
   logging_configuration {
     level                  = "ALL"
     include_execution_data = true
-    log_destination       = "${aws_cloudwatch_log_group.automated_step_function_log_group.arn}:*"
+    log_destination        = "${aws_cloudwatch_log_group.automated_step_function_log_group.arn}:*"
   }
 
   tracing_configuration {
