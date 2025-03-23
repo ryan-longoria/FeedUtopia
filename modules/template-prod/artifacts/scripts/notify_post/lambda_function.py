@@ -174,8 +174,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "Your new post has been processed!\n\n"
             f"**Title:** {title}\n\n"
             f"**Body:** {body}\n\n"
-            "**Complete Post:** Contains background image, gradient, "
-            "title & subtitle, news clip, and logo.\n\n"
             f"[View Video]({presigned_url})\n\n"
         )
 
