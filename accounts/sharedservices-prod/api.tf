@@ -23,6 +23,31 @@ resource "aws_api_gateway_stage" "api_stage" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   deployment_id = aws_api_gateway_deployment.api_deployment.id
   stage_name    = "prod"
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.apigw_access_logs.arn
+    format          = jsonencode({
+      requestId = "$context.requestId",
+      ip        = "$context.identity.sourceIp",
+      caller    = "$context.identity.caller",
+      user      = "$context.identity.user",
+      requestTime = "$context.requestTime",
+      httpMethod  = "$context.httpMethod",
+      resourcePath = "$context.resourcePath",
+      status      = "$context.status",
+      protocol    = "$context.protocol",
+      responseLength = "$context.responseLength",
+      errorMessage   = "$context.error.messageString"
+    })
+  }
+
+  xray_tracing_enabled = true
+
+  depends_on = [
+    aws_api_gateway_deployment.api_deployment,
+    aws_cloudwatch_log_group.apigw_access_logs,
+    aws_api_gateway_account.apigw_account
+  ]
 }
 
 resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
@@ -37,7 +62,7 @@ resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
 resource "aws_api_gateway_base_path_mapping" "api_base_mapping" {
   domain_name = aws_api_gateway_domain_name.api_feedutopia_domain.domain_name
   api_id     = aws_api_gateway_rest_api.api.id
-  stage_name = aws_api_gateway_stage.api_stage.stage_name
+  stage_name  = aws_api_gateway_stage.api_stage.stage_name
 }
 
 resource "aws_api_gateway_resource" "start_execution" {
@@ -51,13 +76,14 @@ resource "aws_api_gateway_method" "start_execution_post" {
   resource_id   = aws_api_gateway_resource.start_execution.id
   http_method   = "POST"
   authorization = "NONE"
+  api_key_required = false
 }
 
 resource "aws_api_gateway_integration" "start_execution_integration" {
-  rest_api_id            = aws_api_gateway_rest_api.api.id
-  resource_id            = aws_api_gateway_resource.start_execution.id
-  http_method            = aws_api_gateway_method.start_execution_post.http_method
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.start_execution.id
+  http_method             = aws_api_gateway_method.start_execution_post.http_method
   integration_http_method = "POST"
-  type                   = "AWS_PROXY"
-  uri                    = aws_lambda_function.api_router.invoke_arn
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.start_sfn.invoke_arn
 }

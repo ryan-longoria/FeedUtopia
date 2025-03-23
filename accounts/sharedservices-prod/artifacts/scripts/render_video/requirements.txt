@@ -1,0 +1,6 @@
+requests
+moviepy
+boto3
+Pillow
+imageio[pyav]
+opencv-python-headless

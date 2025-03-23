@@ -6,44 +6,30 @@
 # IAM Policy for API Gateway
 #############################
 
-resource "aws_iam_role" "apigw_stepfunctions_role" {
-  name = "APIGW-StepFunctions-CrossAccountRole"
+data "aws_iam_policy_document" "apigw_logs_trust" {
+  statement {
+    effect = "Allow"
+    actions = ["sts:AssumeRole"]
 
-  assume_role_policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "apigateway.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
+    principals {
+      type        = "Service"
+      identifiers = ["apigateway.amazonaws.com"]
     }
-  ]
-}
-EOF
-  tags = {
-    Name = "API-Gateway-to-StepFunctions-Role"
   }
 }
 
-resource "aws_iam_role_policy" "apigw_stepfunctions_policy" {
-  name = "AllowStartExecutionInMultipleAccounts"
-  role = aws_iam_role.apigw_stepfunctions_role.id
-
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "states:StartExecution",
-      "Resource": ${jsonencode(values(var.stepfunctions_arns))}
-    }
-  ]
+resource "aws_iam_role" "apigw_logs_role" {
+  name               = "APIGatewayLogsRole"
+  assume_role_policy = data.aws_iam_policy_document.apigw_logs_trust.json
 }
-EOF
+
+resource "aws_iam_role_policy_attachment" "apigw_logs_role_attachment" {
+  role       = aws_iam_role.apigw_logs_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+resource "aws_api_gateway_account" "apigw_account" {
+  cloudwatch_role_arn = aws_iam_role.apigw_logs_role.arn
 }
 
 #############################
@@ -62,9 +48,24 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_xray_write_access" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_s3_full_access" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.s3_full_policy.arn
 }
 
 resource "aws_lambda_permission" "allow_sns_invoke" {
@@ -75,35 +76,183 @@ resource "aws_lambda_permission" "allow_sns_invoke" {
   source_arn    = aws_sns_topic.monitoring_topic.arn
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
+resource "aws_iam_role_policy_attachment" "lambda_insights_policy" {
   role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy"
 }
 
-data "aws_caller_identity" "current" {}
-
-resource "aws_lambda_permission" "allow_api_gateway_invoke_api_router" {
-  statement_id  = "AllowAPIGatewayInvokeApiRouter"
+resource "aws_lambda_permission" "allow_apigw_invoke_start_sfn" {
+  statement_id  = "AllowAPIGatewayInvokeStartSFN"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.api_router.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "arn:aws:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${aws_api_gateway_rest_api.api.id}/*"
+  function_name = aws_lambda_function.start_sfn.function_name
+
+  principal = "apigateway.amazonaws.com"
+  source_arn = "arn:aws:execute-api:us-east-2:825765422855:${aws_api_gateway_rest_api.api.id}/*/POST/start-execution"
 }
 
-resource "aws_iam_role_policy" "allow_start_exec_remote" {
-  name = "AllowStartExecRemote"
-  role = aws_iam_role.lambda_role.name
+resource "aws_iam_role_policy" "lambda_sfn_execution" {
+  name = "AllowStatesStartExecution"
+  role = aws_iam_role.lambda_role.id
 
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       {
-        Effect   = "Allow",
-        Action   = "states:StartExecution",
-        Resource = values(var.stepfunctions_arns)
+        Effect = "Allow",
+        Action = [
+          "states:StartExecution"
+        ],
+        Resource = [
+          aws_sfn_state_machine.manual_workflow.arn
+        ]
       }
     ]
   })
+}
+
+resource "aws_iam_role_policy" "lambda_assume_crossaccount" {
+  name = "AllowAssumeCrossAccountS3ReadRole"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "sts:AssumeRole"
+        ],
+        Resource = [
+          "arn:aws:iam::390402544450:role/CrossAccountS3ReadRole"
+        ]
+      }
+    ]
+  })
+}
+
+
+#############################
+# IAM Policy for S3
+#############################
+
+resource "aws_iam_policy" "s3_full_policy" {
+  name        = "${var.project_name}_s3_full_policy"
+  description = "Policy to allow Lambda full access to S3"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = "s3:*",
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket_name}",
+          "arn:aws:s3:::${var.s3_bucket_name}/*",
+          "arn:aws:s3:::prod-sharedservices-artifacts-bucket",
+          "arn:aws:s3:::prod-sharedservices-artifacts-bucket/*"
+        ]
+      }
+    ]
+  })
+}
+
+#############################
+# IAM Policy for Step Functions
+#############################
+
+resource "aws_iam_role" "step_functions_role" {
+  name = "${var.project_name}_step_functions_role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action    = "sts:AssumeRole",
+      Effect    = "Allow",
+      Principal = { Service = "states.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "step_functions_policy" {
+  name = "${var.project_name}_step_functions_policy"
+  role = aws_iam_role.step_functions_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "lambda:InvokeFunction"
+        ],
+        Resource = [
+          aws_lambda_function.get_logo.arn,
+          aws_lambda_function.render_video.arn,
+          aws_lambda_function.delete_logo.arn,
+          aws_lambda_function.notify_post.arn
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogDelivery",
+          "logs:GetLogDelivery",
+          "logs:UpdateLogDelivery",
+          "logs:DeleteLogDelivery",
+          "logs:ListLogDeliveries",
+          "logs:PutResourcePolicy",
+          "logs:DescribeResourcePolicies",
+          "logs:DescribeLogGroups"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+#############################
+# IAM Policy for SQS
+#############################
+
+data "aws_iam_policy_document" "dlq_policy_document" {
+  statement {
+    sid       = "AllowLambdaServiceToSendMessage"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.lambda_dlq.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "lambda_sqs_send_message" {
+  name = "${var.project_name}_lambda_sqs_send_message"
+  role = aws_iam_role.lambda_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "sqs:SendMessage",
+          "sqs:GetQueueAttributes"
+        ],
+        Resource = [
+          aws_sqs_queue.lambda_dlq.arn
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_sqs_send_message" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"
+}
+
+resource "aws_sqs_queue_policy" "lambda_dlq_policy" {
+  queue_url = aws_sqs_queue.lambda_dlq.id
+  policy    = data.aws_iam_policy_document.dlq_policy_document.json
 }
 
 #############################
@@ -148,36 +297,14 @@ resource "aws_iam_role_policy" "api_vpc_flow_logs_role_policy" {
 }
 
 #############################
-## Cross-Account Role for Step Functions Invocation
+# IAM for Microsoft Copilot Studio Put/Get
 #############################
 
-data "aws_iam_policy_document" "lambda_assume" {
-  statement {
-    effect    = "Allow"
-    actions   = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
-    }
-  }
+resource "aws_iam_user" "ms-copilot" {
+  name = "ms-copilot"
 }
 
-resource "aws_iam_role" "external_lambda_role" {
-  name               = "ExternalLambdaRole"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-}
-
-data "aws_iam_policy_document" "external_lambda_permissions" {
-  statement {
-    effect   = "Allow"
-    actions  = ["sts:AssumeRole"]
-
-    resources = var.cross_account_role_arns
-  }
-}
-
-resource "aws_iam_role_policy" "external_lambda_policy" {
-  name   = "AllowAssumeRoleInMultipleHosts"
-  role   = aws_iam_role.external_lambda_role.id
-  policy = data.aws_iam_policy_document.external_lambda_permissions.json
+resource "aws_iam_user_policy_attachment" "ms-copilot_attach_policy" {
+  user       = aws_iam_user.ms-copilot.name
+  policy_arn = aws_iam_policy.s3_full_policy.arn
 }
