@@ -9,7 +9,7 @@ resource "aws_xray_sampling_rule" "critical_service_rule" {
   fixed_rate     = 1.0
   host           = "*"
   http_method    = "*"
-  service_name   = "my-critical-service"
+  service_name   = "critical"
   service_type   = "*"
   url_path       = "*"
   version        = 1
