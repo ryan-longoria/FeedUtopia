@@ -28,7 +28,7 @@ def store_data_in_s3(data: Dict, bucket_name: str, key: str) -> None:
     s3.put_object(Bucket=bucket_name, Key=key, Body=json_data)
 
 
-def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     AWS Lambda handler that processes input events, extracts the `post` content,
     and uploads it to an S3 bucket as JSON.
