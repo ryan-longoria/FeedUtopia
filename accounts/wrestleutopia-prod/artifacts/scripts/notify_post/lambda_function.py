@@ -120,13 +120,34 @@ def post_to_teams(webhook_url: str, message_text: str) -> None:
     response.raise_for_status()
 
 
+def download_json_from_s3(bucket_name: str, s3_key: str) -> Dict[str, Any]:
+    """
+    Download a JSON file from S3 and return its contents as a dictionary.
+
+    Args:
+        bucket_name (str): The name of the S3 bucket.
+        s3_key (str): The key of the JSON file in the S3 bucket.
+
+    Returns:
+        dict: The parsed JSON content.
+    """
+    s3_client = boto3.client("s3")
+    logger.info(
+        "Downloading JSON from bucket='%s', key='%s' for inclusion in Teams message.",
+        bucket_name,
+        s3_key
+    )
+    response = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
+    return json.loads(response["Body"].read())
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     AWS Lambda handler function that posts a processed video message to Microsoft Teams.
 
     It retrieves a presigned URL from S3 for the 'complete' video key,
-    constructs a message, and sends it to a Microsoft Teams channel via
-    an incoming webhook.
+    downloads the text from most_recent_post.json, constructs a message,
+    and sends it to a Microsoft Teams channel via an incoming webhook.
 
     Args:
         event (dict): The event data containing either a 'video_keys' dict
@@ -142,13 +163,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         teams_webhook_url = get_env_var("TEAMS_WEBHOOK_URL")
 
         s3 = boto3.client("s3")
-
         complete_key = get_video_key(event)
-
         presigned_url = generate_presigned_url(s3, bucket, complete_key)
+
+        post_data = download_json_from_s3(bucket, "most_recent_post.json")
+        title = post_data.get("title", "No Title Found")
+        body = post_data.get("body", "")
 
         message_text = (
             "Your new post has been processed!\n\n"
+            f"**Title:** {title}\n\n"
+            f"**Body:** {body}\n\n"
             "**Complete Post:** Contains background image, gradient, "
             "title & subtitle, news clip, and logo.\n\n"
             f"[View Video]({presigned_url})\n\n"
