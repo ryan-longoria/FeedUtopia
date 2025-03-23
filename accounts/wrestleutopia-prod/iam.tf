@@ -3,7 +3,7 @@
 ################################################################################
 
 #############################
-# IAM Policy for Lambda
+# Lambda IAM
 #############################
 
 resource "aws_iam_role" "lambda_role" {
@@ -65,7 +65,7 @@ resource "aws_iam_role_policy_attachment" "lambda_insights_policy" {
 }
 
 #############################
-# IAM Policy for S3
+# S3 IAM
 #############################
 
 resource "aws_iam_policy" "s3_full_policy" {
@@ -87,7 +87,7 @@ resource "aws_iam_policy" "s3_full_policy" {
 }
 
 #############################
-# IAM Policy for Step Functions
+# Step Function IAM
 #############################
 
 resource "aws_iam_role" "step_functions_role" {
@@ -140,8 +140,26 @@ resource "aws_iam_role_policy" "step_functions_policy" {
   })
 }
 
+resource "aws_iam_role_policy" "step_functions_xray" {
+  name   = "step-functions-xray-policy"
+  role   = aws_iam_role.step_functions_role.id
+  policy = data.aws_iam_policy_document.step_functions_xray.json
+}
+
+data "aws_iam_policy_document" "step_functions_xray" {
+  statement {
+    sid     = "AllowXRayWrites"
+    effect  = "Allow"
+    actions = [
+      "xray:PutTraceSegments",
+      "xray:PutTelemetryRecords"
+    ]
+    resources = ["*"]
+  }
+}
+
 #############################
-# IAM Policy for CloudWatch/EventBridge
+# CloudWatch/EventBridge IAM
 #############################
 
 resource "aws_iam_role" "eventbridge_role" {
@@ -175,7 +193,7 @@ resource "aws_iam_role_policy_attachment" "attach_eventbridge_policy" {
 }
 
 #############################
-# IAM Policy for SQS
+# SQS IAM
 #############################
 
 data "aws_iam_policy_document" "dlq_policy_document" {
@@ -223,7 +241,7 @@ resource "aws_sqs_queue_policy" "lambda_dlq_policy" {
 }
 
 #############################
-# IAM Policy for VPC Flow Logs
+# VPC Flow Logs IAM
 #############################
 
 resource "aws_iam_role" "vpc_flow_logs_role" {
@@ -264,9 +282,8 @@ resource "aws_iam_role_policy" "vpc_flow_logs_role_policy" {
 }
 
 #############################
-## Cross-Account Role for Step Functions Invocation
+## Cross-Account IAM
 #############################
-
 
 data "aws_iam_policy_document" "crossaccount_s3_read_role_trust" {
   statement {
