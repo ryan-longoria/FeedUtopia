@@ -148,8 +148,8 @@ resource "aws_iam_role_policy" "step_functions_xray" {
 
 data "aws_iam_policy_document" "step_functions_xray" {
   statement {
-    sid     = "AllowXRayWrites"
-    effect  = "Allow"
+    sid    = "AllowXRayWrites"
+    effect = "Allow"
     actions = [
       "xray:PutTraceSegments",
       "xray:PutTelemetryRecords"
@@ -287,11 +287,11 @@ resource "aws_iam_role_policy" "vpc_flow_logs_role_policy" {
 
 data "aws_iam_policy_document" "crossaccount_s3_read_role_trust" {
   statement {
-    sid     = "AllowSharedServicesAssumeRole"
-    effect  = "Allow"
+    sid    = "AllowSharedServicesAssumeRole"
+    effect = "Allow"
 
     principals {
-      type        = "AWS"
+      type = "AWS"
       identifiers = [
         "arn:aws:iam::${var.aws_account_ids.sharedservices}:root"
       ]
@@ -310,8 +310,8 @@ resource "aws_iam_role" "crossaccount_s3_read_role" {
 
 data "aws_iam_policy_document" "crossaccount_s3_read_policy_doc" {
   statement {
-    sid     = "AllowGetLogo"
-    effect  = "Allow"
+    sid    = "AllowGetLogo"
+    effect = "Allow"
     actions = [
       "s3:*"
     ]
