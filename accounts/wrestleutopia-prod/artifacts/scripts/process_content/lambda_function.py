@@ -114,8 +114,9 @@ def class_lambda(value: str) -> bool:
 def fetch_wwe_roster() -> Dict[str, str]:
     """
     Fetch the 'List_of_WWE_personnel' page via Wikipedia's Action API,
-    parse the HTML, and return a dict {wrestler_name: relative_url}.
-    e.g. {"Cody Rhodes": "/wiki/Cody_Rhodes", ...}
+    parse the HTML, and return a dict {name: relative_url} for EVERY entry
+    in the 'WWE_personnel' navbox. This includes wrestlers, referees,
+    broadcast team, ambassadors, producers, etc.
     """
     logger.info("Fetching WWE roster from 'List_of_WWE_personnel'.")
     api_url = "https://en.wikipedia.org/w/api.php"
@@ -154,26 +155,34 @@ def fetch_wwe_roster() -> Dict[str, str]:
     roster_dict = {}
     for table_idx, table in enumerate(all_subgroup_tables, start=1):
         rows = table.find_all("tr")
-        for tr in rows:
+        logger.debug("Table #%d has %d <tr> rows.", table_idx, len(rows))
+
+        for tr_idx, tr in enumerate(rows, start=1):
             heading_th = tr.find("th", class_="navbox-group")
             if not heading_th:
                 continue
-            heading_text = heading_th.get_text(strip=True)
-            if heading_text in ["Men's division", "Women's division"]:
-                td = tr.find("td", class_="navbox-list")
-                if not td:
-                    continue
-                for li in td.find_all("li"):
-                    a = li.find("a", href=True, title=True)
-                    if a:
-                        name = a.get_text(strip=True)
-                        href = a.get("href", "")
-                        if (name
-                                and not name.startswith("^")
-                                and href.startswith("/wiki/")):
-                            roster_dict[name] = href
 
-    logger.info("Completed parsing roster. Found %d wrestlers.", len(roster_dict))
+            heading_text = heading_th.get_text(strip=True)
+            logger.debug("Table #%d Row #%d: Found heading '%s'.", table_idx, tr_idx, heading_text)
+
+            td = tr.find("td", class_="navbox-list")
+            if not td:
+                logger.debug("No <td class='navbox-list'> for heading '%s'. Skipping.", heading_text)
+                continue
+
+            li_tags = td.find_all("li")
+            logger.debug("Heading '%s' has %d <li> items.", heading_text, len(li_tags))
+            for li in li_tags:
+                a = li.find("a", href=True, title=True)
+                if a:
+                    name = a.get_text(strip=True)
+                    href = a.get("href", "")
+                    if (name
+                            and not name.startswith("^")
+                            and href.startswith("/wiki/")):
+                        roster_dict[name] = href
+
+    logger.info("Completed parsing. Found %d names in the navbox.", len(roster_dict))
     return roster_dict
 
 
@@ -247,32 +256,33 @@ def fetch_wwe_events() -> List[str]:
 
 
 def find_all_matches_in_title(
-    title: str, roster_dict: Dict[str, str], events_list: List[str]
+    title: str,
+    roster_dict: Dict[str, str],
+    events_list: List[str],
 ) -> Tuple[List[str], List[str]]:
     """
-    Search 'title' for each wrestler name (from roster_dict) and each event (from events_list)
+    Search 'title' for each name (from roster_dict) and each event (from events_list)
     using a case-insensitive substring match.
     Return two lists:
-       1) 'matched_wrestlers' – the wrestler names that appear in title
-       2) 'matched_events' – the events that appear in title
+       1) 'matched_wrestlers' – the names that appear in 'title'
+       2) 'matched_events' – the events that appear in 'title'
     """
     logger.info("Searching for matches in title: '%s'", title)
     matched_wrestlers = []
     matched_events = []
-
     lower_title = title.lower()
 
-    for wrestler_name in roster_dict.keys():
-        if wrestler_name.lower() in lower_title:
-            logger.debug("Matched wrestler: '%s'", wrestler_name)
-            matched_wrestlers.append(wrestler_name)
+    for name in roster_dict.keys():
+        if name.lower() in lower_title:
+            logger.debug("Matched name: '%s'", name)
+            matched_wrestlers.append(name)
 
     for event_name in events_list:
         if event_name.lower() in lower_title:
             logger.debug("Matched event: '%s'", event_name)
             matched_events.append(event_name)
 
-    logger.info("Found %d wrestler matches and %d event matches in title.",
+    logger.info("Found %d name matches and %d event matches in title.",
                 len(matched_wrestlers), len(matched_events))
     return matched_wrestlers, matched_events
 
@@ -281,9 +291,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     AWS Lambda handler:
       1) Validates 'post' data in the event.
-      2) Fetches the WWE roster (dict of name->URL) and event list.
-      3) Searches post['title'] for any mention of wrestlers or events.
-      4) For each matched wrestler, fetches their page and grabs their infobox image.
+      2) Fetches the entire WWE navbox (dict of name->URL) and the event list.
+      3) Searches post['title'] for any mention of these names or events.
+      4) For each matched name, fetches their page and grabs their infobox image.
       5) Attaches all data to post (including 'wrestler_images').
       6) Returns the processed post.
     """
@@ -300,32 +310,34 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     try:
         wwe_roster_dict = fetch_wwe_roster()
+
         wwe_events = fetch_wwe_events()
 
-        matched_wrestlers, matched_events = find_all_matches_in_title(
+        matched_names, matched_events = find_all_matches_in_title(
             post["title"], wwe_roster_dict, wwe_events
         )
 
-        wrestler_images = {}
-        for wrestler_name in matched_wrestlers:
-            rel_url = wwe_roster_dict.get(wrestler_name, "")
+        name_images = {}
+        for name in matched_names:
+            rel_url = wwe_roster_dict.get(name, "")
             if rel_url:
-                local_image_path = fetch_wrestler_image(rel_url)
-                if local_image_path:
-                    wrestler_images[wrestler_name] = local_image_path
+                local_path = fetch_wrestler_image(rel_url)
+                if local_path:
+                    name_images[name] = local_path
 
-        post["matched_wrestlers"] = matched_wrestlers
+        post["matched_wrestlers"] = matched_names
         post["matched_events"] = matched_events
-        post["wrestler_images"] = wrestler_images
+        post["wrestler_images"] = name_images
 
     except Exception as exc:
         logger.exception("An error occurred while processing Wikipedia data.")
         return {"status": "error", "error": str(exc)}
 
+    # (Optional) Fill placeholders if needed
     post.setdefault("description", "")
     post.setdefault("image_path", "")
-    logger.info("Lambda processing complete. Returning success.")
 
+    logger.info("Lambda processing complete. Returning success.")
     return {
         "status": "processed",
         "post": post
