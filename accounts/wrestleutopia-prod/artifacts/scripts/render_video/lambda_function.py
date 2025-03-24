@@ -179,6 +179,7 @@ def make_multiline_clips(
     config: VideoConfig,
     x_left: int,
     bottom_y: int,
+    available_width: int,
     line_spacing: int = 10
 ) -> List[ImageClip]:
     """
