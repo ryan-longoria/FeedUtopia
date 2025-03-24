@@ -231,18 +231,17 @@ def create_final_clip(
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
-        logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
-        logo_clip = logo_clip.with_position(
-            (width - logo_clip.w - base_margin, height - logo_clip.h - base_margin)
-        )
-        side_margin = base_margin
-        logo_left = width - logo_clip.w - base_margin
-        available_width = logo_left - side_margin
+        logo_clip = (raw_logo.with_effects([vfx.Resize(scale_logo)])
+                     .with_duration(duration_sec))
+        logo_clip = logo_clip.with_position((width - logo_clip.w - base_margin, 
+                                             height - logo_clip.h - base_margin))
+        side_margin = max(logo_clip.w + base_margin, base_margin)
     else:
         logo_clip = None
         side_margin = base_margin
-        available_width = width - (2 * side_margin)
 
+    available_width = width - (2 * side_margin + 10)
+    
     top_font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
     bottom_font_size = top_font_size - 10 if (top_font_size - 10) > 0 else top_font_size
     title_top, title_bottom = dynamic_split(title_text, config.font_path, top_font_size, available_width)
