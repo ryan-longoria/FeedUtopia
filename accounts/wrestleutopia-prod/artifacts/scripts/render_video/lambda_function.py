@@ -235,7 +235,7 @@ def create_final_clip(
         logo_clip = logo_clip.with_position(
             (width - logo_clip.w - base_margin, height - logo_clip.h - base_margin)
         )
-        side_margin = max(logo_clip.w + base_margin, base_margin)
+        side_margin = base_margin
         logo_left = width - logo_clip.w - base_margin
         available_width = logo_left - side_margin
     else:
