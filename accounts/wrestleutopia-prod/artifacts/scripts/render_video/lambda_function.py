@@ -69,42 +69,6 @@ def measure_text_width(text: str, font_path: str, font_size: int) -> int:
     return bbox[2] - bbox[0]
 
 
-def dynamic_split(
-    text: str,
-    font_path: str,
-    font_size: int,
-    max_width: int
-) -> Tuple[str, str]:
-    """
-    Split a text string into two lines if needed, ensuring the width
-    of each line does not exceed max_width.
-    """
-    full_width = measure_text_width(text, font_path, font_size)
-    if full_width <= max_width:
-        return text, ""
-
-    words = text.split()
-    top_line = ""
-    for i in range(1, len(words) + 1):
-        candidate = " ".join(words[:i])
-        candidate_width = measure_text_width(candidate, font_path, font_size)
-        if candidate_width <= max_width:
-            top_line = candidate
-        else:
-            break
-
-    bottom_line = " ".join(words[len(top_line.split()):])
-
-    if len(words) - len(top_line.split()) > len(top_line.split()):
-        candidate = " ".join(words[:len(top_line.split()) + 1])
-        candidate_width = measure_text_width(candidate, font_path, font_size)
-        if candidate_width <= max_width:
-            top_line = candidate
-            bottom_line = " ".join(words[len(top_line.split()):])
-
-    return top_line, bottom_line
-
-
 def download_resource(bucket_name: str, resource_path: str, local_path: str) -> bool:
     """
     Download a resource either from an HTTP URL or from S3 into local_path.
@@ -176,20 +140,79 @@ def make_colored_line_clip(
     return CompositeVideoClip(word_clips, size=(total_width, total_height))
 
 
+def multi_line_split(
+    text: str,
+    font_path: str,
+    font_size: int,
+    max_width: int
+) -> List[str]:
+    """
+    Split 'text' into multiple lines so that no single line
+    exceeds 'max_width' when rendered in the given font + font_size.
+
+    Returns a list of lines, each fitting within max_width.
+    """
+    words = text.split()
+    lines = []
+    current_line_words = []
+
+    for word in words:
+        candidate_line = " ".join(current_line_words + [word])
+        line_width = measure_text_width(candidate_line, font_path, font_size)
+
+        if line_width <= max_width:
+            current_line_words.append(word)
+        else:
+            lines.append(" ".join(current_line_words))
+            current_line_words = [word]
+
+    if current_line_words:
+        lines.append(" ".join(current_line_words))
+
+    return lines
+
+
+def make_multiline_clips(
+    lines: List[str],
+    matched_set: Set[str],
+    font_size: int,
+    config: VideoConfig,
+    x_left: int,
+    bottom_y: int,
+    line_spacing: int = 10
+) -> List[ImageClip]:
+    """
+    Given a list of lines, create a colored clip for each line, then
+    position them from the bottom up. The first line in 'lines' ends up
+    on top, or you can reverse them if you want normal reading order.
+    """
+
+    current_y = bottom_y
+    clip_list = []
+
+    for line in reversed(lines):
+        line_clip = make_colored_line_clip(line, matched_set, font_size, config)
+        line_height = line_clip.h
+
+        y_pos = current_y - line_height
+        line_clip = line_clip.with_position((x_left, y_pos))
+
+        clip_list.append(line_clip)
+
+        current_y = y_pos - line_spacing
+
+    return clip_list
+
+
 def create_final_clip(
     post_data: dict,
     local_paths: dict,
     config: VideoConfig
 ) -> CompositeVideoClip:
-    """
-    Create the final CompositeVideoClip. 
-    Ensures text does NOT go behind a bottom-right logo.
-    """
 
     logger.info("[create_final_clip] Building the video composition...")
 
     title_text = post_data.get("title", "NO TITLE").upper()
-
     matched_wrestlers = post_data.get("matched_wrestlers", [])
     matched_events = post_data.get("matched_events", [])
     matched_set = set([w.lower() for w in matched_wrestlers + matched_events])
@@ -231,10 +254,8 @@ def create_final_clip(
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
-        logo_clip = (
-            raw_logo.with_effects([vfx.Resize(scale_logo)])
-            .with_duration(duration_sec)
-        )
+        logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
+
         logo_x = width - logo_clip.w - base_margin
         logo_y = height - logo_clip.h - base_margin
         logo_clip = logo_clip.with_position((logo_x, logo_y))
@@ -242,40 +263,36 @@ def create_final_clip(
         logo_clip = None
 
     text_left = base_margin
+    text_right = width - base_margin
+    text_bottom = height - 20
+
     if logo_clip is not None:
-        text_right = logo_x - 10
-        text_bottom = min(height - 20, logo_y - 10)
-    else:
-        text_right = width - base_margin
-        text_bottom = height - 20
+        text_right = min(text_right, logo_x - 10)
+        text_bottom = min(text_bottom, logo_y - 10)
 
     available_width = text_right - text_left
 
     top_font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
-    bottom_font_size = top_font_size - 10 if (top_font_size - 10) > 0 else top_font_size
 
-    title_top, title_bottom = dynamic_split(title_text, config.font_path, top_font_size, available_width)
+    from typing import List
+    all_title_lines = multi_line_split(title_text, config.font_path, top_font_size, available_width)
 
-    top_line_clip = make_colored_line_clip(title_top, matched_set, top_font_size, config)
-    bottom_line_clip = make_colored_line_clip(title_bottom, matched_set, bottom_font_size, config)
-
-    bottom_clip_height = bottom_line_clip.h
-    top_clip_height = top_line_clip.h
-    total_title_height = bottom_clip_height + 10 + top_clip_height
-
-    bottom_line_y = text_bottom - bottom_clip_height
-
-    top_line_y = bottom_line_y - 10 - top_clip_height
-
-    top_line_clip = top_line_clip.with_position((text_left, top_line_y))
-    bottom_line_clip = bottom_line_clip.with_position((text_left, bottom_line_y))
+    line_clips = make_multiline_clips(
+        all_title_lines,
+        matched_set,
+        font_size=top_font_size,
+        config=config,
+        x_left=text_left,
+        bottom_y=text_bottom,
+        line_spacing=10
+    )
 
     clips_complete = [bg_clip]
     if gradient_clip:
         clips_complete.append(gradient_clip)
     if news_clip:
         clips_complete.append(news_clip)
-    clips_complete.extend([top_line_clip, bottom_line_clip])
+    clips_complete.extend(line_clips)
     if logo_clip:
         clips_complete.append(logo_clip)
 
