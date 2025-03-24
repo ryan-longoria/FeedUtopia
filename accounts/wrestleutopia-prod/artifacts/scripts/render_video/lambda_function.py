@@ -236,11 +236,12 @@ def create_final_clip(
             (width - logo_clip.w - base_margin, height - logo_clip.h - base_margin)
         )
         side_margin = max(logo_clip.w + base_margin, base_margin)
+        logo_left = width - logo_clip.w - base_margin
+        available_width = logo_left - side_margin
     else:
         logo_clip = None
         side_margin = base_margin
-
-    available_width = width - (2 * side_margin)
+        available_width = width - (2 * side_margin)
 
     top_font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
     bottom_font_size = top_font_size - 10 if (top_font_size - 10) > 0 else top_font_size
