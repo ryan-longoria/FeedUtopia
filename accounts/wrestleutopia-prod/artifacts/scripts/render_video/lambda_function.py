@@ -214,6 +214,11 @@ def create_final_clip(
     local_paths: dict,
     config: VideoConfig
 ) -> CompositeVideoClip:
+    """
+    Create the final CompositeVideoClip.
+    Shows how to multi-line the title and center it horizontally
+    so it doesn't collide with bottom-right logo.
+    """
 
     logger.info("[create_final_clip] Building the video composition...")
 
@@ -228,21 +233,17 @@ def create_final_clip(
 
     bg_local_path = local_paths.get("background")
     if bg_local_path and os.path.exists(bg_local_path):
-        bg_clip = (
-            ImageClip(bg_local_path)
-            .with_effects([vfx.Resize((width, height))])
-            .with_duration(duration_sec)
-        )
+        bg_clip = (ImageClip(bg_local_path)
+                   .with_effects([vfx.Resize((width, height))])
+                   .with_duration(duration_sec))
     else:
         bg_clip = ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
 
     gradient_local_path = local_paths.get("gradient")
     if gradient_local_path and os.path.exists(gradient_local_path):
-        gradient_clip = (
-            ImageClip(gradient_local_path)
-            .with_effects([vfx.Resize((width, height))])
-            .with_duration(duration_sec)
-        )
+        gradient_clip = (ImageClip(gradient_local_path)
+                         .with_effects([vfx.Resize((width, height))])
+                         .with_duration(duration_sec))
     else:
         gradient_clip = None
 
@@ -275,20 +276,20 @@ def create_final_clip(
         text_right = min(text_right, logo_x - 10)
         text_bottom = min(text_bottom, logo_y - 10)
 
-    available_width = text_right - text_left
+    available_width = max(0, text_right - text_left)
 
-    top_font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
+    font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
+    all_title_lines = multi_line_split(title_text, config.font_path, font_size, available_width)
 
-    from typing import List
-    all_title_lines = multi_line_split(title_text, config.font_path, top_font_size, available_width)
-
+    # (F)  lines -> positioned clips, horizontally centered
     line_clips = make_multiline_clips(
-        all_title_lines,
-        matched_set,
-        font_size=top_font_size,
+        lines=all_title_lines,
+        matched_set=matched_set,
+        font_size=font_size,
         config=config,
         x_left=text_left,
         bottom_y=text_bottom,
+        available_width=available_width,
         line_spacing=10
     )
 
