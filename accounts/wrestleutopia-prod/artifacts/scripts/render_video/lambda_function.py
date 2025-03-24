@@ -182,10 +182,10 @@ def create_final_clip(
     config: VideoConfig
 ) -> CompositeVideoClip:
     """
-    Create the final CompositeVideoClip based on the post_data and local paths
-    to downloaded resources. This version highlights only matched words (from
-    process_content) in #ec008c; everything else is white.
+    Create the final CompositeVideoClip. 
+    Ensures text does NOT go behind a bottom-right logo.
     """
+
     logger.info("[create_final_clip] Building the video composition...")
 
     title_text = post_data.get("title", "NO TITLE").upper()
@@ -231,29 +231,44 @@ def create_final_clip(
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
-        logo_clip = (raw_logo.with_effects([vfx.Resize(scale_logo)])
-                     .with_duration(duration_sec))
-        logo_clip = logo_clip.with_position((width - logo_clip.w - base_margin, 
-                                             height - logo_clip.h - base_margin))
-        side_margin = max(logo_clip.w + base_margin, base_margin)
+        logo_clip = (
+            raw_logo.with_effects([vfx.Resize(scale_logo)])
+            .with_duration(duration_sec)
+        )
+        logo_x = width - logo_clip.w - base_margin
+        logo_y = height - logo_clip.h - base_margin
+        logo_clip = logo_clip.with_position((logo_x, logo_y))
     else:
         logo_clip = None
-        side_margin = base_margin
 
-    available_width = width - (2 * side_margin + 10)
-    
+    text_left = base_margin
+    if logo_clip is not None:
+        text_right = logo_x - 10
+        text_bottom = min(height - 20, logo_y - 10)
+    else:
+        text_right = width - base_margin
+        text_bottom = height - 20
+
+    available_width = text_right - text_left
+
     top_font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
     bottom_font_size = top_font_size - 10 if (top_font_size - 10) > 0 else top_font_size
+
     title_top, title_bottom = dynamic_split(title_text, config.font_path, top_font_size, available_width)
 
     top_line_clip = make_colored_line_clip(title_top, matched_set, top_font_size, config)
     bottom_line_clip = make_colored_line_clip(title_bottom, matched_set, bottom_font_size, config)
 
-    bottom_title_y = height - 20 - bottom_line_clip.h
-    top_title_y = bottom_title_y - 10 - top_line_clip.h
+    bottom_clip_height = bottom_line_clip.h
+    top_clip_height = top_line_clip.h
+    total_title_height = bottom_clip_height + 10 + top_clip_height
 
-    top_line_clip = top_line_clip.with_position((side_margin, top_title_y))
-    bottom_line_clip = bottom_line_clip.with_position((side_margin, bottom_title_y))
+    bottom_line_y = text_bottom - bottom_clip_height
+
+    top_line_y = bottom_line_y - 10 - top_clip_height
+
+    top_line_clip = top_line_clip.with_position((text_left, top_line_y))
+    bottom_line_clip = bottom_line_clip.with_position((text_left, bottom_line_y))
 
     clips_complete = [bg_clip]
     if gradient_clip:
@@ -264,7 +279,8 @@ def create_final_clip(
     if logo_clip:
         clips_complete.append(logo_clip)
 
-    return CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
+    final_clip = CompositeVideoClip(clips_complete, size=(width, height))
+    return final_clip.with_duration(duration_sec)
 
 
 def lambda_handler(event, context):
