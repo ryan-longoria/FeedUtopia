@@ -192,10 +192,14 @@ def make_multiline_clips(
 
     for line in reversed(lines):
         line_clip = make_colored_line_clip(line, matched_set, font_size, config)
+        
         line_height = line_clip.h
-
         y_pos = current_y - line_height
-        line_clip = line_clip.with_position((x_left, y_pos))
+
+        line_width = line_clip.w
+        center_x = x_left + (available_width - line_width) / 2
+        
+        line_clip = line_clip.with_position((center_x, y_pos))
 
         clip_list.append(line_clip)
 
