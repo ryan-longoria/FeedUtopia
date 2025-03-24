@@ -51,15 +51,6 @@ def dynamic_font_size(
 ) -> int:
     """
     Determine the appropriate font size based on the length of the text.
-
-    Args:
-        text (str): The text for which to compute the font size.
-        max_size (int): The maximum allowed font size.
-        min_size (int): The minimum allowed font size.
-        ideal_length (int): The length threshold at which the max_size is used.
-
-    Returns:
-        int: The computed font size, within the min and max bounds.
     """
     logger.info("[dynamic_font_size] Calculating font size for text: '%s'", text)
     length = len(text)
@@ -83,14 +74,6 @@ def measure_text_width(
 ) -> int:
     """
     Measure the pixel width of the given text using the specified font.
-
-    Args:
-        text (str): The text to measure.
-        font_path (str): Path to the .ttf font file.
-        font_size (int): The font size to use for measurement.
-
-    Returns:
-        int: The width of the text in pixels.
     """
     logger.info(
         "[measure_text_width] Measuring width for text: '%s', font_size=%d",
@@ -111,17 +94,8 @@ def dynamic_split(
     max_width: int
 ) -> Tuple[str, str]:
     """
-    Split a text string into two lines if needed, ensuring the width of each
-    line does not exceed max_width.
-
-    Args:
-        text (str): The text to split.
-        font_path (str): Path to the .ttf font file.
-        font_size (int): The font size used in measurement.
-        max_width (int): The maximum allowed width in pixels for the text.
-
-    Returns:
-        tuple[str, str]: A tuple of (top_line, bottom_line).
+    Split a text string into two lines if needed, ensuring the width
+    of each line does not exceed max_width.
     """
     logger.info(
         "[dynamic_split] Attempting to split text for max_width=%d, font_size=%d",
@@ -173,15 +147,6 @@ def download_resource(bucket_name: str, resource_path: str, local_path: str) -> 
     """
     Download a resource either from an HTTP URL or from S3 into local_path.
     Returns True if successful.
-
-    Args:
-        bucket_name (str): S3 bucket name (only used if resource_path is not
-            an HTTP link).
-        resource_path (str): The resource path (URL or S3 key).
-        local_path (str): Local filepath destination.
-
-    Returns:
-        bool: True if the resource was downloaded successfully, False otherwise.
     """
     if resource_path.startswith("http"):
         try:
@@ -218,14 +183,6 @@ def download_resource(bucket_name: str, resource_path: str, local_path: str) -> 
 def download_json(bucket_name: str, json_key: str, local_json: str) -> dict:
     """
     Download a JSON file from S3 and return its contents as a dictionary.
-
-    Args:
-        bucket_name (str): Name of the S3 bucket.
-        json_key (str): Key of the JSON file in the S3 bucket.
-        local_json (str): Local path to save the JSON file.
-
-    Returns:
-        dict: The loaded JSON data.
     """
     logger.info("[download_json] Downloading JSON: %s", json_key)
     s3.download_file(bucket_name, json_key, local_json)
@@ -241,21 +198,11 @@ def create_final_clip(
 ) -> CompositeVideoClip:
     """
     Create the final CompositeVideoClip based on the post_data and local paths
-    to downloaded resources. Keeps the same MoviePy logic intact.
-
-    Args:
-        post_data (dict): Parsed data from the downloaded JSON.
-        local_paths (dict): Contains keys like 'background', 'logo', 'gradient',
-            'news'.
-        config (VideoConfig): Configuration object with video settings.
-
-    Returns:
-        CompositeVideoClip: The composed final clip ready to be written to file.
+    to downloaded resources.
     """
     logger.info("[create_final_clip] Building the video composition...")
 
     title_text = post_data.get("title", "No Title").upper()
-    description_text = post_data.get("description", "")
 
     width = config.width
     height = config.height
@@ -323,28 +270,11 @@ def create_final_clip(
         side_margin = base_margin
 
     available_width = width - (2 * side_margin)
-    subtitle_side_margin = side_margin + 10
-    available_subtitle_width = width - (2 * subtitle_side_margin)
-
-    logger.info(
-        "[create_final_clip] available_width=%d, available_subtitle_width=%d",
-        available_width,
-        available_subtitle_width
-    )
 
     top_font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
     bottom_font_size = top_font_size - 10 if top_font_size - 10 > 0 else top_font_size
-    subtitle_font_size = dynamic_font_size(
-        description_text, max_size=50, min_size=25, ideal_length=30
-    )
-    subtitle_font_size = min(subtitle_font_size, top_font_size)
-
     title_top, title_bottom = dynamic_split(
         title_text.upper(), config.font_path, top_font_size, available_width
-    )
-    subtitle_top, subtitle_bottom = dynamic_split(
-        description_text.upper(), config.font_path, subtitle_font_size,
-        available_subtitle_width
     )
 
     top_clip = (
@@ -367,45 +297,19 @@ def create_final_clip(
             method="caption"
         ).with_duration(duration_sec)
     )
-    desc_top_clip = (
-        TextClip(
-            text=subtitle_top,
-            font_size=subtitle_font_size,
-            color="white",
-            font=config.font_path,
-            size=(available_subtitle_width, None),
-            method="caption"
-        ).with_duration(duration_sec)
-    )
-    desc_bottom_clip = (
-        TextClip(
-            text=subtitle_bottom,
-            font_size=subtitle_font_size,
-            color="white",
-            font=config.font_path,
-            size=(available_subtitle_width, None),
-            method="caption"
-        ).with_duration(duration_sec)
-    )
 
-    subtitle_bottom_y = height - 20 - desc_bottom_clip.h
-    subtitle_top_y = subtitle_bottom_y - 10 - desc_top_clip.h
-    bottom_title_y = subtitle_top_y - 12 - bottom_clip.h
+    bottom_title_y = height - 20 - bottom_clip.h
     top_title_y = bottom_title_y - 10 - top_clip.h
 
     top_clip = top_clip.with_position((side_margin, top_title_y))
     bottom_clip = bottom_clip.with_position((side_margin, bottom_title_y))
-    desc_top_clip = desc_top_clip.with_position((subtitle_side_margin, subtitle_top_y))
-    desc_bottom_clip = desc_bottom_clip.with_position(
-        (subtitle_side_margin, subtitle_bottom_y)
-    )
 
     clips_complete = [bg_clip]
     if gradient_clip:
         clips_complete.append(gradient_clip)
     if news_clip:
         clips_complete.append(news_clip)
-    clips_complete.extend([top_clip, bottom_clip, desc_top_clip, desc_bottom_clip])
+    clips_complete.extend([top_clip, bottom_clip])
     if logo_clip:
         clips_complete.append(logo_clip)
 
@@ -420,13 +324,6 @@ def lambda_handler(event, context):
     """
     AWS Lambda handler function. Downloads JSON metadata from S3, generates a
     video using MoviePy, and uploads the final result back to S3.
-
-    Args:
-        event (dict): AWS Lambda event data (unused in this function).
-        context: AWS Lambda context object (unused here).
-
-    Returns:
-        dict: Contains the status of the render and the S3 key of the video.
     """
     logger.info("[lambda_handler] Lambda function started.")
 
