@@ -156,7 +156,7 @@ def make_colored_line_clip(
         color = "#ec008c" if word.lower() in matched_set else "white"
         clip = (
             TextClip(
-                txt=word,
+                text=word,
                 font=config.font_path,
                 font_size=font_size,
                 color=color
