@@ -6,7 +6,7 @@ import requests
 import boto3
 
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List, Set
 
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
@@ -43,21 +43,14 @@ class VideoConfig:
     font_path: str = FONT_PATH
 
 
-def dynamic_font_size(
-    text: str,
-    max_size: int,
-    min_size: int,
-    ideal_length: int
-) -> int:
+def dynamic_font_size(text: str, max_size: int, min_size: int, ideal_length: int) -> int:
     """
     Determine the appropriate font size based on the length of the text.
     """
     logger.info("[dynamic_font_size] Calculating font size for text: '%s'", text)
     length = len(text)
     if length <= ideal_length:
-        logger.info(
-            "[dynamic_font_size] Length <= ideal_length; using max_size=%d", max_size
-        )
+        logger.info("[dynamic_font_size] Using max_size=%d", max_size)
         return max_size
 
     factor = (max_size - min_size) / ideal_length
@@ -67,24 +60,13 @@ def dynamic_font_size(
     return final_size
 
 
-def measure_text_width(
-    text: str,
-    font_path: str,
-    font_size: int
-) -> int:
+def measure_text_width(text: str, font_path: str, font_size: int) -> int:
     """
     Measure the pixel width of the given text using the specified font.
     """
-    logger.info(
-        "[measure_text_width] Measuring width for text: '%s', font_size=%d",
-        text,
-        font_size
-    )
     font = ImageFont.truetype(font_path, font_size)
     bbox = font.getbbox(text)
-    width = bbox[2] - bbox[0]
-    logger.info("[measure_text_width] Measured width=%d", width)
-    return width
+    return bbox[2] - bbox[0]
 
 
 def dynamic_split(
@@ -97,18 +79,8 @@ def dynamic_split(
     Split a text string into two lines if needed, ensuring the width
     of each line does not exceed max_width.
     """
-    logger.info(
-        "[dynamic_split] Attempting to split text for max_width=%d, font_size=%d",
-        max_width,
-        font_size
-    )
     full_width = measure_text_width(text, font_path, font_size)
     if full_width <= max_width:
-        logger.info(
-            "[dynamic_split] Text fits without splitting. Width=%d <= max_width=%d",
-            full_width,
-            max_width
-        )
         return text, ""
 
     words = text.split()
@@ -122,11 +94,6 @@ def dynamic_split(
             break
 
     bottom_line = " ".join(words[len(top_line.split()):])
-    logger.info(
-        "[dynamic_split] Initial top_line='%s' | bottom_line='%s'",
-        top_line,
-        bottom_line
-    )
 
     if len(words) - len(top_line.split()) > len(top_line.split()):
         candidate = " ".join(words[:len(top_line.split()) + 1])
@@ -134,11 +101,6 @@ def dynamic_split(
         if candidate_width <= max_width:
             top_line = candidate
             bottom_line = " ".join(words[len(top_line.split()):])
-            logger.info(
-                "[dynamic_split] Refined top_line='%s' | bottom_line='%s'",
-                top_line,
-                bottom_line
-            )
 
     return top_line, bottom_line
 
@@ -150,33 +112,19 @@ def download_resource(bucket_name: str, resource_path: str, local_path: str) -> 
     """
     if resource_path.startswith("http"):
         try:
-            logger.info("[download_resource] Downloading from URL: %s", resource_path)
             resp = requests.get(resource_path, timeout=10)
             with open(local_path, "wb") as f:
                 f.write(resp.content)
-            logger.info(
-                "[download_resource] HTTP download successful: %s",
-                resource_path
-            )
             return True
         except Exception as e:
             logger.error("[download_resource] HTTP download failed: %s", e)
             return False
     else:
         try:
-            logger.info(
-                "[download_resource] Downloading from S3 key: %s",
-                resource_path
-            )
             s3.download_file(bucket_name, resource_path, local_path)
-            logger.info("[download_resource] S3 download successful: %s", resource_path)
             return True
         except Exception as e:
-            logger.error(
-                "[download_resource] S3 download failed for '%s': %s",
-                resource_path,
-                e
-            )
+            logger.error("[download_resource] S3 download failed: %s", e)
             return False
 
 
@@ -184,11 +132,48 @@ def download_json(bucket_name: str, json_key: str, local_json: str) -> dict:
     """
     Download a JSON file from S3 and return its contents as a dictionary.
     """
-    logger.info("[download_json] Downloading JSON: %s", json_key)
     s3.download_file(bucket_name, json_key, local_json)
-    logger.info("[download_json] JSON downloaded, now loading...")
     with open(local_json, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def make_colored_line_clip(
+    line_text: str,
+    matched_set: Set[str],
+    font_size: int,
+    config: VideoConfig
+) -> CompositeVideoClip:
+    """
+    Given a single line of text, create a CompositeVideoClip in which
+    each word is individually colored (#ec008c if it's in matched_set, otherwise white).
+    """
+    words = line_text.split()
+    x_offset = 0
+    spacing = 10
+    word_clips = []
+
+    for word in words:
+        color = "#ec008c" if word.lower() in matched_set else "white"
+        clip = (
+            TextClip(
+                txt=word,
+                font=config.font_path,
+                font_size=font_size,
+                color=color
+            )
+            .with_duration(config.duration_sec)
+            .with_position((x_offset, 0))
+        )
+        word_clips.append(clip)
+        x_offset += clip.w + spacing
+
+    if not word_clips:
+        return ColorClip(size=(1, 1), color=(0, 0, 0), duration=config.duration_sec)
+
+    total_width = x_offset - spacing
+    total_height = max([c.h for c in word_clips]) if word_clips else font_size
+
+    return CompositeVideoClip(word_clips, size=(total_width, total_height))
 
 
 def create_final_clip(
@@ -198,11 +183,16 @@ def create_final_clip(
 ) -> CompositeVideoClip:
     """
     Create the final CompositeVideoClip based on the post_data and local paths
-    to downloaded resources.
+    to downloaded resources. This version highlights only matched words (from
+    process_content) in #ec008c; everything else is white.
     """
     logger.info("[create_final_clip] Building the video composition...")
 
-    title_text = post_data.get("title", "No Title").upper()
+    title_text = post_data.get("title", "NO TITLE").upper()
+
+    matched_wrestlers = post_data.get("matched_wrestlers", [])
+    matched_events = post_data.get("matched_events", [])
+    matched_set = set([w.lower() for w in matched_wrestlers + matched_events])
 
     width = config.width
     height = config.height
@@ -210,28 +200,16 @@ def create_final_clip(
 
     bg_local_path = local_paths.get("background")
     if bg_local_path and os.path.exists(bg_local_path):
-        logger.info(
-            "[create_final_clip] Creating background clip from %s",
-            bg_local_path
-        )
         bg_clip = (
             ImageClip(bg_local_path)
             .with_effects([vfx.Resize((width, height))])
             .with_duration(duration_sec)
         )
     else:
-        logger.info("[create_final_clip] Using color clip as fallback background.")
-        bg_clip = (
-            ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
-            .with_duration(duration_sec)
-        )
+        bg_clip = ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
 
     gradient_local_path = local_paths.get("gradient")
     if gradient_local_path and os.path.exists(gradient_local_path):
-        logger.info(
-            "[create_final_clip] Adding gradient overlay: %s",
-            gradient_local_path
-        )
         gradient_clip = (
             ImageClip(gradient_local_path)
             .with_effects([vfx.Resize((width, height))])
@@ -242,10 +220,7 @@ def create_final_clip(
 
     news_local_path = local_paths.get("news")
     if news_local_path and os.path.exists(news_local_path):
-        logger.info("[create_final_clip] Adding NEWS overlay: %s", news_local_path)
-        raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(
-            duration_sec
-        )
+        raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
         scale_factor = 300 / raw_news.w
         news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
     else:
@@ -254,76 +229,50 @@ def create_final_clip(
     base_margin = 15
     logo_local_path = local_paths.get("logo")
     if logo_local_path and os.path.exists(logo_local_path):
-        logger.info("[create_final_clip] Adding logo overlay: %s", logo_local_path)
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
-        logo_clip = (
-            raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
-        )
+        logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
         logo_clip = logo_clip.with_position(
             (width - logo_clip.w - base_margin, height - logo_clip.h - base_margin)
         )
         side_margin = max(logo_clip.w + base_margin, base_margin)
     else:
-        logger.info("[create_final_clip] No logo found; skipping logo overlay.")
         logo_clip = None
         side_margin = base_margin
 
     available_width = width - (2 * side_margin)
 
     top_font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
-    bottom_font_size = top_font_size - 10 if top_font_size - 10 > 0 else top_font_size
-    title_top, title_bottom = dynamic_split(
-        title_text.upper(), config.font_path, top_font_size, available_width
-    )
+    bottom_font_size = top_font_size - 10 if (top_font_size - 10) > 0 else top_font_size
+    title_top, title_bottom = dynamic_split(title_text, config.font_path, top_font_size, available_width)
 
-    top_clip = (
-        TextClip(
-            text=title_top,
-            font_size=top_font_size,
-            color="#ec008c",
-            font=config.font_path,
-            size=(available_width, None),
-            method="caption"
-        ).with_duration(duration_sec)
-    )
-    bottom_clip = (
-        TextClip(
-            text=title_bottom,
-            font_size=bottom_font_size,
-            color="#ec008c",
-            font=config.font_path,
-            size=(available_width, None),
-            method="caption"
-        ).with_duration(duration_sec)
-    )
+    top_line_clip = make_colored_line_clip(title_top, matched_set, top_font_size, config)
+    bottom_line_clip = make_colored_line_clip(title_bottom, matched_set, bottom_font_size, config)
 
-    bottom_title_y = height - 20 - bottom_clip.h
-    top_title_y = bottom_title_y - 10 - top_clip.h
+    bottom_title_y = height - 20 - bottom_line_clip.h
+    top_title_y = bottom_title_y - 10 - top_line_clip.h
 
-    top_clip = top_clip.with_position((side_margin, top_title_y))
-    bottom_clip = bottom_clip.with_position((side_margin, bottom_title_y))
+    top_line_clip = top_line_clip.with_position((side_margin, top_title_y))
+    bottom_line_clip = bottom_line_clip.with_position((side_margin, bottom_title_y))
 
     clips_complete = [bg_clip]
     if gradient_clip:
         clips_complete.append(gradient_clip)
     if news_clip:
         clips_complete.append(news_clip)
-    clips_complete.extend([top_clip, bottom_clip])
+    clips_complete.extend([top_line_clip, bottom_line_clip])
     if logo_clip:
         clips_complete.append(logo_clip)
 
-    complete_clip = CompositeVideoClip(
-        clips_complete, size=(width, height)
-    ).with_duration(duration_sec)
-
-    return complete_clip
+    return CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
 
 
 def lambda_handler(event, context):
     """
     AWS Lambda handler function. Downloads JSON metadata from S3, generates a
     video using MoviePy, and uploads the final result back to S3.
+
+    Now we highlight only the matched words in #ec008c; all other words remain white.
     """
     logger.info("[lambda_handler] Lambda function started.")
 
@@ -350,9 +299,6 @@ def lambda_handler(event, context):
         if not success_bg:
             bg_local_path = None
     else:
-        logger.info(
-            "[lambda_handler] No valid image_path provided; using default background."
-        )
         bg_local_path = None
 
     success_logo = download_resource(bucket_name, LOGO_KEY, logo_local_path)
