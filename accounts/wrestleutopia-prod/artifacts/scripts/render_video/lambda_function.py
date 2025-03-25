@@ -323,9 +323,9 @@ def create_final_clip(
 
     title_text = post_data.get("title", "NO TITLE").upper()
 
-    matched_wrestlers = post_data.get("matched_wrestlers", [])
+    matched_names = post_data.get("matched_names", [])
     matched_events = post_data.get("matched_events", [])
-    matched_set = set([w.lower() for w in matched_wrestlers + matched_events])
+    matched_set = set([w.lower() for w in matched_names + matched_events])
     font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
     lines = multi_line_split(title_text, config.font_path, font_size, x_right - x_left)
 
