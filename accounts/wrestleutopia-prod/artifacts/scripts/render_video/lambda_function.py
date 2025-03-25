@@ -333,7 +333,7 @@ def create_final_clip(
     matched_events = post_data.get("matched_events", [])
     matched_set = set([w.lower() for w in matched_wrestlers + matched_events])
     font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
-    all_title_lines = multi_line_split(title_text, config.font_path, font_size, available_width)
+    lines = multi_line_split(title_text, config.font_path, font_size, x_right - x_left)
 
     line_clips = make_centered_multiline_clips(
         lines=lines,
