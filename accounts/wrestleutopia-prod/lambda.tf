@@ -77,7 +77,7 @@ resource "aws_lambda_function" "process_content" {
 
   environment {
     variables = {
-      IMAGE_MAGICK_EXE = "/bin/magick"
+      IMAGE_MAGICK_EXE = "/opt/bin/magick"
     }
   }
 
