@@ -215,7 +215,7 @@ def make_centered_multiline_clips(
 ) -> List[ImageClip]:
     """
     Creates a list of line clips for the given 'lines', then
-    centers them horizontally and vertically as a single block
+    centers them horizontally as a single block
     within [x_left, x_right] x [y_top, y_bottom].
 
     - x_left, x_right: The horizontal bounds of the safe area
@@ -235,9 +235,8 @@ def make_centered_multiline_clips(
             total_height += line_spacing
 
     safe_width = x_right - x_left
-    safe_height = y_bottom - y_top
 
-    block_top = y_top + (safe_height - total_height) / 2
+    block_top = y_bottom - total_height
 
     current_y = block_top
     for line_clip in rendered_lines:
@@ -324,7 +323,6 @@ def create_final_clip(
     y_bottom = height - bottom_margin
 
     if logo_clip is not None:
-        x_right = min(x_right, logo_x - 10)
         y_bottom = min(y_bottom, logo_y - 10)
 
     title_text = post_data.get("title", "NO TITLE").upper()
