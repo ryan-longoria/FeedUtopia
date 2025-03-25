@@ -236,7 +236,7 @@ def make_centered_multiline_clips(
 
     safe_width = x_right - x_left
 
-    block_top = y_bottom - total_height
+    block_top = y_bottom - total_height + 10
 
     current_y = block_top
     for line_clip in rendered_lines:
@@ -321,9 +321,6 @@ def create_final_clip(
     x_right = width - right_margin
     y_top = top_margin
     y_bottom = height - bottom_margin
-
-    if logo_clip is not None:
-        y_bottom = min(y_bottom, logo_y - 10)
 
     title_text = post_data.get("title", "NO TITLE").upper()
 
