@@ -298,7 +298,7 @@ def create_final_clip(
     else:
         news_clip = None
 
-    base_margin = 15
+    base_margin = 0
     logo_local_path = local_paths.get("logo")
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
@@ -307,7 +307,7 @@ def create_final_clip(
 
         logo_x = width - logo_clip.w - base_margin
         logo_y = height - logo_clip.h - base_margin
-        logo_clip = logo_clip.with_position((0,0))
+        logo_clip = logo_clip.with_position((logo_x, logo_y))
     else:
         logo_clip = None
 
