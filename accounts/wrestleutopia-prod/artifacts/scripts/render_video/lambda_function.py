@@ -12,8 +12,7 @@ from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import moviepy.video.fx as vfx
-from PIL import ImageFont, ImageDraw, Image
-
+from PIL import ImageFont
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -21,11 +20,9 @@ logger.setLevel(logging.INFO)
 s3 = boto3.client("s3")
 
 FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
-
 CANVAS_WIDTH = 1080
 CANVAS_HEIGHT = 1080
 VIDEO_DURATION_SEC = 10
-
 JSON_KEY = "most_recent_post.json"
 LOGO_KEY = "artifacts/Logo.png"
 GRADIENT_KEY = "artifacts/Black Gradient.png"
@@ -34,9 +31,6 @@ NEWS_KEY = "artifacts/NEWS.mov"
 
 @dataclass
 class VideoConfig:
-    """
-    Configuration options for the final video clip.
-    """
     width: int = CANVAS_WIDTH
     height: int = CANVAS_HEIGHT
     duration_sec: int = VIDEO_DURATION_SEC
@@ -44,36 +38,21 @@ class VideoConfig:
 
 
 def dynamic_font_size(text: str, max_size: int, min_size: int, ideal_length: int) -> int:
-    """
-    Determine the appropriate font size based on the length of the text.
-    """
-    logger.info("[dynamic_font_size] Calculating font size for text: '%s'", text)
     length = len(text)
     if length <= ideal_length:
-        logger.info("[dynamic_font_size] Using max_size=%d", max_size)
         return max_size
-
     factor = (max_size - min_size) / ideal_length
     new_size = max_size - (length - ideal_length) * factor
-    final_size = int(new_size) if new_size > min_size else min_size
-    logger.info("[dynamic_font_size] Computed size=%d", final_size)
-    return final_size
+    return int(new_size) if new_size > min_size else min_size
 
 
 def measure_text_width(text: str, font_path: str, font_size: int) -> int:
-    """
-    Measure the pixel width of the given text using the specified font.
-    """
     font = ImageFont.truetype(font_path, font_size)
     bbox = font.getbbox(text)
     return bbox[2] - bbox[0]
 
 
 def download_resource(bucket_name: str, resource_path: str, local_path: str) -> bool:
-    """
-    Download a resource either from an HTTP URL or from S3 into local_path.
-    Returns True if successful.
-    """
     if resource_path.startswith("http"):
         try:
             resp = requests.get(resource_path, timeout=10)
@@ -93,9 +72,6 @@ def download_resource(bucket_name: str, resource_path: str, local_path: str) -> 
 
 
 def download_json(bucket_name: str, json_key: str, local_json: str) -> dict:
-    """
-    Download a JSON file from S3 and return its contents as a dictionary.
-    """
     s3.download_file(bucket_name, json_key, local_json)
     with open(local_json, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -107,10 +83,6 @@ def make_colored_line_clip(
     font_size: int,
     config: VideoConfig
 ) -> CompositeVideoClip:
-    """
-    Given a single line of text, create a CompositeVideoClip in which
-    each word is individually colored (#ec008c if it's in matched_set, otherwise white).
-    """
     words = line_text.split()
     x_offset = 0
     spacing = 10
@@ -135,16 +107,12 @@ def make_colored_line_clip(
         return ColorClip(size=(1, 1), color=(0, 0, 0), duration=config.duration_sec)
 
     total_width = x_offset - spacing
-    total_height = max([c.h for c in word_clips]) if word_clips else font_size
+    total_height = max(c.h for c in word_clips)
 
     return CompositeVideoClip(word_clips, size=(total_width, total_height))
 
 
 def multi_line_split(text: str, font_path: str, font_size: int, max_width: int) -> List[str]:
-    """
-    Splits 'text' into as many lines as needed so that
-    each line is <= max_width in the given font/size.
-    """
     words = text.split()
     lines = []
     current_line_words = []
@@ -152,7 +120,6 @@ def multi_line_split(text: str, font_path: str, font_size: int, max_width: int) 
     for word in words:
         candidate = " ".join(current_line_words + [word])
         line_width = measure_text_width(candidate, font_path, font_size)
-
         if line_width <= max_width:
             current_line_words.append(word)
         else:
@@ -165,42 +132,6 @@ def multi_line_split(text: str, font_path: str, font_size: int, max_width: int) 
     return lines
 
 
-def make_multiline_clips(
-    lines: List[str],
-    matched_set: Set[str],
-    font_size: int,
-    config: VideoConfig,
-    x_left: int,
-    bottom_y: int,
-    available_width: int,
-    line_spacing: int = 10
-) -> List[ImageClip]:
-    """
-    Given a list of lines, create a colored clip for each line, then
-    position them from the bottom up. The first line in 'lines' ends up
-    on top, or you can reverse them if you want normal reading order.
-    """
-
-    current_y = bottom_y
-    clip_list = []
-
-    for line in reversed(lines):
-        line_clip = make_colored_line_clip(line, matched_set, font_size, config)
-        
-        line_height = line_clip.h
-        y_pos = current_y - line_height
-
-        line_width = line_clip.w
-        center_x = x_left + (available_width - line_width) / 2
-        
-        line_clip = line_clip.with_position((center_x, y_pos))
-
-        clip_list.append(line_clip)
-
-        current_y = y_pos - line_spacing
-
-    return clip_list
-
 def make_centered_multiline_clips(
     lines: List[str],
     matched_set: Set[str],
@@ -212,16 +143,7 @@ def make_centered_multiline_clips(
     y_bottom: int,
     line_spacing: int = 10
 ) -> List[ImageClip]:
-    """
-    Creates a list of line clips for the given 'lines', then
-    centers them horizontally as a single block
-    within [x_left, x_right] x [y_top, y_bottom].
-
-    - x_left, x_right: The horizontal bounds of the safe area
-    - y_top, y_bottom: The vertical bounds of the safe area
-    """
     clip_list = []
-
     rendered_lines = []
     for text_line in lines:
         line_clip = make_colored_line_clip(text_line, matched_set, font_size, config)
@@ -234,19 +156,15 @@ def make_centered_multiline_clips(
             total_height += line_spacing
 
     safe_width = x_right - x_left
-
     block_top = y_bottom - total_height + 10
-
     current_y = block_top
+
     for line_clip in rendered_lines:
         line_width = line_clip.w
         line_height = line_clip.h
-
         center_x = x_left + (safe_width - line_width) / 2
-
         line_clip = line_clip.with_position((center_x, current_y))
         clip_list.append(line_clip)
-
         current_y += line_height + line_spacing
 
     return clip_list
@@ -257,18 +175,15 @@ def create_final_clip(
     local_paths: dict,
     config: VideoConfig
 ) -> CompositeVideoClip:
-    """
-    Create the final CompositeVideoClip.
-    Shows how to multi-line the title and center it horizontally
-    so it doesn't collide with bottom-right logo.
-    """
-
     logger.info("[create_final_clip] Building the video composition...")
-
     title_text = post_data.get("title", "NO TITLE").upper()
     matched_names = post_data.get("matched_names", [])
     matched_events = post_data.get("matched_events", [])
-    matched_set = set([w.lower() for w in matched_names + matched_events])
+
+    matched_word_set = set()
+    for phrase in matched_names + matched_events:
+        for w in phrase.split():
+            matched_word_set.add(w.lower())
 
     width = config.width
     height = config.height
@@ -304,7 +219,6 @@ def create_final_clip(
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
         logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
-
         logo_x = width - logo_clip.w - base_margin
         logo_y = height - logo_clip.h - base_margin
         logo_clip = logo_clip.with_position((logo_x, logo_y))
@@ -321,17 +235,12 @@ def create_final_clip(
     y_top = top_margin
     y_bottom = height - bottom_margin
 
-    title_text = post_data.get("title", "NO TITLE").upper()
-
-    matched_names = post_data.get("matched_names", [])
-    matched_events = post_data.get("matched_events", [])
-    matched_set = set([w.lower() for w in matched_names + matched_events])
     font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
     lines = multi_line_split(title_text, config.font_path, font_size, x_right - x_left)
 
     line_clips = make_centered_multiline_clips(
         lines=lines,
-        matched_set=matched_set,
+        matched_set=matched_word_set,
         font_size=font_size,
         config=config,
         x_left=x_left,
@@ -355,21 +264,13 @@ def create_final_clip(
 
 
 def lambda_handler(event, context):
-    """
-    AWS Lambda handler function. Downloads JSON metadata from S3, generates a
-    video using MoviePy, and uploads the final result back to S3.
-
-    Now we highlight only the matched words in #ec008c; all other words remain white.
-    """
     logger.info("[lambda_handler] Lambda function started.")
-
     bucket_name = os.environ.get("TARGET_BUCKET")
     logger.info("[lambda_handler] Target bucket: %s", bucket_name)
 
     timestamp_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     folder = f"posts/post_{timestamp_str}"
     complete_key = f"{folder}/complete_post.mp4"
-
     complete_local = "/mnt/efs/complete_post.mp4"
     local_json = "/tmp/most_recent_post.json"
     bg_local_path = "/tmp/backgroundimage_converted.jpg"
