@@ -65,10 +65,12 @@ def fetch_wrestler_image(relative_url: str) -> str:
         logger.error("Error fetching wrestler page (%s): %s", full_url, exc, exc_info=True)
         return ""
     soup = BeautifulSoup(resp.text, "html.parser")
-    infobox = soup.find("table", class_="infobox vcard")
+
+    infobox = soup.find("table", attrs={"class": re.compile(r"infobox.*vcard")})
     if not infobox:
         logger.warning("No infobox vcard found on %s", full_url)
         return ""
+
     image_td = infobox.find("td", class_="infobox-image")
     if not image_td:
         logger.warning("Infobox found, but no 'infobox-image' cell on %s", full_url)
@@ -96,6 +98,7 @@ def fetch_wwe_roster_all_navboxes() -> List[Dict[str, str]]:
     Fetch the 'List_of_WWE_personnel' page via Wikipedia's Action API,
     parse EVERY <table class="navbox"> on the page, and also parse the
     main 'wikitable' roster to collect ring_name, real_name, and href.
+    Return the list of dictionaries with {ring_name, real_name, href}.
     """
     logger.info("Fetching data from 'List_of_WWE_personnel' for ALL navboxes.")
     api_url = "https://en.wikipedia.org/w/api.php"
