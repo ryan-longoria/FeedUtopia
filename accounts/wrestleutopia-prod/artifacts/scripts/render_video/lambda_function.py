@@ -311,8 +311,8 @@ def create_final_clip(
     else:
         logo_clip = None
 
-    left_margin = 100
-    right_margin = 100
+    left_margin = 115
+    right_margin = 115
     top_margin = 50
     bottom_margin = 50
 
