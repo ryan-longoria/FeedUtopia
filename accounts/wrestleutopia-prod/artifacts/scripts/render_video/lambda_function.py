@@ -268,11 +268,16 @@ def create_final_clip(
     else:
         logo_clip = None
 
-    text_left = base_margin
-    text_right = width - base_margin
-    text_bottom = height - 20
+    left_margin = 15
+    right_margin = 15
+    text_left = left_margin
+    text_right = width - right_margin
+    text_bottom = height - 20  
 
     if logo_clip is not None:
+        logo_x = width - logo_clip.w - base_margin
+        logo_y = height - logo_clip.h - base_margin
+
         text_right = min(text_right, logo_x - 10)
         text_bottom = min(text_bottom, logo_y - 10)
 
@@ -281,7 +286,6 @@ def create_final_clip(
     font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
     all_title_lines = multi_line_split(title_text, config.font_path, font_size, available_width)
 
-    # (F)  lines -> positioned clips, horizontally centered
     line_clips = make_multiline_clips(
         lines=all_title_lines,
         matched_set=matched_set,
