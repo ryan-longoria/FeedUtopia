@@ -140,25 +140,18 @@ def make_colored_line_clip(
     return CompositeVideoClip(word_clips, size=(total_width, total_height))
 
 
-def multi_line_split(
-    text: str,
-    font_path: str,
-    font_size: int,
-    max_width: int
-) -> List[str]:
+def multi_line_split(text: str, font_path: str, font_size: int, max_width: int) -> List[str]:
     """
-    Split 'text' into multiple lines so that no single line
-    exceeds 'max_width' when rendered in the given font + font_size.
-
-    Returns a list of lines, each fitting within max_width.
+    Splits 'text' into as many lines as needed so that
+    each line is <= max_width in the given font/size.
     """
     words = text.split()
     lines = []
     current_line_words = []
 
     for word in words:
-        candidate_line = " ".join(current_line_words + [word])
-        line_width = measure_text_width(candidate_line, font_path, font_size)
+        candidate = " ".join(current_line_words + [word])
+        line_width = measure_text_width(candidate, font_path, font_size)
 
         if line_width <= max_width:
             current_line_words.append(word)
@@ -205,6 +198,58 @@ def make_multiline_clips(
         clip_list.append(line_clip)
 
         current_y = y_pos - line_spacing
+
+    return clip_list
+
+def make_centered_multiline_clips(
+    lines: List[str],
+    matched_set: Set[str],
+    font_size: int,
+    config: VideoConfig,
+    # bounding region:
+    x_left: int,
+    x_right: int,
+    y_top: int,
+    y_bottom: int,
+    line_spacing: int = 10
+) -> List[ImageClip]:
+    """
+    Creates a list of line clips for the given 'lines', then
+    centers them horizontally and vertically as a single block
+    within [x_left, x_right] x [y_top, y_bottom].
+
+    - x_left, x_right: The horizontal bounds of the safe area
+    - y_top, y_bottom: The vertical bounds of the safe area
+    """
+    clip_list = []
+
+    rendered_lines = []
+    for text_line in lines:
+        line_clip = make_colored_line_clip(text_line, matched_set, font_size, config)
+        rendered_lines.append(line_clip)
+
+    total_height = 0
+    for i, clip in enumerate(rendered_lines):
+        total_height += clip.h
+        if i < len(rendered_lines) - 1:
+            total_height += line_spacing
+
+    safe_width = x_right - x_left
+    safe_height = y_bottom - y_top
+
+    block_top = y_top + (safe_height - total_height) / 2
+
+    current_y = block_top
+    for line_clip in rendered_lines:
+        line_width = line_clip.w
+        line_height = line_clip.h
+
+        center_x = x_left + (safe_width - line_width) / 2
+
+        line_clip = line_clip.with_position((center_x, current_y))
+        clip_list.append(line_clip)
+
+        current_y += line_height + line_spacing
 
     return clip_list
 
@@ -268,32 +313,37 @@ def create_final_clip(
     else:
         logo_clip = None
 
-    left_margin = 15
-    right_margin = 15
-    text_left = left_margin
-    text_right = width - right_margin
-    text_bottom = height - 20  
+    left_margin = 50
+    right_margin = 50
+    top_margin = 50
+    bottom_margin = 50
+
+    x_left = left_margin
+    x_right = width - right_margin
+    y_top = top_margin
+    y_bottom = height - bottom_margin
 
     if logo_clip is not None:
-        logo_x = width - logo_clip.w - base_margin
-        logo_y = height - logo_clip.h - base_margin
+        x_right = min(x_right, logo_x - 10)
+        y_bottom = min(y_bottom, logo_y - 10)
 
-        text_right = min(text_right, logo_x - 10)
-        text_bottom = min(text_bottom, logo_y - 10)
+    title_text = post_data.get("title", "NO TITLE").upper()
 
-    available_width = max(0, text_right - text_left)
-
+    matched_wrestlers = post_data.get("matched_wrestlers", [])
+    matched_events = post_data.get("matched_events", [])
+    matched_set = set([w.lower() for w in matched_wrestlers + matched_events])
     font_size = dynamic_font_size(title_text, max_size=100, min_size=50, ideal_length=20)
     all_title_lines = multi_line_split(title_text, config.font_path, font_size, available_width)
 
-    line_clips = make_multiline_clips(
-        lines=all_title_lines,
+    line_clips = make_centered_multiline_clips(
+        lines=lines,
         matched_set=matched_set,
         font_size=font_size,
         config=config,
-        x_left=text_left,
-        bottom_y=text_bottom,
-        available_width=available_width,
+        x_left=x_left,
+        x_right=x_right,
+        y_top=y_top,
+        y_bottom=y_bottom,
         line_spacing=10
     )
 
