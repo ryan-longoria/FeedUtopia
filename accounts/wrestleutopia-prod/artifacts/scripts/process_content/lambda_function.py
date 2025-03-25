@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-IMAGE_MAGICK_EXE = os.environ.get("IMAGE_MAGICK_EXE", "/bin/magick")
+#IMAGE_MAGICK_EXE = os.environ.get("IMAGE_MAGICK_EXE", "/bin/magick")
 
 
 def download_image(url: str) -> str:
@@ -37,11 +37,11 @@ def download_image(url: str) -> str:
             logger.error("File size too small, likely incomplete download.")
             return ""
 
-        converted_path = "/tmp/wrestler_image_converted.jpg"
+        #converted_path = "/tmp/wrestler_image_converted.jpg"
         try:
-            subprocess.run([IMAGE_MAGICK_EXE, file_path, converted_path], check=True)
-            logger.info("ImageMagick conversion succeeded. Output: %s", converted_path)
-            return converted_path
+            #subprocess.run([IMAGE_MAGICK_EXE, file_path, converted_path], check=True)
+            #logger.info("ImageMagick conversion succeeded. Output: %s", converted_path)
+            return file_path
         except Exception as exc:
             logger.error("ImageMagick conversion failed: %s", exc)
             return file_path
