@@ -106,20 +106,23 @@ def fetch_wrestler_image(relative_url: str) -> str:
     return download_image(image_url)
 
 
-def fetch_wwe_roster() -> List[Dict[str, str]]:
+def fetch_wwe_roster_all_navboxes() -> List[Dict[str, str]]:
     """
     Fetch the 'List_of_WWE_personnel' page via Wikipedia's Action API,
-    parse the HTML, and return a list of dicts:
-      [
-        {
-          "ring_name": <displayed anchor text>,
-          "real_name": <anchor title attribute>,
-          "href": <relative link, e.g. "/wiki/Cody_Rhodes">
-        },
-        ...
-      ]
+    parse EVERY <table class="navbox"> on the page, and collect
+    all anchors from <li> elements in any <table class="navbox-subgroup">.
+
+    Returns a list of dicts:
+       [
+         {
+           "ring_name": <displayed anchor text>,
+           "real_name": <anchor title attribute>,
+           "href": <"/wiki/Whatever">
+         },
+         ...
+       ]
     """
-    logger.info("Fetching WWE roster from 'List_of_WWE_personnel'.")
+    logger.info("Fetching data from 'List_of_WWE_personnel' for ALL navboxes.")
     api_url = "https://en.wikipedia.org/w/api.php"
     params = {
         "action": "parse",
@@ -132,61 +135,61 @@ def fetch_wwe_roster() -> List[Dict[str, str]]:
         resp = requests.get(api_url, params=params, timeout=10)
         resp.raise_for_status()
     except Exception as exc:
-        logger.error("Failed to fetch WWE roster page.", exc_info=True)
+        logger.error("Failed to fetch page: %s", exc, exc_info=True)
         raise
 
     data = resp.json()
-    if ("parse" not in data
-            or "text" not in data["parse"]
-            or "*" not in data["parse"]["text"]):
+    if ("parse" not in data) or ("text" not in data["parse"]) or ("*" not in data["parse"]["text"]):
         logger.warning("Unexpected JSON structure for 'List_of_WWE_personnel'.")
         return []
 
     raw_html = data["parse"]["text"]["*"]
     soup = BeautifulSoup(raw_html, "html.parser")
 
-    navbox = soup.find("div", id=lambda x: x and x.startswith("WWE_personnel"))
-    if not navbox:
-        logger.warning("Could not find 'WWE_personnel' navbox in HTML.")
-        return []
-
-    all_subgroup_tables = navbox.find_all("table", class_="navbox-subgroup")
-    logger.debug("Found %d <table class='navbox-subgroup'> elements.", len(all_subgroup_tables))
+    all_navboxes = soup.find_all("table", class_="navbox")
+    logger.info("Found %d <table class='navbox'> elements on the page.", len(all_navboxes))
 
     results = []
-    for table_idx, table in enumerate(all_subgroup_tables, start=1):
-        rows = table.find_all("tr")
-        logger.debug("Table #%d has %d <tr> rows.", table_idx, len(rows))
+    for navbox_idx, navbox in enumerate(all_navboxes, start=1):
+        subgroups = navbox.find_all("table", class_="navbox-subgroup")
+        logger.debug("Navbox #%d has %d <table class='navbox-subgroup'>.", navbox_idx, len(subgroups))
 
-        for tr_idx, tr in enumerate(rows, start=1):
-            heading_th = tr.find("th", class_="navbox-group")
-            if not heading_th:
-                continue
+        for subgroup_idx, subgroup_table in enumerate(subgroups, start=1):
+            rows = subgroup_table.find_all("tr")
+            logger.debug(
+                "Navbox #%d, subgroup #%d has %d <tr> rows.",
+                navbox_idx, subgroup_idx, len(rows)
+            )
 
-            heading_text = heading_th.get_text(strip=True)
-            logger.debug("Table #%d Row #%d: Found heading '%s'.", table_idx, tr_idx, heading_text)
+            for tr_idx, tr in enumerate(rows, start=1):
+                td = tr.find("td", class_="navbox-list")
+                if not td:
+                    continue
 
-            td = tr.find("td", class_="navbox-list")
-            if not td:
-                logger.debug("No <td class='navbox-list'> for heading '%s'. Skipping.", heading_text)
-                continue
+                li_tags = td.find_all("li")
+                logger.debug(
+                    "Navbox #%d, subgroup #%d, tr #%d => found %d <li> items.",
+                    navbox_idx, subgroup_idx, tr_idx, len(li_tags)
+                )
 
-            li_tags = td.find_all("li")
-            logger.debug("Heading '%s' has %d <li> items.", heading_text, len(li_tags))
-            for li in li_tags:
-                a = li.find("a", href=True, title=True)
-                if a:
+                for li in li_tags:
+                    a = li.find("a", href=True, title=True)
+                    if not a:
+                        continue
                     ring_name = a.get_text(strip=True)
                     real_name = a["title"]
-                    href = a.get("href", "")
-                    if ring_name and not ring_name.startswith("^") and href.startswith("/wiki/"):
+                    href = a["href"]
+
+                    if (ring_name
+                            and not ring_name.startswith("^")
+                            and href.startswith("/wiki/")):
                         results.append({
                             "ring_name": ring_name,
                             "real_name": real_name,
-                            "href": href,
+                            "href": href
                         })
 
-    logger.info("Completed parsing. Found %d entries in the navbox.", len(results))
+    logger.info("Completed all navbox parsing. Found %d total entries.", len(results))
     return results
 
 
@@ -217,9 +220,7 @@ def fetch_wwe_events() -> List[str]:
         raise
 
     data = resp.json()
-    if ("parse" not in data
-            or "text" not in data["parse"]
-            or "*" not in data["parse"]["text"]):
+    if ("parse" not in data or "text" not in data["parse"] or "*" not in data["parse"]["text"]):
         logger.warning("Unexpected JSON structure for pay-per-view events page.")
         return []
 
@@ -268,18 +269,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     AWS Lambda handler:
       1) Validates 'post' data in the event.
-      2) Fetches the entire WWE navbox (list of ring/real name/href) and the event list.
-      3) Searches post['title'] for:
-         - ring name substring
-         - real name substring
-         If found, store whichever was found (or both).
-      4) For each matched name, fetch their page and grab the infobox image.
-      5) Attaches all data to post (including 'wrestler_images').
-      6) Returns the processed post.
+      2) Fetches *all navbox entries* from 'List_of_WWE_personnel' 
+         (not just the 'WWE_personnel' navbox).
+      3) Fetches the event list from 'List_of_WWE_pay-per-view_and_livestreaming_supercards'.
+      4) Searches post['title'] for ring_name or real_name substring matches.
+      5) For each matched name, fetch the infobox image (if available).
+      6) Attaches these matches to the post, returns the result.
     """
     logger.info("Lambda handler invoked. Checking for 'post' in the event.")
     post = event.get("post") or event.get("processedContent", {}).get("post")
-
     if not post or not isinstance(post, dict):
         error_msg = "No valid 'post' data found in event."
         logger.error(error_msg)
@@ -289,29 +287,29 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     logger.info("Post title: '%s'", post["title"])
 
     try:
-        wwe_roster = fetch_wwe_roster()
+        wwe_entries = fetch_wwe_roster_all_navboxes()
+
         wwe_events = fetch_wwe_events()
 
         title_lower = post["title"].lower()
-
         matched_names = []
-        name_cache = set()
+        matched_cache = set()
 
-        for person in wwe_roster:
-            ring_name_lower = person["ring_name"].lower()
-            real_name_lower = person["real_name"].lower()
+        for item in wwe_entries:
+            ring_name_lower = item["ring_name"].lower()
+            real_name_lower = item["real_name"].lower()
 
             ring_name_found = (ring_name_lower in title_lower)
             real_name_found = (real_name_lower in title_lower)
 
             if ring_name_found or real_name_found:
-                if ring_name_found and person["ring_name"] not in name_cache:
-                    matched_names.append(person["ring_name"])
-                    name_cache.add(person["ring_name"])
+                if ring_name_found and item["ring_name"] not in matched_cache:
+                    matched_names.append(item["ring_name"])
+                    matched_cache.add(item["ring_name"])
 
-                if real_name_found and person["real_name"] not in name_cache:
-                    matched_names.append(person["real_name"])
-                    name_cache.add(person["real_name"])
+                if real_name_found and item["real_name"] not in matched_cache:
+                    matched_names.append(item["real_name"])
+                    matched_cache.add(item["real_name"])
 
         matched_events = []
         for ev in wwe_events:
@@ -319,17 +317,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 matched_events.append(ev)
 
         name_to_href = {}
-        for person in wwe_roster:
-            name_to_href[person["ring_name"]] = person["href"]
-            name_to_href[person["real_name"]] = person["href"]
+        for item in wwe_entries:
+            name_to_href[item["ring_name"]] = item["href"]
+            name_to_href[item["real_name"]] = item["href"]
 
         wrestler_images = {}
         for name_str in matched_names:
             rel_url = name_to_href.get(name_str)
             if rel_url:
-                image_path = fetch_wrestler_image(rel_url)
-                if image_path:
-                    wrestler_images[name_str] = image_path
+                local_img_path = fetch_wrestler_image(rel_url)
+                if local_img_path:
+                    wrestler_images[name_str] = local_img_path
 
         post["matched_names"] = matched_names
         post["matched_events"] = matched_events
