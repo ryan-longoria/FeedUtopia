@@ -206,7 +206,6 @@ def make_centered_multiline_clips(
     matched_set: Set[str],
     font_size: int,
     config: VideoConfig,
-    # bounding region:
     x_left: int,
     x_right: int,
     y_top: int,
@@ -312,8 +311,8 @@ def create_final_clip(
     else:
         logo_clip = None
 
-    left_margin = 50
-    right_margin = 50
+    left_margin = 60
+    right_margin = 60
     top_margin = 50
     bottom_margin = 50
 
