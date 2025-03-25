@@ -266,9 +266,9 @@ def create_final_clip(
     logger.info("[create_final_clip] Building the video composition...")
 
     title_text = post_data.get("title", "NO TITLE").upper()
-    matched_wrestlers = post_data.get("matched_wrestlers", [])
+    matched_names = post_data.get("matched_names", [])
     matched_events = post_data.get("matched_events", [])
-    matched_set = set([w.lower() for w in matched_wrestlers + matched_events])
+    matched_set = set([w.lower() for w in matched_names + matched_events])
 
     width = config.width
     height = config.height
