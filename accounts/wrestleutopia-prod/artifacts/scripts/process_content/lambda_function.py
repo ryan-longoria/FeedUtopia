@@ -20,7 +20,8 @@ def download_image(url: str) -> str:
     if not url:
         logger.warning("No image URL provided.")
         return ""
-    file_path = os.path.join(os.getcwd(), "wrestler_image.jpg")
+    file_path = "/tmp/wrestler_image.jpg"
+
     try:
         logger.info("Downloading image from: %s", url)
         response = requests.get(url, stream=True, headers={"User-Agent": "Mozilla/5.0"})
@@ -29,11 +30,13 @@ def download_image(url: str) -> str:
             for chunk in response.iter_content(1024):
                 f.write(chunk)
         logger.info("Image saved to: %s", file_path)
+
         file_size = os.path.getsize(file_path)
         logger.info("Downloaded file size: %d bytes", file_size)
         if file_size < 1000:
             logger.error("File size too small, likely incomplete download.")
             return ""
+
         converted_path = "/tmp/wrestler_image_converted.jpg"
         try:
             subprocess.run([IMAGE_MAGICK_EXE, file_path, converted_path], check=True)
@@ -42,6 +45,7 @@ def download_image(url: str) -> str:
         except Exception as exc:
             logger.error("ImageMagick conversion failed: %s", exc)
             return file_path
+
     except Exception as exc:
         logger.error("Failed to download image: %s", exc)
         return ""
@@ -266,6 +270,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         title_lower = post["title"].lower()
         matched_names = []
         matched_cache = set()
+
         for item in wwe_entries:
             ring_name_lower = item["ring_name"].lower()
             real_name_lower = item["real_name"].lower()
@@ -278,14 +283,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 if real_name_found and item["real_name"] not in matched_cache:
                     matched_names.append(item["real_name"])
                     matched_cache.add(item["real_name"])
+
         matched_events = []
         for ev in wwe_events:
             if ev.lower() in title_lower:
                 matched_events.append(ev)
+
         name_to_href = {}
         for item in wwe_entries:
             name_to_href[item["ring_name"]] = item["href"]
             name_to_href[item["real_name"]] = item["href"]
+
         wrestler_images = {}
         for name_str in matched_names:
             rel_url = name_to_href.get(name_str)
@@ -293,12 +301,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 local_img_path = fetch_wrestler_image(rel_url)
                 if local_img_path:
                     wrestler_images[name_str] = local_img_path
+
         post["matched_names"] = matched_names
         post["matched_events"] = matched_events
         post["wrestler_images"] = wrestler_images
+
     except Exception as exc:
         logger.exception("An error occurred while processing Wikipedia data.")
         return {"status": "error", "error": str(exc)}
+
     post.setdefault("description", "")
     post.setdefault("image_path", "")
     logger.info("Lambda processing complete. Returning success.")
