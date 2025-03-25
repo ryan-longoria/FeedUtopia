@@ -139,7 +139,7 @@ def fetch_wwe_roster() -> Dict[str, str]:
             or "text" not in data["parse"]
             or "*" not in data["parse"]["text"]):
         logger.warning("Unexpected JSON structure for 'List_of_WWE_personnel'.")
-        return {}
+        return []
 
     raw_html = data["parse"]["text"]["*"]
     soup = BeautifulSoup(raw_html, "html.parser")
@@ -147,12 +147,12 @@ def fetch_wwe_roster() -> Dict[str, str]:
     navbox = soup.find("div", id=lambda x: x and x.startswith("WWE_personnel"))
     if not navbox:
         logger.warning("Could not find 'WWE_personnel' navbox in HTML.")
-        return {}
+        return []
 
     all_subgroup_tables = navbox.find_all("table", class_="navbox-subgroup")
     logger.debug("Found %d <table class='navbox-subgroup'> elements.", len(all_subgroup_tables))
 
-    roster_dict = {}
+    results = []
     for table_idx, table in enumerate(all_subgroup_tables, start=1):
         rows = table.find_all("tr")
         logger.debug("Table #%d has %d <tr> rows.", table_idx, len(rows))
@@ -175,15 +175,20 @@ def fetch_wwe_roster() -> Dict[str, str]:
             for li in li_tags:
                 a = li.find("a", href=True, title=True)
                 if a:
-                    name = a.get_text(strip=True)
+                    ring_name = a.get_text(strip=True)
+                    real_name = a["title"]
                     href = a.get("href", "")
-                    if (name
-                            and not name.startswith("^")
+                    if (ring_name
+                            and not ring_name.startswith("^")
                             and href.startswith("/wiki/")):
-                        roster_dict[name] = href
+                        results.append({
+                            "ring_name": ring_name,
+                            "real_name": real_name,
+                            "href": href
+                        })
 
-    logger.info("Completed parsing. Found %d names in the navbox.", len(roster_dict))
-    return roster_dict
+    logger.info("Completed parsing. Found %d entries in the navbox.", len(results))
+    return results
 
 
 def fetch_wwe_events() -> List[str]:
