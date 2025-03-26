@@ -49,6 +49,7 @@ def dynamic_split(text, font_path, font_size, max_width):
             break
     bottom_line = " ".join(words[len(top_line.split()):])
     
+    # Attempt to balance lines if second line has more words than first
     if len(words) - len(top_line.split()) > len(top_line.split()):
         candidate = " ".join(words[:len(top_line.split()) + 1])
         if measure_text_width(candidate, font_path, font_size) <= max_width:
@@ -56,7 +57,15 @@ def dynamic_split(text, font_path, font_size, max_width):
             bottom_line = " ".join(words[len(top_line.split()):])
     return top_line, bottom_line
 
-def create_colored_line_clip(line_text, highlight_words, font_path, font_size, duration=10, space=10):
+def create_colored_line_clip(
+    line_text,
+    highlight_words,
+    font_path,
+    font_size,
+    duration=10,
+    space=10,
+    bounding_width=800
+):
     """
     Creates a CompositeVideoClip that contains one TextClip per word. 
     Any word matching (case-insensitive) an entry in highlight_words 
@@ -68,6 +77,8 @@ def create_colored_line_clip(line_text, highlight_words, font_path, font_size, d
     :param font_size: The font size for all words in this line.
     :param duration: The duration each clip will last (same as background).
     :param space: Horizontal spacing (in px) between words.
+    :param bounding_width: The width to give to each word's bounding box (size=(width, None)).
+                          Make it large enough so a single word won't wrap.
 
     :return: CompositeVideoClip which can be positioned in the final composition.
     """
@@ -77,21 +88,23 @@ def create_colored_line_clip(line_text, highlight_words, font_path, font_size, d
 
     for word in words:
         clean_word = word.strip(",.!?;:").upper()
-
         color = "#ec008c" if clean_word in highlight_words else "white"
-        
-        txt_clip = TextClip(
-            text=word,
-            font=font_path,
-            size=font_size,
-            color=color,
-            method="caption"
-        ).with_duration(duration)
+
+        txt_clip = (
+            TextClip(
+                text=word,
+                font=font_path,
+                font_size=font_size,
+                size=(bounding_width, None),  
+                method="caption",           
+                color=color
+            )
+            .with_duration(duration)
+        )
 
         txt_clip = txt_clip.with_position((x_offset, 0))
 
         x_offset += txt_clip.w + space
-
         word_clips.append(txt_clip)
 
     if not word_clips:
@@ -121,7 +134,6 @@ def lambda_handler(event, context):
         w.strip().upper() for w in highlight_words_description_raw.split(",") if w.strip()
     }
 
-    post_data = event.get("post_data", {})
     title_text = event.get("title", "").upper()
     description_text = event.get("description", "").upper()
     image_path = event.get("image_path", None)
