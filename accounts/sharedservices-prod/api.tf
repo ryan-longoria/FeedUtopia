@@ -90,6 +90,20 @@ resource "aws_api_gateway_integration" "start_execution_integration" {
   uri                     = aws_lambda_function.start_sfn.invoke_arn
 }
 
+resource "aws_api_gateway_method_settings" "method_settings" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  stage_name  = aws_api_gateway_stage.api_stage.stage_name
+  method_path = "*/*"
+
+  settings {
+    metrics_enabled        = true
+    logging_level          = "INFO"
+    data_trace_enabled     = true
+    throttling_burst_limit = 100
+    throttling_rate_limit  = 50
+  }
+}
+
 resource "aws_api_gateway_usage_plan" "api_usage_plan" {
   name = "cross-account-api-usage-plan"
 
