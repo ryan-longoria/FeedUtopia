@@ -39,32 +39,3 @@ resource "aws_route_table_association" "public_rta" {
   subnet_id      = each.value.id
   route_table_id = aws_route_table.public_rt.id
 }
-
-resource "aws_vpc_endpoint" "s3_endpoint" {
-  vpc_id            = aws_vpc.main.id
-  service_name      = "com.amazonaws.us-east-2.s3"
-  vpc_endpoint_type = "Gateway"
-
-  route_table_ids = [
-    aws_route_table.public_rt.id
-  ]
-
-  policy = <<-EOF
-  {
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Effect": "Allow",
-        "Principal": "*",
-        "Action": [
-          "s3:ListBucket",
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject"
-        ],
-        "Resource": "*"
-      }
-    ]
-  }
-  EOF
-}

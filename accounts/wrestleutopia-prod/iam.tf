@@ -115,9 +115,6 @@ resource "aws_iam_role_policy" "step_functions_policy" {
         ],
         Resource = [
           aws_lambda_function.fetch_data.arn,
-          aws_lambda_function.process_content.arn,
-          aws_lambda_function.store_data.arn,
-          aws_lambda_function.render_video.arn,
           aws_lambda_function.check_duplicate.arn,
           aws_lambda_function.notify_post.arn
         ]

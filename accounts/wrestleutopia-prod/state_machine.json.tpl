@@ -26,34 +26,15 @@
         {
           "Variable": "$.dupCheck.status",
           "StringEquals": "post_found",
-          "Next": "ProcessContent"
+          "Next": "NotifyUser"
         }
       ],
       "Default": "EndWorkflow"
     },
-    "ProcessContent": {
-      "Type": "Task",
-      "Resource": "${process_content_arn}",
-      "InputPath": "$.fetched",
-      "ResultPath": "$.processedContent",
-      "Next": "StoreData"
-    },
-    "StoreData": {
-      "Type": "Task",
-      "Resource": "${store_data_arn}",
-      "ResultPath": "$.storeResult",
-      "Next": "RenderVideo"
-    },
-    "RenderVideo": {
-      "Type": "Task",
-      "Resource": "${render_video_arn}",
-      "ResultPath": "$.videoResult",
-      "Next": "NotifyUser"
-    },
     "NotifyUser": {
       "Type": "Task",
       "Resource": "${notify_post_arn}",
-      "InputPath": "$.videoResult",
+      "InputPath": "$.fetched", 
       "ResultPath": "$.notificationResult",
       "End": true
     },
