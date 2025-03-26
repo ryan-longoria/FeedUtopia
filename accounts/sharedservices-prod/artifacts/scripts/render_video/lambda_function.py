@@ -143,8 +143,16 @@ def lambda_handler(event, context):
         w.strip().upper() for w in highlight_words_description_raw.split(",") if w.strip()
     }
 
+    # -- We handle "None" gracefully here, so if user passes "None" as a string we treat it as no description
+    desc_raw = event.get("description")
+    if desc_raw and desc_raw.strip().lower() == "none":
+        desc_raw = None
+
     title_text = (event.get("title") or "").upper()
-    description_text = (event.get("description") or "").upper()
+
+    # If description is truly None (or empty), skip subtitle logic
+    description_text = desc_raw.upper() if desc_raw else ""
+
     image_path = event.get("image_path", None)
 
     width, height = 1080, 1080
@@ -229,56 +237,6 @@ def lambda_handler(event, context):
     else:
         logo_clip = None
 
-    # 6) Build multi-line text (title + subtitle) near the bottom center
-    title_max_width = 900
-    subtitle_max_width = 900
-
-    top_font_size = dynamic_font_size(title_text, max_size=80, min_size=30, ideal_length=20)
-    subtitle_font_size = dynamic_font_size(description_text, max_size=60, min_size=25, ideal_length=30)
-
-    multiline_title_clip = create_multiline_colored_clip(
-        full_text=title_text,
-        highlight_words=highlight_words_title,
-        font_path=font_path,
-        font_size=top_font_size,
-        max_width=title_max_width,
-        color_default="white",
-        color_highlight="#ec008c",
-        space=10,
-        line_spacing=10,
-        duration=duration_sec
-    )
-
-    multiline_subtitle_clip = create_multiline_colored_clip(
-        full_text=description_text,
-        highlight_words=highlight_words_description,
-        font_path=font_path,
-        font_size=subtitle_font_size,
-        max_width=subtitle_max_width,
-        color_default="white",
-        color_highlight="#ec008c",
-        space=10,
-        line_spacing=10,
-        duration=duration_sec
-    )
-
-    title_w, title_h = multiline_title_clip.size
-    sub_w, sub_h = multiline_subtitle_clip.size
-
-    bottom_margin = 50
-    gap_between_title_and_sub = 20
-
-    # Place subtitle bottom at (height - bottom_margin)
-    subtitle_y = height - bottom_margin - sub_h
-    subtitle_x = (width - sub_w) // 2
-    multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
-
-    # Title above the subtitle
-    title_y = subtitle_y - gap_between_title_and_sub - title_h
-    title_x = (width - title_w) // 2
-    multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
-
-    # 7) Combine all clips
     clips_complete = [bg_clip]
     if gradient_clip:
         clips_complete.append(gradient_clip)
@@ -286,10 +244,92 @@ def lambda_handler(event, context):
         clips_complete.append(news_clip)
     if logo_clip:
         clips_complete.append(logo_clip)
-    # add text last so it's on top
-    clips_complete.append(multiline_title_clip)
-    clips_complete.append(multiline_subtitle_clip)
 
+    # === Now we handle two scenarios: with subtitle and without subtitle ===
+    if description_text:
+        # SCENARIO 1: Title + Subtitle
+        title_max_width = 900
+        subtitle_max_width = 900
+
+        top_font_size = dynamic_font_size(title_text, max_size=80, min_size=30, ideal_length=20)
+        subtitle_font_size = dynamic_font_size(description_text, max_size=60, min_size=25, ideal_length=30)
+
+        multiline_title_clip = create_multiline_colored_clip(
+            full_text=title_text,
+            highlight_words=highlight_words_title,
+            font_path=font_path,
+            font_size=top_font_size,
+            max_width=title_max_width,
+            color_default="white",
+            color_highlight="#ec008c",
+            space=10,
+            line_spacing=10,
+            duration=duration_sec
+        )
+
+        multiline_subtitle_clip = create_multiline_colored_clip(
+            full_text=description_text,
+            highlight_words=highlight_words_description,
+            font_path=font_path,
+            font_size=subtitle_font_size,
+            max_width=subtitle_max_width,
+            color_default="white",
+            color_highlight="#ec008c",
+            space=10,
+            line_spacing=10,
+            duration=duration_sec
+        )
+
+        title_w, title_h = multiline_title_clip.size
+        sub_w, sub_h = multiline_subtitle_clip.size
+
+        bottom_margin = 50
+        gap_between_title_and_sub = 20
+
+        # Place subtitle bottom at (height - bottom_margin)
+        subtitle_y = height - bottom_margin - sub_h
+        subtitle_x = (width - sub_w) // 2
+        multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
+
+        # Title above the subtitle
+        title_y = subtitle_y - gap_between_title_and_sub - title_h
+        title_x = (width - title_w) // 2
+        multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
+
+        # Add both text clips
+        clips_complete.append(multiline_title_clip)
+        clips_complete.append(multiline_subtitle_clip)
+
+    else:
+        # SCENARIO 2: Only Title (no subtitle)
+        # Make the title bigger, lower on the screen
+        title_max_width = 900
+        bigger_font_size = dynamic_font_size(title_text, max_size=100, min_size=40, ideal_length=20)
+
+        multiline_title_clip = create_multiline_colored_clip(
+            full_text=title_text,
+            highlight_words=highlight_words_title,
+            font_path=font_path,
+            font_size=bigger_font_size,
+            max_width=title_max_width,
+            color_default="white",
+            color_highlight="#ec008c",
+            space=10,
+            line_spacing=10,
+            duration=duration_sec
+        )
+
+        title_w, title_h = multiline_title_clip.size
+
+        # Lower on the screen, e.g., above bottom by 100px
+        bottom_margin = 100
+        title_y = height - bottom_margin - title_h
+        title_x = (width - title_w) // 2
+        multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
+
+        clips_complete.append(multiline_title_clip)
+
+    # 7) Combine all clips
     final_comp = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
 
     # 8) Write and upload
