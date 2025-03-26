@@ -57,6 +57,8 @@ resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
   endpoint_configuration {
     types = ["REGIONAL"]
   }
+
+  security_policy = "TLS_1_2"
 }
 
 resource "aws_api_gateway_base_path_mapping" "api_base_mapping" {
