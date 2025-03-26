@@ -297,6 +297,55 @@ resource "aws_iam_role_policy" "api_vpc_flow_logs_role_policy" {
 }
 
 #############################
+# IAM for WAF Cloudwatch Logging
+#############################
+
+data "aws_caller_identity" "current" {}
+
+data "aws_region" "current" {}
+
+data "aws_iam_policy_document" "waf_logs_policy_doc" {
+  version = "2012-10-17"
+
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["delivery.logs.amazonaws.com"]
+    }
+    actions = [
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+
+    resources = [
+      "${aws_cloudwatch_log_group.waf_logs.arn}:*"
+    ]
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = [
+        aws_wafv2_web_acl.api_waf.arn  # WAF ACL that will send logs
+      ]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [
+        data.aws_caller_identity.current.account_id
+      ]
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_resource_policy" "waf_logs_resource_policy" {
+  policy_name     = "waf-logs-apigw-policy"
+  policy_document = data.aws_iam_policy_document.waf_logs_policy_doc.json
+}
+
+#############################
 # IAM for Microsoft Copilot Studio Put/Get
 #############################
 

@@ -41,3 +41,15 @@ resource "aws_wafv2_web_acl_association" "api_waf_assoc" {
   resource_arn = "arn:aws:apigateway:${var.aws_region}::/restapis/${aws_api_gateway_rest_api.api.id}/stages/${aws_api_gateway_stage.api_stage.stage_name}"
   web_acl_arn  = aws_wafv2_web_acl.api_waf.arn
 }
+
+resource "aws_wafv2_web_acl_logging_configuration" "waf_logging" {
+  resource_arn = aws_wafv2_web_acl.api_waf.arn
+
+  log_destination_configs = [
+    aws_cloudwatch_log_group.waf_logs.arn
+  ]
+
+  depends_on = [
+    aws_cloudwatch_log_resource_policy.waf_logs_resource_policy
+  ]
+}

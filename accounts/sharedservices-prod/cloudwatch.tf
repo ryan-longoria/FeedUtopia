@@ -61,6 +61,11 @@ resource "aws_cloudwatch_log_group" "delete_logo_log_group" {
   retention_in_days = 3
 }
 
+resource "aws_cloudwatch_log_group" "waf_logs" {
+  name = "aws-waf-logs-apigw"
+  retention_in_days = 14
+}
+
 #############################
 # Lambda Error Alarms
 #############################
