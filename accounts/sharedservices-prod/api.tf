@@ -78,7 +78,7 @@ resource "aws_api_gateway_method" "start_execution_post" {
   resource_id   = aws_api_gateway_resource.start_execution.id
   http_method   = "POST"
   authorization = "NONE"
-  api_key_required = false
+  api_key_required = true
 }
 
 resource "aws_api_gateway_integration" "start_execution_integration" {
