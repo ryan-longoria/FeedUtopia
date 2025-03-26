@@ -23,11 +23,6 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
 resource "aws_iam_role_policy_attachment" "lambda_xray_write_access" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
@@ -36,18 +31,6 @@ resource "aws_iam_role_policy_attachment" "lambda_xray_write_access" {
 resource "aws_iam_role_policy_attachment" "lambda_s3_full_access" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.s3_full_policy.arn
-}
-
-resource "aws_security_group" "lambda_sg" {
-  name        = "${var.project_name}-lambda-sg"
-  description = "Allow Lambda to call out to the internet"
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 }
 
 resource "aws_lambda_permission" "allow_sns_invoke" {
