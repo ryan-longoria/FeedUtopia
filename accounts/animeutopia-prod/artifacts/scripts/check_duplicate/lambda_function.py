@@ -6,7 +6,7 @@ import boto3
 import botocore
 
 
-logger = logging.getlogger(__name__)
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 NOT_FOUND_ERROR_CODE = "404"
