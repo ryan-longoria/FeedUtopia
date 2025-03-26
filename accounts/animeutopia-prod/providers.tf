@@ -6,9 +6,7 @@ provider "aws" {
   region = var.aws_region
 
   default_tags {
-    tags = {
-      DeployedBy = "Terraform"
-    }
+    tags = var.common_tags
   }
 
   assume_role {

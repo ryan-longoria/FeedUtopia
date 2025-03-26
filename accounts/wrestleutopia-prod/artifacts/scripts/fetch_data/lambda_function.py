@@ -44,9 +44,24 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    AWS Lambda handler function that retrieves the latest news post from the feed and
-    returns it. Instead of generating a random post_id, we create a stable ID
-    from the post's link so duplicates can be detected reliably by 'check_duplicate'.
+    AWS Lambda handler function that retrieves a post and returns it,
+    assigning a generated post ID if one is not supplied.
+
+    This function is intended to be used in a state machine step before
+    the one that sends a notification to Microsoft Teams. The output
+    conforms to the structure that the next step expects.
+
+    Args:
+        event (Dict[str, Any]): A dictionary containing the input data
+            (e.g., "post_id").
+        context (Any): The Lambda context object (not used here).
+
+    Returns:
+        Dict[str, Any]: A dictionary containing:
+            - "status": A status message indicating whether a post was found.
+            - "post_id": The provided or generated post ID.
+            - "post": The post data, if found. The dictionary within "post" 
+              contains "title", "link", and "description".
     """
     feed_url = os.getenv("WRESTLING_FEED_URL", DEFAULT_FEED_URL)
 
