@@ -1,4 +1,0 @@
-requests
-moviepy
-boto3
-Pillow
