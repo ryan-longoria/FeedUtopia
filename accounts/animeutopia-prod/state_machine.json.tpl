@@ -1,6 +1,6 @@
 {
   "Comment": "State machine for automating anime post workflow with MoviePy",
-  "StartAt": "FetchRSS",
+  "StartAt": "FetchData",
   "States": {
     "FetchData": {
       "Type": "Task",
