@@ -393,24 +393,6 @@ resource "aws_cloudwatch_metric_alarm" "apigw_5xx_errors" {
 # Step Function Alarms
 #############################
 
-resource "aws_cloudwatch_metric_alarm" "manual_workflow_failures" {
-  alarm_name          = "${var.project_name}-manual-workflow-failures"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 1
-  metric_name         = "ExecutionsFailed"
-  namespace           = "AWS/States"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 1
-  alarm_description   = "Alert if the manual Step Function fails within a 5-minute window."
-
-  dimensions = {
-    StateMachineArn = aws_sfn_state_machine.manual_workflow.arn
-  }
-
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
 resource "aws_cloudwatch_metric_alarm" "manual_workflow_timeouts" {
   alarm_name          = "${var.project_name}-manual-workflow-timeouts"
   comparison_operator = "GreaterThanOrEqualToThreshold"
