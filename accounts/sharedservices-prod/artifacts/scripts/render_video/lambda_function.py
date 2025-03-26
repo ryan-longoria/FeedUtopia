@@ -19,9 +19,6 @@ s3 = boto3.client("s3")
 font_path = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
 
 def measure_text_width_pillow(word, font_path, font_size):
-    """
-    Use Pillow to measure the pixel width of a single word.
-    """
     font = ImageFont.truetype(font_path, font_size)
     bbox = font.getbbox(word)
     width = bbox[2] - bbox[0]
@@ -47,11 +44,6 @@ def create_multiline_colored_clip(
     line_spacing=10,
     duration=10
 ):
-    """
-    Splits 'full_text' into as many lines as needed to respect 'max_width'.
-    Each word is a separate TextClip for partial highlighting.
-    Returns one CompositeVideoClip containing all lines stacked vertically.
-    """
     words = full_text.split()
     lines = []
     current_line = []
@@ -61,7 +53,6 @@ def create_multiline_colored_clip(
     for word in words:
         clean_word = word.strip(",.!?;:").upper()
         w_px = measure_text_width_pillow(word, font_path, font_size)
-        # If there's already something on the line, we add 'space' before the new word
         extra_needed = w_px + (space if current_line else 0)
         if current_line_width + extra_needed <= max_width:
             current_line.append(word)
@@ -103,7 +94,6 @@ def create_multiline_colored_clip(
             ).with_duration(duration)
             line_clips.append(line_composite)
         else:
-            # Just in case a line is empty
             blank = ColorClip((1, 1), color=(0, 0, 0)).with_duration(duration)
             line_clips.append(blank)
 
@@ -116,8 +106,9 @@ def create_multiline_colored_clip(
         stacked_clips.append(line_pos)
         current_y += lh + line_spacing
 
+    # Remove the last extra spacing
     if stacked_clips:
-        current_y -= line_spacing  # remove last extra spacing
+        current_y -= line_spacing
     total_height = max(current_y, 1)
 
     max_line_width = 1
@@ -141,7 +132,7 @@ def lambda_handler(event, context):
     complete_key = f"{folder}/complete_post.mp4"
     complete_local = "/mnt/efs/complete_post.mp4"
 
-    # 1) Extract fields from `event`
+    # 1) Extract fields
     highlight_words_title_raw = event.get("highlightWordsTitle", "") or ""
     highlight_words_description_raw = event.get("highlightWordsDescription", "") or ""
 
@@ -156,10 +147,10 @@ def lambda_handler(event, context):
     description_text = (event.get("description") or "").upper()
     image_path = event.get("image_path", None)
 
-    logger.info(f"Title: {title_text}, Description: {description_text}, Image path: {image_path}")
-    logger.info(f"HighlightTitle: {highlight_words_title}, HighlightDescription: {highlight_words_description}")
+    width, height = 1080, 1080
+    duration_sec = 10
 
-    # 2) Download or prepare background
+    # 2) Download or set background
     bg_local_path = "/tmp/backgroundimage_converted.jpg"
     if image_path and image_path.startswith("http"):
         try:
@@ -176,16 +167,14 @@ def lambda_handler(event, context):
             logger.error(f"S3 image download failed: {e}")
             bg_local_path = None
 
-    # 3) Download logo
-    logo_key = "artifacts/Logo.png"
-    logo_local_path = "/tmp/Logo.png"
-    try:
-        s3.download_file(bucket_name, logo_key, logo_local_path)
-    except Exception as e:
-        logger.error(f"Logo download failed: {e}")
-        logo_local_path = None
+    if bg_local_path and os.path.exists(bg_local_path):
+        bg_clip = (ImageClip(bg_local_path)
+                   .with_effects([vfx.Resize((width, height))])
+                   .with_duration(duration_sec))
+    else:
+        bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
 
-    # 4) Download gradient
+    # 3) Download / place gradient
     gradient_key = "artifacts/Black Gradient.png"
     gradient_local_path = "/tmp/Black_Gradient.png"
     try:
@@ -194,7 +183,14 @@ def lambda_handler(event, context):
         logger.error(f"Gradient download failed: {e}")
         gradient_local_path = None
 
-    # 5) Download NEWS clip
+    if gradient_local_path and os.path.exists(gradient_local_path):
+        gradient_clip = (ImageClip(gradient_local_path)
+                         .with_effects([vfx.Resize((width, height))])
+                         .with_duration(duration_sec))
+    else:
+        gradient_clip = None
+
+    # 4) Download NEWS clip
     news_key = "artifacts/NEWS.mov"
     news_local_path = "/tmp/NEWS.mov"
     try:
@@ -203,26 +199,6 @@ def lambda_handler(event, context):
         logger.error(f"News clip download failed: {e}")
         news_local_path = None
 
-    width, height = 1080, 1080
-    duration_sec = 10
-
-    # 6) Build the background clip
-    if bg_local_path and os.path.exists(bg_local_path):
-        bg_clip = (ImageClip(bg_local_path)
-                   .with_effects([vfx.Resize((width, height))])
-                   .with_duration(duration_sec))
-    else:
-        bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
-
-    # 7) Optional gradient overlay
-    if gradient_local_path and os.path.exists(gradient_local_path):
-        gradient_clip = (ImageClip(gradient_local_path)
-                         .with_effects([vfx.Resize((width, height))])
-                         .with_duration(duration_sec))
-    else:
-        gradient_clip = None
-
-    # 8) Optional news overlay
     if news_local_path and os.path.exists(news_local_path):
         raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
         scale_factor = 300 / raw_news.w
@@ -230,8 +206,15 @@ def lambda_handler(event, context):
     else:
         news_clip = None
 
-    # 9) Logo
-    base_margin = 15
+    # 5) Download and place the logo in the bottom-right corner, no margin
+    logo_key = "artifacts/Logo.png"
+    logo_local_path = "/tmp/Logo.png"
+    try:
+        s3.download_file(bucket_name, logo_key, logo_local_path)
+    except Exception as e:
+        logger.error(f"Logo download failed: {e}")
+        logo_local_path = None
+
     if logo_local_path and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
@@ -239,21 +222,17 @@ def lambda_handler(event, context):
             raw_logo.with_effects([vfx.Resize(scale_logo)])
             .with_duration(duration_sec)
         )
-        # Place it top-left or top-right:
-        # For top-left:
-        logo_clip = logo_clip.with_position((base_margin, base_margin))
+        # Position at bottom-right, with no margin
+        logo_x = width - logo_clip.w
+        logo_y = height - logo_clip.h
+        logo_clip = logo_clip.with_position((logo_x, logo_y))
     else:
         logo_clip = None
 
-    # 10) Build multi-line text for title and subtitle
-    #     Let the user pick bounding widths to keep them from being too wide
-    #     Also clamp the font size if needed
-    # For example, the title can be up to 900px wide, subtitle up to 900 as well
-    # or if you want the subtitle narrower, do e.g. 800
+    # 6) Build multi-line text (title + subtitle) near the bottom center
     title_max_width = 900
     subtitle_max_width = 900
 
-    # Dynamic font sizing
     top_font_size = dynamic_font_size(title_text, max_size=80, min_size=30, ideal_length=20)
     subtitle_font_size = dynamic_font_size(description_text, max_size=60, min_size=25, ideal_length=30)
 
@@ -283,31 +262,23 @@ def lambda_handler(event, context):
         duration=duration_sec
     )
 
-    # 11) Now position the text near the bottom, centered horizontally
-    # We'll place the subtitle *below* the title or vice versa. Let's say title on top, subtitle below it.
-
-    # First find their .size
     title_w, title_h = multiline_title_clip.size
     sub_w, sub_h = multiline_subtitle_clip.size
 
-    # Let's define some margins from the bottom
     bottom_margin = 100
-    # We'll put the subtitle's bottom at y=(height - bottom_margin)
-    # so the subtitle top is (height - bottom_margin - sub_h)
-    subtitle_y = height - bottom_margin - sub_h
-
-    # Then place the title above it with some gap, e.g. 40 px
     gap_between_title_and_sub = 40
+
+    # Place subtitle bottom at (height - bottom_margin)
+    subtitle_y = height - bottom_margin - sub_h
+    subtitle_x = (width - sub_w) // 2
+    multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
+
+    # Title above the subtitle
     title_y = subtitle_y - gap_between_title_and_sub - title_h
-
-    # Center them horizontally
     title_x = (width - title_w) // 2
-    sub_x = (width - sub_w) // 2
-
     multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
-    multiline_subtitle_clip = multiline_subtitle_clip.with_position((sub_x, subtitle_y))
 
-    # 12) Compile all clips
+    # 7) Combine all clips
     clips_complete = [bg_clip]
     if gradient_clip:
         clips_complete.append(gradient_clip)
@@ -315,16 +286,15 @@ def lambda_handler(event, context):
         clips_complete.append(news_clip)
     if logo_clip:
         clips_complete.append(logo_clip)
-    # Add the text last so it's on top
+    # add text last so it's on top
     clips_complete.append(multiline_title_clip)
     clips_complete.append(multiline_subtitle_clip)
 
     final_comp = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
 
-    # 13) Write final video
+    # 8) Write and upload
     final_comp.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
 
-    # 14) Upload
     s3.upload_file(
         complete_local,
         bucket_name,
