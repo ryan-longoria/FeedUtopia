@@ -155,3 +155,24 @@ resource "aws_cloudwatch_metric_alarm" "sns_to_teams_invocations_anomaly" {
     return_data = true
   }
 }
+
+resource "aws_cloudwatch_metric_alarm" "apigw_5xx_errors" {
+  alarm_name          = "api-gateway-5xx-errors"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = 10
+  metric_name         = "5XXError"
+  namespace           = "AWS/ApiGateway"
+  period              = 60
+  statistic           = "Sum"
+  alarm_description   = "Alert if 5xx errors exceed 10 in 1 minute"
+
+  dimensions = {
+    ApiName = aws_api_gateway_rest_api.api.name
+    Stage   = aws_api_gateway_stage.api_stage.stage_name
+  }
+
+  alarm_actions = [
+    aws_sns_topic.monitoring_topic.arn
+  ]
+}
