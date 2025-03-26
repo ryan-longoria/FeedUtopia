@@ -237,12 +237,6 @@ resource "aws_sqs_queue_policy" "lambda_dlq_policy" {
 }
 
 #############################
-# VPC Flow Logs IAM
-#############################
-
-
-
-#############################
 ## Cross-Account IAM
 #############################
 

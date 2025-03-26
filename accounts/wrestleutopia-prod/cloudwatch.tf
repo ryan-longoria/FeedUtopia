@@ -420,8 +420,3 @@ resource "aws_cloudwatch_metric_alarm" "dlq_alarm" {
 
   alarm_actions = [aws_sns_topic.monitoring_topic.arn]
 }
-
-#############################
-# VPC Flow Logs
-#############################
-
