@@ -6,9 +6,9 @@
       "Type": "Task",
       "Resource": "${fetch_data_arn}",
       "ResultPath": "$.fetched",
-      "Next": "CheckDuplicate"
+      "Next": "CheckNews"
     },
-    "CheckPost": {
+    "CheckNews": {
       "Type": "Choice",
       "Choices": [
         {
