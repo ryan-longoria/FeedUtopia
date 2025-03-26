@@ -13,10 +13,11 @@ resource "aws_lambda_function" "fetch_data" {
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
-  timeout          = 10
+  timeout          = 5
 
   layers = [
-    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
+    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14",
+    "arn:aws:lambda:us-east-2:825765422855:layer:Python_FeedParser:1"
   ]
 
   dead_letter_config {
@@ -39,7 +40,7 @@ resource "aws_lambda_function" "check_duplicate" {
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
-  timeout          = 10
+  timeout          = 5
 
   environment {
     variables = {
@@ -62,114 +63,6 @@ resource "aws_lambda_function" "check_duplicate" {
 
 
 #############################
-# process_content
-#############################
-
-resource "aws_lambda_function" "process_content" {
-  function_name    = "process_content"
-  filename         = "${path.module}/artifacts/scripts/process_content/process_content.zip"
-  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/process_content/process_content.zip")
-  handler          = "lambda_function.lambda_handler"
-  runtime          = "python3.9"
-  role             = aws_iam_role.lambda_role.arn
-  timeout          = 15
-
-  vpc_config {
-    security_group_ids = [aws_security_group.lambda_sg.id]
-    subnet_ids         = aws_subnet.public_subnet[*].id
-  }
-
-  environment {
-    variables = {
-      IMAGE_MAGICK_EXE = "/bin/magick"
-    }
-  }
-
-  layers = [
-    "arn:aws:lambda:us-east-2:825765422855:layer:imagick-layer:2",
-    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
-  ]
-
-  dead_letter_config {
-    target_arn = aws_sqs_queue.lambda_dlq.arn
-  }
-
-  tracing_config {
-    mode = "Active"
-  }
-}
-
-#############################
-# store_data
-#############################
-
-resource "aws_lambda_function" "store_data" {
-  function_name    = "store_data"
-  filename         = "${path.module}/artifacts/scripts/store_data/store_data.zip"
-  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/store_data/store_data.zip")
-  handler          = "lambda_function.lambda_handler"
-  runtime          = "python3.9"
-  role             = aws_iam_role.lambda_role.arn
-  timeout          = 10
-
-  environment {
-    variables = {
-      BUCKET_NAME = var.s3_bucket_name
-    }
-  }
-
-  layers = [
-    "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14"
-  ]
-
-  dead_letter_config {
-    target_arn = aws_sqs_queue.lambda_dlq.arn
-  }
-
-  tracing_config {
-    mode = "Active"
-  }
-}
-
-#############################
-# render_video
-#############################
-
-resource "aws_lambda_function" "render_video" {
-  function_name = "render_video"
-  package_type  = "Image"
-  image_uri     = var.render_video_image_uri
-  role          = aws_iam_role.lambda_role.arn
-  timeout       = 300
-  memory_size   = 3008
-
-  environment {
-    variables = {
-      TARGET_BUCKET = var.s3_bucket_name
-      FFMPEG_PATH   = "/opt/bin/ffmpeg"
-    }
-  }
-
-  vpc_config {
-    subnet_ids         = aws_subnet.public_subnet[*].id
-    security_group_ids = [aws_security_group.lambda_sg.id]
-  }
-
-  file_system_config {
-    arn              = aws_efs_access_point.lambda_ap.arn
-    local_mount_path = "/mnt/efs"
-  }
-
-  dead_letter_config {
-    target_arn = aws_sqs_queue.lambda_dlq.arn
-  }
-
-  tracing_config {
-    mode = "Active"
-  }
-}
-
-#############################
 # notify_post
 #############################
 
@@ -180,7 +73,7 @@ resource "aws_lambda_function" "notify_post" {
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
-  timeout          = 10
+  timeout          = 5
 
   environment {
     variables = {
@@ -214,7 +107,7 @@ resource "aws_lambda_function" "sns_to_teams" {
   role             = aws_iam_role.lambda_role.arn
   filename         = "${path.module}/artifacts/scripts/sns_to_teams/sns_to_teams.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/sns_to_teams/sns_to_teams.zip")
-  timeout          = 10
+  timeout          = 5
 
   environment {
     variables = {

@@ -6,8 +6,8 @@ import boto3
 import botocore
 
 
-LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 NOT_FOUND_ERROR_CODE = "404"
 
@@ -44,19 +44,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     post_id = event.get("post_id")
     if not post_id:
-        LOGGER.warning("No 'post_id' provided in the event.")
+        logger.warning("No 'post_id' provided in the event.")
         return {"status": "error", "message": "No post_id provided"}
 
     marker_key = f"{MARKER_PREFIX}/{post_id}.marker"
-    LOGGER.info("Checking marker: %s in bucket: %s", marker_key, BUCKET_NAME)
+    logger.info("Checking marker: %s in bucket: %s", marker_key, BUCKET_NAME)
 
     try:
         S3_CLIENT.head_object(Bucket=BUCKET_NAME, Key=marker_key)
-        LOGGER.info("Duplicate post_id=%s. Marker file found.", post_id)
+        logger.info("Duplicate post_id=%s. Marker file found.", post_id)
         return {"status": "duplicate", "post_id": post_id}
     except botocore.exceptions.ClientError as error:
         if error.response["Error"]["Code"] == NOT_FOUND_ERROR_CODE:
-            LOGGER.info(
+            logger.info(
                 "No marker found for post_id=%s. Creating one now.", post_id
             )
             S3_CLIENT.put_object(
@@ -66,7 +66,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             )
             return {"status": "post_found", "post_id": post_id}
 
-        LOGGER.error(
+        logger.error(
             "Unexpected error when checking marker for post_id=%s: %s",
             post_id,
             error

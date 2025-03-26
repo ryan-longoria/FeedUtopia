@@ -52,28 +52,8 @@ variable "incidents_teams_webhook" {
   type        = string
 }
 
-variable "vpc_cidr" {
-  description = "CIDR block for the VPC."
-  type        = string
-}
-
-variable "public_subnet_count" {
-  description = "Number of public subnets (and AZs) to create."
-  type        = number
-}
-
-variable "aws_availability_zones" {
-  description = "List of availability zones to use."
-  type        = list(string)
-}
-
 variable "schedule_expression" {
   description = "Describes how often step functions will be invoked."
-  type        = string
-}
-
-variable "render_video_image_uri" {
-  description = "The uri used to render lambda function render_video."
   type        = string
 }
 
