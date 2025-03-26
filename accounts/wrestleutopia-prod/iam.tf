@@ -41,7 +41,6 @@ resource "aws_iam_role_policy_attachment" "lambda_s3_full_access" {
 resource "aws_security_group" "lambda_sg" {
   name        = "${var.project_name}-lambda-sg"
   description = "Allow Lambda to call out to the internet"
-  vpc_id      = aws_vpc.main.id
 
   egress {
     from_port   = 0
