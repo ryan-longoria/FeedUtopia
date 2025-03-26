@@ -89,3 +89,17 @@ resource "aws_api_gateway_integration" "start_execution_integration" {
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.start_sfn.invoke_arn
 }
+
+resource "aws_api_gateway_usage_plan" "api_usage_plan" {
+  name = "cross-account-api-usage-plan"
+
+  throttle_settings {
+    burst_limit = 100
+    rate_limit  = 50
+  }
+
+  quota_settings {
+    limit  = 100000
+    period = "MONTH"
+  }
+}
