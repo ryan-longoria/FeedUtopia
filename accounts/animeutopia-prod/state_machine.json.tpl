@@ -1,12 +1,23 @@
 {
-  "Comment": "State machine for automating post workflow",
-  "StartAt": "FetchData",
+  "Comment": "State machine for automating anime post workflow with MoviePy",
+  "StartAt": "FetchRSS",
   "States": {
     "FetchData": {
       "Type": "Task",
       "Resource": "${fetch_data_arn}",
       "ResultPath": "$.fetched",
       "Next": "CheckDuplicate"
+    },
+    "CheckPost": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.fetched.status",
+          "StringEquals": "post_found",
+          "Next": "CheckDuplicate"
+        }
+      ],
+      "Default": "EndWorkflow"
     },
     "CheckDuplicate": {
       "Type": "Task",
@@ -34,7 +45,7 @@
     "NotifyUser": {
       "Type": "Task",
       "Resource": "${notify_post_arn}",
-      "InputPath": "$.fetched", 
+      "InputPath": "$.fetched",
       "ResultPath": "$.notificationResult",
       "End": true
     },
