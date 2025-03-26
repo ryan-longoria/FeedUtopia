@@ -34,14 +34,19 @@ def lambda_handler(event, context):
     raw_account_name = body.get("accountName")
     raw_title = body.get("title")
     raw_description = body.get("description")
+    raw_highlight_words_title = body.get("highlightWordsTitle")
+    raw_highlight_words_description = body.get("highlightWordsDescription")
 
     account_name = extract_value(raw_account_name) or ""
     title = extract_value(raw_title) or ""
     description = extract_value(raw_description) or ""
+    highlight_words_title = extract_value(raw_highlight_words_title) or ""
+    highlight_words_description = extract_value(raw_highlight_words_description) or ""
 
     logger.info(
-        "Extracted fields -> accountName: '%s', title: '%s', description: '%s'",
-        account_name, title, description
+        "Extracted fields -> accountName: '%s', title: '%s', description: '%s', "
+        "highlightWordsTitle: '%s', highlightWordsDescription: '%s'",
+        account_name, title, description, highlight_words_title, highlight_words_description
     )
 
     image_info = body.get("image_path")
@@ -76,6 +81,8 @@ def lambda_handler(event, context):
         "accountName": account_name,
         "title": title,
         "description": description,
+        "highlightWordsTitle": highlight_words_title,
+        "highlightWordsDescription": highlight_words_description,
         "s3_bucket": bucket,
         "s3_key": key,
         "image_path": presigned_url
