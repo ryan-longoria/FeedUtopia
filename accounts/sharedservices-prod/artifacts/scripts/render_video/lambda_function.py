@@ -265,8 +265,8 @@ def lambda_handler(event, context):
     title_w, title_h = multiline_title_clip.size
     sub_w, sub_h = multiline_subtitle_clip.size
 
-    bottom_margin = 100
-    gap_between_title_and_sub = 40
+    bottom_margin = 50
+    gap_between_title_and_sub = 20
 
     # Place subtitle bottom at (height - bottom_margin)
     subtitle_y = height - bottom_margin - sub_h
