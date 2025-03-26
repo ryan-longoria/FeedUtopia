@@ -23,11 +23,6 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
 resource "aws_iam_role_policy_attachment" "lambda_xray_write_access" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
@@ -36,19 +31,6 @@ resource "aws_iam_role_policy_attachment" "lambda_xray_write_access" {
 resource "aws_iam_role_policy_attachment" "lambda_s3_full_access" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.s3_full_policy.arn
-}
-
-resource "aws_security_group" "lambda_sg" {
-  name        = "${var.project_name}-lambda-sg"
-  description = "Allow Lambda to call out to the internet"
-  vpc_id      = aws_vpc.main.id
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 }
 
 resource "aws_lambda_permission" "allow_sns_invoke" {
@@ -115,9 +97,6 @@ resource "aws_iam_role_policy" "step_functions_policy" {
         ],
         Resource = [
           aws_lambda_function.fetch_data.arn,
-          aws_lambda_function.process_content.arn,
-          aws_lambda_function.store_data.arn,
-          aws_lambda_function.render_video.arn,
           aws_lambda_function.check_duplicate.arn,
           aws_lambda_function.notify_post.arn
         ]
@@ -238,47 +217,6 @@ resource "aws_iam_role_policy_attachment" "lambda_sqs_send_message" {
 resource "aws_sqs_queue_policy" "lambda_dlq_policy" {
   queue_url = aws_sqs_queue.lambda_dlq.id
   policy    = data.aws_iam_policy_document.dlq_policy_document.json
-}
-
-#############################
-# VPC Flow Logs IAM
-#############################
-
-resource "aws_iam_role" "vpc_flow_logs_role" {
-  name = "vpc-flow-logs-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Principal = {
-          Service = "vpc-flow-logs.amazonaws.com"
-        },
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "vpc_flow_logs_role_policy" {
-  name = "vpc-flow-logs-role-policy"
-  role = aws_iam_role.vpc_flow_logs_role.id
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-          "logs:DescribeLogGroups",
-          "logs:DescribeLogStreams"
-        ],
-        Resource = "*"
-      }
-    ]
-  })
 }
 
 #############################

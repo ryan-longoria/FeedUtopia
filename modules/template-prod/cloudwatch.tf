@@ -21,28 +21,8 @@ resource "aws_cloudwatch_log_group" "notify_post_log_group" {
   retention_in_days = 3
 }
 
-resource "aws_cloudwatch_log_group" "process_content_log_group" {
-  name              = "/aws/lambda/process_content"
-  retention_in_days = 3
-}
-
-resource "aws_cloudwatch_log_group" "render_video_log_group" {
-  name              = "/aws/lambda/render_video"
-  retention_in_days = 3
-}
-
-resource "aws_cloudwatch_log_group" "store_data_log_group" {
-  name              = "/aws/lambda/store_data"
-  retention_in_days = 3
-}
-
 resource "aws_cloudwatch_log_group" "sns_to_teams_log_group" {
   name              = "/aws/lambda/sns_to_teams"
-  retention_in_days = 3
-}
-
-resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
-  name              = "/aws/vpc/flow_logs/${aws_vpc.main.id}"
   retention_in_days = 3
 }
 
@@ -81,60 +61,6 @@ resource "aws_cloudwatch_metric_alarm" "check_duplicate_errors" {
 
   dimensions = {
     FunctionName = aws_lambda_function.check_duplicate.function_name
-  }
-
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "process_content_errors" {
-  alarm_name          = "${var.project_name}-process_content-errors"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 1
-  metric_name         = "Errors"
-  namespace           = "AWS/Lambda"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 1
-  alarm_description   = "Alert if process_content function returns any errors in a 5-minute window."
-
-  dimensions = {
-    FunctionName = aws_lambda_function.process_content.function_name
-  }
-
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "store_data_errors" {
-  alarm_name          = "${var.project_name}-store_data-errors"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 1
-  metric_name         = "Errors"
-  namespace           = "AWS/Lambda"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 1
-  alarm_description   = "Alert if store_data function returns any errors in a 5-minute window."
-
-  dimensions = {
-    FunctionName = aws_lambda_function.store_data.function_name
-  }
-
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "render_video_errors" {
-  alarm_name          = "${var.project_name}-render_video-errors"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 1
-  metric_name         = "Errors"
-  namespace           = "AWS/Lambda"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 1
-  alarm_description   = "Alert if render_video function returns any errors in a 5-minute window."
-
-  dimensions = {
-    FunctionName = aws_lambda_function.render_video.function_name
   }
 
   alarm_actions = [aws_sns_topic.monitoring_topic.arn]
@@ -210,54 +136,6 @@ resource "aws_cloudwatch_metric_alarm" "notify_post_duration_high" {
   alarm_actions = [aws_sns_topic.monitoring_topic.arn]
 }
 
-resource "aws_cloudwatch_metric_alarm" "process_content_duration_high" {
-  alarm_name          = "${var.project_name}-process_content-duration-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "Duration"
-  namespace           = "AWS/Lambda"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 5000
-  alarm_description   = "Alert if process_content function average duration exceeds 5s in a 5-minute window."
-  dimensions = {
-    FunctionName = aws_lambda_function.process_content.function_name
-  }
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "render_video_duration_high" {
-  alarm_name          = "${var.project_name}-render_video-duration-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "Duration"
-  namespace           = "AWS/Lambda"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 40000
-  alarm_description   = "Alert if render_video function average duration exceeds 20s in a 5-minute window."
-  dimensions = {
-    FunctionName = aws_lambda_function.render_video.function_name
-  }
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "store_data_duration_high" {
-  alarm_name          = "${var.project_name}-store_data-duration-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "Duration"
-  namespace           = "AWS/Lambda"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 4000
-  alarm_description   = "Alert if store_data function average duration exceeds 4s in a 5-minute window."
-  dimensions = {
-    FunctionName = aws_lambda_function.store_data.function_name
-  }
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
 #############################
 # Lambda Memory Alarms
 #############################
@@ -306,54 +184,6 @@ resource "aws_cloudwatch_metric_alarm" "notify_post_memory_high" {
   alarm_description   = "Alert if notify_post memory usage exceeds 300 MB in a 5-minute window."
   dimensions = {
     FunctionName = aws_lambda_function.notify_post.function_name
-  }
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "process_content_memory_high" {
-  alarm_name          = "${var.project_name}-process_content-memory-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "max_memory_used"
-  namespace           = "LambdaInsights"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 900
-  alarm_description   = "Alert if process_content memory usage exceeds 900 MB in a 5-minute window."
-  dimensions = {
-    FunctionName = aws_lambda_function.process_content.function_name
-  }
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "render_video_memory_high" {
-  alarm_name          = "${var.project_name}-render_video-memory-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "max_memory_used"
-  namespace           = "LambdaInsights"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 2700
-  alarm_description   = "Alert if render_video memory usage exceeds 2700 MB in a 5-minute window."
-  dimensions = {
-    FunctionName = aws_lambda_function.render_video.function_name
-  }
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "store_data_memory_high" {
-  alarm_name          = "${var.project_name}-store_data-memory-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "max_memory_used"
-  namespace           = "LambdaInsights"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 900
-  alarm_description   = "Alert if store_data memory usage exceeds 900 MB in a 5-minute window."
-  dimensions = {
-    FunctionName = aws_lambda_function.store_data.function_name
   }
   alarm_actions = [aws_sns_topic.monitoring_topic.arn]
 }
@@ -416,105 +246,6 @@ resource "aws_cloudwatch_metric_alarm" "check_duplicate_invocations_anomaly" {
       stat        = "Sum"
       dimensions = {
         FunctionName = aws_lambda_function.check_duplicate.function_name
-      }
-    }
-  }
-
-  metric_query {
-    id          = "e1"
-    expression  = "ANOMALY_DETECTION_BAND(m1, 2)"
-    label       = "AnomalyDetectionBand"
-    return_data = true
-  }
-}
-
-resource "aws_cloudwatch_metric_alarm" "process_content_invocations_anomaly" {
-  alarm_name                = "${var.project_name}-process-content-invocations-anomaly"
-  comparison_operator       = "GreaterThanUpperThreshold"
-  evaluation_periods        = 2
-  threshold_metric_id       = "e1"
-  alarm_description         = "Alert if process_content invocations deviate from normal"
-  alarm_actions             = [aws_sns_topic.monitoring_topic.arn]
-  insufficient_data_actions = []
-  ok_actions                = []
-
-  metric_query {
-    id          = "m1"
-    label       = "ProcessContentInvocationsWithAnomalyDetection"
-    return_data = true
-    metric {
-      metric_name = "Invocations"
-      namespace   = "AWS/Lambda"
-      period      = 300
-      stat        = "Sum"
-      dimensions = {
-        FunctionName = aws_lambda_function.process_content.function_name
-      }
-    }
-  }
-
-  metric_query {
-    id          = "e1"
-    expression  = "ANOMALY_DETECTION_BAND(m1, 2)"
-    label       = "AnomalyDetectionBand"
-    return_data = true
-  }
-}
-
-resource "aws_cloudwatch_metric_alarm" "store_data_invocations_anomaly" {
-  alarm_name                = "${var.project_name}-store-data-invocations-anomaly"
-  comparison_operator       = "GreaterThanUpperThreshold"
-  evaluation_periods        = 2
-  threshold_metric_id       = "e1"
-  alarm_description         = "Alert if store_data invocations deviate from normal"
-  alarm_actions             = [aws_sns_topic.monitoring_topic.arn]
-  insufficient_data_actions = []
-  ok_actions                = []
-
-  metric_query {
-    id          = "m1"
-    label       = "StoreDataInvocationsWithAnomalyDetection"
-    return_data = true
-    metric {
-      metric_name = "Invocations"
-      namespace   = "AWS/Lambda"
-      period      = 300
-      stat        = "Sum"
-      dimensions = {
-        FunctionName = aws_lambda_function.store_data.function_name
-      }
-    }
-  }
-
-  metric_query {
-    id          = "e1"
-    expression  = "ANOMALY_DETECTION_BAND(m1, 2)"
-    label       = "AnomalyDetectionBand"
-    return_data = true
-  }
-}
-
-resource "aws_cloudwatch_metric_alarm" "render_video_invocations_anomaly" {
-  alarm_name                = "${var.project_name}-render-video-invocations-anomaly"
-  comparison_operator       = "GreaterThanUpperThreshold"
-  evaluation_periods        = 2
-  threshold_metric_id       = "e1"
-  alarm_description         = "Alert if render_video invocations deviate from normal"
-  alarm_actions             = [aws_sns_topic.monitoring_topic.arn]
-  insufficient_data_actions = []
-  ok_actions                = []
-
-  metric_query {
-    id          = "m1"
-    label       = "RenderVideoInvocationsWithAnomalyDetection"
-    return_data = true
-    metric {
-      metric_name = "Invocations"
-      namespace   = "AWS/Lambda"
-      period      = 300
-      stat        = "Sum"
-      dimensions = {
-        FunctionName = aws_lambda_function.render_video.function_name
       }
     }
   }
@@ -688,35 +419,4 @@ resource "aws_cloudwatch_metric_alarm" "dlq_alarm" {
   }
 
   alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-#############################
-# VPC Flow Logs
-#############################
-
-resource "aws_cloudwatch_log_metric_filter" "vpc_flow_logs_rejected_filter" {
-  name           = "VPCFlowLogsRejectedRequests"
-  log_group_name = aws_cloudwatch_log_group.vpc_flow_logs.name
-  pattern        = "[version, account_id, interface_id, srcaddr, dstaddr, srcport, dstport, protocol, packets, bytes, start, end, action=REJECT, log_status]"
-
-  metric_transformation {
-    name      = "NumRejectedRequests"
-    namespace = "VPCFlowLogs"
-    value     = "1"
-  }
-}
-
-resource "aws_cloudwatch_metric_alarm" "vpc_flow_logs_rejected_alarm" {
-  alarm_name                = "vpc-flow-logs-rejected-traffic-alarm"
-  comparison_operator       = "GreaterThanThreshold"
-  evaluation_periods        = 1
-  threshold                 = 100
-  metric_name               = aws_cloudwatch_log_metric_filter.vpc_flow_logs_rejected_filter.metric_transformation[0].name
-  namespace                 = aws_cloudwatch_log_metric_filter.vpc_flow_logs_rejected_filter.metric_transformation[0].namespace
-  period                    = 300
-  statistic                 = "Sum"
-  alarm_description         = "Triggers if we see more than 100 REJECTed flow records in 5 minutes"
-  alarm_actions             = [aws_sns_topic.monitoring_topic.arn]
-  insufficient_data_actions = []
-  ok_actions                = []
 }

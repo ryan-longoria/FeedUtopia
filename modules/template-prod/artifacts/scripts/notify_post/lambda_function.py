@@ -1,191 +1,109 @@
-import datetime
 import json
 import logging
 import os
-import uuid
-from datetime import timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-import boto3
 import requests
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def get_env_var(name: str) -> str:
+def build_message_text(post_id: str, title: str, link: str, description: str) -> str:
     """
-    Retrieve a required environment variable.
-    Raises a ValueError if the variable is not set.
+    Build the message text that will be sent to Microsoft Teams.
 
     Args:
-        name (str): The name of the environment variable.
+        post_id (str): Unique identifier for the post.
+        title (str): Title of the post.
+        link (str): Link to the post.
+        description (str): Description or summary of the post.
 
     Returns:
-        str: The value of the requested environment variable.
-
-    Raises:
-        ValueError: If the environment variable is not set.
+        str: A formatted Markdown text message suitable for Teams.
     """
-    value = os.environ.get(name)
-    if not value:
-        error_msg = f"{name} environment variable not set."
-        logger.error(error_msg)
-        raise ValueError(error_msg)
-    return value
+    message = (
+        f"**A new post has been found!**\n\n"
+        f"**Post ID**: {post_id}\n\n"
+        f"**Title**: {title}\n\n"
+        f"**Link**: {link}\n\n"
+        f"**Description**: {description}\n"
+    )
+    return message
 
 
-def get_video_key(event: Dict[str, Any]) -> str:
+def post_to_teams(message_text: str) -> None:
     """
-    Extract the 'complete' video key from the event.
-    If the event has 'video_keys', we look for 'complete'.
-    Otherwise, we look for 'video_key'.
+    Post a given message text to a Microsoft Teams webhook defined by the
+    'TEAMS_WEBHOOK_URL' environment variable.
 
     Args:
-        event (dict): The Lambda event payload.
-
-    Returns:
-        str: The 'complete' video key.
+        message_text (str): The message content to be posted.
 
     Raises:
-        ValueError: If no valid key is found in the event.
+        ValueError: If the Teams webhook URL is not set in the environment.
+        requests.RequestException: If the POST request fails for any reason.
     """
-    video_keys = event.get("video_keys")
-    if video_keys is None:
-        single_key = event.get("video_key")
-        if single_key:
-            video_keys = {"complete": single_key}
-        else:
-            error_msg = "No video keys found in event."
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+    teams_webhook_url = os.environ.get("TEAMS_WEBHOOK_URL")
+    if not teams_webhook_url:
+        logger.error("TEAMS_WEBHOOK_URL environment variable not set.")
+        raise ValueError("TEAMS_WEBHOOK_URL environment variable not set.")
 
-    complete_key = video_keys.get("complete")
-    if not complete_key:
-        error_msg = "No 'complete' video key found in event."
-        logger.error(error_msg)
-        raise ValueError(error_msg)
+    logger.info("Sending the following message to Teams:\n%s", message_text)
 
-    return complete_key
-
-
-def generate_presigned_url(
-    s3_client: boto3.client,
-    bucket: str,
-    key: str,
-    expiry: int = 604800
-) -> str:
-    """
-    Generate a presigned URL for the specified S3 object.
-    By default, the URL expires in 7 days (604800 seconds).
-
-    Args:
-        s3_client (boto3.client): A Boto3 S3 client instance.
-        bucket (str): The S3 bucket name.
-        key (str): The S3 object key.
-        expiry (int): The time in seconds for the presigned URL to remain valid.
-
-    Returns:
-        str: The generated presigned URL. Returns an empty string if generation fails.
-    """
-    try:
-        url = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": bucket, "Key": key},
-            ExpiresIn=expiry
-        )
-        return url
-    except Exception as e:
-        logger.exception("Error generating presigned URL for complete video: %s", e)
-        return ""
-
-
-def post_to_teams(webhook_url: str, message_text: str) -> None:
-    """
-    Post a message to Microsoft Teams using the given webhook URL.
-
-    Args:
-        webhook_url (str): The Teams incoming webhook URL.
-        message_text (str): The message content to post.
-
-    Raises:
-        HTTPError: If the HTTP POST request fails.
-    """
-    payload = {"text": message_text}
     response = requests.post(
-        webhook_url,
+        url=teams_webhook_url,
         headers={"Content-Type": "application/json"},
-        data=json.dumps(payload),
+        data=json.dumps({"text": message_text}),
+        timeout=10
     )
     response.raise_for_status()
-
-
-def download_json_from_s3(bucket_name: str, s3_key: str) -> Dict[str, Any]:
-    """
-    Download a JSON file from S3 and return its contents as a dictionary.
-
-    Args:
-        bucket_name (str): The name of the S3 bucket.
-        s3_key (str): The key of the JSON file in the S3 bucket.
-
-    Returns:
-        dict: The parsed JSON content.
-    """
-    s3_client = boto3.client("s3")
-    logger.info(
-        "Downloading JSON from bucket='%s', key='%s' for inclusion in Teams message.",
-        bucket_name,
-        s3_key
-    )
-    response = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
-    return json.loads(response["Body"].read())
+    logger.info("Message posted to Microsoft Teams successfully.")
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    AWS Lambda handler function that posts a processed video message to Microsoft Teams.
-
-    It retrieves a presigned URL from S3 for the 'complete' video key,
-    downloads the text from most_recent_post.json, constructs a message,
-    and sends it to a Microsoft Teams channel via an incoming webhook.
-
-    Args:
-        event (dict): The event data containing either a 'video_keys' dict
-            or a single 'video_key' under the key 'video_key'.
-        context (Any): Contains runtime information about the Lambda function.
-
-    Returns:
-        dict: A dictionary containing either a success status and video details,
-              or an error message.
-    """
-    try:
-        bucket = get_env_var("TARGET_BUCKET")
-        teams_webhook_url = get_env_var("TEAMS_WEBHOOK_URL")
-
-        s3 = boto3.client("s3")
-        complete_key = get_video_key(event)
-        presigned_url = generate_presigned_url(s3, bucket, complete_key)
-
-        post_data = download_json_from_s3(bucket, "most_recent_post.json")
-        title = post_data.get("title", "No Title Found")
-        body = post_data.get("body", "")
-
-        message_text = (
-            "Your new post has been processed!\n\n"
-            f"**Title:** {title}\n\n"
-            f"**Body:** {body}\n\n"
-            f"[View Video]({presigned_url})\n\n"
-        )
-
-        post_to_teams(teams_webhook_url, message_text)
-
-        logger.info("Message posted to Microsoft Teams successfully.")
-        return {
-            "status": "message_posted",
-            "video_key": complete_key,
-            "video_url": presigned_url,
+    AWS Lambda handler function that posts text content about a newly found post
+    to Microsoft Teams. It expects to receive an event in the following format:
+    
+    Example:
+        {
+            "status": "post_found",
+            "post_id": "...",
+            "post": {
+                "title": "...",
+                "link": "...",
+                "description": "..."
+            }
         }
 
-    except Exception as ex:
-        logger.exception("An error occurred in lambda_handler: %s", ex)
-        return {"error": str(ex)}
+    Args:
+        event (Dict[str, Any]): Event data passed to the Lambda function.
+            Must contain 'post_id' and 'post' keys to successfully post.
+        context (Any): Runtime information provided by AWS Lambda (unused here).
+
+    Returns:
+        Dict[str, Any]: The result of the operation. If the message is posted
+        successfully, returns:
+            {
+                "status": "message_posted",
+                "post_id": <str>
+            }
+        Otherwise, returns:
+            {
+                "error": <str>
+            }
+    """
+    post_id = event.get("post_id", "No ID")
+    post_data: Dict[str, Optional[str]] = event.get("post", {})
+    title = post_data.get("title", "No Title Found")
+    link = post_data.get("link", "No Link Found")
+    description = post_data.get("description", "No Description Found")
+
+    try:
+        message_text = build_message_text(post_id, title, link, description)
+        post_to_teams(message_text)
+        return {"status": "message_posted", "post_id": post_id}
+    except (ValueError, requests.RequestException) as exc:
+        logger.error("Error posting to Teams: %s", exc, exc_info=True)
+        return {"error": str(exc)}
