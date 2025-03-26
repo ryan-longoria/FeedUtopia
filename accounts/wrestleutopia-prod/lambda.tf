@@ -13,7 +13,7 @@ resource "aws_lambda_function" "fetch_data" {
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
-  timeout          = 10
+  timeout          = 5
 
   layers = [
     "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14",
@@ -40,7 +40,7 @@ resource "aws_lambda_function" "check_duplicate" {
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
-  timeout          = 10
+  timeout          = 5
 
   environment {
     variables = {
@@ -73,7 +73,7 @@ resource "aws_lambda_function" "notify_post" {
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
-  timeout          = 10
+  timeout          = 5
 
   environment {
     variables = {
