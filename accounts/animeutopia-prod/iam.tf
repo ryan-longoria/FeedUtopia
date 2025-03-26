@@ -260,7 +260,7 @@ data "aws_iam_policy_document" "crossaccount_s3_read_policy_doc" {
 }
 
 resource "aws_iam_role_policy" "crossaccount_s3_read_policy" {
-  name   = "WrestleUtopiaReadLogo"
+  name   = "ReadLogo"
   role   = aws_iam_role.crossaccount_s3_read_role.id
   policy = data.aws_iam_policy_document.crossaccount_s3_read_policy_doc.json
 }
