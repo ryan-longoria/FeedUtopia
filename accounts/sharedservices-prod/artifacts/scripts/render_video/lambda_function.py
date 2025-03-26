@@ -33,6 +33,10 @@ def measure_text_width(text, font_path, font_size):
     return width
 
 def dynamic_split(text, font_path, font_size, max_width):
+    """
+    Splits text into two lines (top_line, bottom_line) so that each 
+    portion fits into 'max_width' (if possible).
+    """
     if measure_text_width(text, font_path, font_size) <= max_width:
         return text, ""
     words = text.split()
@@ -44,12 +48,61 @@ def dynamic_split(text, font_path, font_size, max_width):
         else:
             break
     bottom_line = " ".join(words[len(top_line.split()):])
+    
+    # Attempt to balance lines if the second line is much larger
     if len(words) - len(top_line.split()) > len(top_line.split()):
         candidate = " ".join(words[:len(top_line.split()) + 1])
         if measure_text_width(candidate, font_path, font_size) <= max_width:
             top_line = candidate
             bottom_line = " ".join(words[len(top_line.split()):])
     return top_line, bottom_line
+
+def create_colored_line_clip(line_text, highlight_words, font_path, font_size, duration=10, space=10):
+    """
+    Creates a CompositeVideoClip that contains one TextClip per word. 
+    Any word matching (case-insensitive) an entry in highlight_words 
+    will be colored #ec008c; otherwise white by default.
+
+    :param line_text: The text for one entire line (already split).
+    :param highlight_words: A set of words to highlight, e.g. {'BREAKING', 'NEWS'}.
+    :param font_path: Path to the TTF font.
+    :param font_size: The font size for all words in this line.
+    :param duration: The duration each clip will last (same as background).
+    :param space: Horizontal spacing (in px) between words.
+
+    :return: CompositeVideoClip which can be positioned in the final composition.
+    """
+    words = line_text.split()
+    word_clips = []
+    x_offset = 0
+
+    for word in words:
+        clean_word = word.strip(",.!?;:").upper()
+
+        color = "#ec008c" if clean_word in highlight_words else "white"
+        
+        txt_clip = TextClip(
+            text=word,
+            font=font_path,
+            fontsize=font_size,
+            color=color,
+            method="caption"
+        ).with_duration(duration)
+
+        txt_clip = txt_clip.with_position((x_offset, 0))
+
+        x_offset += txt_clip.w + space
+
+        word_clips.append(txt_clip)
+
+    if not word_clips:
+        return ColorClip((1, 1), color=(0, 0, 0), duration=duration)
+
+    line_height = word_clips[0].h
+
+    line_clip = CompositeVideoClip(word_clips, size=(x_offset, line_height))
+    line_clip = line_clip.with_duration(duration)
+    return line_clip
 
 def lambda_handler(event, context):
     logger.info("Render video lambda started")
@@ -59,12 +112,23 @@ def lambda_handler(event, context):
     complete_key = f"{folder}/complete_post.mp4"
     complete_local = "/mnt/efs/complete_post.mp4"
 
+    highlight_words_title_raw = event.get("highlightWordsTitle", "") or ""
+    highlight_words_description_raw = event.get("highlightWordsDescription", "") or ""
+
+    highlight_words_title = {
+        w.strip().upper() for w in highlight_words_title_raw.split(",") if w.strip()
+    }
+    highlight_words_description = {
+        w.strip().upper() for w in highlight_words_description_raw.split(",") if w.strip()
+    }
+
     post_data = event.get("post_data", {})
     title_text = event.get("title", "").upper()
-    description_text = event.get("description", "")
+    description_text = event.get("description", "").upper()
     image_path = event.get("image_path", None)
 
     logger.info(f"Title: {title_text}, Description: {description_text}, Image Path: {image_path}")
+    logger.info(f"HighlightWordsTitle: {highlight_words_title_raw}, HighlightWordsDescription: {highlight_words_description_raw}")
 
     bg_local_path = "/tmp/backgroundimage_converted.jpg"
     if image_path and image_path.startswith("http"):
@@ -121,18 +185,24 @@ def lambda_handler(event, context):
 
     if bg_local_path and os.path.exists(bg_local_path):
         logger.info("Using background image")
-        bg_clip = (ImageClip(bg_local_path)
-                   .with_effects([vfx.Resize((width, height))])
-                   .with_duration(duration_sec))
+        bg_clip = (
+            ImageClip(bg_local_path)
+            .with_effects([vfx.Resize((width, height))])
+            .with_duration(duration_sec)
+        )
     else:
         logger.info("Using default color background")
-        bg_clip = (ColorClip(size=(width, height), color=(0, 0, 0), duration=duration_sec)
-                   .with_duration(duration_sec))
+        bg_clip = (
+            ColorClip(size=(width, height), color=(0, 0, 0))
+            .with_duration(duration_sec)
+        )
 
     if gradient_local_path and os.path.exists(gradient_local_path):
-        gradient_clip = (ImageClip(gradient_local_path)
-                         .with_effects([vfx.Resize((width, height))])
-                         .with_duration(duration_sec))
+        gradient_clip = (
+            ImageClip(gradient_local_path)
+            .with_effects([vfx.Resize((width, height))])
+            .with_duration(duration_sec)
+        )
     else:
         gradient_clip = None
 
@@ -149,9 +219,11 @@ def lambda_handler(event, context):
         logger.info("Including logo clip")
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
-        logo_clip = (raw_logo.with_effects([vfx.Resize(scale_logo)])
-                     .with_duration(duration_sec))
-        logo_clip = logo_clip.with_position((width - logo_clip.w - base_margin, 
+        logo_clip = (
+            raw_logo.with_effects([vfx.Resize(scale_logo)])
+            .with_duration(duration_sec)
+        )
+        logo_clip = logo_clip.with_position((width - logo_clip.w - base_margin,
                                              height - logo_clip.h - base_margin))
         side_margin = max(logo_clip.w + base_margin, base_margin)
     else:
@@ -167,37 +239,41 @@ def lambda_handler(event, context):
     subtitle_font_size = dynamic_font_size(description_text, max_size=50, min_size=25, ideal_length=30)
     subtitle_font_size = min(subtitle_font_size, top_font_size)
 
-    title_top, title_bottom = dynamic_split(title_text.upper(), font_path, top_font_size, available_width)
-    subtitle_top, subtitle_bottom = dynamic_split(description_text.upper(), font_path, subtitle_font_size, available_subtitle_width)
+    title_top, title_bottom = dynamic_split(title_text, font_path, top_font_size, available_width)
+    subtitle_top, subtitle_bottom = dynamic_split(description_text, font_path, subtitle_font_size, available_subtitle_width)
 
-    top_clip = (TextClip(text=title_top,
-                         font_size=top_font_size,
-                         color="#ec008c",
-                         font=font_path,
-                         size=(available_width, None),
-                         method="caption")
-                .with_duration(duration_sec))
-    bottom_clip = (TextClip(text=title_bottom,
-                            font_size=bottom_font_size,
-                            color="#ec008c",
-                            font=font_path,
-                            size=(available_width, None),
-                            method="caption")
-                   .with_duration(duration_sec))
-    desc_top_clip = (TextClip(text=subtitle_top,
-                              font_size=subtitle_font_size,
-                              color="white",
-                              font=font_path,
-                              size=(available_subtitle_width, None),
-                              method="caption")
-                     .with_duration(duration_sec))
-    desc_bottom_clip = (TextClip(text=subtitle_bottom,
-                                 font_size=subtitle_font_size,
-                                 color="white",
-                                 font=font_path,
-                                 size=(available_subtitle_width, None),
-                                 method="caption")
-                        .with_duration(duration_sec))
+    top_clip = create_colored_line_clip(
+        title_top, 
+        highlight_words_title, 
+        font_path,
+        top_font_size,
+        duration=duration_sec,
+        space=10
+    )
+    bottom_clip = create_colored_line_clip(
+        title_bottom,
+        highlight_words_title,
+        font_path,
+        bottom_font_size,
+        duration=duration_sec,
+        space=10
+    )
+    desc_top_clip = create_colored_line_clip(
+        subtitle_top,
+        highlight_words_description,
+        font_path,
+        subtitle_font_size,
+        duration=duration_sec,
+        space=10
+    )
+    desc_bottom_clip = create_colored_line_clip(
+        subtitle_bottom,
+        highlight_words_description,
+        font_path,
+        subtitle_font_size,
+        duration=duration_sec,
+        space=10
+    )
 
     subtitle_bottom_y = height - 20 - desc_bottom_clip.h
     subtitle_top_y = subtitle_bottom_y - 10 - desc_top_clip.h
@@ -220,6 +296,7 @@ def lambda_handler(event, context):
 
     logger.info("Starting final composite video")
     complete_clip = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
+
     logger.info("Writing video file")
     complete_clip.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
     logger.info("Uploading final video")
