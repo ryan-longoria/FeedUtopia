@@ -322,7 +322,7 @@ def lambda_handler(event, context):
         title_w, title_h = multiline_title_clip.size
 
         # Lower on the screen, e.g., above bottom by 100px
-        bottom_margin = 100
+        bottom_margin = 50
         title_y = height - bottom_margin - title_h
         title_x = (width - title_w) // 2
         multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
