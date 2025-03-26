@@ -430,29 +430,3 @@ resource "aws_cloudwatch_metric_alarm" "dlq_alarm" {
 # VPC Flow Logs
 #############################
 
-resource "aws_cloudwatch_log_metric_filter" "vpc_flow_logs_rejected_filter" {
-  name           = "VPCFlowLogsRejectedRequests"
-  log_group_name = aws_cloudwatch_log_group.vpc_flow_logs.name
-  pattern        = "[version, account_id, interface_id, srcaddr, dstaddr, srcport, dstport, protocol, packets, bytes, start, end, action=REJECT, log_status]"
-
-  metric_transformation {
-    name      = "NumRejectedRequests"
-    namespace = "VPCFlowLogs"
-    value     = "1"
-  }
-}
-
-resource "aws_cloudwatch_metric_alarm" "vpc_flow_logs_rejected_alarm" {
-  alarm_name                = "vpc-flow-logs-rejected-traffic-alarm"
-  comparison_operator       = "GreaterThanThreshold"
-  evaluation_periods        = 1
-  threshold                 = 100
-  metric_name               = aws_cloudwatch_log_metric_filter.vpc_flow_logs_rejected_filter.metric_transformation[0].name
-  namespace                 = aws_cloudwatch_log_metric_filter.vpc_flow_logs_rejected_filter.metric_transformation[0].namespace
-  period                    = 300
-  statistic                 = "Sum"
-  alarm_description         = "Triggers if we see more than 100 REJECTed flow records in 5 minutes"
-  alarm_actions             = [aws_sns_topic.monitoring_topic.arn]
-  insufficient_data_actions = []
-  ok_actions                = []
-}

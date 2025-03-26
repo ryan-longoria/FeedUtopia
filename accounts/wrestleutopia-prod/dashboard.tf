@@ -136,34 +136,3 @@ resource "aws_cloudwatch_dashboard" "step_functions_dashboard" {
   })
 }
 
-#############################
-# VPC Dashboard
-#############################
-
-resource "aws_cloudwatch_dashboard" "vpc_monitoring" {
-  dashboard_name = "vpc-monitoring"
-
-  dashboard_body = jsonencode({
-    widgets = [
-      {
-        "type"   = "metric"
-        "x"      = 0
-        "y"      = 0
-        "width"  = 12
-        "height" = 6
-        "properties" = {
-          "region" = var.aws_region
-          "title"  = "Rejected Traffic Over Time"
-          "period" = 300
-          "stat"   = "Sum"
-          "metrics" = [
-            ["VPCFlowLogs", "NumRejectedRequests"],
-          ]
-          title  = "Rejected Traffic Over Time"
-          period = 300
-          stat   = "Sum"
-        }
-      }
-    ]
-  })
-}
