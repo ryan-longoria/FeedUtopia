@@ -1,4 +1,4 @@
-import uuid
+import hashlib
 import logging
 from typing import Dict, Any, Optional
 
@@ -9,11 +9,8 @@ logger.setLevel(logging.INFO)
 
 def fetch_post() -> Optional[Dict[str, str]]:
     """
-    Fetch the most recent News post from the WrestlingInc feed.
-
-    Returns:
-        A dictionary containing keys "title", "link", and "description" if found,
-        otherwise None.
+    Fetch the most recent 'News' post from the WrestlingInc RSS feed.
+    Return a dict with 'title', 'link', 'description' if found, else None.
     """
     feed_url = "https://www.wrestlinginc.com/category/wwe-news/feed/"
     feed = feedparser.parse(feed_url)
@@ -33,20 +30,23 @@ def fetch_post() -> Optional[Dict[str, str]]:
 
     return None
 
-
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    AWS Lambda handler function that retrieves a post (from WrestlingInc RSS) and returns it,
-    assigning a generated post ID if one is not supplied.
+    AWS Lambda handler function that retrieves a post from the feed and returns it.
+    Instead of generating a random post_id, we create a stable ID from the link,
+    so duplicates can be detected reliably by 'check_duplicate'.
     """
-    post_id = event.get("post_id", str(uuid.uuid4()))
     post = fetch_post()
 
     if post:
-        logger.info("Found 'News' post, assigning post_id = %s", post_id)
+        link = post["link"] or ""
+        stable_post_id = hashlib.md5(link.encode("utf-8")).hexdigest()
+
+        logger.info("Found 'News' post; using stable_post_id=%s", stable_post_id)
+
         return {
             "status": "post_found",
-            "post_id": post_id,
+            "post_id": stable_post_id,
             "post": post
         }
 
