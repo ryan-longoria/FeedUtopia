@@ -1,4 +1,4 @@
-import uuid
+import hashlib
 import logging
 from typing import Dict, Any, Optional
 
@@ -17,7 +17,7 @@ def fetch_post() -> Optional[Dict[str, str]]:
     post = {
         "title": "Example Title",
         "link": "https://example.com/example-post",
-        "description": "This is a placeholder post description."
+        "description": "Example post description."
     }
     return post
 
@@ -43,14 +43,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             - "post": The post data, if found. The dictionary within "post" 
               contains "title", "link", and "description".
     """
-    post_id = event.get("post_id", str(uuid.uuid4()))
     post = fetch_post()
 
     if post:
-        logger.info("Found post, assigning post_id = %s", post_id)
+        link = post["link"] or ""
+        stable_post_id = hashlib.md5(link.encode("utf-8")).hexdigest()
+
+        logger.info("Found 'News' post; using stable_post_id=%s", stable_post_id)
+
         return {
             "status": "post_found",
-            "post_id": post_id,
+            "post_id": stable_post_id,
             "post": post
         }
 
