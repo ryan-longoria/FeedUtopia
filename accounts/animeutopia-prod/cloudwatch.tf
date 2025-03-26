@@ -6,7 +6,25 @@
 # Log Groups
 #############################
 
+resource "aws_cloudwatch_log_group" "automated_step_function_log_group" {
+  name              = "/aws/vendedlogs/states/automated_workfloww"
+  retention_in_days = 3
+}
 
+resource "aws_cloudwatch_log_group" "fetch_data_log_group" {
+  name              = "/aws/lambda/fetch_data"
+  retention_in_days = 3
+}
+
+resource "aws_cloudwatch_log_group" "notify_post_log_group" {
+  name              = "/aws/lambda/notify_post"
+  retention_in_days = 3
+}
+
+resource "aws_cloudwatch_log_group" "sns_to_teams_log_group" {
+  name              = "/aws/lambda/sns_to_teams"
+  retention_in_days = 3
+}
 
 #############################
 # Lambda Error Alarms
