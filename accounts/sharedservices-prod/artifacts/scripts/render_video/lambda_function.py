@@ -49,7 +49,6 @@ def dynamic_split(text, font_path, font_size, max_width):
             break
     bottom_line = " ".join(words[len(top_line.split()):])
     
-    # Attempt to balance lines if the second line is much larger
     if len(words) - len(top_line.split()) > len(top_line.split()):
         candidate = " ".join(words[:len(top_line.split()) + 1])
         if measure_text_width(candidate, font_path, font_size) <= max_width:
@@ -84,7 +83,7 @@ def create_colored_line_clip(line_text, highlight_words, font_path, font_size, d
         txt_clip = TextClip(
             text=word,
             font=font_path,
-            fontsize=font_size,
+            size=font_size,
             color=color,
             method="caption"
         ).with_duration(duration)
