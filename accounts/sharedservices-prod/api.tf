@@ -117,3 +117,14 @@ resource "aws_api_gateway_usage_plan" "api_usage_plan" {
     period = "MONTH"
   }
 }
+
+resource "aws_api_gateway_api_key" "api_key" {
+  name    = "CrossAccountStateMachineApiKey"
+  enabled = true
+}
+
+resource "aws_api_gateway_usage_plan_key" "api_usage_plan_key" {
+  key_id        = aws_api_gateway_api_key.api_key.id
+  key_type      = "API_KEY"
+  usage_plan_id = aws_api_gateway_usage_plan.api_usage_plan.id
+}
