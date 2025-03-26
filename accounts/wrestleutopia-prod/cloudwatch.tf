@@ -26,11 +26,6 @@ resource "aws_cloudwatch_log_group" "sns_to_teams_log_group" {
   retention_in_days = 3
 }
 
-resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
-  name              = "/aws/vpc/flow_logs/${aws_vpc.main.id}"
-  retention_in_days = 3
-}
-
 #############################
 # Lambda Error Alarms
 #############################
