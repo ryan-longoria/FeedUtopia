@@ -1,7 +1,9 @@
 import datetime
 import json
 import os
+import uuid
 import logging
+import numpy as np
 import boto3
 import requests
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
@@ -48,42 +50,30 @@ def create_multiline_colored_clip(
     """
     Splits 'full_text' into as many lines as needed to respect 'max_width'.
     Each word is a separate TextClip for partial highlighting.
-
-    1) Splits full_text on whitespace into words.
-    2) Measures each word with Pillow so we know if it fits in the current line.
-    3) If adding the next word would exceed max_width, we start a new line.
-    4) Each line is rendered as a horizontal CompositeVideoClip of word clips.
-    5) We then stack those line clips vertically.
-    6) Returns a single CompositeVideoClip with all lines and partial coloring.
+    Returns one CompositeVideoClip containing all lines stacked vertically.
     """
-
     words = full_text.split()
     lines = []
     current_line = []
     current_line_width = 0
 
-    # Build a list-of-lists: multiple lines, each containing words
+    # 1) Build line by line
     for word in words:
         clean_word = word.strip(",.!?;:").upper()
         w_px = measure_text_width_pillow(word, font_path, font_size)
-        # If there's something already on the line, we need 'space' before adding the new word
+        # If there's already something on the line, we add 'space' before the new word
         extra_needed = w_px + (space if current_line else 0)
-
         if current_line_width + extra_needed <= max_width:
-            # Fits on the current line
             current_line.append(word)
             current_line_width += extra_needed
         else:
-            # Start a new line
             lines.append(current_line)
             current_line = [word]
             current_line_width = w_px
-
-    # Add last line if there's any leftover
     if current_line:
         lines.append(current_line)
 
-    # Now create one CompositeVideoClip per line
+    # 2) Turn each line into a horizontal CompositeVideoClip
     line_clips = []
     for line_words in lines:
         x_offset = 0
@@ -98,45 +88,38 @@ def create_multiline_colored_clip(
                     font=font_path,
                     font_size=font_size,
                     color=color
-                    # We do NOT pass size=... or method="caption" for a single word
                 )
                 .with_duration(duration)
             )
-
-            # Place this word horizontally after the previous one
             txt_clip = txt_clip.with_position((x_offset, 0))
             x_offset += txt_clip.w + space
             word_clips.append(txt_clip)
 
         if word_clips:
             line_height = word_clips[0].h
-            # The width of this line = x_offset - space (the last x_offset includes trailing space)
             line_width = max(x_offset - space, 1)
-            line_composite = CompositeVideoClip(word_clips, size=(line_width, line_height))
-            line_composite = line_composite.with_duration(duration)
+            line_composite = CompositeVideoClip(
+                word_clips, size=(line_width, line_height)
+            ).with_duration(duration)
             line_clips.append(line_composite)
         else:
-            # If we ended up with an empty line
-            blank = ColorClip((1,1), color=(0,0,0)).with_duration(duration)
+            # Just in case a line is empty
+            blank = ColorClip((1, 1), color=(0, 0, 0)).with_duration(duration)
             line_clips.append(blank)
 
-    # Now stack all line_clips vertically
+    # 3) Stack these line clips vertically
     stacked_clips = []
     current_y = 0
     for lc in line_clips:
         lw, lh = lc.size
-        # Place this line at y=current_y
         line_pos = lc.with_position((0, current_y))
         stacked_clips.append(line_pos)
         current_y += lh + line_spacing
 
-    # Remove the last line_spacing if we want no trailing space
     if stacked_clips:
-        current_y -= line_spacing
+        current_y -= line_spacing  # remove last extra spacing
+    total_height = max(current_y, 1)
 
-    total_height = max(current_y, 1)  # Ensure at least 1 pixel high
-
-    # The total width is whichever line was widest
     max_line_width = 1
     for lc in line_clips:
         w, h = lc.size
@@ -144,8 +127,7 @@ def create_multiline_colored_clip(
             max_line_width = w
 
     final_clip = CompositeVideoClip(
-        stacked_clips,
-        size=(max_line_width, total_height)
+        stacked_clips, size=(max_line_width, total_height)
     ).with_duration(duration)
 
     return final_clip
@@ -153,7 +135,13 @@ def create_multiline_colored_clip(
 def lambda_handler(event, context):
     logger.info("Render video lambda started")
 
-    # Get highlight fields
+    bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
+    timestamp_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    folder = f"posts/post_{timestamp_str}"
+    complete_key = f"{folder}/complete_post.mp4"
+    complete_local = "/mnt/efs/complete_post.mp4"
+
+    # 1) Extract fields from `event`
     highlight_words_title_raw = event.get("highlightWordsTitle", "") or ""
     highlight_words_description_raw = event.get("highlightWordsDescription", "") or ""
 
@@ -166,16 +154,109 @@ def lambda_handler(event, context):
 
     title_text = (event.get("title") or "").upper()
     description_text = (event.get("description") or "").upper()
+    image_path = event.get("image_path", None)
 
-    # For demonstration, let's set different bounding widths for title vs. subtitle
-    title_max_width = 800
+    logger.info(f"Title: {title_text}, Description: {description_text}, Image path: {image_path}")
+    logger.info(f"HighlightTitle: {highlight_words_title}, HighlightDescription: {highlight_words_description}")
+
+    # 2) Download or prepare background
+    bg_local_path = "/tmp/backgroundimage_converted.jpg"
+    if image_path and image_path.startswith("http"):
+        try:
+            resp = requests.get(image_path, timeout=10)
+            with open(bg_local_path, "wb") as f:
+                f.write(resp.content)
+        except Exception as e:
+            logger.error(f"HTTP image download failed: {e}")
+            bg_local_path = None
+    elif image_path:
+        try:
+            s3.download_file(bucket_name, image_path, bg_local_path)
+        except Exception as e:
+            logger.error(f"S3 image download failed: {e}")
+            bg_local_path = None
+
+    # 3) Download logo
+    logo_key = "artifacts/Logo.png"
+    logo_local_path = "/tmp/Logo.png"
+    try:
+        s3.download_file(bucket_name, logo_key, logo_local_path)
+    except Exception as e:
+        logger.error(f"Logo download failed: {e}")
+        logo_local_path = None
+
+    # 4) Download gradient
+    gradient_key = "artifacts/Black Gradient.png"
+    gradient_local_path = "/tmp/Black_Gradient.png"
+    try:
+        s3.download_file(bucket_name, gradient_key, gradient_local_path)
+    except Exception as e:
+        logger.error(f"Gradient download failed: {e}")
+        gradient_local_path = None
+
+    # 5) Download NEWS clip
+    news_key = "artifacts/NEWS.mov"
+    news_local_path = "/tmp/NEWS.mov"
+    try:
+        s3.download_file(bucket_name, news_key, news_local_path)
+    except Exception as e:
+        logger.error(f"News clip download failed: {e}")
+        news_local_path = None
+
+    width, height = 1080, 1080
+    duration_sec = 10
+
+    # 6) Build the background clip
+    if bg_local_path and os.path.exists(bg_local_path):
+        bg_clip = (ImageClip(bg_local_path)
+                   .with_effects([vfx.Resize((width, height))])
+                   .with_duration(duration_sec))
+    else:
+        bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
+
+    # 7) Optional gradient overlay
+    if gradient_local_path and os.path.exists(gradient_local_path):
+        gradient_clip = (ImageClip(gradient_local_path)
+                         .with_effects([vfx.Resize((width, height))])
+                         .with_duration(duration_sec))
+    else:
+        gradient_clip = None
+
+    # 8) Optional news overlay
+    if news_local_path and os.path.exists(news_local_path):
+        raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
+        scale_factor = 300 / raw_news.w
+        news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
+    else:
+        news_clip = None
+
+    # 9) Logo
+    base_margin = 15
+    if logo_local_path and os.path.exists(logo_local_path):
+        raw_logo = ImageClip(logo_local_path)
+        scale_logo = 150 / raw_logo.w
+        logo_clip = (
+            raw_logo.with_effects([vfx.Resize(scale_logo)])
+            .with_duration(duration_sec)
+        )
+        # Place it top-left or top-right:
+        # For top-left:
+        logo_clip = logo_clip.with_position((base_margin, base_margin))
+    else:
+        logo_clip = None
+
+    # 10) Build multi-line text for title and subtitle
+    #     Let the user pick bounding widths to keep them from being too wide
+    #     Also clamp the font size if needed
+    # For example, the title can be up to 900px wide, subtitle up to 900 as well
+    # or if you want the subtitle narrower, do e.g. 800
+    title_max_width = 900
     subtitle_max_width = 900
 
-    # Dynamic font sizing (optional)
-    top_font_size = dynamic_font_size(title_text, max_size=100, min_size=40, ideal_length=20)
-    subtitle_font_size = dynamic_font_size(description_text, max_size=50, min_size=25, ideal_length=30)
+    # Dynamic font sizing
+    top_font_size = dynamic_font_size(title_text, max_size=80, min_size=30, ideal_length=20)
+    subtitle_font_size = dynamic_font_size(description_text, max_size=60, min_size=25, ideal_length=30)
 
-    # Create the multiline text clips
     multiline_title_clip = create_multiline_colored_clip(
         full_text=title_text,
         highlight_words=highlight_words_title,
@@ -186,7 +267,7 @@ def lambda_handler(event, context):
         color_highlight="#ec008c",
         space=10,
         line_spacing=10,
-        duration=10
+        duration=duration_sec
     )
 
     multiline_subtitle_clip = create_multiline_colored_clip(
@@ -199,33 +280,51 @@ def lambda_handler(event, context):
         color_highlight="#ec008c",
         space=10,
         line_spacing=10,
-        duration=10
+        duration=duration_sec
     )
 
-    width, height = 1080, 1080
-    duration_sec = 10
+    # 11) Now position the text near the bottom, centered horizontally
+    # We'll place the subtitle *below* the title or vice versa. Let's say title on top, subtitle below it.
 
-    # Example background
-    bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
+    # First find their .size
+    title_w, title_h = multiline_title_clip.size
+    sub_w, sub_h = multiline_subtitle_clip.size
 
-    # Place the multiline clips at some positions (example)
-    multiline_title_clip = multiline_title_clip.with_position((100, 100))
-    multiline_subtitle_clip = multiline_subtitle_clip.with_position((100, 500))
+    # Let's define some margins from the bottom
+    bottom_margin = 100
+    # We'll put the subtitle's bottom at y=(height - bottom_margin)
+    # so the subtitle top is (height - bottom_margin - sub_h)
+    subtitle_y = height - bottom_margin - sub_h
 
-    # Combine everything
-    final_clips = [bg_clip, multiline_title_clip, multiline_subtitle_clip]
-    final_comp = CompositeVideoClip(final_clips, size=(width, height)).with_duration(duration_sec)
+    # Then place the title above it with some gap, e.g. 40 px
+    gap_between_title_and_sub = 40
+    title_y = subtitle_y - gap_between_title_and_sub - title_h
 
-    # For example, let's suppose we have an S3 bucket and key set up as environment variables
-    bucket_name = os.environ.get("TARGET_BUCKET", "my-bucket")
-    timestamp_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    folder = f"posts/post_{timestamp_str}"
-    complete_key = f"{folder}/complete_post.mp4"
-    complete_local = "/tmp/complete_post.mp4"
+    # Center them horizontally
+    title_x = (width - title_w) // 2
+    sub_x = (width - sub_w) // 2
 
+    multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
+    multiline_subtitle_clip = multiline_subtitle_clip.with_position((sub_x, subtitle_y))
+
+    # 12) Compile all clips
+    clips_complete = [bg_clip]
+    if gradient_clip:
+        clips_complete.append(gradient_clip)
+    if news_clip:
+        clips_complete.append(news_clip)
+    if logo_clip:
+        clips_complete.append(logo_clip)
+    # Add the text last so it's on top
+    clips_complete.append(multiline_title_clip)
+    clips_complete.append(multiline_subtitle_clip)
+
+    final_comp = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
+
+    # 13) Write final video
     final_comp.write_videofile(complete_local, fps=24, codec="libx264", audio=False)
 
-    s3 = boto3.client("s3")
+    # 14) Upload
     s3.upload_file(
         complete_local,
         bucket_name,
