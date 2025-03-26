@@ -107,7 +107,7 @@ resource "aws_lambda_function" "sns_to_teams" {
   role             = aws_iam_role.lambda_role.arn
   filename         = "${path.module}/artifacts/scripts/sns_to_teams/sns_to_teams.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/sns_to_teams/sns_to_teams.zip")
-  timeout          = 10
+  timeout          = 5
 
   environment {
     variables = {
