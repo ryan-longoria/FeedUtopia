@@ -158,17 +158,18 @@ def create_multiline_colored_clip(
             blank = ColorClip((1, 1), color=(0, 0, 0)).with_duration(duration)
             line_clips.append(blank)
 
+    max_line_width = max((lc.size[0] for lc in line_clips), default=1)
+
     stacked_clips = []
     current_y = 0
     for lc in line_clips:
         lw, lh = lc.size
-        line_pos = lc.with_position((0, current_y))
+        line_x = (max_line_width - lw) // 2
+        line_pos = lc.with_position((line_x, current_y))
         stacked_clips.append(line_pos)
         current_y += lh + line_spacing
 
-    if stacked_clips:
-        current_y -= line_spacing
-    total_height = max(current_y, 1)
+    total_height = max(current_y - line_spacing, 1)
 
     max_line_width = 1
     for lc in line_clips:
