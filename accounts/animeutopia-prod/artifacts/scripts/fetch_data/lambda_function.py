@@ -29,11 +29,12 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
         logger.info("Feed parsed, but no entries found.")
         return None
 
+
     try:
         if feed.entries:
             first = feed.entries[0]
-            category = first.get("category", "").lower()
-            if "anime" in category:
+            tags = first.get("tags", [])
+            if any("anime" in (t.get("term", "").lower()) for t in tags):
                 post = {
                     "title": first.get("title"),
                     "link": first.get("link"),
@@ -42,6 +43,7 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
                 return post
     except Exception as error:
         logger.exception("Error processing feed entries: %s", error)
+
     return None
 
 
