@@ -23,7 +23,7 @@ def build_message_text(post_id: str, title: str, link: str, description: str) ->
         str: A formatted Markdown text message suitable for Teams.
     """
     message = (
-        f"**A new post has been found!**\n\n"
+        f"**News has been found!**\n\n"
         f"**Post ID**: {post_id}\n\n"
         f"**Title**: {title}\n\n"
         f"**Link**: {link}\n\n"
