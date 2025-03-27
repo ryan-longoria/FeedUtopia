@@ -69,7 +69,7 @@ def generate_presigned_s3_url(
         return None
 
 
-def post_to_teams(webhook_url: str, message: str, timeout: int = 10) -> None:
+def post_to_teams(webhook_url: str, message: str, timeout: int = 20) -> None:
     """
     Posts a message to a Microsoft Teams webhook.
 

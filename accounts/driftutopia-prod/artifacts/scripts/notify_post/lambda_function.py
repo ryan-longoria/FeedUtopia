@@ -26,8 +26,7 @@ def build_message_text(post_id: str, title: str, link: str, description: str) ->
         f"**News has been found!**\n\n"
         f"**Post ID**: {post_id}\n\n"
         f"**Title**: {title}\n\n"
-        f"**Link**: {link}\n\n"
-        f"**Description**: {description}\n"
+        f"**Link**: {link}\n"
     )
     return message
 
