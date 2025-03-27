@@ -62,7 +62,7 @@ resource "aws_cloudwatch_log_group" "delete_logo_log_group" {
 }
 
 resource "aws_cloudwatch_log_group" "waf_logs" {
-  name = "aws-waf-logs-apigw"
+  name              = "aws-waf-logs-apigw"
   retention_in_days = 14
 }
 

@@ -20,14 +20,14 @@ resource "aws_internet_gateway" "API_igw" {
 
 resource "aws_subnet" "API_public_subnet_1" {
   vpc_id                  = aws_vpc.API_vpc.id
-  cidr_block             = "10.1.1.0/24"
+  cidr_block              = "10.1.1.0/24"
   availability_zone       = "${var.aws_region}a"
   map_public_ip_on_launch = true
 }
 
 resource "aws_subnet" "API_public_subnet_2" {
   vpc_id                  = aws_vpc.API_vpc.id
-  cidr_block             = "10.1.2.0/24"
+  cidr_block              = "10.1.2.0/24"
   availability_zone       = "${var.aws_region}b"
   map_public_ip_on_launch = true
 }
@@ -53,9 +53,9 @@ resource "aws_route" "API_default_route_public" {
 }
 
 resource "aws_vpc_endpoint" "s3_endpoint" {
-  vpc_id            = aws_vpc.API_vpc.id
-  service_name      = "com.amazonaws.us-east-2.s3"
-  route_table_ids   = [
+  vpc_id       = aws_vpc.API_vpc.id
+  service_name = "com.amazonaws.us-east-2.s3"
+  route_table_ids = [
     aws_route_table.API_public_rt.id
   ]
 }
