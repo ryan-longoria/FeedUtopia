@@ -57,6 +57,8 @@ resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
   endpoint_configuration {
     types = ["REGIONAL"]
   }
+
+  security_policy = "TLS_1_2"
 }
 
 resource "aws_api_gateway_base_path_mapping" "api_base_mapping" {
@@ -86,4 +88,43 @@ resource "aws_api_gateway_integration" "start_execution_integration" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.start_sfn.invoke_arn
+}
+
+resource "aws_api_gateway_method_settings" "method_settings" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  stage_name  = aws_api_gateway_stage.api_stage.stage_name
+  method_path = "*/*"
+
+  settings {
+    metrics_enabled        = true
+    logging_level          = "INFO"
+    data_trace_enabled     = true
+    throttling_burst_limit = 100
+    throttling_rate_limit  = 50
+  }
+}
+
+resource "aws_api_gateway_usage_plan" "api_usage_plan" {
+  name = "cross-account-api-usage-plan"
+
+  throttle_settings {
+    burst_limit = 100
+    rate_limit  = 50
+  }
+
+  quota_settings {
+    limit  = 100000
+    period = "MONTH"
+  }
+}
+
+resource "aws_api_gateway_api_key" "api_key" {
+  name    = "CrossAccountStateMachineApiKey"
+  enabled = true
+}
+
+resource "aws_api_gateway_usage_plan_key" "api_usage_plan_key" {
+  key_id        = aws_api_gateway_api_key.api_key.id
+  key_type      = "API_KEY"
+  usage_plan_id = aws_api_gateway_usage_plan.api_usage_plan.id
 }
