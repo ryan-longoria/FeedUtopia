@@ -13,6 +13,7 @@ variable "aws_account_ids" {
     sharedservices = string
     animeutopia    = string
     wrestleutopia  = string
+    driftutopia    = string
   })
 }
 
@@ -23,7 +24,13 @@ variable "teams_webhooks" {
       auto   = string
       manual = string
     }),
+
     animeutopia = object({
+      auto   = string
+      manual = string
+    }),
+    
+    driftutopia = object({
       auto   = string
       manual = string
     })
