@@ -140,7 +140,7 @@ def create_multiline_colored_clip(
             left, top, right, bottom = pil_font.getbbox(w)
             text_w = right - left
             text_h = bottom - top
-            padding = 5
+            padding = 10
             text_h += padding
 
             txt_clip = TextClip(
