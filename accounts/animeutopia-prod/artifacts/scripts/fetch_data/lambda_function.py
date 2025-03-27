@@ -7,7 +7,9 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-DEFAULT_FEED_URL = "https://www.wrestlinginc.com/category/wwe-news/feed/"
+DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
+
+ALLOWED_CATEGORIES = {"anime", "people", "just for fun", "live-action"}
 
 
 def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
@@ -19,6 +21,7 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
     """
     logger.debug(f"Parsing feed from: {feed_url}")
     feed = feedparser.parse(feed_url)
+    logger.debug("Full feed data: %s", feed)
     
     if feed.bozo:
         logger.error("Failed to parse RSS feed: %s", feed.bozo_exception)
@@ -28,11 +31,15 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
         logger.info("Feed parsed, but no entries found.")
         return None
 
+
     try:
-        if feed.entries:
-            first = feed.entries[0]
-            category = first.get("category", "").lower()
-            if "anime" in category:
+        first = feed.entries[0]
+        
+        tags = first.get("tags", [])
+        
+        for tag_obj in tags:
+            term = tag_obj.get("term", "").lower()
+            if term in ALLOWED_CATEGORIES:
                 post = {
                     "title": first.get("title"),
                     "link": first.get("link"),
@@ -41,6 +48,7 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
                 return post
     except Exception as error:
         logger.exception("Error processing feed entries: %s", error)
+
     return None
 
 
@@ -65,7 +73,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             - "post": The post data, if found. The dictionary within "post" 
               contains "title", "link", and "description".
     """
-    feed_url = os.getenv("WRESTLING_FEED_URL", DEFAULT_FEED_URL)
+    feed_url = os.getenv("ANIME_FEED_URL", DEFAULT_FEED_URL)
 
     post = fetch_latest_news_post(feed_url=feed_url)
     if post is not None:
