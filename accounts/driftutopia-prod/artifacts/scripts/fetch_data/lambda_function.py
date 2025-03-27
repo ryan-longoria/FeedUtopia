@@ -63,7 +63,7 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
             newest_el = el
             newest_date = dt
 
-    if not newest_el:
+    if newest_el is None:
         logger.info("No valid <url> elements with lastmod & news:news found.")
         return None
 
