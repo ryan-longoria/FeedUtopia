@@ -19,6 +19,7 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
     """
     logger.debug(f"Parsing feed from: {feed_url}")
     feed = feedparser.parse(feed_url)
+    logger.debug("Full feed data: %s", feed)
     
     if feed.bozo:
         logger.error("Failed to parse RSS feed: %s", feed.bozo_exception)
