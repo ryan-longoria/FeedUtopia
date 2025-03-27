@@ -9,6 +9,8 @@ logger.setLevel(logging.DEBUG)
 
 DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
 
+ALLOWED_CATEGORIES = {"anime", "people", "just for fun", "live-action"}
+
 
 def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
     """
@@ -31,10 +33,13 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
 
 
     try:
-        if feed.entries:
-            first = feed.entries[0]
-            tags = first.get("tags", [])
-            if any("anime" in (t.get("term", "").lower()) for t in tags):
+        first = feed.entries[0]
+        
+        tags = first.get("tags", [])
+        
+        for tag_obj in tags:
+            term = tag_obj.get("term", "").lower()
+            if term in ALLOWED_CATEGORIES:
                 post = {
                     "title": first.get("title"),
                     "link": first.get("link"),
