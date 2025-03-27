@@ -110,21 +110,21 @@ resource "aws_iam_role_policy" "lambda_sfn_execution" {
   })
 }
 
-resource "aws_iam_role_policy" "lambda_assume_crossaccount" {
-  name = "AllowAssumeCrossAccountS3ReadRole"
+resource "aws_iam_role_policy" "lambda_assume_each_account" {
+  for_each = var.aws_account_ids
+
+  name = "AllowAssumeCrossAccountS3ReadRole-${each.key}"
   role = aws_iam_role.lambda_role.id
 
   policy = jsonencode({
-    Version = "2012-10-17",
+    Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow",
+        Effect = "Allow"
         Action = [
           "sts:AssumeRole"
-        ],
-        Resource = [
-          "arn:aws:iam::390402544450:role/CrossAccountS3ReadRole"
         ]
+        Resource = "arn:aws:iam::${each.value}:role/CrossAccountS3ReadRole"
       }
     ]
   })
