@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
 
