@@ -7,18 +7,18 @@
 #############################
 
 resource "aws_lambda_function" "start_sfn" {
-  function_name = "start_sfn"
-  filename      = "${path.module}/artifacts/scripts/start_sfn/start_sfn.zip"
+  function_name    = "start_sfn"
+  filename         = "${path.module}/artifacts/scripts/start_sfn/start_sfn.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/start_sfn/start_sfn.zip")
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.9"
-  role          = aws_iam_role.lambda_role.arn
-  timeout       = 10
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
 
   environment {
     variables = {
       STATE_MACHINE_ARN = aws_sfn_state_machine.manual_workflow.arn
-      TARGET_BUCKET = "prod-sharedservices-artifacts-bucket"
+      TARGET_BUCKET     = "prod-sharedservices-artifacts-bucket"
     }
   }
 
@@ -36,19 +36,19 @@ resource "aws_lambda_function" "start_sfn" {
 #############################
 
 resource "aws_lambda_function" "get_logo" {
-  function_name = "get_logo"
-  filename      = "${path.module}/artifacts/scripts/get_logo/get_logo.zip"
+  function_name    = "get_logo"
+  filename         = "${path.module}/artifacts/scripts/get_logo/get_logo.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/get_logo/get_logo.zip")
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.9"
-  role          = aws_iam_role.lambda_role.arn
-  timeout       = 10
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
 
   environment {
     variables = {
-      TARGET_BUCKET = "prod-sharedservices-artifacts-bucket"
+      TARGET_BUCKET               = "prod-sharedservices-artifacts-bucket"
       CROSSACCOUNT_READ_ROLE_NAME = "CrossAccountS3ReadRole"
-      ACCOUNT_MAP = jsonencode(local.account_map)
+      ACCOUNT_MAP                 = jsonencode(local.account_map)
     }
   }
 
@@ -81,7 +81,7 @@ resource "aws_lambda_function" "render_video" {
   }
 
   vpc_config {
-    subnet_ids         = [
+    subnet_ids = [
       aws_subnet.API_public_subnet_1.id,
       aws_subnet.API_public_subnet_2.id
     ]
@@ -110,19 +110,19 @@ resource "aws_lambda_function" "render_video" {
 #############################
 
 resource "aws_lambda_function" "delete_logo" {
-  function_name = "delete_logo"
-  filename      = "${path.module}/artifacts/scripts/delete_logo/delete_logo.zip"
+  function_name    = "delete_logo"
+  filename         = "${path.module}/artifacts/scripts/delete_logo/delete_logo.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/delete_logo/delete_logo.zip")
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.9"
-  role          = aws_iam_role.lambda_role.arn
-  timeout       = 10
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
 
   environment {
     variables = {
-      TARGET_BUCKET = "prod-sharedservices-artifacts-bucket"
+      TARGET_BUCKET               = "prod-sharedservices-artifacts-bucket"
       CROSSACCOUNT_READ_ROLE_NAME = "CrossAccountS3ReadRole"
-      ACCOUNT_MAP = jsonencode(local.account_map)
+      ACCOUNT_MAP                 = jsonencode(local.account_map)
     }
   }
 

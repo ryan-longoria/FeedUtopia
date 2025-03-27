@@ -26,16 +26,16 @@ resource "aws_api_gateway_stage" "api_stage" {
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.apigw_access_logs.arn
-    format          = jsonencode({
-      requestId = "$context.requestId",
-      ip        = "$context.identity.sourceIp",
-      caller    = "$context.identity.caller",
-      user      = "$context.identity.user",
-      requestTime = "$context.requestTime",
-      httpMethod  = "$context.httpMethod",
-      resourcePath = "$context.resourcePath",
-      status      = "$context.status",
-      protocol    = "$context.protocol",
+    format = jsonencode({
+      requestId      = "$context.requestId",
+      ip             = "$context.identity.sourceIp",
+      caller         = "$context.identity.caller",
+      user           = "$context.identity.user",
+      requestTime    = "$context.requestTime",
+      httpMethod     = "$context.httpMethod",
+      resourcePath   = "$context.resourcePath",
+      status         = "$context.status",
+      protocol       = "$context.protocol",
       responseLength = "$context.responseLength",
       errorMessage   = "$context.error.messageString"
     })
@@ -51,7 +51,7 @@ resource "aws_api_gateway_stage" "api_stage" {
 }
 
 resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
-  domain_name     = "api.feedutopia.com"
+  domain_name              = "api.feedutopia.com"
   regional_certificate_arn = "arn:aws:acm:us-east-2:825765422855:certificate/8e28f7dc-9a39-43dc-b615-fcb4a8e4a2c8"
 
   endpoint_configuration {
@@ -63,7 +63,7 @@ resource "aws_api_gateway_domain_name" "api_feedutopia_domain" {
 
 resource "aws_api_gateway_base_path_mapping" "api_base_mapping" {
   domain_name = aws_api_gateway_domain_name.api_feedutopia_domain.domain_name
-  api_id     = aws_api_gateway_rest_api.api.id
+  api_id      = aws_api_gateway_rest_api.api.id
   stage_name  = aws_api_gateway_stage.api_stage.stage_name
 }
 
@@ -74,10 +74,10 @@ resource "aws_api_gateway_resource" "start_execution" {
 }
 
 resource "aws_api_gateway_method" "start_execution_post" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.start_execution.id
-  http_method   = "POST"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.start_execution.id
+  http_method      = "POST"
+  authorization    = "NONE"
   api_key_required = false
 }
 

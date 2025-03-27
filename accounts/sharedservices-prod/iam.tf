@@ -8,7 +8,7 @@
 
 data "aws_iam_policy_document" "apigw_logs_trust" {
   statement {
-    effect = "Allow"
+    effect  = "Allow"
     actions = ["sts:AssumeRole"]
 
     principals {
@@ -86,7 +86,7 @@ resource "aws_lambda_permission" "allow_apigw_invoke_start_sfn" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.start_sfn.function_name
 
-  principal = "apigateway.amazonaws.com"
+  principal  = "apigateway.amazonaws.com"
   source_arn = "arn:aws:execute-api:us-east-2:825765422855:${aws_api_gateway_rest_api.api.id}/*/POST/start-execution"
 }
 
@@ -110,21 +110,21 @@ resource "aws_iam_role_policy" "lambda_sfn_execution" {
   })
 }
 
-resource "aws_iam_role_policy" "lambda_assume_crossaccount" {
-  name = "AllowAssumeCrossAccountS3ReadRole"
+resource "aws_iam_role_policy" "lambda_assume_each_account" {
+  for_each = var.aws_account_ids
+
+  name = "AllowAssumeCrossAccountS3ReadRole-${each.key}"
   role = aws_iam_role.lambda_role.id
 
   policy = jsonencode({
-    Version = "2012-10-17",
+    Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow",
+        Effect = "Allow"
         Action = [
           "sts:AssumeRole"
-        ],
-        Resource = [
-          "arn:aws:iam::390402544450:role/CrossAccountS3ReadRole"
         ]
+        Resource = "arn:aws:iam::${each.value}:role/CrossAccountS3ReadRole"
       }
     ]
   })
@@ -325,15 +325,15 @@ data "aws_iam_policy_document" "waf_logs_policy_doc" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = [
-        aws_wafv2_web_acl.api_waf.arn  # WAF ACL that will send logs
+      values = [
+        aws_wafv2_web_acl.api_waf.arn # WAF ACL that will send logs
       ]
     }
 
     condition {
       test     = "StringEquals"
       variable = "aws:SourceAccount"
-      values   = [
+      values = [
         data.aws_caller_identity.current.account_id
       ]
     }

@@ -24,8 +24,8 @@ resource "aws_wafv2_web_acl" "api_waf" {
       }
     }
     visibility_config {
-      sampled_requests_enabled    = true
-      cloudwatch_metrics_enabled  = true
+      sampled_requests_enabled   = true
+      cloudwatch_metrics_enabled = true
       metric_name                = "awsCommonRules"
     }
   }
