@@ -302,8 +302,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         title_max_width = 850
         subtitle_max_width = 800
 
-        top_font_size = dynamic_font_size(title_text, max_size=80, min_size=30, ideal_length=20)
-        subtitle_font_size = dynamic_font_size(description_text, max_size=60, min_size=25, ideal_length=30)
+        top_font_size = dynamic_font_size(title_text, max_size=80, min_size=50, ideal_length=20)
+        subtitle_font_size = dynamic_font_size(description_text, max_size=50, min_size=25, ideal_length=45)
 
         multiline_title_clip = create_multiline_colored_clip(
             full_text=title_text,
