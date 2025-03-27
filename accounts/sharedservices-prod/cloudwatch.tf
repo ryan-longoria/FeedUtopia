@@ -152,8 +152,8 @@ resource "aws_cloudwatch_metric_alarm" "render_video_duration_high" {
   namespace           = "AWS/Lambda"
   period              = 300
   statistic           = "Average"
-  threshold           = 3000
-  alarm_description   = "Alert if render_video function average duration exceeds 3s in a 5-minute window."
+  threshold           = 60000
+  alarm_description   = "Alert if render_video function average duration exceeds 1m in a 5-minute window."
   dimensions = {
     FunctionName = aws_lambda_function.render_video.function_name
   }
@@ -168,8 +168,8 @@ resource "aws_cloudwatch_metric_alarm" "notify_post_duration_high" {
   namespace           = "AWS/Lambda"
   period              = 300
   statistic           = "Average"
-  threshold           = 2000
-  alarm_description   = "Alert if notify_post function average duration exceeds 2s in a 5-minute window."
+  threshold           = 60000
+  alarm_description   = "Alert if notify_post function average duration exceeds 1m in a 5-minute window."
   dimensions = {
     FunctionName = aws_lambda_function.notify_post.function_name
   }
