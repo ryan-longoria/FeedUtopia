@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-DEFAULT_FEED_URL = "https://www.wrestlinginc.com/category/wwe-news/feed/"
+DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
 
 
 def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
@@ -65,7 +65,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             - "post": The post data, if found. The dictionary within "post" 
               contains "title", "link", and "description".
     """
-    feed_url = os.getenv("WRESTLING_FEED_URL", DEFAULT_FEED_URL)
+    feed_url = os.getenv("ANIME_FEED_URL", DEFAULT_FEED_URL)
 
     post = fetch_latest_news_post(feed_url=feed_url)
     if post is not None:
