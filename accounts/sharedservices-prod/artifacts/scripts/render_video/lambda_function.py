@@ -243,11 +243,21 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         downloaded_bg = download_s3_file(bucket_name, image_path, bg_local_path)
 
     if downloaded_bg and os.path.exists(bg_local_path):
-        bg_clip = (
-            ImageClip(bg_local_path)
-            .with_effects([vfx.Resize((width, height))])
-            .with_duration(duration_sec)
-        )
+        try:
+            with Image.open(bg_local_path) as img:
+                if img.width < 1080 or img.height < 1080:
+                    logger.info("Upscaling background image to 1080x1080...")
+                    upscaled_img = img.resize((1080, 1080), Image.Resampling.LANCZOS)
+                    upscaled_img.save(bg_local_path)
+
+            bg_clip = (
+                ImageClip(bg_local_path)
+                .with_effects([vfx.Resize((width, height))])
+                .with_duration(duration_sec)
+            )
+        except Exception as e:
+            logger.error(f"Failed to upscale the background image: {e}")
+            bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
     else:
         bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
 
