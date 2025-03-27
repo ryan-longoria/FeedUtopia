@@ -136,12 +136,20 @@ def create_multiline_colored_clip(
         for w in line_words:
             clean_w = w.strip(",.!?;:").upper()
             color = color_highlight if clean_w in highlight_words else color_default
+            pil_font = ImageFont.truetype(font_path, font_size)
+            left, top, right, bottom = pil_font.getbbox(w)
+            text_w = right - left
+            text_h = bottom - top
+            padding = 5
+            text_h += padding
 
             txt_clip = TextClip(
                 text=w,
                 font=font_path,
                 font_size=font_size,
-                color=color
+                color=color,
+                size=(text_w, text_h),
+                method="label"
             ).with_duration(duration)
             txt_clip = txt_clip.with_position((x_offset, 0))
             x_offset += txt_clip.w + space
