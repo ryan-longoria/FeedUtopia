@@ -15,7 +15,7 @@ import moviepy.video.fx as vfx
 from PIL import ImageFont, ImageDraw, Image
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 DEFAULT_VIDEO_WIDTH = 1080
 DEFAULT_VIDEO_HEIGHT = 1080
@@ -142,7 +142,7 @@ def create_multiline_colored_clip(
                 font=font_path,
                 font_size=font_size,
                 color=color
-            ).margin(bottom=5).with_duration(duration)
+            ).with_duration(duration)
             txt_clip = txt_clip.with_position((x_offset, 0))
             x_offset += txt_clip.w + space
             word_clips.append(txt_clip)
