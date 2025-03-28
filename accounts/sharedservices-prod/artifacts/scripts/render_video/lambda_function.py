@@ -15,7 +15,7 @@ import moviepy.video.fx as vfx
 from PIL import ImageFont, ImageDraw, Image
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 DEFAULT_VIDEO_WIDTH = 1080
 DEFAULT_VIDEO_HEIGHT = 1080
@@ -136,12 +136,20 @@ def create_multiline_colored_clip(
         for w in line_words:
             clean_w = w.strip(",.!?;:").upper()
             color = color_highlight if clean_w in highlight_words else color_default
+            pil_font = ImageFont.truetype(font_path, font_size)
+            left, top, right, bottom = pil_font.getbbox(w)
+            text_w = right - left
+            text_h = bottom - top
+            padding = 10
+            text_h += padding
 
             txt_clip = TextClip(
                 text=w,
                 font=font_path,
                 font_size=font_size,
-                color=color
+                color=color,
+                size=(text_w, text_h),
+                method="label"
             ).with_duration(duration)
             txt_clip = txt_clip.with_position((x_offset, 0))
             x_offset += txt_clip.w + space
@@ -158,17 +166,18 @@ def create_multiline_colored_clip(
             blank = ColorClip((1, 1), color=(0, 0, 0)).with_duration(duration)
             line_clips.append(blank)
 
+    max_line_width = max((lc.size[0] for lc in line_clips), default=1)
+
     stacked_clips = []
     current_y = 0
     for lc in line_clips:
         lw, lh = lc.size
-        line_pos = lc.with_position((0, current_y))
+        line_x = (max_line_width - lw) // 2
+        line_pos = lc.with_position((line_x, current_y))
         stacked_clips.append(line_pos)
         current_y += lh + line_spacing
 
-    if stacked_clips:
-        current_y -= line_spacing
-    total_height = max(current_y, 1)
+    total_height = max(current_y - line_spacing, 1)
 
     max_line_width = 1
     for lc in line_clips:
@@ -255,16 +264,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     else:
         gradient_clip = None
 
-    news_key = "artifacts/NEWS.mov"
-    news_local_path = LOCAL_NEWS
-    downloaded_news = download_s3_file(bucket_name, news_key, news_local_path)
+    spinning_artifact = event.get("spinningArtifact", "").strip().upper()
+    news_clip = None
+    if spinning_artifact == "NEWS":
+        news_key = "artifacts/NEWS.mov"
+        news_local_path = LOCAL_NEWS
+        downloaded_news = download_s3_file(bucket_name, news_key, news_local_path)
 
-    if downloaded_news and os.path.exists(news_local_path):
-        raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
-        scale_factor = 300 / raw_news.w
-        news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
-    else:
-        news_clip = None
+        if downloaded_news and os.path.exists(news_local_path):
+            raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
+            scale_factor = 300 / raw_news.w
+            news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
 
     logo_key = "artifacts/Logo.png"
     logo_local_path = LOCAL_LOGO
@@ -290,11 +300,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         clips_complete.append(logo_clip)
 
     if description_text:
-        title_max_width = 900
-        subtitle_max_width = 900
+        title_max_width = 850
+        subtitle_max_width = 800
 
-        top_font_size = dynamic_font_size(title_text, max_size=80, min_size=30, ideal_length=20)
-        subtitle_font_size = dynamic_font_size(description_text, max_size=60, min_size=25, ideal_length=30)
+        top_font_size = dynamic_font_size(title_text, max_size=80, min_size=50, ideal_length=20)
+        subtitle_font_size = dynamic_font_size(description_text, max_size=50, min_size=25, ideal_length=45)
 
         multiline_title_clip = create_multiline_colored_clip(
             full_text=title_text,

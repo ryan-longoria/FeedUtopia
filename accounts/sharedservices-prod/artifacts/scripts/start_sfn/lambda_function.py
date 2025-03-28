@@ -103,21 +103,24 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     raw_description = body.get("description")
     raw_highlight_words_title = body.get("highlightWordsTitle")
     raw_highlight_words_description = body.get("highlightWordsDescription")
+    raw_spinningArtifact = body.get("spinningArtifact")
 
     account_name = extract_value(raw_account_name) or ""
     title = extract_value(raw_title) or ""
     description = extract_value(raw_description) or ""
     highlight_words_title = extract_value(raw_highlight_words_title) or ""
     highlight_words_description = extract_value(raw_highlight_words_description) or ""
+    spinningArtifact = extract_value(raw_spinningArtifact) or ""
 
     logger.info(
         "Extracted fields -> accountName: '%s', title: '%s', description: '%s', "
-        "highlightWordsTitle: '%s', highlightWordsDescription: '%s'",
+        "highlightWordsTitle: '%s', highlightWordsDescription: '%s', spinningArtifact: '%s'",
         account_name,
         title,
         description,
         highlight_words_title,
         highlight_words_description,
+        spinningArtifact
     )
 
     image_info = body.get("image_path", {})
@@ -136,6 +139,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         "description": description,
         "highlightWordsTitle": highlight_words_title,
         "highlightWordsDescription": highlight_words_description,
+        "spinningArtifact": spinningArtifact,
         "s3_bucket": image_info.get("bucket", ""),
         "s3_key": image_info.get("key", ""),
         "image_path": presigned_url,
@@ -167,7 +171,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "body": json.dumps({"error": str(e)}),
         }
 
-    # Build success response
     result = {
         "statusCode": 200,
         "body": json.dumps(
