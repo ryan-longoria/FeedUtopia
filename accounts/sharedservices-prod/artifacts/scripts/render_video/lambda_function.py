@@ -63,7 +63,7 @@ def loop_clip(clip: VideoFileClip, total_duration: float) -> VideoFileClip:
     for _ in range(repeats):
         result_clips.append(clip.copy())
     if remainder > 0:
-        result_clips.append(clip.subclip(0, remainder))
+        result_clips.append(clip.subclipped(0, remainder))
     final = concatenate_videoclips(result_clips).with_duration(total_duration)
     return final
 
