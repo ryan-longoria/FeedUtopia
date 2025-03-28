@@ -264,16 +264,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     else:
         gradient_clip = None
 
-    news_key = "artifacts/NEWS.mov"
-    news_local_path = LOCAL_NEWS
-    downloaded_news = download_s3_file(bucket_name, news_key, news_local_path)
+    spinning_artifact = event.get("spinningArtifact", "").strip().upper()
+    news_clip = None
+    if spinning_artifact == "NEWS":
+        news_key = "artifacts/NEWS.mov"
+        news_local_path = LOCAL_NEWS
+        downloaded_news = download_s3_file(bucket_name, news_key, news_local_path)
 
-    if downloaded_news and os.path.exists(news_local_path):
-        raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
-        scale_factor = 300 / raw_news.w
-        news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
-    else:
-        news_clip = None
+        if downloaded_news and os.path.exists(news_local_path):
+            raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
+            scale_factor = 300 / raw_news.w
+            news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
 
     logo_key = "artifacts/Logo.png"
     logo_local_path = LOCAL_LOGO
