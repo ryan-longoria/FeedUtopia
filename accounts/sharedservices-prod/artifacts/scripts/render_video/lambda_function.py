@@ -2,17 +2,15 @@ import datetime
 import json
 import logging
 import os
-import uuid
 from typing import Any, Dict, Set
 
-import numpy as np
 import boto3
 import requests
+import moviepy.video.fx as vfx
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
-import moviepy.video.fx as vfx
-from PIL import ImageFont, ImageDraw, Image
+from PIL import ImageFont, Image
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -33,10 +31,6 @@ s3 = boto3.client("s3")
 
 
 def download_s3_file(bucket_name: str, key: str, local_path: str) -> bool:
-    """
-    Download a file from S3 to the specified local path.
-    Returns True if successful, False otherwise.
-    """
     try:
         s3.download_file(bucket_name, key, local_path)
         return True
@@ -46,10 +40,6 @@ def download_s3_file(bucket_name: str, key: str, local_path: str) -> bool:
 
 
 def download_http_file(url: str, local_path: str, timeout: int = 10) -> bool:
-    """
-    Download a file from an HTTP URL to the specified local path.
-    Returns True if successful, False otherwise.
-    """
     try:
         resp = requests.get(url, timeout=timeout)
         resp.raise_for_status()
@@ -62,10 +52,6 @@ def download_http_file(url: str, local_path: str, timeout: int = 10) -> bool:
 
 
 def measure_text_width_pillow(word: str, font_path: str, font_size: int) -> int:
-    """
-    Measure the width of the given text string in pixels using the specified
-    TrueType font and size.
-    """
     font = ImageFont.truetype(font_path, font_size)
     bbox = font.getbbox(word)
     width = bbox[2] - bbox[0]
@@ -73,9 +59,6 @@ def measure_text_width_pillow(word: str, font_path: str, font_size: int) -> int:
 
 
 def dynamic_font_size(text: str, max_size: int, min_size: int, ideal_length: int) -> int:
-    """
-    Dynamically determine a suitable font size for the given text length.
-    """
     length = len(text)
     if length <= ideal_length:
         return max_size
@@ -96,9 +79,6 @@ def create_multiline_colored_clip(
     line_spacing: int = 10,
     duration: float = 10
 ) -> CompositeVideoClip:
-    """
-    Create a multiline TextClip in which certain words are highlighted.
-    """
     words = full_text.split()
     lines = []
     current_line = []
@@ -143,9 +123,7 @@ def create_multiline_colored_clip(
         if word_clips:
             line_height = word_clips[0].h
             line_width = max(x_offset - space, 1)
-            line_composite = CompositeVideoClip(
-                word_clips, size=(line_width, line_height)
-            ).with_duration(duration)
+            line_composite = CompositeVideoClip(word_clips, size=(line_width, line_height)).with_duration(duration)
             line_clips.append(line_composite)
         else:
             blank = ColorClip((1, 1), color=(0, 0, 0)).with_duration(duration)
@@ -219,16 +197,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         downloaded_artifact = download_s3_file(bucket_name, artifact_key, local_artifact_path)
         if downloaded_artifact and os.path.exists(local_artifact_path):
             raw_clip = VideoFileClip(local_artifact_path, has_mask=True)
-            news_clip = raw_clip.fx(vfx.loop, duration=duration_sec)
+            news_clip = vfx.loop(raw_clip, duration=duration_sec)
             scale_factor = 300 / news_clip.w
-            news_clip = news_clip.fx(vfx.resize, scale_factor)
+            news_clip = vfx.resize(news_clip, scale_factor)
     logo_key = "artifacts/Logo.png"
     logo_local_path = LOCAL_LOGO
     downloaded_logo = download_s3_file(bucket_name, logo_key, logo_local_path)
     if downloaded_logo and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
         scale_logo = 150 / raw_logo.w
-        logo_clip = raw_logo.fx(vfx.resize, scale_logo)
+        logo_clip = vfx.resize(raw_logo, scale_logo)
         logo_x = width - logo_clip.w
         logo_y = height - logo_clip.h
     else:
@@ -240,28 +218,24 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             if spinning_artifact == "TRAILER":
                 scale_factor = width / raw_bg.w
                 new_height = int(raw_bg.h * scale_factor)
-                black_bg = ColorClip((width, height), color=(0, 0, 0))
-                black_bg = black_bg.with_duration(duration_sec)
+                black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
                 y_offset = (height - new_height) // 2
-                scaled_bg = raw_bg.fx(vfx.resize, (width, new_height))
-                scaled_bg = scaled_bg.set_position((0, y_offset))
-                bg_clip = CompositeVideoClip([black_bg, scaled_bg], size=(width, height))
-                bg_clip = bg_clip.set_duration(duration_sec)
+                scaled_bg = vfx.resize(raw_bg, (width, new_height)).set_position((0, y_offset))
+                bg_clip = CompositeVideoClip([black_bg, scaled_bg], size=(width, height)).set_duration(duration_sec)
             else:
-                bg_clip = raw_bg.fx(vfx.resize, (width, height))
-                bg_clip = bg_clip.set_duration(duration_sec)
+                bg_clip = vfx.resize(raw_bg, (width, height)).set_duration(duration_sec)
         else:
             raw_bg = ImageClip(bg_local_path).with_duration(duration_sec)
-            bg_clip = raw_bg.fx(vfx.resize, (width, height))
+            bg_clip = vfx.resize(raw_bg, (width, height))
     else:
         bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
     if downloaded_gradient and os.path.exists(gradient_local_path):
-        gradient_clip = ImageClip(gradient_local_path).fx(vfx.resize, (width, height))
+        gradient_base = ImageClip(gradient_local_path).with_duration(duration_sec)
+        gradient_clip = vfx.resize(gradient_base, (width, height))
     else:
         gradient_clip = None
     clips_complete = [bg_clip]
     if gradient_clip:
-        gradient_clip = gradient_clip.with_duration(duration_sec)
         clips_complete.append(gradient_clip)
     if news_clip:
         clips_complete.append(news_clip)
@@ -356,8 +330,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             title_x = (width - title_w) // 2
             multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
         clips_complete.append(multiline_title_clip)
-    final_comp = CompositeVideoClip(clips_complete, size=(width, height))
-    final_comp = final_comp.set_duration(duration_sec)
+    final_comp = CompositeVideoClip(clips_complete, size=(width, height)).set_duration(duration_sec)
     final_comp.write_videofile(LOCAL_COMPLETE_VIDEO, fps=24, codec="libx264", audio=False)
     try:
         s3.upload_file(
@@ -366,7 +339,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             complete_key,
             ExtraArgs={
                 "ContentType": "video/mp4",
-                "ContentDisposition": 'attachment; filename=\"complete_post.mp4\"'
+                "ContentDisposition": 'attachment; filename="complete_post.mp4"'
             }
         )
     except Exception as e:
