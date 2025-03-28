@@ -206,6 +206,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     :param context: AWS Lambda context object (unused).
     :return: A dict with the 'status' and 'video_key' of the rendered video in S3.
     """
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     logger.info("Render video lambda started")
 
     bucket_name = TARGET_BUCKET
@@ -338,13 +339,22 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         bottom_margin = 50
         gap_between_title_and_sub = 20
 
-        subtitle_y = height - bottom_margin - sub_h
-        subtitle_x = (width - sub_w) // 2
-        multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
+        if spinning_artifact == "TRAILER":
+            title_y = 50
+            title_x = (width - title_w) // 2
+            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
 
-        title_y = subtitle_y - gap_between_title_and_sub - title_h
-        title_x = (width - title_w) // 2
-        multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
+            subtitle_y = (height // 2) - (sub_h // 2)
+            subtitle_x = (width - sub_w) // 2
+            multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
+        else:
+            subtitle_y = height - bottom_margin - sub_h
+            subtitle_x = (width - sub_w) // 2
+            multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
+
+            title_y = subtitle_y - gap_between_title_and_sub - title_h
+            title_x = (width - title_w) // 2
+            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
 
         clips_complete.append(multiline_title_clip)
         clips_complete.append(multiline_subtitle_clip)
