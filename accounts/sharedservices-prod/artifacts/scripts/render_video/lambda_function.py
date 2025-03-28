@@ -252,6 +252,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     if spinning_artifact in ["NEWS", "TRAILER"]:
         if spinning_artifact == "NEWS":
             artifact_key = "artifacts/NEWS.mov"
+        elif spinning_artifact == "TRAILER":
             artifact_key = "artifacts/TRAILER.mov"
 
         local_artifact_path = LOCAL_NEWS
