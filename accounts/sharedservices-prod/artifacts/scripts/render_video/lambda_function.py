@@ -18,7 +18,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 DEFAULT_VIDEO_WIDTH = 1080
-DEFAULT_VIDEO_HEIGHT = 1440
+DEFAULT_VIDEO_HEIGHT = 1350
 DEFAULT_DURATION = 10
 FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
 LOCAL_COMPLETE_VIDEO = "/mnt/efs/complete_post.mp4"
@@ -271,9 +271,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     else:
         logo_clip = None
 
-    # ------------------------------------------------------------------------
-    # EXAMPLE BG LOGIC (TRAILER vs FILL). Adjust as needed for your code
-    # ------------------------------------------------------------------------
     if spinning_artifact == "TRAILER" and downloaded_bg and os.path.exists(bg_local_path):
         raw_bg = ImageClip(bg_local_path)
         scale_factor = width / raw_bg.w
@@ -313,7 +310,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     if logo_clip:
         clips_complete.append(logo_clip)
 
-    # ------------------- TITLE & SUBTITLE LOGIC -------------------
     if description_text:
         title_max_width = 850
         subtitle_max_width = 800
