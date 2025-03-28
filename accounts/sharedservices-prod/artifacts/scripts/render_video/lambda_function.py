@@ -6,10 +6,11 @@ from typing import Any, Dict, Set
 
 import boto3
 import requests
-import moviepy.video.fx as vfx
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
+from moviepy.video.compositing.concatenate import concatenate_videoclips
 from moviepy.video.io.VideoFileClip import VideoFileClip
+import moviepy.video.fx as vfx
 from PIL import ImageFont, Image
 
 logger = logging.getLogger()
@@ -47,15 +48,29 @@ def download_http_file(url: str, local_path: str, timeout: int = 10) -> bool:
             f.write(resp.content)
         return True
     except Exception as e:
-        logger.error(f"HTTP image download failed for '{url}': {e}")
+        logger.error(f"HTTP download failed for '{url}': {e}")
         return False
+
+
+def loop_clip(clip: VideoFileClip, total_duration: float) -> VideoFileClip:
+    result_clips = []
+    d = clip.duration
+    if d <= 0:
+        return clip
+    repeats = int(total_duration // d)
+    remainder = total_duration % d
+    for _ in range(repeats):
+        result_clips.append(clip.copy())
+    if remainder > 0:
+        result_clips.append(clip.subclip(0, remainder))
+    final = concatenate_videoclips(result_clips).set_duration(total_duration)
+    return final
 
 
 def measure_text_width_pillow(word: str, font_path: str, font_size: int) -> int:
     font = ImageFont.truetype(font_path, font_size)
     bbox = font.getbbox(word)
-    width = bbox[2] - bbox[0]
-    return width
+    return bbox[2] - bbox[0]
 
 
 def dynamic_font_size(text: str, max_size: int, min_size: int, ideal_length: int) -> int:
@@ -73,11 +88,11 @@ def create_multiline_colored_clip(
     font_path: str,
     font_size: int,
     max_width: int,
-    color_default: str = "white",
-    color_highlight: str = "#ec008c",
-    space: int = 10,
-    line_spacing: int = 10,
-    duration: float = 10
+    color_default: str,
+    color_highlight: str,
+    space: int,
+    line_spacing: int,
+    duration: float
 ) -> CompositeVideoClip:
     words = full_text.split()
     lines = []
@@ -96,7 +111,6 @@ def create_multiline_colored_clip(
             current_line_width = w_px
     if current_line:
         lines.append(current_line)
-
     line_clips = []
     for line_words in lines:
         x_offset = 0
@@ -107,8 +121,7 @@ def create_multiline_colored_clip(
             pil_font = ImageFont.truetype(font_path, font_size)
             left, top, right, bottom = pil_font.getbbox(w)
             text_w = right - left
-            text_h = bottom - top
-            text_h += 10
+            text_h = (bottom - top) + 10
             txt_clip = TextClip(
                 text=w,
                 font=font_path,
@@ -128,7 +141,6 @@ def create_multiline_colored_clip(
         else:
             blank = ColorClip((1, 1), color=(0, 0, 0)).with_duration(duration)
             line_clips.append(blank)
-
     max_line_width = max((lc.size[0] for lc in line_clips), default=1)
     stacked_clips = []
     current_y = 0
@@ -139,14 +151,8 @@ def create_multiline_colored_clip(
         stacked_clips.append(line_pos)
         current_y += lh + line_spacing
     total_height = max(current_y - line_spacing, 1)
-    max_line_width = 1
-    for lc in line_clips:
-        w, h = lc.size
-        if w > max_line_width:
-            max_line_width = w
-    final_clip = CompositeVideoClip(
-        stacked_clips, size=(max_line_width, total_height)
-    ).with_duration(duration)
+    max_line_width = max((lc.size[0] for lc in line_clips), default=1)
+    final_clip = CompositeVideoClip(stacked_clips, size=(max_line_width, total_height)).with_duration(duration)
     return final_clip
 
 
@@ -197,9 +203,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         downloaded_artifact = download_s3_file(bucket_name, artifact_key, local_artifact_path)
         if downloaded_artifact and os.path.exists(local_artifact_path):
             raw_clip = VideoFileClip(local_artifact_path, has_mask=True)
-            news_clip = vfx.loop(raw_clip, duration=duration_sec)
-            scale_factor = 300 / news_clip.w
-            news_clip = vfx.resize(news_clip, scale_factor)
+            news_clip = loop_clip(raw_clip, duration_sec)
+            factor = 300 / news_clip.w
+            news_clip = vfx.resize(news_clip, factor)
     logo_key = "artifacts/Logo.png"
     logo_local_path = LOCAL_LOGO
     downloaded_logo = download_s3_file(bucket_name, logo_key, logo_local_path)
@@ -216,12 +222,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             raw_bg = VideoFileClip(bg_local_path)
             duration_sec = raw_bg.duration
             if spinning_artifact == "TRAILER":
-                scale_factor = width / raw_bg.w
-                new_height = int(raw_bg.h * scale_factor)
+                factor = width / raw_bg.w
+                new_h = int(raw_bg.h * factor)
                 black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
-                y_offset = (height - new_height) // 2
-                scaled_bg = vfx.resize(raw_bg, (width, new_height)).set_position((0, y_offset))
-                bg_clip = CompositeVideoClip([black_bg, scaled_bg], size=(width, height)).set_duration(duration_sec)
+                y_offset = (height - new_h) // 2
+                resized_bg = vfx.resize(raw_bg, (width, new_h)).set_position((0, y_offset))
+                bg_clip = CompositeVideoClip([black_bg, resized_bg], size=(width, height)).set_duration(duration_sec)
             else:
                 bg_clip = vfx.resize(raw_bg, (width, height)).set_duration(duration_sec)
         else:
@@ -230,8 +236,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     else:
         bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
     if downloaded_gradient and os.path.exists(gradient_local_path):
-        gradient_base = ImageClip(gradient_local_path).with_duration(duration_sec)
-        gradient_clip = vfx.resize(gradient_base, (width, height))
+        gradient_clip = ImageClip(gradient_local_path).with_duration(duration_sec)
+        gradient_clip = vfx.resize(gradient_clip, (width, height))
     else:
         gradient_clip = None
     clips_complete = [bg_clip]
@@ -246,19 +252,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         title_max_width = 850
         subtitle_max_width = 800
         if spinning_artifact == "TRAILER":
-            top_font_size = dynamic_font_size(title_text, 70, 50, 25)
-            subtitle_font_size = dynamic_font_size(description_text, 60, 30, 45)
+            top_fs = dynamic_font_size(title_text, 70, 50, 25)
+            sub_fs = dynamic_font_size(description_text, 60, 30, 45)
         elif spinning_artifact == "NEWS":
-            top_font_size = dynamic_font_size(title_text, 80, 50, 20)
-            subtitle_font_size = dynamic_font_size(description_text, 50, 25, 45)
+            top_fs = dynamic_font_size(title_text, 80, 50, 20)
+            sub_fs = dynamic_font_size(description_text, 50, 25, 45)
         else:
-            top_font_size = 70
-            subtitle_font_size = 50
-        multiline_title_clip = create_multiline_colored_clip(
+            top_fs = 70
+            sub_fs = 50
+        title_clip = create_multiline_colored_clip(
             title_text,
             highlight_words_title,
             FONT_PATH,
-            top_font_size,
+            top_fs,
             title_max_width,
             "white",
             "#ec008c",
@@ -266,11 +272,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             10,
             duration_sec
         )
-        multiline_subtitle_clip = create_multiline_colored_clip(
+        subtitle_clip = create_multiline_colored_clip(
             description_text,
             highlight_words_description,
             FONT_PATH,
-            subtitle_font_size,
+            sub_fs,
             subtitle_max_width,
             "white",
             "#ec008c",
@@ -278,37 +284,36 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             10,
             duration_sec
         )
-        title_w, title_h = multiline_title_clip.size
-        sub_w, sub_h = multiline_subtitle_clip.size
-        bottom_margin = 50
-        gap_between_title_and_sub = 20
+        tw, th = title_clip.size
+        sw, sh = subtitle_clip.size
+        b_margin = 50
+        gap = 20
         if spinning_artifact == "TRAILER":
-            title_y = 275
-            title_x = (width - title_w) // 2
-            single_line_threshold = top_font_size + 10
-            if title_h > single_line_threshold:
-                title_y += 50
-            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
-            subtitle_y = int(height * 0.75)
-            subtitle_x = (width - sub_w) // 2
-            multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
+            ty = 275
+            tx = (width - tw) // 2
+            if th > top_fs + 10:
+                ty += 50
+            title_clip = title_clip.with_position((tx, ty))
+            sy = int(height * 0.75)
+            sx = (width - sw) // 2
+            subtitle_clip = subtitle_clip.with_position((sx, sy))
         else:
-            subtitle_y = height - bottom_margin - sub_h
-            subtitle_x = (width - sub_w) // 2
-            multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
-            title_y = subtitle_y - gap_between_title_and_sub - title_h
-            title_x = (width - title_w) // 2
-            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
-        clips_complete.append(multiline_title_clip)
-        clips_complete.append(multiline_subtitle_clip)
+            sy = height - b_margin - sh
+            sx = (width - sw) // 2
+            subtitle_clip = subtitle_clip.with_position((sx, sy))
+            ty = sy - gap - th
+            tx = (width - tw) // 2
+            title_clip = title_clip.with_position((tx, ty))
+        clips_complete.append(title_clip)
+        clips_complete.append(subtitle_clip)
     else:
         title_max_width = 900
-        bigger_font_size = dynamic_font_size(title_text, 100, 40, 20)
-        multiline_title_clip = create_multiline_colored_clip(
+        bigger_fs = dynamic_font_size(title_text, 100, 40, 20)
+        title_clip = create_multiline_colored_clip(
             title_text,
             highlight_words_title,
             FONT_PATH,
-            bigger_font_size,
+            bigger_fs,
             title_max_width,
             "white",
             "#ec008c",
@@ -316,20 +321,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             10,
             duration_sec
         )
-        title_w, title_h = multiline_title_clip.size
+        tw, th = title_clip.size
         if spinning_artifact == "TRAILER":
-            title_y = 300
-            title_x = (width - title_w) // 2
-            single_line_threshold = bigger_font_size + 10
-            if title_h > single_line_threshold:
-                title_y += 50
-            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
+            ty = 300
+            tx = (width - tw) // 2
+            if th > bigger_fs + 10:
+                ty += 50
+            title_clip = title_clip.with_position((tx, ty))
         else:
-            bottom_margin = 50
-            title_y = height - bottom_margin - title_h
-            title_x = (width - title_w) // 2
-            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
-        clips_complete.append(multiline_title_clip)
+            b_margin = 50
+            ty = height - b_margin - th
+            tx = (width - tw) // 2
+            title_clip = title_clip.with_position((tx, ty))
+        clips_complete.append(title_clip)
     final_comp = CompositeVideoClip(clips_complete, size=(width, height)).set_duration(duration_sec)
     final_comp.write_videofile(LOCAL_COMPLETE_VIDEO, fps=24, codec="libx264", audio=False)
     try:
@@ -344,13 +348,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         )
     except Exception as e:
         logger.error(f"Failed to upload video to S3: {e}")
-        return {
-            "status": "error",
-            "video_key": complete_key,
-            "message": f"Upload error: {str(e)}"
-        }
+        return {"status": "error", "video_key": complete_key, "message": str(e)}
     logger.info("Render video complete")
-    return {
-        "status": "rendered",
-        "video_key": complete_key
-    }
+    return {"status": "rendered", "video_key": complete_key}
