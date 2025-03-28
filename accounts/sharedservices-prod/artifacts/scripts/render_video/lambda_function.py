@@ -274,7 +274,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         raw_bg = ImageClip(bg_local_path)
         scale_factor = width / raw_bg.w
         new_height = int(raw_bg.h * scale_factor)
-        bg_clip = raw_bg.with_effects([vfx.Resize((width, new_height))]).with_duration(duration_sec)
+        black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
+        y_offset = (height - new_height) // 2
+        scaled_bg = raw_bg.with_effects([vfx.Resize((width, new_height))]) \
+                          .with_duration(duration_sec) \
+                          .with_position((0, y_offset))
+        bg_clip = CompositeVideoClip([black_bg, scaled_bg], size=(width, height)).with_duration(duration_sec)
     elif downloaded_bg and os.path.exists(bg_local_path):
         bg_clip = (
             ImageClip(bg_local_path)
