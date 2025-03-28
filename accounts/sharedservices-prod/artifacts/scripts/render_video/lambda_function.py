@@ -254,7 +254,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     downloaded_logo = download_s3_file(bucket_name, logo_key, logo_local_path)
     if downloaded_logo and os.path.exists(logo_local_path):
         raw_logo = ImageClip(logo_local_path)
-        scale_logo = 150 / raw_logo.w
+        scale_logo = 250 / raw_logo.w
         logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
         logo_x = width - logo_clip.w
         logo_y = height - logo_clip.h
@@ -399,7 +399,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         title_w, title_h = multiline_title_clip.size
 
         if spinning_artifact == "TRAILER":
-            title_y = 300
+            title_y = 500
             title_x = (width - title_w) // 2
             single_line_threshold = bigger_font_size + 10
             if title_h > single_line_threshold:
