@@ -350,7 +350,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         gap_between_title_and_sub = 20
 
         if spinning_artifact == "TRAILER":
-            title_y = 300
+            title_y = 275
             title_x = (width - title_w) // 2
 
             single_line_threshold = top_font_size + 10
