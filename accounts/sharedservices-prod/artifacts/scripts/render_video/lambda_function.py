@@ -6,11 +6,12 @@ from typing import Any, Dict, Set
 
 import boto3
 import requests
-from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
-from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
-from moviepy.editor import concatenate_videoclips
-from moviepy.video.io.VideoFileClip import VideoFileClip
-import moviepy.video.fx as vfx
+
+# These imports target MoviePy 2.0+ style (no "moviepy.editor").
+from moviepy import VideoFileClip, concatenate_videoclips, vfx
+from moviepy import ColorClip, ImageClip, TextClip
+from moviepy import CompositeVideoClip
+
 from PIL import ImageFont, Image
 
 logger = logging.getLogger()
@@ -54,7 +55,7 @@ def download_http_file(url: str, local_path: str, timeout: int = 10) -> bool:
 
 def loop_clip(clip: VideoFileClip, total_duration: float) -> VideoFileClip:
     result_clips = []
-    d = clip.duration
+    d = clip.duration if clip.duration else 0
     if d <= 0:
         return clip
     repeats = int(total_duration // d)
@@ -63,7 +64,7 @@ def loop_clip(clip: VideoFileClip, total_duration: float) -> VideoFileClip:
         result_clips.append(clip.copy())
     if remainder > 0:
         result_clips.append(clip.subclip(0, remainder))
-    final = concatenate_videoclips(result_clips).set_duration(total_duration)
+    final = concatenate_videoclips(result_clips).with_duration(total_duration)
     return final
 
 
@@ -111,13 +112,13 @@ def create_multiline_colored_clip(
             current_line_width = w_px
     if current_line:
         lines.append(current_line)
+
     line_clips = []
     for line_words in lines:
         x_offset = 0
         word_clips = []
         for w in line_words:
-            clean_w = w.strip(",.!?;:").upper()
-            color = color_highlight if clean_w in highlight_words else color_default
+            color = color_highlight if w.strip(",.!?;:").upper() in highlight_words else color_default
             pil_font = ImageFont.truetype(font_path, font_size)
             left, top, right, bottom = pil_font.getbbox(w)
             text_w = right - left
@@ -141,6 +142,7 @@ def create_multiline_colored_clip(
         else:
             blank = ColorClip((1, 1), color=(0, 0, 0)).with_duration(duration)
             line_clips.append(blank)
+
     max_line_width = max((lc.size[0] for lc in line_clips), default=1)
     stacked_clips = []
     current_y = 0
@@ -204,8 +206,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         if downloaded_artifact and os.path.exists(local_artifact_path):
             raw_clip = VideoFileClip(local_artifact_path, has_mask=True)
             news_clip = loop_clip(raw_clip, duration_sec)
-            factor = 300 / news_clip.w
-            news_clip = vfx.resize(news_clip, factor)
+            scale_factor = 300 / news_clip.w
+            news_clip = vfx.resize(news_clip, scale_factor)
     logo_key = "artifacts/Logo.png"
     logo_local_path = LOCAL_LOGO
     downloaded_logo = download_s3_file(bucket_name, logo_key, logo_local_path)
@@ -226,10 +228,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
                 new_h = int(raw_bg.h * factor)
                 black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
                 y_offset = (height - new_h) // 2
-                resized_bg = vfx.resize(raw_bg, (width, new_h)).set_position((0, y_offset))
-                bg_clip = CompositeVideoClip([black_bg, resized_bg], size=(width, height)).set_duration(duration_sec)
+                resized_bg = vfx.resize(raw_bg, (width, new_h)).with_position((0, y_offset))
+                bg_clip = CompositeVideoClip([black_bg, resized_bg], size=(width, height)).with_duration(duration_sec)
             else:
-                bg_clip = vfx.resize(raw_bg, (width, height)).set_duration(duration_sec)
+                bg_clip = vfx.resize(raw_bg, (width, height)).with_duration(duration_sec)
         else:
             raw_bg = ImageClip(bg_local_path).with_duration(duration_sec)
             bg_clip = vfx.resize(raw_bg, (width, height))
@@ -334,7 +336,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             tx = (width - tw) // 2
             title_clip = title_clip.with_position((tx, ty))
         clips_complete.append(title_clip)
-    final_comp = CompositeVideoClip(clips_complete, size=(width, height)).set_duration(duration_sec)
+    final_comp = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
     final_comp.write_videofile(LOCAL_COMPLETE_VIDEO, fps=24, codec="libx264", audio=False)
     try:
         s3.upload_file(
