@@ -354,7 +354,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         gap_between_title_and_sub = 20
 
         if spinning_artifact == "TRAILER":
-            title_y = 350
+            title_y = 300
             title_x = (width - title_w) // 2
 
             single_line_threshold = top_font_size + 10
@@ -363,7 +363,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
 
             multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
 
-            subtitle_y = int(height * 0.70)
+            subtitle_y = int(height * 0.75)
             subtitle_x = (width - sub_w) // 2
             multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
         else:
@@ -397,7 +397,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         title_w, title_h = multiline_title_clip.size
 
         if spinning_artifact == "TRAILER":
-            title_y = 350
+            title_y = 300
             title_x = (width - title_w) // 2
             single_line_threshold = bigger_font_size + 10
             if title_h > single_line_threshold:
