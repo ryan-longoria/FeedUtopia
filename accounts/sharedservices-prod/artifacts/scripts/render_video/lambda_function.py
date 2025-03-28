@@ -265,7 +265,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     if downloaded_bg and os.path.exists(bg_local_path):
         logger.info(f"Successfully downloaded background video from {background_path}")
         if background_type == "video":
-            raw_bg = VideoFileClip(bg_local_path)
+            raw_bg = VideoFileClip(bg_local_path, audio=True)
 
             duration_sec = raw_bg.duration
 
@@ -415,7 +415,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         clips_complete.append(multiline_title_clip)
 
     final_comp = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
-    final_comp.write_videofile(LOCAL_COMPLETE_VIDEO, fps=24, codec="libx264", audio=False)
+    final_comp.write_videofile(LOCAL_COMPLETE_VIDEO, fps=24, codec="libx264", audio_codec="aac", audio=True)
 
     try:
         s3.upload_file(
