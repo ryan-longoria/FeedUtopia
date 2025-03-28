@@ -15,7 +15,7 @@ import moviepy.video.fx as vfx
 from PIL import ImageFont, ImageDraw, Image
 
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 DEFAULT_VIDEO_WIDTH = 1440
 DEFAULT_VIDEO_HEIGHT = 1796
