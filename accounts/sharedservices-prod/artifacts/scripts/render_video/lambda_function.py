@@ -17,7 +17,7 @@ from PIL import ImageFont, ImageDraw, Image
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-DEFAULT_VIDEO_WIDTH = 1080
+DEFAULT_VIDEO_WIDTH = 1350
 DEFAULT_VIDEO_HEIGHT = 1080
 DEFAULT_DURATION = 10
 FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
