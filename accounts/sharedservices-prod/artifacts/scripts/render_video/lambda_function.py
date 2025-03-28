@@ -17,8 +17,8 @@ from PIL import ImageFont, ImageDraw, Image
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-DEFAULT_VIDEO_WIDTH = 1080
-DEFAULT_VIDEO_HEIGHT = 1350
+DEFAULT_VIDEO_WIDTH = 1440
+DEFAULT_VIDEO_HEIGHT = 1796
 DEFAULT_DURATION = 10
 FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
 LOCAL_COMPLETE_VIDEO = "/mnt/efs/complete_post.mp4"
