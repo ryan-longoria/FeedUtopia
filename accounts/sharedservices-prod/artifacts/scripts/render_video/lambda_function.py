@@ -263,6 +263,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         logo_clip = None
 
     if downloaded_bg and os.path.exists(bg_local_path):
+        logger.info(f"Successfully downloaded background video from {background_path}")
         if background_type == "video":
             raw_bg = VideoFileClip(bg_local_path)
 
@@ -290,6 +291,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
                     .with_duration(duration_sec)
             )
     else:
+        logger.warning(f"Failed to download background video from {background_path}")
         duration_sec = DEFAULT_DURATION
         bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
 
