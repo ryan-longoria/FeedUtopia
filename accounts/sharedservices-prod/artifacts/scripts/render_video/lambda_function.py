@@ -6,16 +6,9 @@ from typing import Any, Dict, Set
 
 import boto3
 import requests
-
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
-
-try:
-    from moviepy.video.compositing.concatenate import concatenate_videoclips
-except ImportError:
-    raise ImportError("Cannot find 'concatenate_videoclips' in the installed MoviePy version.")
-
 from PIL import ImageFont, Image
 
 logger = logging.getLogger()
@@ -57,22 +50,20 @@ def download_http_file(url: str, local_path: str, timeout: int = 10) -> bool:
         return False
 
 
-def loop_clip(clip: VideoFileClip, total_duration: float) -> VideoFileClip:
-    result_clips = []
-    d = clip.duration or 0
-    if d <= 0:
+def fake_loop_clip(clip: VideoFileClip, total_duration: float) -> VideoFileClip:
+    """
+    Fake "loop" that simply extends the clip's duration to total_duration
+    by freezing the final frame. If the clip is longer than total_duration,
+    it trims it. No real looping is done.
+    """
+    original_duration = clip.duration or 0
+    if original_duration == 0:
         return clip
-    repeats = int(total_duration // d)
-    remainder = total_duration % d
-    for _ in range(repeats):
-        result_clips.append(clip.copy())
-    if remainder > 0:
-        partial = clip.copy()
-        partial = partial.set_duration(remainder)
-        result_clips.append(partial)
-    final = concatenate_videoclips(result_clips)
-    final = final.set_duration(total_duration)
-    return final
+    if original_duration < total_duration:
+        return clip.set_duration(total_duration)
+    if original_duration > total_duration:
+        return clip.set_duration(total_duration)
+    return clip
 
 
 def measure_text_width_pillow(word: str, font_path: str, font_size: int) -> int:
@@ -219,10 +210,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         downloaded_artifact = download_s3_file(bucket_name, artifact_key, local_artifact_path)
         if downloaded_artifact and os.path.exists(local_artifact_path):
             raw_clip = VideoFileClip(local_artifact_path)
-            news_clip = loop_clip(raw_clip, duration_sec)
-            if news_clip.w > 0:
-                scale_factor = 300 / news_clip.w
-                news_clip = news_clip.resize(scale_factor)
+            news_clip = fake_loop_clip(raw_clip, duration_sec)
+            if news_clip.w:
+                factor = 300 / news_clip.w
+                news_clip = news_clip.resize(factor)
 
     logo_key = "artifacts/Logo.png"
     logo_local_path = LOCAL_LOGO
@@ -242,7 +233,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     if downloaded_bg and os.path.exists(bg_local_path):
         if background_type == "video":
             raw_bg = VideoFileClip(bg_local_path)
-            duration_sec = raw_bg.duration or DEFAULT_DURATION
+            if raw_bg.duration:
+                duration_sec = raw_bg.duration
             if spinning_artifact == "TRAILER":
                 if raw_bg.w > 0:
                     factor = width / raw_bg.w
@@ -261,11 +253,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     else:
         bg_clip = ColorClip((width, height), color=(0, 0, 0)).set_duration(duration_sec)
 
+    gradient_clip = None
     if downloaded_gradient and os.path.exists(gradient_local_path):
-        gradient_clip = ImageClip(gradient_local_path).set_duration(duration_sec)
-        gradient_clip = gradient_clip.resize((width, height))
-    else:
-        gradient_clip = None
+        temp_grad = ImageClip(gradient_local_path).set_duration(duration_sec)
+        gradient_clip = temp_grad.resize((width, height))
 
     clips_complete = [bg_clip]
     if gradient_clip:
@@ -301,7 +292,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             10,
             duration_sec
         )
-
         subtitle_clip = create_multiline_colored_clip(
             description_text,
             highlight_words_description,
@@ -314,12 +304,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             10,
             duration_sec
         )
-
         tw, th = title_clip.size
         sw, sh = subtitle_clip.size
         b_margin = 50
         gap = 20
-
         if spinning_artifact == "TRAILER":
             ty = 275
             tx = (width - tw) // 2
@@ -336,7 +324,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             ty = sy - gap - th
             tx = (width - tw) // 2
             title_clip = title_clip.set_position((tx, ty))
-
         clips_complete.append(title_clip)
         clips_complete.append(subtitle_clip)
     else:
