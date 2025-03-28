@@ -23,6 +23,7 @@ DEFAULT_DURATION = 10
 FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
 LOCAL_COMPLETE_VIDEO = "/mnt/efs/complete_post.mp4"
 LOCAL_BG_IMAGE = "/tmp/backgroundimage_converted.jpg"
+LOCAL_BG_VIDEO = "/tmp/backgroundvideo_converted.mp4"
 LOCAL_GRADIENT = "/tmp/Black_Gradient.png"
 LOCAL_NEWS = "/tmp/NEWS.mov"
 LOCAL_LOGO = "/tmp/Logo.png"
@@ -74,12 +75,6 @@ def measure_text_width_pillow(word: str, font_path: str, font_size: int) -> int:
 def dynamic_font_size(text: str, max_size: int, min_size: int, ideal_length: int) -> int:
     """
     Dynamically determine a suitable font size for the given text length.
-
-    :param text: The text to evaluate.
-    :param max_size: The maximum font size.
-    :param min_size: The minimum font size.
-    :param ideal_length: The approximate length at which max_size is ideal.
-    :return: An integer font size within the specified min and max bounds.
     """
     length = len(text)
     if length <= ideal_length:
@@ -103,12 +98,6 @@ def create_multiline_colored_clip(
 ) -> CompositeVideoClip:
     """
     Create a multiline TextClip in which certain words are highlighted.
-
-    This function:
-    - Splits the text into words,
-    - Arranges them into lines up to a maximum width,
-    - Highlights specified words,
-    - Stacks lines vertically into a single CompositeVideoClip.
     """
     words = full_text.split()
     lines = []
@@ -195,16 +184,9 @@ def create_multiline_colored_clip(
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     """
     AWS Lambda handler to render a short social-media video clip based on:
-      - A background image or solid color
-      - Title and optional subtitle text
-      - Highlighted words in title/subtitle
-      - Gradient overlay, news clip overlay, and logo overlay
-
-    :param event: A dict containing the relevant rendering parameters:
-                  title, description, highlightWordsTitle, highlightWordsDescription,
-                  image_path, etc.
-    :param context: AWS Lambda context object (unused).
-    :return: A dict with the 'status' and 'video_key' of the rendered video in S3.
+      - a background image or video
+      - spinning artifacts
+      - text overlays
     """
     logger.info("Render video lambda started")
 
@@ -230,17 +212,22 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     title_text: str = (event.get("title") or "").upper()
     description_text: str = desc_raw.upper() if desc_raw else ""
 
-    image_path = event.get("image_path", None)
+    background_type = event.get("backgroundType", "image").lower()
+    if background_type == "video":
+        background_path = event.get("video_path", "")
+        bg_local_path = LOCAL_BG_VIDEO
+    else:
+        background_path = event.get("image_path", "")
+        bg_local_path = LOCAL_BG_IMAGE
+
     width, height = DEFAULT_VIDEO_WIDTH, DEFAULT_VIDEO_HEIGHT
     duration_sec = DEFAULT_DURATION
 
-    bg_local_path = LOCAL_BG_IMAGE
     downloaded_bg = False
-
-    if image_path and image_path.startswith("http"):
-        downloaded_bg = download_http_file(image_path, bg_local_path, timeout=10)
-    elif image_path:
-        downloaded_bg = download_s3_file(bucket_name, image_path, bg_local_path)
+    if background_path and background_path.startswith("http"):
+        downloaded_bg = download_http_file(background_path, bg_local_path, timeout=10)
+    elif background_path:
+        downloaded_bg = download_s3_file(bucket_name, background_path, bg_local_path)
 
     gradient_key = "artifacts/Black Gradient.png"
     gradient_local_path = LOCAL_GRADIENT
@@ -275,25 +262,29 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     else:
         logo_clip = None
 
-    if spinning_artifact == "TRAILER" and downloaded_bg and os.path.exists(bg_local_path):
-        raw_bg = ImageClip(bg_local_path)
-        scale_factor = width / raw_bg.w
-        new_height = int(raw_bg.h * scale_factor)
-        black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
-        y_offset = (height - new_height) // 2
-        scaled_bg = (
-            raw_bg.with_effects([vfx.Resize((width, new_height))])
-                  .with_duration(duration_sec)
-                  .with_position((0, y_offset))
-        )
-        bg_clip = CompositeVideoClip([black_bg, scaled_bg], size=(width, height)) \
-            .with_duration(duration_sec)
-    elif downloaded_bg and os.path.exists(bg_local_path):
-        bg_clip = (
-            ImageClip(bg_local_path)
-            .with_effects([vfx.Resize((width, height))])
-            .with_duration(duration_sec)
-        )
+    if downloaded_bg and os.path.exists(bg_local_path):
+        if background_type == "video":
+            raw_bg = VideoFileClip(bg_local_path)
+        else:
+            raw_bg = ImageClip(bg_local_path)
+
+        if spinning_artifact == "TRAILER":
+            scale_factor = width / raw_bg.w
+            new_height = int(raw_bg.h * scale_factor)
+            black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
+            y_offset = (height - new_height) // 2
+            scaled_bg = (
+                raw_bg.with_effects([vfx.Resize((width, new_height))])
+                      .with_duration(duration_sec)
+                      .with_position((0, y_offset))
+            )
+            bg_clip = CompositeVideoClip([black_bg, scaled_bg], size=(width, height)) \
+                .with_duration(duration_sec)
+        else:
+            bg_clip = (
+                raw_bg.with_effects([vfx.Resize((width, height))])
+                      .with_duration(duration_sec)
+            )
     else:
         bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
 
