@@ -206,7 +206,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     :param context: AWS Lambda context object (unused).
     :return: A dict with the 'status' and 'video_key' of the rendered video in S3.
     """
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     logger.info("Render video lambda started")
 
     bucket_name = TARGET_BUCKET
@@ -243,7 +242,40 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     elif image_path:
         downloaded_bg = download_s3_file(bucket_name, image_path, bg_local_path)
 
-    if downloaded_bg and os.path.exists(bg_local_path):
+    gradient_key = "artifacts/Black Gradient.png"
+    gradient_local_path = LOCAL_GRADIENT
+    downloaded_gradient = download_s3_file(bucket_name, gradient_key, gradient_local_path)
+
+    spinning_artifact = event.get("spinningArtifact", "").strip().upper()
+    news_clip = None
+    if spinning_artifact == "NEWS":
+        news_key = "artifacts/NEWS.mov"
+        news_local_path = LOCAL_NEWS
+        downloaded_news = download_s3_file(bucket_name, news_key, news_local_path)
+        if downloaded_news and os.path.exists(news_local_path):
+            raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
+            scale_factor = 300 / raw_news.w
+            news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
+
+    logo_key = "artifacts/Logo.png"
+    logo_local_path = LOCAL_LOGO
+    downloaded_logo = download_s3_file(bucket_name, logo_key, logo_local_path)
+    if downloaded_logo and os.path.exists(logo_local_path):
+        raw_logo = ImageClip(logo_local_path)
+        scale_logo = 150 / raw_logo.w
+        logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
+        logo_x = width - logo_clip.w
+        logo_y = height - logo_clip.h
+        logo_clip = logo_clip.with_position((logo_x, logo_y))
+    else:
+        logo_clip = None
+
+    if spinning_artifact == "TRAILER" and downloaded_bg and os.path.exists(bg_local_path):
+        raw_bg = ImageClip(bg_local_path)
+        scale_factor = width / raw_bg.w
+        new_height = int(raw_bg.h * scale_factor)
+        bg_clip = raw_bg.with_effects([vfx.Resize((width, new_height))]).with_duration(duration_sec)
+    elif downloaded_bg and os.path.exists(bg_local_path):
         bg_clip = (
             ImageClip(bg_local_path)
             .with_effects([vfx.Resize((width, height))])
@@ -251,10 +283,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         )
     else:
         bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
-
-    gradient_key = "artifacts/Black Gradient.png"
-    gradient_local_path = LOCAL_GRADIENT
-    downloaded_gradient = download_s3_file(bucket_name, gradient_key, gradient_local_path)
 
     if downloaded_gradient and os.path.exists(gradient_local_path):
         gradient_clip = (
@@ -264,33 +292,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         )
     else:
         gradient_clip = None
-
-    spinning_artifact = event.get("spinningArtifact", "").strip().upper()
-    news_clip = None
-    if spinning_artifact == "NEWS":
-        news_key = "artifacts/NEWS.mov"
-        news_local_path = LOCAL_NEWS
-        downloaded_news = download_s3_file(bucket_name, news_key, news_local_path)
-
-        if downloaded_news and os.path.exists(news_local_path):
-            raw_news = VideoFileClip(news_local_path, has_mask=True).with_duration(duration_sec)
-            scale_factor = 300 / raw_news.w
-            news_clip = raw_news.with_effects([vfx.Resize(scale_factor)])
-
-    logo_key = "artifacts/Logo.png"
-    logo_local_path = LOCAL_LOGO
-    downloaded_logo = download_s3_file(bucket_name, logo_key, logo_local_path)
-
-    if downloaded_logo and os.path.exists(logo_local_path):
-        raw_logo = ImageClip(logo_local_path)
-        scale_logo = 150 / raw_logo.w
-        logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
-
-        logo_x = width - logo_clip.w
-        logo_y = height - logo_clip.h
-        logo_clip = logo_clip.with_position((logo_x, logo_y))
-    else:
-        logo_clip = None
 
     clips_complete = [bg_clip]
     if gradient_clip:
@@ -384,7 +385,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         clips_complete.append(multiline_title_clip)
 
     final_comp = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
-
     final_comp.write_videofile(LOCAL_COMPLETE_VIDEO, fps=24, codec="libx264", audio=False)
 
     try:
