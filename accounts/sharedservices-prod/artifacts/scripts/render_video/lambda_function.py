@@ -341,11 +341,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         gap_between_title_and_sub = 20
 
         if spinning_artifact == "TRAILER":
-            title_y = 50
+            title_y = 350
             title_x = (width - title_w) // 2
             multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
 
-            subtitle_y = (height // 2) - (sub_h // 2)
+            subtitle_y = int(height * 0.8)
             subtitle_x = (width - sub_w) // 2
             multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
         else:
