@@ -247,6 +247,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     downloaded_gradient = download_s3_file(bucket_name, gradient_key, gradient_local_path)
 
     spinning_artifact = event.get("spinningArtifact", "").strip().upper()
+
     news_clip = None
     if spinning_artifact == "NEWS":
         news_key = "artifacts/NEWS.mov"
@@ -270,16 +271,22 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     else:
         logo_clip = None
 
+    # ------------------------------------------------------------------------
+    # EXAMPLE BG LOGIC (TRAILER vs FILL). Adjust as needed for your code
+    # ------------------------------------------------------------------------
     if spinning_artifact == "TRAILER" and downloaded_bg and os.path.exists(bg_local_path):
         raw_bg = ImageClip(bg_local_path)
         scale_factor = width / raw_bg.w
         new_height = int(raw_bg.h * scale_factor)
         black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
         y_offset = (height - new_height) // 2
-        scaled_bg = raw_bg.with_effects([vfx.Resize((width, new_height))]) \
-                          .with_duration(duration_sec) \
-                          .with_position((0, y_offset))
-        bg_clip = CompositeVideoClip([black_bg, scaled_bg], size=(width, height)).with_duration(duration_sec)
+        scaled_bg = (
+            raw_bg.with_effects([vfx.Resize((width, new_height))])
+                  .with_duration(duration_sec)
+                  .with_position((0, y_offset))
+        )
+        bg_clip = CompositeVideoClip([black_bg, scaled_bg], size=(width, height)) \
+            .with_duration(duration_sec)
     elif downloaded_bg and os.path.exists(bg_local_path):
         bg_clip = (
             ImageClip(bg_local_path)
@@ -306,6 +313,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     if logo_clip:
         clips_complete.append(logo_clip)
 
+    # ------------------- TITLE & SUBTITLE LOGIC -------------------
     if description_text:
         title_max_width = 850
         subtitle_max_width = 800
@@ -348,9 +356,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         if spinning_artifact == "TRAILER":
             title_y = 350
             title_x = (width - title_w) // 2
+
+            single_line_threshold = top_font_size + 10
+            if title_h > single_line_threshold:
+                title_y += 50
+
             multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
 
-            subtitle_y = int(height * 0.8)
+            subtitle_y = int(height * 0.70)
             subtitle_x = (width - sub_w) // 2
             multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
         else:
@@ -382,10 +395,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         )
 
         title_w, title_h = multiline_title_clip.size
-        bottom_margin = 50
-        title_y = height - bottom_margin - title_h
-        title_x = (width - title_w) // 2
-        multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
+
+        if spinning_artifact == "TRAILER":
+            title_y = 350
+            title_x = (width - title_w) // 2
+            single_line_threshold = bigger_font_size + 10
+            if title_h > single_line_threshold:
+                title_y += 50
+
+            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
+        else:
+            bottom_margin = 50
+            title_y = height - bottom_margin - title_h
+            title_x = (width - title_w) // 2
+            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
 
         clips_complete.append(multiline_title_clip)
 
