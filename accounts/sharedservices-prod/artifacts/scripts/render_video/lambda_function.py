@@ -245,7 +245,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         local_artifact_path = LOCAL_NEWS
         downloaded_artifact = download_s3_file(bucket_name, artifact_key, local_artifact_path)
         if downloaded_artifact and os.path.exists(local_artifact_path):
-            raw_clip = VideoFileClip(local_artifact_path, has_mask=True).with_duration(duration_sec)
+            raw_clip = VideoFileClip(local_artifact_path, has_mask=True)
             scale_factor = 100 / raw_clip.w
             news_clip = raw_clip.with_effects([vfx.Resize(scale_factor)])
 
@@ -266,11 +266,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         logger.info(f"Successfully downloaded background video from {background_path}")
         if background_type == "video":
             raw_bg = VideoFileClip(bg_local_path, audio=True)
-
-            duration_sec = raw_bg.duration
+            background_duration = raw_bg.duration
+            duration_sec = background_duration
 
         else:
             raw_bg = ImageClip(bg_local_path)
+            background_duration = DEFAULT_DURATION
             duration_sec = DEFAULT_DURATION
 
         if spinning_artifact == "TRAILER":
