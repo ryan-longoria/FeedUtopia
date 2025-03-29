@@ -246,7 +246,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         downloaded_artifact = download_s3_file(bucket_name, artifact_key, local_artifact_path)
         if downloaded_artifact and os.path.exists(local_artifact_path):
             raw_clip = VideoFileClip(local_artifact_path, has_mask=True)
-            scale_factor = 100 / raw_clip.w
+            scale_factor = 150 / raw_clip.w
             news_clip = raw_clip.with_effects([vfx.Resize(scale_factor)])
 
     logo_key = "artifacts/Logo.png"
