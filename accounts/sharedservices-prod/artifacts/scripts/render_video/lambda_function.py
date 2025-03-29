@@ -416,7 +416,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         clips_complete.append(multiline_title_clip)
 
     final_comp = CompositeVideoClip(clips_complete, size=(width, height)).with_duration(duration_sec)
-    final_comp.write_videofile(LOCAL_COMPLETE_VIDEO, fps=24, codec="libx264", audio_codec="aac", audio=True, temp_audiofile="/tmp/temp-audo.m4a", remove_temp=True)
+    final_comp.write_videofile(LOCAL_COMPLETE_VIDEO, fps=24, codec="libx264", audio_codec="aac", audio=True, temp_audiofile="/tmp/temp-audo.m4a", remove_temp=True, threads=2, ffmpeg_params=["-preset", "ultrafast"])
 
     try:
         s3.upload_file(
