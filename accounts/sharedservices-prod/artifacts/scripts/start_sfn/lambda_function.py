@@ -104,6 +104,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     raw_highlight_words_title = body.get("highlightWordsTitle")
     raw_highlight_words_description = body.get("highlightWordsDescription")
     raw_spinningArtifact = body.get("spinningArtifact")
+    raw_background_type = body.get("backgroundType", "image")
+    background_type = extract_value(raw_background_type).lower() or "image"
 
     account_name = extract_value(raw_account_name) or ""
     title = extract_value(raw_title) or ""
@@ -112,26 +114,39 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     highlight_words_description = extract_value(raw_highlight_words_description) or ""
     spinningArtifact = extract_value(raw_spinningArtifact) or ""
 
+
     logger.info(
         "Extracted fields -> accountName: '%s', title: '%s', description: '%s', "
-        "highlightWordsTitle: '%s', highlightWordsDescription: '%s', spinningArtifact: '%s'",
+        "highlightWordsTitle: '%s', highlightWordsDescription: '%s', spinningArtifact: '%s', "
+        "backgroundType: '%s'",
         account_name,
         title,
         description,
         highlight_words_title,
         highlight_words_description,
-        spinningArtifact
+        spinningArtifact,
+        background_type
     )
 
     image_info = body.get("image_path", {})
-    presigned_url = ""
+    presigned_url_image = ""
     if isinstance(image_info, dict):
+        logger.debug("image_path info: %s", json.dumps(image_info))
         bucket = image_info.get("bucket", "")
         key = image_info.get("key", "")
-        logger.debug("image_path info: %s", json.dumps(image_info))
-        presigned_url = generate_presigned_url(bucket, key)
+        presigned_url_image = generate_presigned_url(bucket, key)
     else:
         logger.debug("No valid 'image_path' object found, skipping presigned URL.")
+
+    video_info = body.get("video_path", {})
+    presigned_url_video = ""
+    if isinstance(video_info, dict):
+        logger.debug("video_path info: %s", json.dumps(video_info))
+        bucket = video_info.get("bucket", "")
+        key = video_info.get("key", "")
+        presigned_url_video = generate_presigned_url(bucket, key)
+    else:
+        logger.debug("No valid 'video_path' object found, skipping presigned URL for video.")
 
     sf_input = {
         "accountName": account_name,
@@ -140,10 +155,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         "highlightWordsTitle": highlight_words_title,
         "highlightWordsDescription": highlight_words_description,
         "spinningArtifact": spinningArtifact,
-        "s3_bucket": image_info.get("bucket", ""),
-        "s3_key": image_info.get("key", ""),
-        "image_path": presigned_url,
+        "s3_bucket_image": image_info.get("bucket", ""),
+        "s3_key_image": image_info.get("key", ""),
+        "s3_bucket_video": video_info.get("bucket", ""),
+        "s3_key_video": video_info.get("key", ""),
+        "image_path": presigned_url_image,
+        "video_path": presigned_url_video,
+        "backgroundType": background_type,
     }
+
     logger.info("Final Step Functions input: %s", json.dumps(sf_input))
 
     if not state_machine_arn:
