@@ -252,19 +252,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
                 scale_factor = 500 / raw_clip.w
             news_clip = raw_clip.with_effects([vfx.Resize(scale_factor)]).with_position((0,0))
 
-    logo_key = "artifacts/Logo.png"
-    logo_local_path = LOCAL_LOGO
-    downloaded_logo = download_s3_file(bucket_name, logo_key, logo_local_path)
-    if downloaded_logo and os.path.exists(logo_local_path):
-        raw_logo = ImageClip(logo_local_path)
-        scale_logo = 250 / raw_logo.w
-        logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
-        logo_x = width - logo_clip.w
-        logo_y = height - logo_clip.h
-        logo_clip = logo_clip.with_position((logo_x, logo_y))
-    else:
-        logo_clip = None
-
     if downloaded_bg and os.path.exists(bg_local_path):
         logger.info(f"Successfully downloaded background video from {background_path}")
         if background_type == "video":
@@ -298,6 +285,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         logger.warning(f"Failed to download background video from {background_path}")
         duration_sec = DEFAULT_DURATION
         bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
+
+    logo_key = "artifacts/Logo.png"
+    logo_local_path = LOCAL_LOGO
+    downloaded_logo = download_s3_file(bucket_name, logo_key, logo_local_path)
+    if downloaded_logo and os.path.exists(logo_local_path):
+        raw_logo = ImageClip(logo_local_path)
+        scale_logo = 250 / raw_logo.w
+        logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
+        logo_x = width - logo_clip.w
+        logo_y = height - logo_clip.h
+        logo_clip = logo_clip.with_position((logo_x, logo_y))
+    else:
+        logo_clip = None
 
     if downloaded_gradient and os.path.exists(gradient_local_path):
         gradient_clip = (
