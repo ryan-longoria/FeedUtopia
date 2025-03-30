@@ -140,7 +140,7 @@ def create_multiline_colored_clip(
             pil_font = ImageFont.truetype(font_path, font_size)
             left, top, right, bottom = pil_font.getbbox(w)
             text_w = right - left
-            text_h = (bottom - top) + 10  # padding
+            text_h = (bottom - top) + 10
 
             txt_clip = TextClip(
                 text=w,
@@ -291,10 +291,10 @@ def create_background_clip(
 
 def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[VideoFileClip]:
     """
-    Download and prepare the artifact clip (NEWS/TRAILER), if requested.
+    Download and prepare the artifact clip (NEWS, TRAILER, or FACT), if requested.
     Returns a moviepy clip or None if not used.
     """
-    if spinning_artifact not in ["NEWS", "TRAILER"]:
+    if spinning_artifact not in ["NEWS", "TRAILER", "FACT"]:
         return None
 
     if spinning_artifact == "NEWS":
@@ -303,6 +303,9 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
     elif spinning_artifact == "TRAILER":
         artifact_key = "artifacts/TRAILER.mov"
         scale_target = 500
+    elif spinning_artifact == "FACT":
+        artifact_key = "artifacts/FACT.mov"
+        scale_target = 300
 
     downloaded_artifact = download_s3_file(bucket_name, artifact_key, LOCAL_NEWS)
     if downloaded_artifact and os.path.exists(LOCAL_NEWS):
@@ -368,7 +371,7 @@ def create_text_clips(
             subtitle_font_size = dynamic_font_size(description_text, 60, 30, 45)
             title_max_width = 850
             subtitle_max_width = 800
-        elif spinning_artifact == "NEWS":
+        elif spinning_artifact in ["NEWS", "FACT"]:
             top_font_size = dynamic_font_size(title_text, 80, 50, 20)
             subtitle_font_size = dynamic_font_size(description_text, 50, 25, 45)
             title_max_width = 850
