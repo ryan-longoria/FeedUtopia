@@ -249,7 +249,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
             if spinning_artifact == "NEWS":
                 scale_factor = 300 / raw_clip.w
             elif spinning_artifact == "TRAILER":
-                scale_factor = 800 / raw_clip.w
+                scale_factor = 500 / raw_clip.w
             news_clip = raw_clip.with_effects([vfx.Resize(scale_factor)]).with_position((0,0))
 
     logo_key = "artifacts/Logo.png"
