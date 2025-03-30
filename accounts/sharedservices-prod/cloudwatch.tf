@@ -144,22 +144,6 @@ resource "aws_cloudwatch_metric_alarm" "start_sfn_duration_high" {
   alarm_actions = [aws_sns_topic.monitoring_topic.arn]
 }
 
-resource "aws_cloudwatch_metric_alarm" "render_video_duration_high" {
-  alarm_name          = "${var.project_name}-render-video-duration-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "Duration"
-  namespace           = "AWS/Lambda"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 60000
-  alarm_description   = "Alert if render_video function average duration exceeds 1m in a 5-minute window."
-  dimensions = {
-    FunctionName = aws_lambda_function.render_video.function_name
-  }
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
 resource "aws_cloudwatch_metric_alarm" "notify_post_duration_high" {
   alarm_name          = "${var.project_name}-notify_post-duration-high"
   comparison_operator = "GreaterThanThreshold"
