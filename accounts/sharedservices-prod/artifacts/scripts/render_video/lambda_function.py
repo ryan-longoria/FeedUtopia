@@ -372,7 +372,7 @@ def create_text_clips(
             title_max_width = 850
             subtitle_max_width = 800
         elif spinning_artifact in ["NEWS", "FACT"]:
-            top_font_size = dynamic_font_size(title_text, 100, 50, 20)
+            top_font_size = dynamic_font_size(title_text, 100, 50, 30)
             subtitle_font_size = dynamic_font_size(description_text, 70, 25, 45)
             title_max_width = 850
             subtitle_max_width = 800
