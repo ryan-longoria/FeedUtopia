@@ -527,8 +527,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         background_type=background_type,
         width=DEFAULT_VIDEO_WIDTH,
         height=DEFAULT_VIDEO_HEIGHT,
-        default_duration=DEFAULT_DURATION,
-        spinning_artifact=spinning_artifact
+        default_duration=DEFAULT_DURATION
     )
 
     logo_clip = create_logo_clip(TARGET_BUCKET, duration_sec)
