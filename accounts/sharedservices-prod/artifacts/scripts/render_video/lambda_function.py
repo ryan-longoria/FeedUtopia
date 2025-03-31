@@ -412,7 +412,7 @@ def create_text_clips(
             subtitle_y = int(height * 0.75)
             multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
         else:
-            bottom_margin = 50
+            bottom_margin = 150
             gap_between_title_and_sub = 20
 
             subtitle_y = height - bottom_margin - sub_h
@@ -441,7 +441,7 @@ def create_text_clips(
             title_y = 500
             multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
         else:
-            bottom_margin = 50
+            bottom_margin = 200
             title_x = (width - title_w) // 2
             title_y = height - bottom_margin - title_h
             multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
