@@ -247,8 +247,7 @@ def create_background_clip(
     background_type: str,
     width: int,
     height: int,
-    default_duration: int,
-    spinning_artifact: str
+    default_duration: int
 ) -> Tuple[CompositeVideoClip, float]:
     """
     Create and resize a background clip based on whether it's an image or video.
@@ -258,15 +257,10 @@ def create_background_clip(
         if background_type == "video":
             raw_bg = VideoFileClip(local_path, audio=True)
             duration_sec = raw_bg.duration
-        else:
-            raw_bg = ImageClip(local_path)
-            duration_sec = default_duration
-
-        if spinning_artifact == "TRAILER":
             scale_factor = width / raw_bg.w
             new_height = int(raw_bg.h * scale_factor)
             black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
-            y_offset = (height - new_height) // 2
+            y_offset = (height - new_height) // 2           
             scaled_bg = (
                 raw_bg
                 .with_effects([vfx.Resize((width, new_height))])
@@ -276,6 +270,8 @@ def create_background_clip(
             bg_clip = CompositeVideoClip([black_bg, scaled_bg], size=(width, height))
             bg_clip = bg_clip.with_duration(duration_sec)
         else:
+            raw_bg = ImageClip(local_path)
+            duration_sec = default_duration
             bg_clip = (
                 raw_bg
                 .with_effects([vfx.Resize((width, height))])
@@ -287,6 +283,7 @@ def create_background_clip(
         duration_sec = default_duration
 
     return bg_clip, duration_sec
+
 
 
 def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[VideoFileClip]:
