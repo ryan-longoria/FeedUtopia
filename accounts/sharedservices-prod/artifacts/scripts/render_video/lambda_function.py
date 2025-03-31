@@ -431,7 +431,7 @@ def create_text_clips(
             highlight_words=highlight_words_title,
             font_path=FONT_PATH,
             font_size=bigger_font_size,
-            max_width=925,
+            max_width=1000,
             duration=duration_sec
         )
         title_w, title_h = multiline_title_clip.size
