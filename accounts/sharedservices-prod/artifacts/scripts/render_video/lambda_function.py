@@ -104,7 +104,7 @@ def create_multiline_colored_clip(
     max_width: int,
     color_default: str = "white",
     color_highlight: str = "#ec008c",
-    space: int = 10,
+    space: int = 15,
     line_spacing: int = 10,
     duration: int = 10
 ) -> CompositeVideoClip:
