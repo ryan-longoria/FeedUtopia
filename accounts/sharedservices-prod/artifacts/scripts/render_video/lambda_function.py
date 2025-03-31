@@ -425,7 +425,7 @@ def create_text_clips(
 
         clips.extend([multiline_title_clip, multiline_subtitle_clip])
     else:
-        bigger_font_size = dynamic_font_size(title_text, 150, 75, 40)
+        bigger_font_size = dynamic_font_size(title_text, 125, 75, 40)
         multiline_title_clip = create_multiline_colored_clip(
             full_text=title_text,
             highlight_words=highlight_words_title,
