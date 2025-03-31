@@ -324,7 +324,7 @@ def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[ImageCli
     downloaded_logo = download_s3_file(bucket_name, logo_key, LOCAL_LOGO)
     if downloaded_logo and os.path.exists(LOCAL_LOGO):
         raw_logo = ImageClip(LOCAL_LOGO)
-        scale_logo = 250 / raw_logo.w
+        scale_logo = 200 / raw_logo.w
         logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
         logo_clip = logo_clip.with_position((
             DEFAULT_VIDEO_WIDTH - logo_clip.w, 
@@ -369,7 +369,7 @@ def create_text_clips(
         if spinning_artifact == "TRAILER":
             top_font_size = dynamic_font_size(title_text, 150, 75, 25)
             subtitle_font_size = dynamic_font_size(description_text, 70, 30, 45)
-            title_max_width = 850
+            title_max_width = 900
             subtitle_max_width = 800
         elif spinning_artifact in ["NEWS", "FACT"]:
             top_font_size = dynamic_font_size(title_text, 150, 75, 30)
@@ -379,7 +379,7 @@ def create_text_clips(
         else:
             top_font_size = 70
             subtitle_font_size = 50
-            title_max_width = 850
+            title_max_width = 900
             subtitle_max_width = 800
 
         multiline_title_clip = create_multiline_colored_clip(
@@ -431,7 +431,7 @@ def create_text_clips(
             highlight_words=highlight_words_title,
             font_path=FONT_PATH,
             font_size=bigger_font_size,
-            max_width=900,
+            max_width=925,
             duration=duration_sec
         )
         title_w, title_h = multiline_title_clip.size
