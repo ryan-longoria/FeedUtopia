@@ -23,3 +23,11 @@ resource "aws_lightsail_static_ip" "ecommerce_ip" {
   provider = aws
   name     = "${var.project_name}-lamp-static-ip"
 }
+
+resource "aws_lightsail_static_ip_attachment" "ecommerce_ip_attachment" {
+  provider         = aws
+  static_ip_name   = aws_lightsail_static_ip.ecommerce_ip.name
+  instance_name    = aws_lightsail_instance.ecommerce.name
+
+  depends_on = [aws_lightsail_instance.ecommerce]
+}
