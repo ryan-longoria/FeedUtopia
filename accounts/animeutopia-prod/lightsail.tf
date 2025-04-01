@@ -14,7 +14,7 @@ resource "aws_lightsail_instance" "ecommerce" {
 apt-get update -y
 apt-get upgrade -y
 
-echo "<h1>Welcome to AnimeUtopiaStore!</h1>" > /opt/bitnami/apache/htdocs/index.html
+echo "<h1>Welcome to the AnimeUtopia store!</h1>" > /opt/bitnami/apache/htdocs/index.html
 
 EOF
 }
