@@ -357,3 +357,49 @@ resource "aws_iam_user_policy_attachment" "ms-copilot_attach_policy" {
   user       = aws_iam_user.ms-copilot.name
   policy_arn = aws_iam_policy.s3_full_policy.arn
 }
+
+#############################
+# IAM for AnimeUtopia ecommerce store
+#############################
+
+data "aws_iam_policy_document" "dns_role_trust" {
+  statement {
+    sid = "AllowanimeutopiaAccountToAssume"
+    effect = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type = "AWS"
+      identifiers = [
+        "arn:aws:iam::${var.aws_account_ids.animeutopia}:root"
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "dns_terraform_role" {
+  name               = "animeutopia_DNSROLE"
+  assume_role_policy = data.aws_iam_policy_document.dns_role_trust.json
+}
+
+data "aws_iam_policy_document" "dns_role_policy_doc" {
+  statement {
+    sid     = "Route53Permissions"
+    effect  = "Allow"
+    actions = [
+      "route53:ChangeResourceRecordSets",
+      "route53:ListResourceRecordSets",
+      "route53:ListHostedZonesByName",
+      "route53:ListHostedZones",
+      "route53:GetHostedZone",
+      "route53:GetChange",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "dns_terraform_policy" {
+  name   = "DNSTerraformPolicy"
+  role   = aws_iam_role.dns_terraform_role.id
+  policy = data.aws_iam_policy_document.dns_role_policy_doc.json
+}
