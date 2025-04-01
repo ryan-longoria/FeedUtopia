@@ -18,3 +18,8 @@ echo "<h1>Welcome to AnimeUtopiaStore!</h1>" > /opt/bitnami/apache/htdocs/index.
 
 EOF
 }
+
+resource "aws_lightsail_static_ip" "ecommerce_ip" {
+  provider = aws
+  name     = "${var.project_name}-lamp-static-ip"
+}
