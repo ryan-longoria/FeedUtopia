@@ -374,10 +374,10 @@ def create_text_clips(
             title_max_width = 1300
             subtitle_max_width = 1000
         else:
-            top_font_size = 70
-            subtitle_font_size = 50
-            title_max_width = 900
-            subtitle_max_width = 800
+            top_font_size = dynamic_font_size(title_text, 100, 70, 30)
+            subtitle_font_size = dynamic_font_size(description_text, 70, 25, 45)
+            title_max_width = 1300
+            subtitle_max_width = 1000
 
         multiline_title_clip = create_multiline_colored_clip(
             full_text=title_text,
