@@ -13,12 +13,3 @@ provider "aws" {
     role_arn = "arn:aws:iam::${var.aws_account_ids.animeutopia}:role/TerraformExecutionRole"
   }
 }
-
-provider "aws" {
-  alias   = "dns"
-  region  = var.aws_region
-  
-  assume_role {
-    role_arn = "arn:aws:iam::${var.aws_account_ids.sharedservices}:role/${var.project_name}_DNSRole"
-  }
-}
