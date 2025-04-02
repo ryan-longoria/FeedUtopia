@@ -3,7 +3,7 @@
 ################################################################################
 
 data "aws_route53_zone" "accountstore" {
-  name       = "animeutopiastore.com."
+  name       = "animeutopiastore.com"
   private_zone = false
 }
 
