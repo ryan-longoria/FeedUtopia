@@ -3,7 +3,6 @@
 ################################################################################
 
 resource "aws_lightsail_instance" "ecommerce" {
-  provider          = aws
   name              = "${var.project_name}-lamp"
   availability_zone = "us-east-2a"
   blueprint_id      = "lamp-8-3-17"
@@ -20,7 +19,6 @@ EOF
 }
 
 resource "aws_lightsail_static_ip" "ecommerce_ip" {
-  provider = aws
   name     = "${var.project_name}-lamp-static-ip"
 }
 

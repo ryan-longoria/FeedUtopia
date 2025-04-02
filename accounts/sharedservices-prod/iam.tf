@@ -366,7 +366,6 @@ data "aws_iam_policy_document" "dns_role_trust" {
   statement {
     sid = "AllowanimeutopiaAccountToAssume"
     effect = "Allow"
-    actions = ["sts:AssumeRole"]
 
     principals {
       type = "AWS"
@@ -374,6 +373,10 @@ data "aws_iam_policy_document" "dns_role_trust" {
         "arn:aws:iam::${var.aws_account_ids.animeutopia}:root"
       ]
     }
+
+    actions = [
+      "sts:AssumeRole"
+    ]
   }
 }
 
