@@ -2,14 +2,12 @@
 ## Route 53
 ################################################################################
 
-data "aws_route53_zone" "animeutopiastore" {
-  provider   = aws.dns
+data "aws_route53_zone" "accountstore" {
   name       = "animeutopiastore.com."
   private_zone = false
 }
 
-resource "aws_route53_record" "main_domain_a" {
-  provider = aws.dns
+resource "aws_route53_record" "account_domain_a" {
   zone_id  = data.aws_route53_zone.animeutopiastore.zone_id
   name     = "animeutopiastore.com"
   type     = "A"
