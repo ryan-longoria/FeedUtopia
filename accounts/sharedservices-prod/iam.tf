@@ -370,7 +370,7 @@ data "aws_iam_policy_document" "dns_role_trust" {
     principals {
       type = "AWS"
       identifiers = [
-        "arn:aws:iam::${var.aws_account_ids.animeutopia}:root/Atlantis-EC2-Role"
+        "arn:aws:iam::${var.aws_account_ids.sharedservices}:root"
       ]
     }
 
