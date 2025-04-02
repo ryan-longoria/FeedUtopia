@@ -381,7 +381,7 @@ data "aws_iam_policy_document" "dns_role_trust" {
 }
 
 resource "aws_iam_role" "dns_terraform_role" {
-  name               = "animeutopia_DNSROLE"
+  name               = "animeutopia_DNSRole"
   assume_role_policy = data.aws_iam_policy_document.dns_role_trust.json
 }
 
