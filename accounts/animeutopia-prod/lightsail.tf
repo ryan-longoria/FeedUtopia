@@ -6,7 +6,7 @@ resource "aws_lightsail_instance" "ecommerce" {
   name              = "${var.project_name}-lamp"
   availability_zone = "us-east-2a"
   blueprint_id      = "prestashop_bitnami"
-  bundle_id         = "micro"
+  bundle_id         = "small_3_0"
 
   user_data = <<-EOF
 #!/bin/bash
