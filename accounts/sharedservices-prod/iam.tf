@@ -390,12 +390,7 @@ data "aws_iam_policy_document" "dns_role_policy_doc" {
     sid     = "Route53Permissions"
     effect  = "Allow"
     actions = [
-      "route53:ChangeResourceRecordSets",
-      "route53:ListResourceRecordSets",
-      "route53:ListHostedZonesByName",
-      "route53:ListHostedZones",
-      "route53:GetHostedZone",
-      "route53:GetChange",
+      "route53:*",
     ]
     resources = ["*"]
   }
