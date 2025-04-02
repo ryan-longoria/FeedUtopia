@@ -8,7 +8,7 @@ data "aws_route53_zone" "accountstore" {
 }
 
 resource "aws_route53_record" "account_domain_a" {
-  zone_id  = data.aws_route53_zone.animeutopiastore.zone_id
+  zone_id  = data.aws_route53_zone.accountstore.zone_id
   name     = "animeutopiastore.com"
   type     = "A"
   ttl      = 300
