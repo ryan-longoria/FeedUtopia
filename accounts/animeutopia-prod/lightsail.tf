@@ -5,7 +5,7 @@
 resource "aws_lightsail_instance" "ecommerce" {
   name              = "${var.project_name}-lamp"
   availability_zone = "us-east-2a"
-  blueprint_id      = "lamp-8-3-17"
+  blueprint_id      = "lamp-8-3-19"
   bundle_id         = "medium_2_0"
 
   user_data = <<-EOF
