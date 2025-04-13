@@ -29,6 +29,11 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "media_bucket_encr
 resource "aws_s3_bucket_lifecycle_configuration" "media_bucket_lifecycle" {
   bucket = aws_s3_bucket.media_bucket.id
 
+  depends_on = [
+    aws_s3_bucket_versioning.media_bucket_versioning,
+    aws_s3_bucket_server_side_encryption_configuration.media_bucket_encryption
+  ]
+
   rule {
     id = "delete_posts_after_1_week"
     filter {
