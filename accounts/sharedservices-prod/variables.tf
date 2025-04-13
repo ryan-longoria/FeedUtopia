@@ -14,6 +14,7 @@ variable "aws_account_ids" {
     animeutopia    = string
     wrestleutopia  = string
     driftutopia    = string
+    xputopia       = string
   })
 }
 
