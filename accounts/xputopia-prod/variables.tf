@@ -10,7 +10,7 @@ variable "project_name" {
 variable "aws_account_ids" {
   description = "The AWS Account ID. Used for configuring the provider and defining ECS resources."
   type = object({
-    project        = string
+    xputopia        = string
     sharedservices = string
   })
 }
@@ -40,7 +40,7 @@ variable "terraform_backend_bucket" {
 variable "teams_webhooks" {
   description = "Microsoft Teams account specific webhooks"
   type = object({
-    project = object({
+    xputopia = object({
       auto   = string
       manual = string
     })
@@ -62,7 +62,7 @@ variable "common_tags" {
   type        = map(string)
   default = {
     DeployedBy  = "Terraform"
-    Project     = "project"
+    Project     = "xputopia"
     Environment = "prod"
   }
 }

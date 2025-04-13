@@ -2,6 +2,6 @@
 ## Account Specific Backend Declaraction Variables
 ################################################################################
 
-bucket = "prod-project-backend-bucket"
-key    = "tfstate/project/terraform.tfstate"
+bucket = "prod-xputopia-backend-bucket"
+key    = "tfstate/xputopia/terraform.tfstate"
 region = "us-east-2"
