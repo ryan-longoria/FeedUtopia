@@ -97,6 +97,29 @@ workflows:
             extra_args:
               - "-var-file=tfvars/prod-ue2-driftutopia.tfvars"
               - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+  ########################################################################
+  # xputopia-prod
+  ########################################################################
+  xputopia-prod:
+    plan:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - init:
+            extra_args:
+              - "--backend-config"
+              - "backends/prod-ue2-xputopia.backend.tfvars"
+              - "--reconfigure"
+        - plan:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-xputopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    apply:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - apply:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-xputopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
 projects:
 
@@ -154,6 +177,21 @@ projects:
       enabled: true
       when_modified:
         - "./accounts/driftutopia-prod/**"
+    apply_requirements: [mergeable, undiverged]
+    repo_locks:
+      mode: on_plan
+
+  ########################################################################
+  # xputopia-prod
+  ########################################################################
+
+  - name: xputopia-prod
+    workflow: xputopia-prod
+    dir: accounts/xputopia-prod
+    autoplan:
+      enabled: true
+      when_modified:
+        - "./accounts/xputopia-prod/**"
     apply_requirements: [mergeable, undiverged]
     repo_locks:
       mode: on_plan
