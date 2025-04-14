@@ -15,7 +15,7 @@ RUN yum install -y fontconfig wget unzip curl && \
     wget -O /tmp/ariblk.ttf \
       https://raw.githubusercontent.com/ryan-longoria/FeedUtopia/main/accounts/animeutopia-prod/artifacts/adobe/ariblk.ttf && \
     mv /tmp/ariblk.ttf /usr/share/fonts/truetype/msttcorefonts/ariblk.ttf && \
-    wget -O /tmp/ariblk.ttf \
+    wget -O /tmp/Montserrat-Medium.ttf \
       https://raw.githubusercontent.com/ryan-longoria/FeedUtopia/main/accounts/animeutopia-prod/artifacts/adobe/Montserrat-Medium.ttf && \
     mv /tmp/Montserrat-Medium.ttf /usr/share/fonts/truetype/msttcorefonts/Montserrat-Medium.ttf && \
     fc-cache -f -v
