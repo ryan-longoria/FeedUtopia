@@ -14,8 +14,8 @@ from PIL import ImageFont
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-DEFAULT_VIDEO_WIDTH = 1440
-DEFAULT_VIDEO_HEIGHT = 1796
+DEFAULT_VIDEO_WIDTH = 1080
+DEFAULT_VIDEO_HEIGHT = 1920
 DEFAULT_DURATION = 10
 FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
 
@@ -448,23 +448,6 @@ def create_text_clips(
     return clips
 
 
-def pad_video_to_full_9by16(base_clip: CompositeVideoClip, duration: float) -> CompositeVideoClip:
-    """
-    Pads a 1440x1796 video to 1440x1920 by adding black bars on top and bottom.
-    """
-    padded_height = 1920
-    background = ColorClip(
-        size=(DEFAULT_VIDEO_WIDTH, padded_height),
-        color=(0, 0, 0)
-    ).with_duration(duration)
-
-    y_offset = (padded_height - DEFAULT_VIDEO_HEIGHT) // 2
-    return CompositeVideoClip(
-        [background, base_clip.with_position(("center", y_offset))],
-        size=(DEFAULT_VIDEO_WIDTH, padded_height)
-    ).with_duration(duration)
-
-
 def compose_and_write_final(
     clips_list: list, 
     width: int, 
@@ -473,29 +456,23 @@ def compose_and_write_final(
     output_path: str
 ):
     """
-    Compose the final video from multiple clips, pad it to 9:16, and write to file.
+    Compose the final video from multiple clips and write it to a file.
     """
-    base_clip = CompositeVideoClip(clips_list, size=(width, height)).with_duration(duration_sec)
+    final_comp = CompositeVideoClip(
+        clips_list, size=(width, height)
+    ).with_duration(duration_sec)
 
-    final_clip = pad_video_to_full_9by16(base_clip, duration_sec)
-
-    final_clip.write_videofile(
+    final_comp.write_videofile(
         output_path,
-        fps=30,
+        fps=24,
         codec="libx264",
         audio_codec="aac",
         audio=True,
         temp_audiofile="/tmp/temp-audo.m4a",
         remove_temp=True,
         threads=2,
-        ffmpeg_params=[
-            "-preset", "ultrafast",
-            "-pix_fmt", "yuv420p",
-            "-profile:v", "main",
-            "-movflags", "+faststart"
-        ]
+        ffmpeg_params=["-preset", "ultrafast"]
     )
-
     logger.info("Final video written to %s", output_path)
 
 
