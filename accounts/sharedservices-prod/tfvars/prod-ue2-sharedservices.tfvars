@@ -7,6 +7,6 @@ aws_region                 = "us-east-2"
 environment                = "prod"
 s3_bucket_name             = "prod-sharedservices-media-bucket"
 terraform_backend_bucket   = "prod-sharedservices-backend-bucket"
-render_video_image_uri     = "825765422855.dkr.ecr.us-east-2.amazonaws.com/render_video_repository@sha256:85ce3b1a64d3e2e9da69cb54fbe31099cfd34fe15bae60e27b09bc7c2942b306"
+render_video_image_uri     = "825765422855.dkr.ecr.us-east-2.amazonaws.com/render_video_repository@sha256:6aa9e1e093d1e10c9b5ea30397b49fbd97086293c211fe1eb2b5b42b8d41e02a"
 vpc_cidr                   = "10.1.0.0/16"
 aws_availability_zones     = ["us-east-2a", "us-east-2b"]
