@@ -310,7 +310,6 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
         raw_clip = VideoFileClip(LOCAL_NEWS, has_mask=True)
         scale_factor = scale_target / raw_clip.w
         artifact_clip = raw_clip.with_effects([vfx.Resize(scale_factor)])
-        # Center horizontally, now 115px from the top
         artifact_width = artifact_clip.w
         pos_x = (DEFAULT_VIDEO_WIDTH - artifact_width) / 2
         pos_y = 115
@@ -322,9 +321,6 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
 def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[ImageClip]:
     """
     Download and resize a logo overlay.
-
-    Changed: add 100px more to the previous margins (was 50px right, 100px bottom).
-    So now 150px right, 200px bottom.
     """
     logo_key = "artifacts/Logo.png"
     downloaded_logo = download_s3_file(bucket_name, logo_key, LOCAL_LOGO)
@@ -332,9 +328,8 @@ def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[ImageCli
         raw_logo = ImageClip(LOCAL_LOGO)
         scale_logo = 200 / raw_logo.w
         logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
-        # The new margin is old + 100 => right: 150px, bottom: 200px
         position_x = DEFAULT_VIDEO_WIDTH - logo_clip.w - 150
-        position_y = DEFAULT_VIDEO_HEIGHT - logo_clip.h - 200
+        position_y = DEFAULT_VIDEO_HEIGHT - logo_clip.h - 100
         logo_clip = logo_clip.with_position((position_x, position_y))
         return logo_clip
     return None
@@ -417,16 +412,12 @@ def create_text_clips(
             subtitle_x = (width - sub_w) // 2
             subtitle_y = int(height * 0.75)
         else:
-            bottom_margin = 100
+            bottom_margin = 250
             gap_between_title_and_sub = 30
             subtitle_y = height - bottom_margin - sub_h
             subtitle_x = (width - sub_w) // 2
             title_y = subtitle_y - gap_between_title_and_sub - title_h
             title_x = (width - title_w) // 2
-
-        if background_type == "image":
-            title_y -= 200
-            subtitle_y -= 200
 
         multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
         multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
@@ -452,9 +443,6 @@ def create_text_clips(
             bottom_margin = 100
             title_x = (width - title_w) // 2
             title_y = height - bottom_margin - title_h
-
-        if background_type == "image":
-            title_y -= 200
 
         multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
         clips.append(multiline_title_clip)
