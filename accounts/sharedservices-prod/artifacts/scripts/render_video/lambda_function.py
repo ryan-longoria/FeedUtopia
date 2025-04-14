@@ -18,6 +18,7 @@ DEFAULT_VIDEO_WIDTH = 1080
 DEFAULT_VIDEO_HEIGHT = 1920
 DEFAULT_DURATION = 10
 FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
+SUBTITLE_FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/Montserrat-Medium.ttf"
 
 LOCAL_COMPLETE_VIDEO = "/mnt/efs/complete_post.mp4"
 LOCAL_BG_IMAGE = "/tmp/backgroundimage_converted.jpg"
@@ -430,7 +431,7 @@ def create_text_clips(
         multiline_subtitle_clip = create_multiline_colored_clip(
             full_text=description_text,
             highlight_words=highlight_words_description,
-            font_path=FONT_PATH,
+            font_path=SUBTITLE_FONT_PATH,
             font_size=subtitle_font_size,
             max_width=subtitle_max_width,
             duration=duration_sec
