@@ -312,7 +312,7 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
         artifact_clip = raw_clip.with_effects([vfx.Resize(scale_factor)])
         artifact_width = artifact_clip.w
         pos_x = 0
-        pos_y = 200
+        pos_y = 250
         return artifact_clip.with_position((pos_x, pos_y))
 
     return None
