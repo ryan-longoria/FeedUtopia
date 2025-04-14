@@ -459,12 +459,12 @@ def create_faint_border_overlay(duration: float) -> CompositeVideoClip:
     top_line = ColorClip(
         size=(DEFAULT_VIDEO_WIDTH, line_height),
         color=color
-    ).set_opacity(opacity).with_duration(duration).with_position(("center", 0))
+    ).with_opacity(opacity).with_duration(duration).with_position(("center", 0))
 
     bottom_line = ColorClip(
         size=(DEFAULT_VIDEO_WIDTH, line_height),
         color=color
-    ).set_opacity(opacity).with_duration(duration).with_position(("center", DEFAULT_VIDEO_HEIGHT - line_height))
+    ).with_opacity(opacity).with_duration(duration).with_position(("center", DEFAULT_VIDEO_HEIGHT - line_height))
 
     return CompositeVideoClip(
         [top_line, bottom_line],
