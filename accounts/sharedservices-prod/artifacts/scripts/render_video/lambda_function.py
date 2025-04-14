@@ -448,27 +448,20 @@ def create_text_clips(
     return clips
 
 
-def create_faint_border_overlay(duration: float) -> CompositeVideoClip:
+def pad_video_to_full_9by16(base_clip: CompositeVideoClip, duration: float) -> CompositeVideoClip:
     """
-    Adds faint top and bottom border lines to avoid Instagram auto-padding.
+    Pads a 1440x1796 video to 1440x1920 by adding black bars on top and bottom.
     """
-    line_height = 10
-    color = (0, 0, 0)
-    opacity = 0.2
+    padded_height = 1920
+    background = ColorClip(
+        size=(DEFAULT_VIDEO_WIDTH, padded_height),
+        color=(0, 0, 0)
+    ).with_duration(duration)
 
-    top_line = ColorClip(
-        size=(DEFAULT_VIDEO_WIDTH, line_height),
-        color=color
-    ).with_opacity(opacity).with_duration(duration).with_position(("center", 0))
-
-    bottom_line = ColorClip(
-        size=(DEFAULT_VIDEO_WIDTH, line_height),
-        color=color
-    ).with_opacity(opacity).with_duration(duration).with_position(("center", DEFAULT_VIDEO_HEIGHT - line_height))
-
+    y_offset = (padded_height - DEFAULT_VIDEO_HEIGHT) // 2
     return CompositeVideoClip(
-        [top_line, bottom_line],
-        size=(DEFAULT_VIDEO_WIDTH, DEFAULT_VIDEO_HEIGHT)
+        [background, base_clip.with_position(("center", y_offset))],
+        size=(DEFAULT_VIDEO_WIDTH, padded_height)
     ).with_duration(duration)
 
 
@@ -480,13 +473,13 @@ def compose_and_write_final(
     output_path: str
 ):
     """
-    Compose the final video from multiple clips and write it to a file.
+    Compose the final video from multiple clips, pad it to 9:16, and write to file.
     """
-    final_comp = CompositeVideoClip(
-        clips_list, size=(width, height)
-    ).with_duration(duration_sec)
+    base_clip = CompositeVideoClip(clips_list, size=(width, height)).with_duration(duration_sec)
 
-    final_comp.write_videofile(
+    final_clip = pad_video_to_full_9by16(base_clip, duration_sec)
+
+    final_clip.write_videofile(
         output_path,
         fps=30,
         codec="libx264",
