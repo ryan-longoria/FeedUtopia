@@ -333,7 +333,7 @@ def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[Composit
     scale_logo = 200 / raw_logo.w
     logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
 
-    line_width_left = 400
+    line_width_left = 700
     line_height = 4
     hex_color = "#ec008c"
     line_color = ImageColor.getrgb(hex_color)
