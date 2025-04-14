@@ -297,13 +297,13 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
 
     if spinning_artifact == "NEWS":
         artifact_key = "artifacts/NEWS.mov"
-        scale_target = 300
+        scale_target = 250
     elif spinning_artifact == "TRAILER":
         artifact_key = "artifacts/TRAILER.mov"
         scale_target = 500
     elif spinning_artifact == "FACT":
         artifact_key = "artifacts/FACT.mov"
-        scale_target = 300
+        scale_target = 250
 
     downloaded_artifact = download_s3_file(bucket_name, artifact_key, LOCAL_NEWS)
     if downloaded_artifact and os.path.exists(LOCAL_NEWS):
@@ -311,7 +311,7 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
         scale_factor = scale_target / raw_clip.w
         artifact_clip = raw_clip.with_effects([vfx.Resize(scale_factor)])
         artifact_width = artifact_clip.w
-        pos_x = 0
+        pos_x = 50
         pos_y = 250
         return artifact_clip.with_position((pos_x, pos_y))
 
