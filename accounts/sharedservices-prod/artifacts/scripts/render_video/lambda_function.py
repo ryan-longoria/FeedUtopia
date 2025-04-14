@@ -308,11 +308,10 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
     downloaded_artifact = download_s3_file(bucket_name, artifact_key, LOCAL_NEWS)
     if downloaded_artifact and os.path.exists(LOCAL_NEWS):
         raw_clip = VideoFileClip(LOCAL_NEWS, has_mask=True)
-        scale_factor = scale_target / raw_clip.w
-        artifact_clip = raw_clip.with_effects([vfx.Resize(scale_factor)])
+        artifact_clip = 0
         artifact_width = artifact_clip.w
         pos_x = (DEFAULT_VIDEO_WIDTH - artifact_width) / 2
-        pos_y = 115
+        pos_y = 200
         return artifact_clip.with_position((pos_x, pos_y))
 
     return None
