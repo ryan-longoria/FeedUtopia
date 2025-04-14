@@ -440,7 +440,7 @@ def create_text_clips(
             title_x = (width - title_w) // 2
             title_y = 500
         else:
-            bottom_margin = 100
+            bottom_margin = 250
             title_x = (width - title_w) // 2
             title_y = height - bottom_margin - title_h
 
