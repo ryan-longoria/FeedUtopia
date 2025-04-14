@@ -488,15 +488,21 @@ def compose_and_write_final(
 
     final_comp.write_videofile(
         output_path,
-        fps=24,
+        fps=30,
         codec="libx264",
         audio_codec="aac",
         audio=True,
         temp_audiofile="/tmp/temp-audo.m4a",
         remove_temp=True,
         threads=2,
-        ffmpeg_params=["-preset", "ultrafast"]
+        ffmpeg_params=[
+            "-preset", "ultrafast",
+            "-pix_fmt", "yuv420p",
+            "-profile:v", "main",
+            "-movflags", "+faststart"
+        ]
     )
+
     logger.info("Final video written to %s", output_path)
 
 
