@@ -321,7 +321,8 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
 
 def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[CompositeVideoClip]:
     """
-    Download and resize a logo overlay, then add thin horizontal lines on each side.
+    Download and resize a logo overlay, then add a thin horizontal line on the left side.
+    The entire line+logo composite is placed near the bottom-right with 50px horizontal padding.
     """
     logo_key = "artifacts/Logo.png"
     downloaded_logo = download_s3_file(bucket_name, logo_key, LOCAL_LOGO)
@@ -329,20 +330,18 @@ def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[Composit
         return None
 
     raw_logo = ImageClip(LOCAL_LOGO)
-    scale_logo = 100 / raw_logo.w
+    scale_logo = 200 / raw_logo.w
     logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
 
-    line_width_left = 300
-    line_width_right = 300
+    line_width_left = 900
     line_height = 4
     hex_color = "#ec008c"
     line_color = ImageColor.getrgb(hex_color)
 
     line_left = ColorClip(size=(line_width_left, line_height), color=line_color).with_duration(duration_sec)
-    line_right = ColorClip(size=(line_width_right, line_height), color=line_color).with_duration(duration_sec)
 
     gap_between_line_and_logo = 20
-    total_width = line_width_left + gap_between_line_and_logo + logo_clip.w + gap_between_line_and_logo + line_width_right
+    total_width = line_width_left + gap_between_line_and_logo + logo_clip.w
     total_height = max(line_height, logo_clip.h)
 
     line_left_x = 0
@@ -351,19 +350,15 @@ def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[Composit
     logo_x = line_width_left + gap_between_line_and_logo
     logo_y = (total_height - logo_clip.h) // 2
 
-    line_right_x = logo_x + logo_clip.w + gap_between_line_and_logo
-    line_right_y = (total_height - line_height) // 2
-
     composite_with_lines = CompositeVideoClip(
         [
             line_left.with_position((line_left_x, line_left_y)),
             logo_clip.with_position((logo_x, logo_y)),
-            line_right.with_position((line_right_x, line_right_y)),
         ],
         size=(total_width, total_height),
     ).with_duration(duration_sec)
 
-    final_x = (DEFAULT_VIDEO_WIDTH - total_width) / 2
+    final_x = DEFAULT_VIDEO_WIDTH - total_width - 50
     final_y = DEFAULT_VIDEO_HEIGHT - composite_with_lines.h - 100
 
     return composite_with_lines.with_position((final_x, final_y))
