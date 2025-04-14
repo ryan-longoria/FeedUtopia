@@ -329,7 +329,7 @@ def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[Composit
         return None
 
     raw_logo = ImageClip(LOCAL_LOGO)
-    scale_logo = 200 / raw_logo.w
+    scale_logo = 100 / raw_logo.w
     logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
 
     line_width_left = 300
