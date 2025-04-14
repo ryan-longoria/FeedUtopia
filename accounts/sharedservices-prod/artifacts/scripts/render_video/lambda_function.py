@@ -574,8 +574,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     if logo_clip:
         clips_complete.append(logo_clip)
     clips_complete.extend(text_clips)
-    faint_border_clip = create_faint_border_overlay(duration_sec)
-    clips_complete.append(faint_border_clip)
 
     compose_and_write_final(
         clips_list=clips_complete,
