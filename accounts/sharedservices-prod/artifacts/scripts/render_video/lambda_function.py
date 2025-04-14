@@ -290,7 +290,7 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
     Download and prepare the artifact clip (NEWS, TRAILER, or FACT), if requested.
     Returns a moviepy clip or None if not used.
 
-    Changed to center the artifact (horizontally) with 100px top margin.
+    Changed: place artifact 15px lower (was 100px from the top, now 115px).
     """
     if spinning_artifact not in ["NEWS", "TRAILER", "FACT"]:
         return None
@@ -310,9 +310,10 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
         raw_clip = VideoFileClip(LOCAL_NEWS, has_mask=True)
         scale_factor = scale_target / raw_clip.w
         artifact_clip = raw_clip.with_effects([vfx.Resize(scale_factor)])
+        # Center horizontally, now 115px from the top
         artifact_width = artifact_clip.w
         pos_x = (DEFAULT_VIDEO_WIDTH - artifact_width) / 2
-        pos_y = 100
+        pos_y = 115
         return artifact_clip.with_position((pos_x, pos_y))
 
     return None
@@ -322,7 +323,8 @@ def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[ImageCli
     """
     Download and resize a logo overlay.
 
-    Changed to give a 50px right margin and 100px bottom margin.
+    Changed: add 100px more to the previous margins (was 50px right, 100px bottom).
+    So now 150px right, 200px bottom.
     """
     logo_key = "artifacts/Logo.png"
     downloaded_logo = download_s3_file(bucket_name, logo_key, LOCAL_LOGO)
@@ -330,8 +332,9 @@ def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[ImageCli
         raw_logo = ImageClip(LOCAL_LOGO)
         scale_logo = 200 / raw_logo.w
         logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
-        position_x = DEFAULT_VIDEO_WIDTH - logo_clip.w - 50
-        position_y = DEFAULT_VIDEO_HEIGHT - logo_clip.h - 100
+        # The new margin is old + 100 => right: 150px, bottom: 200px
+        position_x = DEFAULT_VIDEO_WIDTH - logo_clip.w - 150
+        position_y = DEFAULT_VIDEO_HEIGHT - logo_clip.h - 200
         logo_clip = logo_clip.with_position((position_x, position_y))
         return logo_clip
     return None
@@ -365,7 +368,7 @@ def create_text_clips(
     Create text overlay clips (title + optional description) depending
     on the artifact and text presence.
 
-    Changed to shift text 150px higher if background is an image.
+    Changed: shift text 200px higher if background is an image (was 150).
     """
     clips = []
     width, height = DEFAULT_VIDEO_WIDTH, DEFAULT_VIDEO_HEIGHT
@@ -422,8 +425,8 @@ def create_text_clips(
             title_x = (width - title_w) // 2
 
         if background_type == "image":
-            title_y -= 150
-            subtitle_y -= 150
+            title_y -= 200
+            subtitle_y -= 200
 
         multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
         multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
@@ -451,7 +454,7 @@ def create_text_clips(
             title_y = height - bottom_margin - title_h
 
         if background_type == "image":
-            title_y -= 150
+            title_y -= 200
 
         multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
         clips.append(multiline_title_clip)
