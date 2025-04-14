@@ -15,7 +15,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 DEFAULT_VIDEO_WIDTH = 1080
-DEFAULT_VIDEO_HEIGHT = 1440
+DEFAULT_VIDEO_HEIGHT = 1347
 DEFAULT_DURATION = 10
 FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
 
