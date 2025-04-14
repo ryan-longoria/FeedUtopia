@@ -260,7 +260,7 @@ def create_background_clip(
             scale_factor = width / raw_bg.w
             new_height = int(raw_bg.h * scale_factor)
             black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
-            y_offset = (height - new_height) // 2           
+            y_offset = (height - new_height) // 2
             scaled_bg = (
                 raw_bg
                 .with_effects([vfx.Resize((width, new_height))])
@@ -285,11 +285,12 @@ def create_background_clip(
     return bg_clip, duration_sec
 
 
-
 def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[VideoFileClip]:
     """
     Download and prepare the artifact clip (NEWS, TRAILER, or FACT), if requested.
     Returns a moviepy clip or None if not used.
+
+    Changed to center the artifact (horizontally) with 100px top margin.
     """
     if spinning_artifact not in ["NEWS", "TRAILER", "FACT"]:
         return None
@@ -308,7 +309,11 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
     if downloaded_artifact and os.path.exists(LOCAL_NEWS):
         raw_clip = VideoFileClip(LOCAL_NEWS, has_mask=True)
         scale_factor = scale_target / raw_clip.w
-        return raw_clip.with_effects([vfx.Resize(scale_factor)]).with_position((0, 0))
+        artifact_clip = raw_clip.with_effects([vfx.Resize(scale_factor)])
+        artifact_width = artifact_clip.w
+        pos_x = (DEFAULT_VIDEO_WIDTH - artifact_width) / 2
+        pos_y = 100
+        return artifact_clip.with_position((pos_x, pos_y))
 
     return None
 
@@ -316,6 +321,8 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
 def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[ImageClip]:
     """
     Download and resize a logo overlay.
+
+    Changed to give a 50px right margin and 100px bottom margin.
     """
     logo_key = "artifacts/Logo.png"
     downloaded_logo = download_s3_file(bucket_name, logo_key, LOCAL_LOGO)
@@ -323,10 +330,9 @@ def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[ImageCli
         raw_logo = ImageClip(LOCAL_LOGO)
         scale_logo = 200 / raw_logo.w
         logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
-        logo_clip = logo_clip.with_position((
-            DEFAULT_VIDEO_WIDTH - logo_clip.w, 
-            DEFAULT_VIDEO_HEIGHT - logo_clip.h
-        ))
+        position_x = DEFAULT_VIDEO_WIDTH - logo_clip.w - 50
+        position_y = DEFAULT_VIDEO_HEIGHT - logo_clip.h - 100
+        logo_clip = logo_clip.with_position((position_x, position_y))
         return logo_clip
     return None
 
@@ -352,12 +358,14 @@ def create_text_clips(
     highlight_words_title: Set[str],
     highlight_words_description: Set[str],
     spinning_artifact: str,
-    duration_sec: float
+    duration_sec: float,
+    background_type: str
 ) -> list:
     """
     Create text overlay clips (title + optional description) depending
     on the artifact and text presence.
-    Returns a list of text CompositeVideoClips.
+
+    Changed to shift text 150px higher if background is an image.
     """
     clips = []
     width, height = DEFAULT_VIDEO_WIDTH, DEFAULT_VIDEO_HEIGHT
@@ -403,24 +411,25 @@ def create_text_clips(
         if spinning_artifact == "TRAILER":
             title_x = (width - title_w) // 2
             title_y = 275
-            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
-
             subtitle_x = (width - sub_w) // 2
             subtitle_y = int(height * 0.75)
-            multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
         else:
             bottom_margin = 100
             gap_between_title_and_sub = 30
-
             subtitle_y = height - bottom_margin - sub_h
             subtitle_x = (width - sub_w) // 2
-            multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
-
             title_y = subtitle_y - gap_between_title_and_sub - title_h
             title_x = (width - title_w) // 2
-            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
+
+        if background_type == "image":
+            title_y -= 150
+            subtitle_y -= 150
+
+        multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
+        multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
 
         clips.extend([multiline_title_clip, multiline_subtitle_clip])
+
     else:
         bigger_font_size = dynamic_font_size(title_text, 125, 75, 40)
         multiline_title_clip = create_multiline_colored_clip(
@@ -436,21 +445,23 @@ def create_text_clips(
         if spinning_artifact == "TRAILER":
             title_x = (width - title_w) // 2
             title_y = 500
-            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
         else:
             bottom_margin = 100
             title_x = (width - title_w) // 2
             title_y = height - bottom_margin - title_h
-            multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
 
+        if background_type == "image":
+            title_y -= 150
+
+        multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
         clips.append(multiline_title_clip)
 
     return clips
 
 
 def compose_and_write_final(
-    clips_list: list, 
-    width: int, 
+    clips_list: list,
+    width: int,
     height: int,
     duration_sec: float,
     output_path: str
@@ -540,7 +551,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         highlight_words_title,
         highlight_words_description,
         spinning_artifact,
-        duration_sec
+        duration_sec,
+        background_type
     )
 
     clips_complete = [bg_clip]
