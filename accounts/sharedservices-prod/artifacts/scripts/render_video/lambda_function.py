@@ -448,6 +448,30 @@ def create_text_clips(
     return clips
 
 
+def create_faint_border_overlay(duration: float) -> CompositeVideoClip:
+    """
+    Adds faint top and bottom border lines to avoid Instagram auto-padding.
+    """
+    line_height = 10
+    color = (0, 0, 0)
+    opacity = 0.2
+
+    top_line = ColorClip(
+        size=(DEFAULT_VIDEO_WIDTH, line_height),
+        color=color
+    ).set_opacity(opacity).with_duration(duration).with_position(("center", 0))
+
+    bottom_line = ColorClip(
+        size=(DEFAULT_VIDEO_WIDTH, line_height),
+        color=color
+    ).set_opacity(opacity).with_duration(duration).with_position(("center", DEFAULT_VIDEO_HEIGHT - line_height))
+
+    return CompositeVideoClip(
+        [top_line, bottom_line],
+        size=(DEFAULT_VIDEO_WIDTH, DEFAULT_VIDEO_HEIGHT)
+    ).with_duration(duration)
+
+
 def compose_and_write_final(
     clips_list: list, 
     width: int, 
@@ -551,6 +575,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     if logo_clip:
         clips_complete.append(logo_clip)
     clips_complete.extend(text_clips)
+    faint_border_clip = create_faint_border_overlay(duration_sec)
+    clips_complete.append(faint_border_clip)
 
     compose_and_write_final(
         clips_list=clips_complete,
