@@ -401,12 +401,12 @@ def create_text_clips(
         if spinning_artifact == "TRAILER":
             top_font_size = dynamic_font_size(title_text, 125, 75, 25)
             subtitle_font_size = dynamic_font_size(description_text, 70, 30, 45)
-            title_max_width = 900
+            title_max_width = 800
             subtitle_max_width = 800
         elif spinning_artifact in ["NEWS", "FACT"]:
             top_font_size = dynamic_font_size(title_text, 100, 70, 30)
             subtitle_font_size = dynamic_font_size(description_text, 70, 25, 45)
-            title_max_width = 900
+            title_max_width = 800
             subtitle_max_width = 800
         else:
             top_font_size = dynamic_font_size(title_text, 100, 70, 30)
