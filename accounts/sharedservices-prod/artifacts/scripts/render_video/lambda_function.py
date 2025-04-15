@@ -401,17 +401,17 @@ def create_text_clips(
         if spinning_artifact == "TRAILER":
             top_font_size = dynamic_font_size(title_text, 125, 75, 25)
             subtitle_font_size = dynamic_font_size(description_text, 70, 30, 45)
-            title_max_width = 800
+            title_max_width = 1000
             subtitle_max_width = 800
         elif spinning_artifact in ["NEWS", "FACT"]:
             top_font_size = dynamic_font_size(title_text, 100, 70, 30)
             subtitle_font_size = dynamic_font_size(description_text, 70, 25, 45)
-            title_max_width = 800
+            title_max_width = 1000
             subtitle_max_width = 800
         else:
             top_font_size = dynamic_font_size(title_text, 100, 70, 30)
             subtitle_font_size = dynamic_font_size(description_text, 70, 25, 45)
-            title_max_width = 900
+            title_max_width = 1000
             subtitle_max_width = 800
 
         multiline_title_clip = create_multiline_colored_clip(
@@ -441,7 +441,7 @@ def create_text_clips(
             subtitle_x = (width - sub_w) // 2
             subtitle_y = int(height * 0.75)
         else:
-            bottom_margin = 250
+            bottom_margin = 300
             gap_between_title_and_sub = 30
             subtitle_y = height - bottom_margin - sub_h
             subtitle_x = (width - sub_w) // 2
@@ -460,7 +460,7 @@ def create_text_clips(
             highlight_words=highlight_words_title,
             font_path=FONT_PATH,
             font_size=bigger_font_size,
-            max_width=1300,
+            max_width=1000,
             duration=duration_sec
         )
         title_w, title_h = multiline_title_clip.size
@@ -469,7 +469,7 @@ def create_text_clips(
             title_x = (width - title_w) // 2
             title_y = 500
         else:
-            bottom_margin = 250
+            bottom_margin = 300
             title_x = (width - title_w) // 2
             title_y = height - bottom_margin - title_h
 
