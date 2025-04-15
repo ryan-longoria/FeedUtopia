@@ -563,7 +563,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
 
     logo_clip = create_logo_clip(TARGET_BUCKET, duration_sec)
 
-    gradient_clip = create_gradient_clip(TARGET_BUCKET, duration_sec)
+    gradient_clip = None
+    if background_type == "image":
+        gradient_clip = create_gradient_clip(TARGET_BUCKET, duration_sec)
 
     text_clips = create_text_clips(
         title_text,
