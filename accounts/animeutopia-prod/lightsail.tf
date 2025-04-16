@@ -38,3 +38,10 @@ resource "aws_lightsail_lb_attachment" "prestashop_attachment" {
   lb_name       = aws_lightsail_lb.prestashop_lb.name
   instance_name = aws_lightsail_instance.ecommerce.name
 }
+
+resource "aws_lightsail_lb_certificate" "prestashop_cert" {
+  lb_name                   = aws_lightsail_lb.prestashop_lb.name
+  name                      = "${var.project_name}-certificate"
+  domain_name               = "animeutopiastore.com"
+  subject_alternative_names = ["www.animeutopiastore.com"]
+}
