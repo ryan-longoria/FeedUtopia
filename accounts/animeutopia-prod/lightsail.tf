@@ -27,3 +27,14 @@ resource "aws_lightsail_static_ip_attachment" "ecommerce_ip_attachment" {
 
   depends_on = [aws_lightsail_instance.ecommerce]
 }
+
+resource "aws_lightsail_load_balancer" "prestashop_lb" {
+  name              = "${var.project_name}-lb"
+  health_check_path = "/"
+  instance_port     = 80
+}
+
+resource "aws_lightsail_lb_attachment" "prestashop_attachment" {
+  lb_name       = aws_lightsail_load_balancer.prestashop_lb.name
+  instance_name = aws_lightsail_instance.ecommerce.name
+}
