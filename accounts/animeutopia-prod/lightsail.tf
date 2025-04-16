@@ -27,3 +27,21 @@ resource "aws_lightsail_static_ip_attachment" "ecommerce_ip_attachment" {
 
   depends_on = [aws_lightsail_instance.ecommerce]
 }
+
+resource "aws_lightsail_lb" "prestashop_lb" {
+  name              = "${var.project_name}-lb"
+  health_check_path = "/"
+  instance_port     = 80
+}
+
+resource "aws_lightsail_lb_attachment" "prestashop_attachment" {
+  lb_name       = aws_lightsail_lb.prestashop_lb.name
+  instance_name = aws_lightsail_instance.ecommerce.name
+}
+
+resource "aws_lightsail_lb_certificate" "prestashop_cert" {
+  lb_name                   = aws_lightsail_lb.prestashop_lb.name
+  name                      = "${var.project_name}-certificate"
+  domain_name               = "animeutopiastore.com"
+  subject_alternative_names = ["www.animeutopiastore.com"]
+}
