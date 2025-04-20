@@ -286,7 +286,7 @@ def create_background_clip(
     return bg_clip, duration_sec
 
 
-def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[VideoFileClip]:
+def create_artifact_clip(spinning_artifact: str, bucket_name: str, background_type: str) -> Optional[VideoFileClip]:
     """
     Download and prepare the artifact clip (NEWS, TRAILER, or FACT), if requested.
     Returns a moviepy clip or None if not used.
@@ -314,6 +314,8 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str) -> Optional[V
         artifact_width = artifact_clip.w
         pos_x = 50
         pos_y = 250
+        if background_type == "video":
+            pos_y -= 150 
         return artifact_clip.with_position((pos_x, pos_y))
 
     return None
@@ -550,7 +552,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     bg_local_path, downloaded_bg = download_background(event, TARGET_BUCKET)
 
     spinning_artifact = event.get("spinningArtifact", "").strip().upper()
-    artifact_clip = create_artifact_clip(spinning_artifact, TARGET_BUCKET)
+    artifact_clip = create_artifact_clip(spinning_artifact, TARGET_BUCKET, background_type)
 
     bg_clip, duration_sec = create_background_clip(
         local_path=bg_local_path,
