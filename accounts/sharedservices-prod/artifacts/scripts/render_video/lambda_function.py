@@ -293,7 +293,7 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str, background_ty
 
     Changed: place artifact 15px lower (was 100px from the top, now 115px).
     """
-    if spinning_artifact not in ["NEWS", "TRAILER", "FACT"]:
+    if spinning_artifact not in ["NEWS", "TRAILER", "FACT", "THROWBACK"]:
         return None
 
     if spinning_artifact == "NEWS":
@@ -304,6 +304,9 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str, background_ty
         scale_target = 500
     elif spinning_artifact == "FACT":
         artifact_key = "artifacts/FACT.mov"
+        scale_target = 250
+    elif spinning_artifact == "THROWBACK":
+        artifact_key = "artifacts/THROWBACK.mov"
         scale_target = 250
 
     downloaded_artifact = download_s3_file(bucket_name, artifact_key, LOCAL_NEWS)
