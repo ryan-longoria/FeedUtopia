@@ -301,13 +301,13 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str, background_ty
         scale_target = 250
     elif spinning_artifact == "TRAILER":
         artifact_key = "artifacts/TRAILER.mov"
-        scale_target = 500
+        scale_target = 400
     elif spinning_artifact == "FACT":
         artifact_key = "artifacts/FACT.mov"
         scale_target = 250
     elif spinning_artifact == "THROWBACK":
         artifact_key = "artifacts/THROWBACK.mov"
-        scale_target = 250
+        scale_target = 400
 
     downloaded_artifact = download_s3_file(bucket_name, artifact_key, LOCAL_NEWS)
     if downloaded_artifact and os.path.exists(LOCAL_NEWS):
