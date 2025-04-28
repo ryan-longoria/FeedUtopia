@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from typing import Any, Dict, Optional
+import html
 
 import cloudscraper
 import feedparser
@@ -26,11 +27,13 @@ _scraper = cloudscraper.create_scraper(
 )
 
 _ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
+_AMP_RE = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
 
 
 def _clean_xml(text: str) -> str:
-    """Remove characters not allowed in XML 1.0."""
-    return _ILLEGAL_XML_RE.sub("", text)
+    """Remove control chars and escape stray ampersands."""
+    text = _ILLEGAL_XML_RE.sub("", text)
+    return _AMP_RE.sub("&amp;", text)
 
 
 def _download_and_parse(url: str) -> feedparser.FeedParserDict:
