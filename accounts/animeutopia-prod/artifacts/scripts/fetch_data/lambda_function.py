@@ -15,7 +15,7 @@ logger.setLevel(logging.INFO)
 DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (compatible; FeedFetcher-Lambda/1.0; +https://your-site.example)"
+        "Mozilla/5.0 (compatible; FeedFetcher-Lambda/1.0; +https://us-east-2.console.aws.amazon.com)"
     ),
     "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
 }
