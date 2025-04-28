@@ -13,11 +13,13 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
-HEADERS = {
+HEADERS: dict[str, str] = {
     "User-Agent": (
-        "Mozilla/5.0 (compatible; FeedFetcher-Lambda/1.0; +https://us-east-2.console.aws.amazon.com)"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
     ),
-    "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
 }
 
 ALLOWED_CATEGORIES = {"anime", "people", "just for fun", "live-action"}
