@@ -16,3 +16,8 @@ resource "aws_route53_record" "account_domain_a" {
   ttl      = 300
   records  = [aws_lightsail_static_ip.ecommerce_ip.ip_address]
 }
+
+resource "aws_acm_certificate" "ann_proxy_cert" {
+  domain_name       = "rss.${var.domain}"
+  validation_method = "DNS"
+}
