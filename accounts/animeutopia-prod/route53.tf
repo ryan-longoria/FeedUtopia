@@ -21,3 +21,8 @@ resource "aws_acm_certificate" "ann_proxy_cert" {
   domain_name       = "rss.${var.domain}"
   validation_method = "DNS"
 }
+
+data "aws_route53_zone" "this" {
+  name         = var.domain
+  private_zone = false
+}
