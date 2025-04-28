@@ -61,18 +61,14 @@ def _clean_xml(text: str) -> str:
     return _AMP_RE.sub("&amp;", text)
 
 
-def _download_and_parse(url: str) -> feedparser.FeedParserDict:
+def _download_and_parse(url: str) -> tuple[feedparser.FeedParserDict, str]:
     """Download, scrub, and parse the feed, logging bad XML if found."""
     resp = _scraper.get(url, timeout=10)
     resp.raise_for_status()
-
     cleaned = _clean_xml(resp.text)
 
-    try:
-        return feedparser.parse(cleaned)
-    except Exception as exc:
-        _log_bad_xml(cleaned, exc)
-        raise
+    feed = feedparser.parse(cleaned)
+    return feed, cleaned
 
 
 def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
@@ -86,14 +82,13 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
         Dict with 'title', 'link', 'description' or None if nothing matches.
     """
     try:
-        feed = _download_and_parse(feed_url)
+        feed, raw_xml = _download_and_parse(feed_url)
     except Exception as exc:
         logger.error("Could not download RSS feed: %s", exc)
         return None
 
     if feed.bozo and not feed.entries:
-        logger.error("Unreadable RSS feed after scrubbing: %s", feed.bozo_exception)
-        return None
+        _log_bad_xml(raw_xml, feed.bozo_exception)
 
     for entry in feed.entries:
         for tag in entry.get("tags", []):
