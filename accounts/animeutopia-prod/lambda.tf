@@ -17,7 +17,7 @@ resource "aws_lambda_function" "fetch_data" {
 
   environment {
     variables = {
-      ANIME_FEED_URL = "${aws_apigatewayv2_stage.ann_proxy_stage.invoke_url}newsroom/rss.xml"
+      ANIME_FEED_URL = "https://rss.${var.domain}/newsroom/rss.xml"
     }
   }
 
