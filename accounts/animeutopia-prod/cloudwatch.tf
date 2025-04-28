@@ -96,7 +96,7 @@ resource "aws_cloudwatch_metric_alarm" "fetch_data_duration_high" {
   namespace           = "AWS/Lambda"
   period              = 300
   statistic           = "Average"
-  threshold           = 4000
+  threshold           = 20000
   alarm_description   = "Alert if fetch_data function average duration exceeds 4s in a 5-minute window."
   dimensions = {
     FunctionName = aws_lambda_function.fetch_data.function_name
