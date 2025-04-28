@@ -14,37 +14,36 @@ ALLOWED_CATEGORIES = {"anime", "people", "just for fun", "live-action"}
 
 def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
     """
-    Fetch the most recent 'News' post from the given RSS feed URL.
+    Fetch the most recent news post matching allowed categories from the given RSS feed URL.
 
-    :param feed_url: The RSS feed URL.
-    :return: A dict with 'title', 'link', 'description' if found, else None.
+    This function parses the RSS feed and iterates through the available entries,
+    returning the first entry that matches a category listed in ALLOWED_CATEGORIES.
+    Minor feed parsing errors are ignored if entries are still available.
+
+    Args:
+        feed_url (str): The RSS feed URL to parse.
+
+    Returns:
+        Optional[Dict[str, str]]: A dictionary containing 'title', 'link', and 'description'
+        if a matching post is found. Returns None if no matching post exists or the feed is empty.
     """
-    logger.debug(f"Parsing feed from: {feed_url}")
     feed = feedparser.parse(feed_url)
-    logger.debug("Full feed data: %s", feed)
-    
+
     if feed.bozo and not feed.entries:
-        logger.error("Couldn't parse RSS feed: %s", feed.bozo_exception)
+        logger.error("Unreadable RSS feed: %s", feed.bozo_exception)
         return None
 
-
-    try:
-        first = feed.entries[0]
-        
-        tags = first.get("tags", [])
-        
-        for tag_obj in tags:
-            term = tag_obj.get("term", "").lower()
+    for entry in feed.entries:
+        for tag in entry.get("tags", []):
+            term = tag.get("term", "").strip().lower()
             if term in ALLOWED_CATEGORIES:
-                post = {
-                    "title": first.get("title"),
-                    "link": first.get("link"),
-                    "description": first.get("description")
+                return {
+                    "title": entry.get("title", ""),
+                    "link": entry.get("link", ""),
+                    "description": entry.get("description", "")
                 }
-                return post
-    except Exception as error:
-        logger.exception("Error processing feed entries: %s", error)
 
+    logger.info("No matching posts found in RSS feed.")
     return None
 
 
