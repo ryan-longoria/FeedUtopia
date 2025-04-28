@@ -26,7 +26,7 @@ _scraper = cloudscraper.create_scraper(
     }
 )
 
-_ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
+_ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
 _AMP_RE = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
 
 
