@@ -28,6 +28,18 @@ resource "aws_apigatewayv2_stage" "ann_proxy_stage" {
   auto_deploy = true
 }
 
-output "ann_proxy_invoke_url" {
-  value = "${aws_apigatewayv2_stage.ann_proxy_stage.invoke_url}/newsroom/rss.xml"
+resource "aws_apigatewayv2_domain_name" "ann_domain" {
+  domain_name = "rss.${var.domain}"
+
+  domain_name_configuration {
+    certificate_arn = aws_acm_certificate.ann_proxy_cert.arn
+    endpoint_type   = "REGIONAL"
+    security_policy = "TLS_1_2"
+  }
+}
+
+resource "aws_apigatewayv2_api_mapping" "ann_mapping" {
+  api_id      = aws_apigatewayv2_api.ann_proxy.id
+  domain_name = aws_apigatewayv2_domain_name.ann_domain.id
+  stage       = aws_apigatewayv2_stage.ann_proxy_stage.id
 }
