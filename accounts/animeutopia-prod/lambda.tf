@@ -15,6 +15,12 @@ resource "aws_lambda_function" "fetch_data" {
   role             = aws_iam_role.lambda_role.arn
   timeout          = 5
 
+  environment {
+    variables = {
+      ANIME_FEED_URL = "${aws_apigatewayv2_stage.ann_proxy_stage.invoke_url}/newsroom/rss.xml"
+    }
+  }
+
   layers = [
     "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14",
     "arn:aws:lambda:us-east-2:825765422855:layer:Python_cloudscraper:1",
