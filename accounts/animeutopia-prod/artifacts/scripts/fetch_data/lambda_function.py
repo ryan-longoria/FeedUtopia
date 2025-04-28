@@ -13,6 +13,13 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (compatible; FeedFetcher-Lambda/1.0; +https://your-site.example)"
+    ),
+    "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
+}
+
 ALLOWED_CATEGORIES = {"anime", "people", "just for fun", "live-action"}
 
 _ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
@@ -29,7 +36,7 @@ def _download_and_parse(url: str) -> feedparser.FeedParserDict:
     Raises:
         requests.HTTPError: If the GET fails (4xx/5xx).
     """
-    resp = requests.get(url, timeout=10)
+    resp = requests.get(url, headers=HEADERS, timeout=10)
     resp.raise_for_status()
     cleaned = _clean_xml(resp.text)
     return feedparser.parse(cleaned)
