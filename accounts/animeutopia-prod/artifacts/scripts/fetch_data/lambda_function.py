@@ -30,6 +30,7 @@ _scraper = cloudscraper.create_scraper(
 
 _ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
 _AMP_RE = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
+_TAG_BACKSLASH_RE = re.compile(r"<\s*\\\s*")
 
 def _log_bad_xml(chunk: str, exc: Exception) -> None:
     """
@@ -56,10 +57,10 @@ def _log_bad_xml(chunk: str, exc: Exception) -> None:
     )
 
 def _clean_xml(text: str) -> str:
-    """Remove control chars and escape stray ampersands."""
+    """Remove control chars, escape stray ampersands, fix back-slashed tags."""
     text = _ILLEGAL_XML_RE.sub("", text)
     text = _AMP_RE.sub("&amp;", text)
-    text = text.replace("<\\/", "</").replace("<\\", "<")
+    text = _TAG_BACKSLASH_RE.sub("<", text)
     return text
 
 
