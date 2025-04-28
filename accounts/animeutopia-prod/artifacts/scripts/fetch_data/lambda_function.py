@@ -6,6 +6,8 @@ import os
 import re
 from typing import Any, Dict, Optional
 import html
+import binascii
+import textwrap
 
 import cloudscraper
 import feedparser
@@ -29,6 +31,29 @@ _scraper = cloudscraper.create_scraper(
 _ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
 _AMP_RE = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
 
+def _log_bad_xml(chunk: str, exc: Exception) -> None:
+    """
+    Write information about the ExpatError to CloudWatch:
+    * line/column
+    * 32-byte hex dump around the offending byte
+    """
+    logger.error("Expat error: %s", exc)
+
+    m = re.search(r":(\d+):(\d+)", str(exc))
+    if not m:
+        logger.error("Could not extract position from error string.")
+        return
+
+    line, col = map(int, m.groups())
+    abs_pos = sum(len(l) + 1 for l in chunk.splitlines(True)[: line - 1]) + col - 1
+    start, end = max(abs_pos - 16, 0), min(abs_pos + 16, len(chunk))
+    snippet = chunk[start:end].encode("utf-8", "replace")
+
+    logger.error(
+        "Hex dump around error (offset %d):\n%s",
+        abs_pos,
+        textwrap.indent(binascii.hexlify(snippet).decode(), "  "),
+    )
 
 def _clean_xml(text: str) -> str:
     """Remove control chars and escape stray ampersands."""
@@ -37,18 +62,17 @@ def _clean_xml(text: str) -> str:
 
 
 def _download_and_parse(url: str) -> feedparser.FeedParserDict:
-    """
-    Download `url`, scrub illegal bytes, and parse with feedparser.
-
-    Raises:
-        cloudscraper.exceptions.CloudflareChallengeError or
-        requests.exceptions.RequestException on network issues.
-    """
+    """Download, scrub, and parse the feed, logging bad XML if found."""
     resp = _scraper.get(url, timeout=10)
     resp.raise_for_status()
 
     cleaned = _clean_xml(resp.text)
-    return feedparser.parse(cleaned)
+
+    try:
+        return feedparser.parse(cleaned)
+    except Exception as exc:
+        _log_bad_xml(cleaned, exc)
+        raise
 
 
 def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
