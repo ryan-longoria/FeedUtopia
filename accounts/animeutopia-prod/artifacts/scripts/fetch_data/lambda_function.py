@@ -58,7 +58,9 @@ def _log_bad_xml(chunk: str, exc: Exception) -> None:
 def _clean_xml(text: str) -> str:
     """Remove control chars and escape stray ampersands."""
     text = _ILLEGAL_XML_RE.sub("", text)
-    return _AMP_RE.sub("&amp;", text)
+    text = _AMP_RE.sub("&amp;", text)
+    text = text.replace("<\\/", "</").replace("<\\", "<")
+    return text
 
 
 def _download_and_parse(url: str) -> tuple[feedparser.FeedParserDict, str]:
