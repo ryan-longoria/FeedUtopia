@@ -66,3 +66,8 @@ variable "common_tags" {
     Environment = "prod"
   }
 }
+
+variable "domain" {
+  description = "Root DNS zone"
+  type        = string
+}
