@@ -6,28 +6,30 @@ import os
 import re
 from typing import Any, Dict, Optional
 
+import cloudscraper
 import feedparser
-import requests
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
-HEADERS: dict[str, str] = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
 ALLOWED_CATEGORIES = {"anime", "people", "just for fun", "live-action"}
+
+_scraper = cloudscraper.create_scraper(
+    browser={
+        "custom": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36 FeedFetcher-Lambda"
+        )
+    }
+)
 
 _ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
 
+
 def _clean_xml(text: str) -> str:
-    """Strip characters that are not allowed in XML 1.0."""
+    """Remove characters not allowed in XML 1.0."""
     return _ILLEGAL_XML_RE.sub("", text)
 
 
@@ -36,17 +38,17 @@ def _download_and_parse(url: str) -> feedparser.FeedParserDict:
     Download `url`, scrub illegal bytes, and parse with feedparser.
 
     Raises:
-        requests.HTTPError: If the GET fails (4xx/5xx).
+        cloudscraper.exceptions.CloudflareChallengeError or
+        requests.exceptions.RequestException on network issues.
     """
-    resp = requests.get(url, headers=HEADERS, timeout=10)
+    resp = _scraper.get(url, timeout=10)
     resp.raise_for_status()
+
     cleaned = _clean_xml(resp.text)
     return feedparser.parse(cleaned)
 
 
-def fetch_latest_news_post(
-    feed_url: str = DEFAULT_FEED_URL,
-) -> Optional[Dict[str, str]]:
+def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
     """
     Return the first feed entry whose <category> matches ALLOWED_CATEGORIES.
 
@@ -54,12 +56,11 @@ def fetch_latest_news_post(
         feed_url: RSS feed URL to query.
 
     Returns:
-        A dict with 'title', 'link', 'description' keys, or ``None`` if no
-        matching post exists (or the feed is empty/unreadable).
+        Dict with 'title', 'link', 'description' or None if nothing matches.
     """
     try:
         feed = _download_and_parse(feed_url)
-    except requests.RequestException as exc:
+    except Exception as exc:
         logger.error("Could not download RSS feed: %s", exc)
         return None
 
@@ -69,8 +70,7 @@ def fetch_latest_news_post(
 
     for entry in feed.entries:
         for tag in entry.get("tags", []):
-            term = tag.get("term", "").strip().lower()
-            if term in ALLOWED_CATEGORIES:
+            if tag.get("term", "").strip().lower() in ALLOWED_CATEGORIES:
                 return {
                     "title": entry.get("title", ""),
                     "link": entry.get("link", ""),
@@ -88,8 +88,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         {
             "status": "post_found" | "no_post",
-            "post_id":  <md5 of link> (only when post_found),
-            "post":     {...}        (only when post_found)
+            "post_id": <md5(link)> ,    # only when post_found
+            "post":    {...}            # only when post_found
         }
     """
     feed_url = os.getenv("ANIME_FEED_URL", DEFAULT_FEED_URL)
@@ -100,11 +100,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         stable_post_id = hashlib.md5(link.encode("utf-8")).hexdigest()
         logger.info("Found post; stable_post_id=%s", stable_post_id)
 
-        return {
-            "status": "post_found",
-            "post_id": stable_post_id,
-            "post": post,
-        }
+        return {"status": "post_found", "post_id": stable_post_id, "post": post}
 
     logger.info("No post found")
     return {"status": "no_post"}
