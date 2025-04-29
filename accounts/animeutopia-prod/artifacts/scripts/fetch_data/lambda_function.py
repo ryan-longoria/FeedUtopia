@@ -31,10 +31,14 @@ _ILLEGAL_XML = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
 _AMP = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
 
 _SCRAPER = cloudscraper.create_scraper(
-    delay               = 10,
-    browser             = "chrome",
-    platform            = "windows",
-    mobile              = False,
+    delay=10,
+    browser={
+        "custom": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36 FeedFetcher-Lambda"
+        )
+    },
 )
 
 
