@@ -34,6 +34,7 @@ _TAG_BACKSLASH_RE = re.compile(r"<\s*\\\s*")
 _BAD_TAG_RE = re.compile(r"</?(?:div|span|img|script|iframe)[^>]*>", re.I)
 _ALLOWED_TAGS = r"(?:a|p|br|img)"
 _ESCAPE_LEFT_ANGLE_RE = re.compile(r"<(?!(/?\s*" + _ALLOWED_TAGS + r")\b)", re.I)
+_DECL_RE = re.compile(r"<![^>]*>", re.I)
 
 def _log_bad_xml(chunk: str, exc: Exception) -> None:
     """
@@ -63,6 +64,7 @@ def _log_bad_xml(chunk: str, exc: Exception) -> None:
 def _clean_xml(text: str) -> str:
     """Make ANN’s feed XML-safe for Expat."""
     text = _ILLEGAL_XML_RE.sub("", text)
+    text = _DECL_RE.sub("", text)
     text = _AMP_RE.sub("&amp;", text)
     text = _TAG_BACKSLASH_RE.sub("<", text)
     text = _BAD_TAG_RE.sub("", text)
