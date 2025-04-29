@@ -1,121 +1,86 @@
 from __future__ import annotations
 
+import binascii
 import hashlib
 import logging
 import os
 import re
-from typing import Any, Dict, Optional
-import binascii
 import textwrap
+from typing import Any, Dict, Optional
 
-import cloudscraper
 import feedparser
+import requests
 
-logger = logging.getLogger()
+__all__ = ["lambda_handler"]
+
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
-ALLOWED_CATEGORIES = {"anime", "people", "just for fun", "live-action"}
+NEWS_USER = os.environ["ANN_NEWS_USER"]
+NEWS_PASS = os.environ["ANN_NEWS_PASS"]
 
-_scraper = cloudscraper.create_scraper(
-    browser={
-        "custom": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36 FeedFetcher-Lambda"
-        )
-    }
+DEFAULT_FEED_URL = (
+    "https://www.animenewsnetwork.com/newsfeed/getnews.php"
+    f"?u={NEWS_USER}&p={NEWS_PASS}"
+    "&filter=anime,people,just for fun,live-action"
 )
 
-_ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
-_AMP_RE = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
-_TAG_BACKSLASH_RE = re.compile(r"<\s*\\\s*")
+ALLOWED_CATEGORIES = {"anime", "people", "just for fun", "live-action"}
 
-_ALLOWED = r"(?:a|p|br|img)"
-_ESCAPE_LT = re.compile(r"<(?!\s*/?\s*" + _ALLOWED + r"\b)", re.I | re.S)
+_ILLEGAL_XML = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
+_AMP = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
 
-_DECL_RE = re.compile(r"<![^>]*>", re.I | re.S)
-_BAD_TAG_RE = re.compile(r"</?(?:div|span|script|iframe)[^>]*>", re.I | re.S)
+
+def _clean_xml(text: str) -> str:
+    """Remove control bytes and escape stray ampersands."""
+    text = _ILLEGAL_XML.sub("", text)
+    return _AMP.sub("&amp;", text)
+
 
 def _log_bad_xml(chunk: str, exc: Exception) -> None:
-    """
-    Write information about the ExpatError to CloudWatch:
-    * line/column
-    * 32-byte hex dump around the offending byte
-    """
-    logger.error("Expat error: %s", exc)
-
+    """Emit a hex dump around the byte that made ``feedparser`` choke."""
     m = re.search(r":(\d+):(\d+)", str(exc))
     if not m:
-        logger.error("Could not extract position from error string.")
+        logger.error("Expat error: %s", exc)
         return
-
     line, col = map(int, m.groups())
-    abs_pos = sum(len(l) + 1 for l in chunk.splitlines(True)[: line - 1]) + col - 1
-    start, end = max(abs_pos - 16, 0), min(abs_pos + 16, len(chunk))
-    snippet = chunk[start:end].encode("utf-8", "replace")
-
+    offset = sum(len(l) + 1 for l in chunk.splitlines(True)[: line - 1]) + col - 1
+    snippet = chunk[max(offset - 16, 0) : offset + 16].encode("utf-8", "replace")
     logger.error(
-        "Hex dump around error (offset %d):\n%s",
-        abs_pos,
+        "Expat error at line %d col %d (offset %d)\n%s",
+        line,
+        col,
+        offset,
         textwrap.indent(binascii.hexlify(snippet).decode(), "  "),
     )
 
 
-def _clean_xml(text: str) -> str:
-    """Scrub ANN feed so that Expat can’t choke on bad markup."""
-    text = _ILLEGAL_XML_RE.sub("", text)
-    text = _DECL_RE.sub("", text)
-    text = _BAD_TAG_RE.sub("", text)
-    text = _AMP_RE.sub("&amp;", text)
-    text = _TAG_BACKSLASH_RE.sub("<", text)
-    text = _ESCAPE_LT.sub("&lt;", text)
-    return text
-
-
 def _download_and_parse(url: str) -> tuple[feedparser.FeedParserDict, str]:
-    """Download, scrub, and parse the feed, logging bad XML if found."""
-    resp = _scraper.get(url, timeout=10)
+    """Download *url*, sanitise its body and return the parsed feed."""
+    resp = requests.get(url, timeout=10, headers={"Accept": "application/rss+xml"})
     resp.raise_for_status()
-
-    raw_text = resp.text
-    cleaned  = _clean_xml(raw_text)
-
-    if "<rss" not in cleaned[:1000].lower() and "<feed" not in cleaned[:1000].lower():
+    cleaned = _clean_xml(resp.text)
+    if "<rss" not in cleaned[:500].lower() and "<feed" not in cleaned[:500].lower():
         logger.error(
             "Downloaded content does not look like RSS. "
-            "First 200 chars (after cleaning): %s",
-            cleaned[:200].replace("\n", " ")
+            "First 200 chars: %s",
+            cleaned[:200].replace("\n", " "),
         )
-
-        fake = feedparser.FeedParserDict(entries=[])
-        fake.bozo = False
-        fake.bozo_exception = None
-        return fake, cleaned
-
-    feed = feedparser.parse(cleaned)
-    return feed, cleaned
+        return feedparser.FeedParserDict(entries=[]), cleaned
+    return feedparser.parse(cleaned), cleaned
 
 
-def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
-    """
-    Return the first feed entry whose <category> matches ALLOWED_CATEGORIES.
-
-    Args:
-        feed_url: RSS feed URL to query.
-
-    Returns:
-        Dict with 'title', 'link', 'description' or None if nothing matches.
-    """
+def fetch_latest_news_post(
+    feed_url: str = DEFAULT_FEED_URL,
+) -> Optional[Dict[str, str]]:
+    """Return the first feed entry whose category is in ``ALLOWED_CATEGORIES``."""
     try:
         feed, raw_xml = _download_and_parse(feed_url)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.error("Could not download RSS feed: %s", exc)
         return None
-
-    if feed.bozo and feed.bozo_exception:
+    if getattr(feed, "bozo", False) and getattr(feed, "bozo_exception", None):
         _log_bad_xml(raw_xml, feed.bozo_exception)
-
     for entry in feed.entries:
         for tag in entry.get("tags", []):
             if tag.get("term", "").strip().lower() in ALLOWED_CATEGORIES:
@@ -124,31 +89,16 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
                     "link": entry.get("link", ""),
                     "description": entry.get("description", ""),
                 }
-
     logger.info("No matching posts found in RSS feed.")
     return None
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """
-    Step-Functions task handler.
-
-    Returns:
-        {
-            "status": "post_found" | "no_post",
-            "post_id": <md5(link)> ,    # only when post_found
-            "post":    {...}            # only when post_found
-        }
-    """
-    feed_url = os.getenv("ANIME_FEED_URL", DEFAULT_FEED_URL)
-
-    post = fetch_latest_news_post(feed_url)
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # noqa: D401
+    """AWS Lambda entry-point."""
+    post = fetch_latest_news_post()
     if post:
-        link = post["link"] or ""
-        stable_post_id = hashlib.md5(link.encode("utf-8")).hexdigest()
-        logger.info("Found post; stable_post_id=%s", stable_post_id)
-
-        return {"status": "post_found", "post_id": stable_post_id, "post": post}
-
+        pid = hashlib.md5(post["link"].encode()).hexdigest()
+        logger.info("Found post; id=%s", pid)
+        return {"status": "post_found", "post_id": pid, "post": post}
     logger.info("No post found")
     return {"status": "no_post"}
