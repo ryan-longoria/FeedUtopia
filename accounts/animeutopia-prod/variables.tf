@@ -71,3 +71,11 @@ variable "domain" {
   description = "Root DNS zone"
   type        = string
 }
+
+variable "ann_news_user" {
+  type = string
+}
+
+variable "ann_news_pass" {
+  type = string
+}
