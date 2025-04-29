@@ -5,7 +5,6 @@ import logging
 import os
 import re
 from typing import Any, Dict, Optional
-import html
 import binascii
 import textwrap
 
@@ -100,7 +99,7 @@ def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[st
         logger.error("Could not download RSS feed: %s", exc)
         return None
 
-    if feed.bozo and not feed.entries:
+    if feed.bozo and feed.bozo_exception:
         _log_bad_xml(raw_xml, feed.bozo_exception)
 
     for entry in feed.entries:
