@@ -78,11 +78,20 @@ def _download_and_parse(url: str) -> tuple[feedparser.FeedParserDict, str]:
     resp = _scraper.get(url, timeout=10)
     resp.raise_for_status()
 
-    if "<rss" not in resp.text[:1000].lower():
-        logger.error("Downloaded content is not RSS! First 200 chars:\n%s", resp.text[:200])
-        return feedparser.FeedParserDict(), resp.text
+    raw_text = resp.text
+    cleaned  = _clean_xml(raw_text)
 
-    cleaned = _clean_xml(resp.text)
+    if "<rss" not in cleaned[:1000].lower() and "<feed" not in cleaned[:1000].lower():
+        logger.error(
+            "Downloaded content does not look like RSS. "
+            "First 200 chars (after cleaning): %s",
+            cleaned[:200].replace("\n", " ")
+        )
+
+        fake = feedparser.FeedParserDict(entries=[])
+        fake.bozo = False
+        fake.bozo_exception = None
+        return fake, cleaned
 
     feed = feedparser.parse(cleaned)
     return feed, cleaned
