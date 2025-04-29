@@ -7,7 +7,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 import bs4
-import requests
+import cloudscraper
 
 __all__ = ["lambda_handler"]
 
@@ -32,43 +32,55 @@ _AMP = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
 
 
 def _clean(text: str) -> str:
-    """Remove control characters and escape stray ampersands."""
-    text = _ILLEGAL_XML.sub("", text)
-    return _AMP.sub("&amp;", text)
+    """Strip control bytes and escape stray ampersands."""
+    return _AMP.sub("&amp;", _ILLEGAL_XML.sub("", text))
 
 
 def _fetch_feed(url: str = DEFAULT_FEED_URL) -> str:
-    """Return the raw Newsfeed HTML fragment from ANN."""
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36 FeedFetcher-Lambda"
-        ),
-        "Referer": REFERER,
-        "Accept": "text/html",
-    }
-    resp = requests.get(url, timeout=10, headers=headers)
+    """
+    Download ANN’s Newsfeed, letting cloudscraper handle Cloudflare’s
+    JavaScript challenge automatically.
+    """
+    scraper = cloudscraper.create_scraper(
+        browser={
+            "custom": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36 FeedFetcher-Lambda"
+            )
+        }
+    )
+
+    resp = scraper.get(
+        url,
+        timeout=10,
+        headers={
+            "Referer": REFERER,
+            "Accept": "text/html",
+        },
+    )
     resp.raise_for_status()
     return _clean(resp.text)
 
 
 def _parse_items(html_text: str) -> List[Dict[str, str]]:
-    """Extract structured items from the Newsfeed HTML fragment."""
+    """Convert ANN’s HTML fragment into structured dicts."""
     soup = bs4.BeautifulSoup(html_text, "html.parser")
     items: List[Dict[str, str]] = []
 
     for p in soup.find_all("p"):
-        b = p.find("b")
-        a = b.find("a") if b else None
-        if not a or not a.text:
+        bold = p.find("b")
+        link = bold.find("a") if bold else None
+        if not link or not link.text:
             continue
-        _, _, category_part = b.get_text(" ", strip=True).rpartition(" - ")
+
+        _, _, category_part = bold.get_text(" ", strip=True).rpartition(" - ")
         description = _HTML_TAG_RE.sub("", p.get_text(" ", strip=True)).split("]")[0]
+
         items.append(
             {
-                "title": a.text.strip(),
-                "link": a["href"],
+                "title": link.text.strip(),
+                "link": link["href"],
                 "description": description.strip(),
                 "category": category_part.lower(),
             }
@@ -77,9 +89,7 @@ def _parse_items(html_text: str) -> List[Dict[str, str]]:
 
 
 def fetch_latest_news_post(url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
-    """
-    Return the most recent Newsfeed entry whose category is in ``ALLOWED_CATEGORIES``.
-    """
+    """Return the newest Newsfeed item whose category is allowed."""
     try:
         raw_html = _fetch_feed(url)
     except Exception as exc:
@@ -96,15 +106,7 @@ def fetch_latest_news_post(url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, st
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    AWS Lambda entry-point.
-
-    Returns
-    -------
-    dict
-        * ``status`` – ``post_found`` | ``no_post``
-        * ``post_id`` – MD5 of the link (only when ``post_found``)
-        * ``post`` – dict with ``title``, ``link``, ``description`` (only when
-          ``post_found``)
+    AWS-Lambda entry-point expected by the Step Functions state machine.
     """
     post = fetch_latest_news_post()
     if post:
