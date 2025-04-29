@@ -17,7 +17,7 @@ ALLOWED_CATEGORIES: Set[str] = {
 }
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 def fetch_latest_news_post(
@@ -32,9 +32,8 @@ def fetch_latest_news_post(
     """
     feed = feedparser.parse(feed_url)
 
-    status = getattr(feed, "status", 200)
-    if status >= 400:
-        logger.error("RSS returned HTTP %s", status)
+    if getattr(feed, "status", 200) >= 400:
+        logger.error("RSS returned HTTP %s", getattr(feed, "status", "???"))
         return None
 
     if feed.bozo:
@@ -42,7 +41,7 @@ def fetch_latest_news_post(
 
     for entry in feed.entries:
         for tag in entry.get("tags", []):
-            if tag.get("term", "").lower() in ALLOWED_CATEGORIES:
+            if tag.get("term", "").strip().lower() in ALLOWED_CATEGORIES:
                 post = {
                     "title": entry.get("title", "").strip(),
                     "link": entry.get("link", "").strip(),
