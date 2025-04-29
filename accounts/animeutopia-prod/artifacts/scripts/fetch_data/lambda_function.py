@@ -77,6 +77,11 @@ def _download_and_parse(url: str) -> tuple[feedparser.FeedParserDict, str]:
     """Download, scrub, and parse the feed, logging bad XML if found."""
     resp = _scraper.get(url, timeout=10)
     resp.raise_for_status()
+
+    if "<rss" not in resp.text[:1000].lower():
+        logger.error("Downloaded content is not RSS! First 200 chars:\n%s", resp.text[:200])
+        return feedparser.FeedParserDict(), resp.text
+
     cleaned = _clean_xml(resp.text)
 
     feed = feedparser.parse(cleaned)
