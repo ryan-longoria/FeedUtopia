@@ -26,7 +26,7 @@ resource "aws_lambda_function" "fetch_data" {
   layers = [
     "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14",
     "arn:aws:lambda:us-east-2:825765422855:layer:Python_bs4:1",
-    "arn:aws:lambda:us-east-2:825765422855:layer:Python_Requests:1"
+    "arn:aws:lambda:us-east-2:825765422855:layer:Python_cloudscraper:1"
   ]
 
   dead_letter_config {
