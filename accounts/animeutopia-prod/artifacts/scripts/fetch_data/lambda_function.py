@@ -27,22 +27,18 @@ def fetch_latest_news_post(
     Return the first entry in *feed_url* whose category matches one of the
     allowed categories.
 
-    The returned dict always contains ``title``, ``link``, and
-    ``description`` keys.  ``None`` is returned when no matching entry is
-    found or the HTTP status code is not 200.
+    The result always contains ``title``, ``link``, and ``description`` or
+    is ``None`` when nothing qualifies.
     """
     feed = feedparser.parse(feed_url)
 
-    if getattr(feed, "status", 200) != 200:
-        logger.error("RSS returned HTTP %s", getattr(feed, "status", "???"))
+    status = getattr(feed, "status", 200)
+    if status >= 400:
+        logger.error("RSS returned HTTP %s", status)
         return None
 
     if feed.bozo:
         logger.warning("Feed malformed: %s", feed.bozo_exception)
-
-    if not feed.entries:
-        logger.info("Parsed OK but feed is empty.")
-        return None
 
     for entry in feed.entries:
         for tag in entry.get("tags", []):
@@ -59,13 +55,12 @@ def fetch_latest_news_post(
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    AWS Lambda entry point used by the Step Functions state machine.
+    AWS Lambda entry point for the Step Functions state machine.
 
-    Returns
-    -------
-    dict
-        On success: ``{"status": "post_found", "post_id": <md5>, "post": {…}}``
-        When nothing qualifies: ``{"status": "no_post"}``
+    On success:
+        {"status": "post_found", "post_id": <md5>, "post": {...}}
+    Otherwise:
+        {"status": "no_post"}
     """
     feed_url = os.getenv("ANIME_FEED_URL", DEFAULT_FEED_URL)
     post = fetch_latest_news_post(feed_url)
