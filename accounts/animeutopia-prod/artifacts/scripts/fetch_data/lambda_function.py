@@ -17,18 +17,34 @@ ALLOWED_CATEGORIES: Set[str] = {
 }
 
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
+
+
+def _matches_allowed(entry: Dict[str, Any]) -> bool:
+    for tag in entry.get("tags", []):
+        if tag.get("term", "").strip().lower() in ALLOWED_CATEGORIES:
+            return True
+    if "category" in entry:
+        if entry["category"].strip().lower() in ALLOWED_CATEGORIES:
+            return True
+    return False
+
+
+def _to_post(entry: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    post = {
+        "title": entry.get("title", "").strip(),
+        "link": entry.get("link", "").strip(),
+        "description": entry.get("description", "").strip(),
+    }
+    return post if all(post.values()) else None
 
 
 def fetch_latest_news_post(
     feed_url: str = DEFAULT_FEED_URL,
 ) -> Optional[Dict[str, str]]:
     """
-    Return the first entry in *feed_url* whose category matches one of the
-    allowed categories.
-
-    The result always contains ``title``, ``link``, and ``description`` or
-    is ``None`` when nothing qualifies.
+    Return the newest item in *feed_url* whose category is allowed.
+    If categories are missing, return the first item.
     """
     feed = feedparser.parse(feed_url)
 
@@ -39,27 +55,19 @@ def fetch_latest_news_post(
     if feed.bozo:
         logger.warning("Feed malformed: %s", feed.bozo_exception)
 
+    if not feed.entries:
+        return None
+
     for entry in feed.entries:
-        for tag in entry.get("tags", []):
-            if tag.get("term", "").strip().lower() in ALLOWED_CATEGORIES:
-                post = {
-                    "title": entry.get("title", "").strip(),
-                    "link": entry.get("link", "").strip(),
-                    "description": entry.get("description", "").strip(),
-                }
-                if all(post.values()):
-                    return post
-    return None
+        if _matches_allowed(entry):
+            return _to_post(entry)
+
+    return _to_post(feed.entries[0])
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     AWS Lambda entry point for the Step Functions state machine.
-
-    On success:
-        {"status": "post_found", "post_id": <md5>, "post": {...}}
-    Otherwise:
-        {"status": "no_post"}
     """
     feed_url = os.getenv("ANIME_FEED_URL", DEFAULT_FEED_URL)
     post = fetch_latest_news_post(feed_url)
