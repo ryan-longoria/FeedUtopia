@@ -16,6 +16,7 @@ logger.setLevel(logging.INFO)
 
 NEWS_USER = os.environ["ANN_NEWS_USER"]
 NEWS_PASS = os.environ["ANN_NEWS_PASS"]
+REFERER   = os.environ.get("TEAMS_WEBHOOK_URL")
 
 DEFAULT_FEED_URL = (
     "https://www.animenewsnetwork.com/newsfeed/getnews.php"
@@ -30,7 +31,7 @@ _ILLEGAL_XML = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
 _AMP = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
 
 
-def _clean_html(text: str) -> str:
+def _clean(text: str) -> str:
     """Remove control characters and escape stray ampersands."""
     text = _ILLEGAL_XML.sub("", text)
     return _AMP.sub("&amp;", text)
@@ -38,9 +39,18 @@ def _clean_html(text: str) -> str:
 
 def _fetch_feed(url: str = DEFAULT_FEED_URL) -> str:
     """Return the raw Newsfeed HTML fragment from ANN."""
-    resp = requests.get(url, timeout=10, headers={"Accept": "text/html"})
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36 FeedFetcher-Lambda"
+        ),
+        "Referer": REFERER,
+        "Accept": "text/html",
+    }
+    resp = requests.get(url, timeout=10, headers=headers)
     resp.raise_for_status()
-    return _clean_html(resp.text)
+    return _clean(resp.text)
 
 
 def _parse_items(html_text: str) -> List[Dict[str, str]]:
@@ -49,26 +59,18 @@ def _parse_items(html_text: str) -> List[Dict[str, str]]:
     items: List[Dict[str, str]] = []
 
     for p in soup.find_all("p"):
-        bold = p.find("b")
-        if not bold:
+        b = p.find("b")
+        a = b.find("a") if b else None
+        if not a or not a.text:
             continue
-
-        link_tag = bold.find("a")
-        if not link_tag or not link_tag.text:
-            continue
-
-        _, _, cat_part = bold.get_text(" ", strip=True).rpartition(" - ")
-        category = cat_part.lower()
-
-        description = _HTML_TAG_RE.sub("", p.get_text(" ", strip=True))
-        description = description.split("]")[0].strip()
-
+        _, _, category_part = b.get_text(" ", strip=True).rpartition(" - ")
+        description = _HTML_TAG_RE.sub("", p.get_text(" ", strip=True)).split("]")[0]
         items.append(
             {
-                "title": link_tag.text.strip(),
-                "link": link_tag["href"],
-                "description": description,
-                "category": category,
+                "title": a.text.strip(),
+                "link": a["href"],
+                "description": description.strip(),
+                "category": category_part.lower(),
             }
         )
     return items
@@ -79,18 +81,14 @@ def fetch_latest_news_post(url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, st
     Return the most recent Newsfeed entry whose category is in ``ALLOWED_CATEGORIES``.
     """
     try:
-        html_text = _fetch_feed(url)
+        raw_html = _fetch_feed(url)
     except Exception as exc:
         logger.error("Could not download Newsfeed: %s", exc)
         return None
 
-    for item in _parse_items(html_text):
+    for item in _parse_items(raw_html):
         if item["category"] in ALLOWED_CATEGORIES:
-            return {
-                "title": item["title"],
-                "link": item["link"],
-                "description": item["description"],
-            }
+            return {k: item[k] for k in ("title", "link", "description")}
 
     logger.info("No matching posts found in Newsfeed.")
     return None
