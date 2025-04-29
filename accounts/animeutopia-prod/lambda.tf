@@ -17,7 +17,8 @@ resource "aws_lambda_function" "fetch_data" {
 
   environment {
     variables = {
-      ANIME_FEED_URL = "https://rss.${var.domain}/newsroom/rss.xml"
+      ANN_NEWS_USER = var.ann_news_user
+      ANN_NEWS_PASS = var.ann_news_pass
     }
   }
 
