@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import binascii
 import hashlib
 import logging
 import os
 import re
-import textwrap
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-import feedparser
+import bs4
 import requests
 
 __all__ = ["lambda_handler"]
@@ -22,83 +20,99 @@ NEWS_PASS = os.environ["ANN_NEWS_PASS"]
 DEFAULT_FEED_URL = (
     "https://www.animenewsnetwork.com/newsfeed/getnews.php"
     f"?u={NEWS_USER}&p={NEWS_PASS}"
-    "&filter=anime,people,just for fun,live-action"
+    "&filter=anime,people,just%20for%20fun,live-action"
 )
 
 ALLOWED_CATEGORIES = {"anime", "people", "just for fun", "live-action"}
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
 _ILLEGAL_XML = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
 _AMP = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
 
 
-def _clean_xml(text: str) -> str:
-    """Remove control bytes and escape stray ampersands."""
+def _clean_html(text: str) -> str:
+    """Remove control characters and escape stray ampersands."""
     text = _ILLEGAL_XML.sub("", text)
     return _AMP.sub("&amp;", text)
 
 
-def _log_bad_xml(chunk: str, exc: Exception) -> None:
-    """Emit a hex dump around the byte that made ``feedparser`` choke."""
-    m = re.search(r":(\d+):(\d+)", str(exc))
-    if not m:
-        logger.error("Expat error: %s", exc)
-        return
-    line, col = map(int, m.groups())
-    offset = sum(len(l) + 1 for l in chunk.splitlines(True)[: line - 1]) + col - 1
-    snippet = chunk[max(offset - 16, 0) : offset + 16].encode("utf-8", "replace")
-    logger.error(
-        "Expat error at line %d col %d (offset %d)\n%s",
-        line,
-        col,
-        offset,
-        textwrap.indent(binascii.hexlify(snippet).decode(), "  "),
-    )
-
-
-def _download_and_parse(url: str) -> tuple[feedparser.FeedParserDict, str]:
-    """Download *url*, sanitise its body and return the parsed feed."""
-    resp = requests.get(url, timeout=10, headers={"Accept": "application/rss+xml"})
+def _fetch_feed(url: str = DEFAULT_FEED_URL) -> str:
+    """Return the raw Newsfeed HTML fragment from ANN."""
+    resp = requests.get(url, timeout=10, headers={"Accept": "text/html"})
     resp.raise_for_status()
-    cleaned = _clean_xml(resp.text)
-    if "<rss" not in cleaned[:500].lower() and "<feed" not in cleaned[:500].lower():
-        logger.error(
-            "Downloaded content does not look like RSS. "
-            "First 200 chars: %s",
-            cleaned[:200].replace("\n", " "),
+    return _clean_html(resp.text)
+
+
+def _parse_items(html_text: str) -> List[Dict[str, str]]:
+    """Extract structured items from the Newsfeed HTML fragment."""
+    soup = bs4.BeautifulSoup(html_text, "html.parser")
+    items: List[Dict[str, str]] = []
+
+    for p in soup.find_all("p"):
+        bold = p.find("b")
+        if not bold:
+            continue
+
+        link_tag = bold.find("a")
+        if not link_tag or not link_tag.text:
+            continue
+
+        _, _, cat_part = bold.get_text(" ", strip=True).rpartition(" - ")
+        category = cat_part.lower()
+
+        description = _HTML_TAG_RE.sub("", p.get_text(" ", strip=True))
+        description = description.split("]")[0].strip()
+
+        items.append(
+            {
+                "title": link_tag.text.strip(),
+                "link": link_tag["href"],
+                "description": description,
+                "category": category,
+            }
         )
-        return feedparser.FeedParserDict(entries=[]), cleaned
-    return feedparser.parse(cleaned), cleaned
+    return items
 
 
-def fetch_latest_news_post(
-    feed_url: str = DEFAULT_FEED_URL,
-) -> Optional[Dict[str, str]]:
-    """Return the first feed entry whose category is in ``ALLOWED_CATEGORIES``."""
+def fetch_latest_news_post(url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
+    """
+    Return the most recent Newsfeed entry whose category is in ``ALLOWED_CATEGORIES``.
+    """
     try:
-        feed, raw_xml = _download_and_parse(feed_url)
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Could not download RSS feed: %s", exc)
+        html_text = _fetch_feed(url)
+    except Exception as exc:
+        logger.error("Could not download Newsfeed: %s", exc)
         return None
-    if getattr(feed, "bozo", False) and getattr(feed, "bozo_exception", None):
-        _log_bad_xml(raw_xml, feed.bozo_exception)
-    for entry in feed.entries:
-        for tag in entry.get("tags", []):
-            if tag.get("term", "").strip().lower() in ALLOWED_CATEGORIES:
-                return {
-                    "title": entry.get("title", ""),
-                    "link": entry.get("link", ""),
-                    "description": entry.get("description", ""),
-                }
-    logger.info("No matching posts found in RSS feed.")
+
+    for item in _parse_items(html_text):
+        if item["category"] in ALLOWED_CATEGORIES:
+            return {
+                "title": item["title"],
+                "link": item["link"],
+                "description": item["description"],
+            }
+
+    logger.info("No matching posts found in Newsfeed.")
     return None
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # noqa: D401
-    """AWS Lambda entry-point."""
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """
+    AWS Lambda entry-point.
+
+    Returns
+    -------
+    dict
+        * ``status`` – ``post_found`` | ``no_post``
+        * ``post_id`` – MD5 of the link (only when ``post_found``)
+        * ``post`` – dict with ``title``, ``link``, ``description`` (only when
+          ``post_found``)
+    """
     post = fetch_latest_news_post()
     if post:
-        pid = hashlib.md5(post["link"].encode()).hexdigest()
-        logger.info("Found post; id=%s", pid)
-        return {"status": "post_found", "post_id": pid, "post": post}
+        post_id = hashlib.md5(post["link"].encode()).hexdigest()
+        logger.info("Found post; id=%s", post_id)
+        return {"status": "post_found", "post_id": post_id, "post": post}
+
     logger.info("No post found")
     return {"status": "no_post"}
