@@ -31,15 +31,12 @@ _scraper = cloudscraper.create_scraper(
 _ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
 _AMP_RE = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
 _TAG_BACKSLASH_RE = re.compile(r"<\s*\\\s*")
-_ALLOWED_TAGS = r"(?:a|p|br|img)"
-_ESCAPE_LEFT_ANGLE_RE = re.compile(r"<(?!(/?\s*" + _ALLOWED_TAGS + r")\b)", re.I)
+
 _ALLOWED = r"(?:a|p|br|img)"
-_ESCAPE_LT = re.compile(
-    r"<(?!\s*/?\s*" + _ALLOWED + r"\b)",
-    re.I | re.S
-)
+_ESCAPE_LT = re.compile(r"<(?!\s*/?\s*" + _ALLOWED + r"\b)", re.I | re.S)
+
 _DECL_RE = re.compile(r"<![^>]*>", re.I | re.S)
-_BAD_TAG_RE = re.compile(r"</?(?:div|span|img|script|iframe)[^>]*>", re.I | re.S)
+_BAD_TAG_RE = re.compile(r"</?(?:div|span|script|iframe)[^>]*>", re.I | re.S)
 
 def _log_bad_xml(chunk: str, exc: Exception) -> None:
     """
@@ -67,13 +64,13 @@ def _log_bad_xml(chunk: str, exc: Exception) -> None:
 
 
 def _clean_xml(text: str) -> str:
-    """Scrub ANN feed so Expat can never choke."""
-    text = _ILLEGAL_XML_RE.sub("", text)    
-    text = _DECL_RE.sub("", text)         
-    text = _BAD_TAG_RE.sub("", text)       
-    text = _AMP_RE.sub("&amp;", text)      
-    text = _TAG_BACKSLASH_RE.sub("<", text)  
-    text = _ESCAPE_LT.sub("&lt;", text) 
+    """Scrub ANN feed so that Expat can’t choke on bad markup."""
+    text = _ILLEGAL_XML_RE.sub("", text)
+    text = _DECL_RE.sub("", text)
+    text = _BAD_TAG_RE.sub("", text)
+    text = _AMP_RE.sub("&amp;", text)
+    text = _TAG_BACKSLASH_RE.sub("<", text)
+    text = _ESCAPE_LT.sub("&lt;", text)
     return text
 
 
