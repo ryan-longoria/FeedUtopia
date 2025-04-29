@@ -30,6 +30,13 @@ _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _ILLEGAL_XML = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
 _AMP = re.compile(r"&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)")
 
+_SCRAPER = cloudscraper.create_scraper(
+    delay               = 10,
+    browser             = "chrome",
+    platform            = "windows",
+    mobile              = False,
+)
+
 
 def _clean(text: str) -> str:
     """Strip control bytes and escape stray ampersands."""
@@ -41,17 +48,14 @@ def _fetch_feed(url: str = DEFAULT_FEED_URL) -> str:
     Download ANN’s Newsfeed, letting cloudscraper handle Cloudflare’s
     JavaScript challenge automatically.
     """
-    scraper = cloudscraper.create_scraper(
-        browser={
-            "custom": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36 FeedFetcher-Lambda"
-            )
-        }
-    )
+    if not _SCRAPER.cookies.get("cf_clearance"):
+        _SCRAPER.get(
+            "https://www.animenewsnetwork.com/",
+            timeout=10,
+            headers={"User-Agent": _SCRAPER.headers["User-Agent"]},
+        )
 
-    resp = scraper.get(
+    resp = _SCRAPER.get(
         url,
         timeout=10,
         headers={
