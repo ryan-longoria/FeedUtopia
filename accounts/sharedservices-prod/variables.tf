@@ -16,6 +16,7 @@ variable "aws_account_ids" {
     driftutopia    = string
     xputopia       = string
     critterutopia  = string
+    cyberutopia    = string
   })
 }
 
@@ -43,6 +44,11 @@ variable "teams_webhooks" {
     }),
     
     critterutopia = object({
+      auto        = string
+      manual      = string
+    }),
+    
+    cyberutopia = object({
       auto        = string
       manual      = string
     })
