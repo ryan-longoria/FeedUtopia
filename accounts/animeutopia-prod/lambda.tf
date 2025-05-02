@@ -13,7 +13,15 @@ resource "aws_lambda_function" "fetch_data" {
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.9"
   role             = aws_iam_role.lambda_role.arn
-  timeout          = 5
+  timeout          = 40
+
+  environment {
+    variables = {
+      TEAMS_WEBHOOK_URL = local.TEAMS_WEBHOOK_URL,
+      ANN_NEWS_USER = var.ann_news_user
+      ANN_NEWS_PASS = var.ann_news_pass
+    }
+  }
 
   layers = [
     "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:14",

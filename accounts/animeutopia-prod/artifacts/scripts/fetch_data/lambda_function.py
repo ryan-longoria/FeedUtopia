@@ -1,93 +1,81 @@
-import os
-import feedparser
+from __future__ import annotations
+
 import hashlib
 import logging
-from typing import Dict, Any, Optional
+import os
+from typing import Any, Dict, Optional, Set
+
+import feedparser
+
+DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
+
+ALLOWED_CATEGORIES: Set[str] = {
+    "anime",
+    "people",
+    "just for fun",
+    "live-action",
+}
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-DEFAULT_FEED_URL = "https://www.animenewsnetwork.com/newsroom/rss.xml"
 
-ALLOWED_CATEGORIES = {"anime", "people", "just for fun", "live-action"}
+def _matches_allowed(entry: Dict[str, Any]) -> bool:
+    for tag in entry.get("tags", []):
+        if tag.get("term", "").strip().lower() in ALLOWED_CATEGORIES:
+            return True
+    if "category" in entry:
+        if entry["category"].strip().lower() in ALLOWED_CATEGORIES:
+            return True
+    return False
 
 
-def fetch_latest_news_post(feed_url: str = DEFAULT_FEED_URL) -> Optional[Dict[str, str]]:
+def _to_post(entry: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    post = {
+        "title": entry.get("title", "").strip(),
+        "link": entry.get("link", "").strip(),
+        "description": entry.get("description", "").strip(),
+    }
+    return post if all(post.values()) else None
+
+
+def fetch_latest_news_post(
+    feed_url: str = DEFAULT_FEED_URL,
+) -> Optional[Dict[str, str]]:
     """
-    Fetch the most recent 'News' post from the given RSS feed URL.
-
-    :param feed_url: The RSS feed URL.
-    :return: A dict with 'title', 'link', 'description' if found, else None.
+    Return the newest item in *feed_url* whose category is allowed.
+    If categories are missing, return the first item.
     """
-    logger.debug(f"Parsing feed from: {feed_url}")
     feed = feedparser.parse(feed_url)
-    logger.debug("Full feed data: %s", feed)
-    
-    if feed.bozo:
-        logger.error("Failed to parse RSS feed: %s", feed.bozo_exception)
-        return {"status": "error", "message": "Failed to parse RSS feed."}
-    
-    if not feed.entries:
-        logger.info("Feed parsed, but no entries found.")
+
+    if getattr(feed, "status", 200) >= 400:
+        logger.error("RSS returned HTTP %s", getattr(feed, "status", "???"))
         return None
 
+    if feed.bozo:
+        logger.warning("Feed malformed: %s", feed.bozo_exception)
 
-    try:
-        first = feed.entries[0]
-        
-        tags = first.get("tags", [])
-        
-        for tag_obj in tags:
-            term = tag_obj.get("term", "").lower()
-            if term in ALLOWED_CATEGORIES:
-                post = {
-                    "title": first.get("title"),
-                    "link": first.get("link"),
-                    "description": first.get("description")
-                }
-                return post
-    except Exception as error:
-        logger.exception("Error processing feed entries: %s", error)
+    if not feed.entries:
+        return None
 
-    return None
+    for entry in feed.entries:
+        if _matches_allowed(entry):
+            return _to_post(entry)
+
+    return _to_post(feed.entries[0])
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    AWS Lambda handler function that retrieves a post and returns it,
-    assigning a generated post ID if one is not supplied.
-
-    This function is intended to be used in a state machine step before
-    the one that sends a notification to Microsoft Teams. The output
-    conforms to the structure that the next step expects.
-
-    Args:
-        event (Dict[str, Any]): A dictionary containing the input data
-            (e.g., "post_id").
-        context (Any): The Lambda context object (not used here).
-
-    Returns:
-        Dict[str, Any]: A dictionary containing:
-            - "status": A status message indicating whether a post was found.
-            - "post_id": The provided or generated post ID.
-            - "post": The post data, if found. The dictionary within "post" 
-              contains "title", "link", and "description".
+    AWS Lambda entry point for the Step Functions state machine.
     """
     feed_url = os.getenv("ANIME_FEED_URL", DEFAULT_FEED_URL)
+    post = fetch_latest_news_post(feed_url)
 
-    post = fetch_latest_news_post(feed_url=feed_url)
-    if post is not None:
-        link = post["link"] or ""
-        stable_post_id = hashlib.md5(link.encode("utf-8")).hexdigest()
-        logger.info(f"Found 'News' post; stable_post_id={stable_post_id}")
+    if post:
+        post_id = hashlib.md5(post["link"].encode("utf-8")).hexdigest()
+        logger.info("Found post; id=%s", post_id)
+        return {"status": "post_found", "post_id": post_id, "post": post}
 
-        return {
-            "status": "post_found",
-            "post_id": stable_post_id,
-            "post": post
-        }
-
-    logger.info("No post found")
-    return {
-        "status": "no_post"
-    }
+    logger.info("No post found.")
+    return {"status": "no_post"}

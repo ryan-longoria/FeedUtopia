@@ -15,9 +15,9 @@ provider "aws" {
 }
 
 provider "aws" {
-  alias   = "dns"
-  region  = var.aws_region
-  
+  alias  = "dns"
+  region = var.aws_region
+
   assume_role {
     role_arn = "arn:aws:iam::${var.aws_account_ids.sharedservices}:role/animeutopia_DNSRole"
   }
