@@ -2,6 +2,7 @@ import hashlib
 import logging
 import xml.etree.ElementTree as ET
 from typing import Dict, Any, Optional
+
 import requests
 
 logger = logging.getLogger(__name__)
@@ -12,14 +13,14 @@ FEED_URL = "https://www.sciencedaily.com/rss/plants_animals.xml"
 
 def fetch_post() -> Optional[Dict[str, str]]:
     """
-    Download the ScienceDaily Plants & Animals RSS feed and extract the newest item.
-
-    Returns:
-        Dictionary with keys "title", "link", and "description",
-        or None if the feed is empty or cannot be parsed.
+    Download the ScienceDaily Plants & Animals RSS feed (with a browser-style UA)
+    and extract the newest item.
     """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
     try:
-        resp = requests.get(FEED_URL, timeout=10)
+        resp = requests.get(FEED_URL, headers=headers, timeout=10)
         resp.raise_for_status()
     except Exception as exc:
         logger.warning("Could not download RSS feed: %s", exc, exc_info=True)
@@ -27,12 +28,11 @@ def fetch_post() -> Optional[Dict[str, str]]:
 
     try:
         root = ET.fromstring(resp.content)
-
         first_item = root.find("./channel/item")
         if first_item is None:
             return None
 
-        def _text(tag):
+        def _text(tag: str) -> str:
             elem = first_item.find(tag)
             return elem.text.strip() if elem is not None and elem.text else ""
 
@@ -41,7 +41,6 @@ def fetch_post() -> Optional[Dict[str, str]]:
             "link": _text("link"),
             "description": _text("description"),
         }
-
         return post if post["link"] and post["title"] else None
 
     except ET.ParseError as exc:
@@ -50,13 +49,6 @@ def fetch_post() -> Optional[Dict[str, str]]:
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """
-    AWS Lambda entry‑point.
-
-    - Grabs a post from ScienceDaily.
-    - Re‑uses a caller‑supplied post_id if provided, otherwise generates a stable MD5 of the link.
-    - Always returns keys: "status", "post_id" (if found), and optionally "post".
-    """
     post = fetch_post()
 
     if post:
@@ -64,7 +56,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         stable_post_id = supplied_id or hashlib.md5(post["link"].encode("utf-8")).hexdigest()
 
         logger.info("Found ScienceDaily post; using post_id=%s", stable_post_id)
-
         return {
             "status": "post_found",
             "post_id": stable_post_id,
