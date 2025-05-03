@@ -10,48 +10,8 @@ variable "project_name" {
 variable "aws_account_ids" {
   description = "The AWS Account ID. Used for configuring the provider and defining ECS resources."
   type = object({
-    sharedservices = string
-    animeutopia    = string
-    wrestleutopia  = string
-    driftutopia    = string
-    xputopia       = string
-    critterutopia  = string
     cyberutopia    = string
-  })
-}
-
-variable "teams_webhooks" {
-  description = "Microsoft Teams account specific webhooks"
-  type = object({
-    wrestleutopia = object({
-      auto   = string
-      manual = string
-    }),
-
-    animeutopia = object({
-      auto   = string
-      manual = string
-    }),
-    
-    driftutopia = object({
-      auto   = string
-      manual = string
-    }),
-    
-    xputopia = object({
-      auto   = string
-      manual = string
-    }),
-    
-    critterutopia = object({
-      auto        = string
-      manual      = string
-    }),
-    
-    cyberutopia = object({
-      auto        = string
-      manual      = string
-    })
+    sharedservices = string
   })
 }
 
@@ -77,23 +37,23 @@ variable "terraform_backend_bucket" {
   type        = string
 }
 
+variable "teams_webhooks" {
+  description = "Microsoft Teams account specific webhooks"
+  type = object({
+    cyberutopia = object({
+      auto   = string
+      manual = string
+    })
+  })
+}
+
 variable "incidents_teams_webhook" {
   description = "The Teams webhook URL used to notify when an incident occurs."
   type        = string
 }
 
-variable "vpc_cidr" {
-  description = "CIDR block for the VPC."
-  type        = string
-}
-
-variable "aws_availability_zones" {
-  description = "List of availability zones to use."
-  type        = list(string)
-}
-
-variable "render_video_image_uri" {
-  description = "The uri used to render lambda function render_video."
+variable "schedule_expression" {
+  description = "Describes how often step functions will be invoked."
   type        = string
 }
 
@@ -102,7 +62,7 @@ variable "common_tags" {
   type        = map(string)
   default = {
     DeployedBy  = "Terraform"
-    Project     = "sharedservices"
+    Project     = "cyberutopia"
     Environment = "prod"
   }
 }
