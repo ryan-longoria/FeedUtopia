@@ -42,3 +42,41 @@ resource "aws_s3_bucket_lifecycle_configuration" "media_bucket_lifecycle" {
     }
   }
 }
+
+resource "aws_s3_bucket" "privacy_bucket" {
+  bucket = "feedutopia-privacy"
+  tags = {
+    Name        = "FeedUtopia Privacy Policy"
+    Environment = "Production"
+  }
+}
+
+resource "aws_s3_object" "privacy_html" {
+  bucket       = aws_s3_bucket.privacy_bucket.id
+  key          = "privacy.html"
+  source       = "path/to/privacy.html"
+  content_type = "text/html"
+}
+
+resource "aws_s3_bucket_website_configuration" "privacy_website" {
+  bucket = aws_s3_bucket.privacy_bucket.id
+
+  index_document {
+    suffix = "privacy.html"
+  }
+}
+
+resource "aws_s3_bucket_policy" "privacy_policy" {
+  bucket = aws_s3_bucket.privacy_bucket.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect    = "Allow",
+        Principal = "*",
+        Action    = "s3:GetObject",
+        Resource  = "${aws_s3_bucket.privacy_bucket.arn}/*"
+      }
+    ]
+  })
+}
