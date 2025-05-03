@@ -130,6 +130,14 @@ resource "aws_iam_role_policy" "lambda_assume_each_account" {
   })
 }
 
+resource "aws_lambda_permission" "allow_apigw" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ig_webhook_handler.function_name
+  principal     = "apigateway.amazonaws.com"
+  
+  source_arn = "arn:aws:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${aws_apigatewayv2_api.instagram_api.id}/*/*/instagram/webhook"
+}
 
 #############################
 # IAM Policy for S3
@@ -326,7 +334,7 @@ data "aws_iam_policy_document" "waf_logs_policy_doc" {
       test     = "ArnLike"
       variable = "aws:SourceArn"
       values = [
-        aws_wafv2_web_acl.api_waf.arn # WAF ACL that will send logs
+        aws_wafv2_web_acl.api_waf.arn
       ]
     }
 
