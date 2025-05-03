@@ -205,7 +205,7 @@ resource "aws_lambda_function" "ig_webhook_handler" {
   function_name = "${var.project_name}-ig-webhook-handler"
   handler       = "instagram_webhook.lambda_handler"
   runtime       = "python3.9"
-  role          = aws_iam_role.lambda_instagram_role.arn
+  role          = aws_iam_role.lambda_role.arn
   filename         = "${path.module}/artifacts/scripts/ig_webhook_handler/ig_webhook_handler.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/ig_webhook_handler/ig_webhook_handler.zip")
 
