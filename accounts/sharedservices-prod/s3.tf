@@ -54,7 +54,7 @@ resource "aws_s3_bucket" "privacy_bucket" {
 resource "aws_s3_object" "privacy_html" {
   bucket       = aws_s3_bucket.privacy_bucket.id
   key          = "privacy.html"
-  source       = "path/to/privacy.html"
+  source       = "artifacts/websites/ig_privacy_policy/privacy.html"
   content_type = "text/html"
 }
 

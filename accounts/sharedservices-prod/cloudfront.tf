@@ -40,8 +40,9 @@ resource "aws_cloudfront_distribution" "privacy_distribution" {
   price_class = "PriceClass_100"
 
   viewer_certificate {
-    acm_certificate_arn = data.aws_acm_certificate.api_cert.arn
-    ssl_support_method  = "sni-only"
+    acm_certificate_arn            = "arn:aws:acm:us-east-1:825765422855:certificate/3d0632d0-0f52-4731-aa7d-8f2d9b6bbe87"
+    ssl_support_method             = "sni-only"
+    minimum_protocol_version       = "TLSv1.2_2021"
   }
 
   restrictions {
