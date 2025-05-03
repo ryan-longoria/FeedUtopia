@@ -13,3 +13,8 @@ provider "aws" {
     role_arn = "arn:aws:iam::${var.aws_account_ids.sharedservices}:role/TerraformExecutionRole"
   }
 }
+
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
