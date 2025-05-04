@@ -128,7 +128,7 @@ resource "aws_api_gateway_api_key" "api_key" {
 }
 
 #############################
-# Instagram API Callback
+# Instagram API Callback/Oauth
 #############################
 
 resource "aws_api_gateway_usage_plan_key" "api_usage_plan_key" {
@@ -172,4 +172,18 @@ resource "aws_apigatewayv2_stage" "default" {
       error     = "$context.error.message"
     })
   }
+}
+
+resource "aws_apigatewayv2_integration" "oauth_integration" {
+  api_id                 = aws_apigatewayv2_api.instagram_api.id
+  integration_type       = "AWS_PROXY"
+  integration_method     = "POST"
+  integration_uri        = aws_lambda_function.instagram_oauth.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "instagram_auth_callback" {
+  api_id    = aws_apigatewayv2_api.instagram_api.id
+  route_key = "GET /instagram/auth/callback"
+  target    = "integrations/${aws_apigatewayv2_integration.oauth_integration.id}"
 }

@@ -225,3 +225,25 @@ resource "aws_lambda_function" "ig_webhook_handler" {
     mode = "Active"
   }
 }
+
+#############################
+# instagram_oauth
+#############################
+
+resource "aws_lambda_function" "instagram_oauth" {
+  function_name = "${var.project_name}-instagram-oauth"
+  handler       = "instagram_oauth.lambda_handler"
+  runtime       = "python3.9"
+  role          = aws_iam_role.lambda_role.arn
+
+  filename         = data.archive_file.oauth_zip.output_path
+  source_code_hash = data.archive_file.oauth_zip.output_base64sha256
+
+  environment {
+    variables = {
+      INSTAGRAM_APP_ID     = var.instagram_app_id
+      INSTAGRAM_APP_SECRET = var.instagram_app_secret
+      REDIRECT_URI         = "https://${aws_apigatewayv2_api.instagram_api.api_endpoint}/instagram/auth/callback"
+    }
+  }
+}
