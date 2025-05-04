@@ -203,7 +203,7 @@ resource "aws_lambda_function" "sns_to_teams" {
 
 resource "aws_lambda_function" "ig_webhook_handler" {
   function_name = "${var.project_name}-ig-webhook-handler"
-  handler       = "instagram_webhook.lambda_handler"
+  handler       = "lambda_function.lambda_handler"
   runtime       = "python3.9"
   role          = aws_iam_role.lambda_role.arn
   filename         = "${path.module}/artifacts/scripts/ig_webhook_handler/ig_webhook_handler.zip"
