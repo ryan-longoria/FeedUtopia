@@ -164,11 +164,11 @@ resource "aws_apigatewayv2_stage" "default" {
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.instagram_api_logs.arn
     format = jsonencode({
-      requestId = "$context.requestId",
-      ip        = "$context.identity.sourceIp",
-      method    = "$context.requestContext.http.method",
-      path      = "$context.routeKey",
-      status    = "$context.response.status",
+      requestId = "$context.requestId"
+      ip        = "$context.identity.sourceIp"
+      method    = "$context.httpMethod"
+      path      = "$context.routeKey"
+      status    = "$context.status"
       error     = "$context.error.message"
     })
   }
