@@ -110,6 +110,14 @@ resource "aws_iam_role_policy" "lambda_sfn_execution" {
   })
 }
 
+resource "aws_lambda_permission" "allow_apigw_oauth" {
+  statement_id  = "AllowHttpApiInvokeOAuth"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.instagram_oauth.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.instagram_api.execution_arn}/*/GET/instagram/auth/callback"
+}
+
 resource "aws_iam_role_policy" "lambda_assume_each_account" {
   for_each = var.aws_account_ids
 

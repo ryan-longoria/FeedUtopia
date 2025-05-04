@@ -110,3 +110,11 @@ variable "common_tags" {
 variable "instagram_verify_token" {
   type = string
 }
+
+variable "instagram_app_id" {
+  type = string
+}
+
+variable "instagram_app_secret" {
+  type = string
+}
