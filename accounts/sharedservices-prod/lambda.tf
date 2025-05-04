@@ -236,8 +236,8 @@ resource "aws_lambda_function" "instagram_oauth" {
   runtime       = "python3.9"
   role          = aws_iam_role.lambda_role.arn
 
-  filename         = data.archive_file.oauth_zip.output_path
-  source_code_hash = data.archive_file.oauth_zip.output_base64sha256
+  filename         = "${path.module}/artifacts/scripts/instagram_oauth/instagram_oauth.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/instagram_oauth/instagram_oauth.zip")
 
   environment {
     variables = {
