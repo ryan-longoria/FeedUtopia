@@ -2,6 +2,10 @@
 ## API Gateway
 ################################################################################
 
+#############################
+# Utopium API
+#############################
+
 resource "aws_api_gateway_rest_api" "api" {
   name = "CrossAccountStateMachineAPI"
 
@@ -123,8 +127,49 @@ resource "aws_api_gateway_api_key" "api_key" {
   enabled = true
 }
 
+#############################
+# Instagram API Callback
+#############################
+
 resource "aws_api_gateway_usage_plan_key" "api_usage_plan_key" {
   key_id        = aws_api_gateway_api_key.api_key.id
   key_type      = "API_KEY"
   usage_plan_id = aws_api_gateway_usage_plan.api_usage_plan.id
+}
+
+resource "aws_apigatewayv2_api" "instagram_api" {
+  name          = "${var.project_name}-instagram-api"
+  protocol_type = "HTTP"
+}
+
+resource "aws_apigatewayv2_integration" "instagram_lambda_integration" {
+  api_id                    = aws_apigatewayv2_api.instagram_api.id
+  integration_type          = "AWS_PROXY"
+  integration_method        = "POST"
+  integration_uri           = aws_lambda_function.ig_webhook_handler.invoke_arn
+  payload_format_version    = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "instagram_webhook_route" {
+  api_id    = aws_apigatewayv2_api.instagram_api.id
+  route_key = "ANY /instagram/webhook"
+  target    = "integrations/${aws_apigatewayv2_integration.instagram_lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_stage" "default" {
+  api_id      = aws_apigatewayv2_api.instagram_api.id
+  name        = "$default"
+  auto_deploy = true
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.instagram_api_logs.arn
+    format = jsonencode({
+      requestId = "$context.requestId"
+      ip        = "$context.identity.sourceIp"
+      method    = "$context.httpMethod"
+      path      = "$context.routeKey"
+      status    = "$context.status"
+      error     = "$context.error.message"
+    })
+  }
 }

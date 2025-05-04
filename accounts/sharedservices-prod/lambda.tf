@@ -196,3 +196,32 @@ resource "aws_lambda_function" "sns_to_teams" {
     mode = "Active"
   }
 }
+
+#############################
+# ig_webhook_handler
+#############################
+
+resource "aws_lambda_function" "ig_webhook_handler" {
+  function_name = "${var.project_name}-ig-webhook-handler"
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.9"
+  role          = aws_iam_role.lambda_role.arn
+  filename         = "${path.module}/artifacts/scripts/ig_webhook_handler/ig_webhook_handler.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/ig_webhook_handler/ig_webhook_handler.zip")
+
+  timeout = 10
+
+  environment {
+    variables = {
+      VERIFY_TOKEN = var.instagram_verify_token
+    }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+}

@@ -106,3 +106,7 @@ variable "common_tags" {
     Environment = "prod"
   }
 }
+
+variable "instagram_verify_token" {
+  type = string
+}
