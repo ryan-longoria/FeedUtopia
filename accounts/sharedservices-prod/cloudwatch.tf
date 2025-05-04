@@ -11,6 +11,11 @@ resource "aws_cloudwatch_log_group" "apigw_access_logs" {
   retention_in_days = 7
 }
 
+resource "aws_cloudwatch_log_group" "instagram_api_logs" {
+  name              = "/aws/http-api/${aws_apigatewayv2_api.instagram_api.id}"
+  retention_in_days = 7
+}
+
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name              = "/aws/vpc/flow_logs/${aws_vpc.API_vpc.id}"
   retention_in_days = 3

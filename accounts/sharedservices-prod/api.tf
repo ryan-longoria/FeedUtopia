@@ -160,4 +160,16 @@ resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.instagram_api.id
   name        = "$default"
   auto_deploy = true
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.instagram_api_logs.arn
+    format = jsonencode({
+      requestId = "$context.requestId",
+      ip        = "$context.identity.sourceIp",
+      method    = "$context.requestContext.http.method",
+      path      = "$context.routeKey",
+      status    = "$context.response.status",
+      error     = "$context.error.message"
+    })
+  }
 }
