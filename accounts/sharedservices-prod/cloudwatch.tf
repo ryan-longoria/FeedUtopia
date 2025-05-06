@@ -46,8 +46,8 @@ resource "aws_cloudwatch_log_group" "manual_step_function_log_group" {
   retention_in_days = 3
 }
 
-resource "aws_cloudwatch_log_group" "render_video_log_group" {
-  name              = "/aws/lambda/render_video"
+resource "aws_cloudwatch_log_group" "render_video" {
+  name              = "/ecs/render_video"
   retention_in_days = 3
 }
 
