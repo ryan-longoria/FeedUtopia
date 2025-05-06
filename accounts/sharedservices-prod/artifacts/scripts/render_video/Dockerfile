@@ -3,6 +3,9 @@ FROM public.ecr.aws/lambda/python:3.9
 COPY requirements.txt .
 RUN python3 -m pip install --no-cache-dir --force-reinstall -r requirements.txt
 
+RUN python3 -m pip install --no-cache-dir botocore==1.34.* \
+ && yum install -y amazon-efs-utils
+
 RUN mkdir -p /opt/bin
 COPY bin/ffmpeg /opt/bin/ffmpeg
 RUN chmod +x /opt/bin/ffmpeg
