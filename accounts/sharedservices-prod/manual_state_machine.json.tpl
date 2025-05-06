@@ -11,7 +11,7 @@
 
     "RenderVideo": {
       "Type": "Task",
-      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "Resource": "arn:aws:states:::ecs:runTask.waitForTaskToken",
       "Parameters": {
         "Cluster": "${ecs_cluster_arn}",
         "LaunchType": "FARGATE",
@@ -27,10 +27,8 @@
           "ContainerOverrides": [{
             "Name": "render_video",
             "Environment": [
-              {
-                "Name": "EVENT_JSON",
-                "Value.$": "States.JsonToString($)"
-              }
+              { "Name": "EVENT_JSON",  "Value.$": "States.JsonToString($)" },
+              { "Name": "TASK_TOKEN",  "Value.$": "$$.Task.Token" }          // 👈
             ]
           }]
         }
