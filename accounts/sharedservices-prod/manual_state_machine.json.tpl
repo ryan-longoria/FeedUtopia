@@ -8,20 +8,18 @@
       "ResultPath": "$.logoResult",
       "Next": "RenderVideo"
     },
+
     "RenderVideo": {
       "Type": "Task",
       "Resource": "arn:aws:states:::ecs:runTask.sync",
       "Parameters": {
-        "Cluster": "${aws_ecs_cluster.render_cluster.id}",
+        "Cluster": "${ecs_cluster_arn}",
         "LaunchType": "FARGATE",
-        "TaskDefinition": "${aws_ecs_task_definition.render_video.arn}",
+        "TaskDefinition": "${render_task_def_arn}",
         "NetworkConfiguration": {
           "AwsvpcConfiguration": {
-            "Subnets": [
-              "${aws_subnet.API_public_subnet_1.id}",
-              "${aws_subnet.API_public_subnet_2.id}"
-            ],
-            "SecurityGroups": ["${aws_security_group.efs_sg.id}"],
+            "Subnets": ${subnet_ids},
+            "SecurityGroups": ${sg_ids},
             "AssignPublicIp": "ENABLED"
           }
         },
@@ -37,12 +35,14 @@
       "ResultPath": "$.videoResult",
       "Next": "DeleteLogo"
     },
+
     "DeleteLogo": {
       "Type": "Task",
       "Resource": "${delete_logo_arn}",
       "ResultPath": "$.deleteLogoResult",
       "Next": "NotifyUser"
     },
+
     "NotifyUser": {
       "Type": "Task",
       "Resource": "${notify_post_arn}",
