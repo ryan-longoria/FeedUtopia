@@ -27,7 +27,10 @@
           "ContainerOverrides": [{
             "Name": "render_video",
             "Environment": [
-              { "Name": "EVENT_JSON", "Value.$": "$" }
+              {
+                "Name": "EVENT_JSON",
+                "Value.$": "States.JsonToString($)"   ←─ stringify the whole input
+              }
             ]
           }]
         }
