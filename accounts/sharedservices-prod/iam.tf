@@ -190,34 +190,56 @@ resource "aws_iam_role" "step_functions_role" {
 resource "aws_iam_role_policy" "step_functions_policy" {
   name = "${var.project_name}_step_functions_policy"
   role = aws_iam_role.step_functions_role.id
+
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       {
-        Effect = "Allow",
-        Action = [
+        "Effect": "Allow",
+        "Action": [
           "lambda:InvokeFunction"
         ],
-        Resource = [
+        "Resource": [
           aws_lambda_function.get_logo.arn,
-          aws_lambda_function.render_video.arn,
           aws_lambda_function.delete_logo.arn,
           aws_lambda_function.notify_post.arn
         ]
       },
       {
-        Effect = "Allow",
-        Action = [
-          "logs:CreateLogDelivery",
-          "logs:GetLogDelivery",
-          "logs:UpdateLogDelivery",
-          "logs:DeleteLogDelivery",
-          "logs:ListLogDeliveries",
-          "logs:PutResourcePolicy",
-          "logs:DescribeResourcePolicies",
-          "logs:DescribeLogGroups"
+        "Effect": "Allow",
+        "Action": [
+          "logs:CreateLogDelivery", "logs:GetLogDelivery", "logs:UpdateLogDelivery",
+          "logs:DeleteLogDelivery", "logs:ListLogDeliveries", "logs:PutResourcePolicy",
+          "logs:DescribeResourcePolicies", "logs:DescribeLogGroups"
         ],
-        Resource = "*"
+        "Resource": "*"
+      },
+
+      {
+        "Effect": "Allow",
+        "Action": [
+          "events:PutRule",
+          "events:PutTargets",
+          "events:DescribeRule",
+          "events:RemoveTargets",
+          "events:DeleteRule"
+        ],
+        "Resource": "arn:aws:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:rule/StepFunctionsGetEventsForECSTaskRule"
+      },
+
+      {
+        "Effect": "Allow",
+        "Action": ["ecs:RunTask", "ecs:StopTask", "ecs:DescribeTasks"],
+        "Resource": aws_ecs_task_definition.render_video.arn
+      },
+      {
+        "Effect": "Allow",
+        "Action": "iam:PassRole",
+        "Resource": [
+          aws_iam_role.ecs_task_execution_role.arn,
+          aws_iam_role.ecs_task_role.arn
+        ],
+        "Condition": { "StringEquals": { "iam:PassedToService": "ecs-tasks.amazonaws.com" } }
       }
     ]
   })
