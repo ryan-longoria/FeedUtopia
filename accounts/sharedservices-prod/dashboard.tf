@@ -3,53 +3,6 @@
 ################################################################################
 
 #####################################################################
-# Lambda Dashboard
-#####################################################################
-
-resource "aws_cloudwatch_dashboard" "lambdas_dashboard" {
-  dashboard_name = "LambdaDashboard"
-  dashboard_body = jsonencode({
-    widgets = [
-      {
-        "type" : "metric",
-        "x" : 0,
-        "y" : 0,
-        "width" : 12,
-        "height" : 6,
-        "properties" : {
-          "title" : "Lambda Errors",
-          "region" : var.aws_region,
-          "metrics" : [
-            ["AWS/Lambda", "Errors", "FunctionName", aws_lambda_function.render_video.function_name],
-            [".", "Errors", "FunctionName", aws_lambda_function.notify_post.function_name],
-          ],
-          "period" : 300,
-          "stat" : "Sum"
-        }
-      },
-
-      {
-        "type" : "metric",
-        "x" : 12,
-        "y" : 0,
-        "width" : 12,
-        "height" : 6,
-        "properties" : {
-          "title" : "Lambda Throttles",
-          "region" : var.aws_region,
-          "metrics" : [
-            ["AWS/Lambda", "Throttles", "FunctionName", aws_lambda_function.render_video.function_name],
-            [".", "Throttles", "FunctionName", aws_lambda_function.notify_post.function_name],
-          ],
-          "period" : 300,
-          "stat" : "Sum"
-        }
-      }
-    ]
-  })
-}
-
-#####################################################################
 # SFN Dashboard
 #####################################################################
 
