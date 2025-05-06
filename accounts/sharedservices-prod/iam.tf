@@ -224,7 +224,7 @@ resource "aws_iam_role_policy" "step_functions_policy" {
           "events:RemoveTargets",
           "events:DeleteRule"
         ],
-        "Resource": "arn:aws:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:rule/StepFunctionsGetEventsForECSTaskRule"
+        "Resource": "arn:aws:events:*:*:rule/StepFunctionsGetEventsForECSTaskRule*"
       },
 
       {
