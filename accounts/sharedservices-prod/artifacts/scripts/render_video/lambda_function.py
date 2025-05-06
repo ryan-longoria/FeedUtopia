@@ -616,3 +616,25 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
         "status": "rendered",
         "video_key": complete_key
     }
+
+
+if __name__ == "__main__":
+    import json, os, sys
+
+    raw_event = os.getenv("EVENT_JSON", "{}")
+    try:
+        event = json.loads(raw_event)
+    except json.JSONDecodeError as exc:
+        logger.error("Invalid EVENT_JSON: %s", exc)
+        sys.exit(1)
+
+    try:
+        result = lambda_handler(event, None)
+    except Exception:
+        logger.exception("Unhandled exception in render_video")
+        sys.exit(1)
+
+    logger.info("render_video result: %s", json.dumps(result))
+
+    if not result or result.get("status") == "error":
+        sys.exit(1)

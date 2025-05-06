@@ -223,6 +223,29 @@ resource "aws_iam_role_policy" "step_functions_policy" {
   })
 }
 
+resource "aws_iam_role_policy" "step_functions_ecs" {
+  role = aws_iam_role.step_functions_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = ["ecs:RunTask", "ecs:StopTask", "ecs:DescribeTasks"],
+        Resource = aws_ecs_task_definition.render_video.arn
+      },
+      {
+        Effect     = "Allow",
+        Action     = "iam:PassRole",
+        Resource   = [
+          aws_iam_role.ecs_task_execution_role.arn,
+          aws_iam_role.ecs_task_role.arn
+        ],
+        Condition  = { StringEquals = { "iam:PassedToService" = "ecs-tasks.amazonaws.com" } }
+      }
+    ]
+  })
+}
+
 #############################
 # IAM Policy for SQS
 #############################
@@ -416,4 +439,40 @@ resource "aws_iam_role_policy" "dns_terraform_policy" {
   name   = "DNSTerraformPolicy"
   role   = aws_iam_role.dns_terraform_role.id
   policy = data.aws_iam_policy_document.dns_role_policy_doc.json
+}
+
+#############################
+# IAM for ECS
+#############################
+
+resource "aws_iam_role" "ecs_task_execution_role" {
+  name               = "${var.project_name}_ecs_exec_role"
+  assume_role_policy = data.aws_iam_policy_document.ecs_exec_trust.json
+}
+
+data "aws_iam_policy_document" "ecs_exec_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_exec_managed" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+resource "aws_iam_role" "ecs_task_role" {
+  name               = "${var.project_name}_ecs_task_role"
+  assume_role_policy = data.aws_iam_policy_document.ecs_exec_trust.json
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_s3" {
+  role       = aws_iam_role.ecs_task_role.name
+  policy_arn = aws_iam_policy.s3_full_policy.arn
 }
