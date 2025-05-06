@@ -8,10 +8,17 @@ resource "aws_sfn_state_machine" "manual_workflow" {
   type     = "STANDARD"
 
   definition = templatefile("${path.module}/manual_state_machine.json.tpl", {
-    get_logo_arn     = aws_lambda_function.get_logo.arn,
-    render_video_arn = aws_lambda_function.render_video.arn,
-    delete_logo_arn  = aws_lambda_function.delete_logo.arn,
-    notify_post_arn  = aws_lambda_function.notify_post.arn
+    get_logo_arn        = aws_lambda_function.get_logo.arn
+    delete_logo_arn     = aws_lambda_function.delete_logo.arn
+    notify_post_arn     = aws_lambda_function.notify_post.arn
+
+    ecs_cluster_arn     = aws_ecs_cluster.render_cluster.arn
+    render_task_def_arn = aws_ecs_task_definition.render_video.arn
+    subnet_ids          = jsonencode([
+      aws_subnet.API_public_subnet_1.id,
+      aws_subnet.API_public_subnet_2.id
+    ])
+    sg_ids              = jsonencode([aws_security_group.efs_sg.id])
   })
 
   logging_configuration {
