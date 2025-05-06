@@ -28,7 +28,7 @@
             "Name": "render_video",
             "Environment": [
               { "Name": "EVENT_JSON",  "Value.$": "States.JsonToString($)" },
-              { "Name": "TASK_TOKEN",  "Value.$": "$$.Task.Token" }          // 👈
+              { "Name": "TASK_TOKEN",  "Value.$": "$$.Task.Token" }
             ]
           }]
         }
