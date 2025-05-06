@@ -29,7 +29,7 @@
             "Environment": [
               {
                 "Name": "EVENT_JSON",
-                "Value.$": "States.JsonToString($)"   ←─ stringify the whole input
+                "Value.$": "States.JsonToString($)"
               }
             ]
           }]
