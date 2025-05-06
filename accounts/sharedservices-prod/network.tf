@@ -3,8 +3,11 @@
 ################################################################################
 
 resource "aws_vpc" "API_vpc" {
-  cidr_block = var.vpc_cidr
+  cidr_block           = var.vpc_cidr
+  enable_dns_support   = true
+  enable_dns_hostnames = true
 }
+
 
 resource "aws_flow_log" "vpc_flow_logs" {
   traffic_type         = "ALL"
