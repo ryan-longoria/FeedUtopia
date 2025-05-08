@@ -8,18 +8,42 @@
       "ResultPath": "$.logoResult",
       "Next": "RenderVideo"
     },
+
     "RenderVideo": {
       "Type": "Task",
-      "Resource": "${render_video_arn}",
+      "Resource": "arn:aws:states:::ecs:runTask.waitForTaskToken",
+      "Parameters": {
+        "Cluster": "${ecs_cluster_arn}",
+        "LaunchType": "FARGATE",
+        "TaskDefinition": "${render_task_def_arn}",
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "Subnets": ${subnet_ids},
+            "SecurityGroups": ${sg_ids},
+            "AssignPublicIp": "ENABLED"
+          }
+        },
+        "Overrides": {
+          "ContainerOverrides": [{
+            "Name": "render_video",
+            "Environment": [
+              { "Name": "EVENT_JSON",  "Value.$": "States.JsonToString($)" },
+              { "Name": "TASK_TOKEN",  "Value.$": "$$.Task.Token" }
+            ]
+          }]
+        }
+      },
       "ResultPath": "$.videoResult",
       "Next": "DeleteLogo"
     },
+
     "DeleteLogo": {
       "Type": "Task",
       "Resource": "${delete_logo_arn}",
       "ResultPath": "$.deleteLogoResult",
       "Next": "NotifyUser"
     },
+
     "NotifyUser": {
       "Type": "Task",
       "Resource": "${notify_post_arn}",

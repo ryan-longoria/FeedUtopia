@@ -46,8 +46,8 @@ resource "aws_cloudwatch_log_group" "manual_step_function_log_group" {
   retention_in_days = 3
 }
 
-resource "aws_cloudwatch_log_group" "render_video_log_group" {
-  name              = "/aws/lambda/render_video"
+resource "aws_cloudwatch_log_group" "render_video" {
+  name              = "/ecs/render_video"
   retention_in_days = 3
 }
 
@@ -88,24 +88,6 @@ resource "aws_cloudwatch_metric_alarm" "start_sfn_errors" {
 
   dimensions = {
     FunctionName = aws_lambda_function.start_sfn.function_name
-  }
-
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "render_video_errors" {
-  alarm_name          = "${var.project_name}-render-video-errors"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 1
-  metric_name         = "Errors"
-  namespace           = "AWS/Lambda"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 1
-  alarm_description   = "Alert if render_video function returns any errors in a 5-minute window."
-
-  dimensions = {
-    FunctionName = aws_lambda_function.render_video.function_name
   }
 
   alarm_actions = [aws_sns_topic.monitoring_topic.arn]
@@ -166,58 +148,6 @@ resource "aws_cloudwatch_metric_alarm" "notify_post_duration_high" {
 }
 
 #############################
-# Lambda Memory Alarms
-#############################
-
-resource "aws_cloudwatch_metric_alarm" "render_video_memory_high" {
-  alarm_name          = "${var.project_name}-render-video-memory-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "max_memory_used"
-  namespace           = "LambdaInsights"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 900
-  alarm_description   = "Alert if render_video memory usage exceeds 900 MB in a 5-minute window."
-  dimensions = {
-    FunctionName = aws_lambda_function.render_video.function_name
-  }
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "start_sfn_memory_high" {
-  alarm_name          = "${var.project_name}-start-sfn-memory-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "max_memory_used"
-  namespace           = "LambdaInsights"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 500
-  alarm_description   = "Alert if start_sfn memory usage exceeds 500 MB in a 5-minute window."
-  dimensions = {
-    FunctionName = aws_lambda_function.start_sfn.function_name
-  }
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-resource "aws_cloudwatch_metric_alarm" "notify_post_memory_high" {
-  alarm_name          = "${var.project_name}-notify_post-memory-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "max_memory_used"
-  namespace           = "LambdaInsights"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 300
-  alarm_description   = "Alert if notify_post memory usage exceeds 300 MB in a 5-minute window."
-  dimensions = {
-    FunctionName = aws_lambda_function.notify_post.function_name
-  }
-  alarm_actions = [aws_sns_topic.monitoring_topic.arn]
-}
-
-#############################
 # Lambda Anomaly Detection Alarms
 #############################
 
@@ -242,39 +172,6 @@ resource "aws_cloudwatch_metric_alarm" "start_sfn_invocations_anomaly" {
       stat        = "Sum"
       dimensions = {
         FunctionName = aws_lambda_function.start_sfn.function_name
-      }
-    }
-  }
-
-  metric_query {
-    id          = "e1"
-    expression  = "ANOMALY_DETECTION_BAND(m1, 2)"
-    label       = "AnomalyDetectionBand"
-    return_data = true
-  }
-}
-
-resource "aws_cloudwatch_metric_alarm" "render_video_invocations_anomaly" {
-  alarm_name                = "${var.project_name}-render-video-invocations-anomaly"
-  comparison_operator       = "GreaterThanUpperThreshold"
-  evaluation_periods        = 2
-  threshold_metric_id       = "e1"
-  alarm_description         = "Alert if render_video invocations deviate from normal"
-  alarm_actions             = [aws_sns_topic.monitoring_topic.arn]
-  insufficient_data_actions = []
-  ok_actions                = []
-
-  metric_query {
-    id          = "m1"
-    label       = "RenderVideoInvocationsWithAnomalyDetection"
-    return_data = true
-    metric {
-      metric_name = "Invocations"
-      namespace   = "AWS/Lambda"
-      period      = 300
-      stat        = "Sum"
-      dimensions = {
-        FunctionName = aws_lambda_function.render_video.function_name
       }
     }
   }

@@ -1,15 +1,17 @@
 import datetime
+import json
 import logging
 import os
-from typing import Any, Dict, Set, Tuple, Optional
+import sys
+from typing import Any, Dict, Optional, Set, Tuple
 
 import boto3
+import moviepy.video.fx as vfx
 import requests
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
-import moviepy.video.fx as vfx
-from PIL import ImageFont, ImageColor
+from PIL import ImageColor, ImageFont
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -18,7 +20,9 @@ DEFAULT_VIDEO_WIDTH = 1080
 DEFAULT_VIDEO_HEIGHT = 1920
 DEFAULT_DURATION = 10
 FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/ariblk.ttf"
-SUBTITLE_FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/Montserrat-Medium.ttf"
+SUBTITLE_FONT_PATH = (
+    "/usr/share/fonts/truetype/msttcorefonts/Montserrat-Medium.ttf"
+)
 
 LOCAL_COMPLETE_VIDEO = "/mnt/efs/complete_post.mp4"
 LOCAL_BG_IMAGE = "/tmp/backgroundimage_converted.jpg"
@@ -44,7 +48,9 @@ def download_s3_file(bucket_name: str, key: str, local_path: str) -> bool:
     except Exception as exc:
         logger.error(
             "S3 download failed for key='%s' in bucket='%s': %s",
-            key, bucket_name, exc
+            key,
+            bucket_name,
+            exc,
         )
         return False
 
@@ -62,10 +68,7 @@ def download_http_file(url: str, local_path: str, timeout: int = 10) -> bool:
         logger.info("Downloaded via HTTP: %s -> %s", url, local_path)
         return True
     except Exception as exc:
-        logger.error(
-            "HTTP download failed for '%s': %s",
-            url, exc
-        )
+        logger.error("HTTP download failed for '%s': %s", url, exc)
         return False
 
 
@@ -83,7 +86,7 @@ def dynamic_font_size(
     text: str,
     max_size: int,
     min_size: int,
-    ideal_length: int
+    ideal_length: int,
 ) -> int:
     """
     Dynamically determine a suitable font size for the given text length.
@@ -107,14 +110,14 @@ def create_multiline_colored_clip(
     color_highlight: str = "#ec008c",
     space: int = 15,
     line_spacing: int = 10,
-    duration: int = 10
+    duration: int = 10,
 ) -> CompositeVideoClip:
     """
     Create a multiline TextClip in which certain words are highlighted.
     """
     words = full_text.split()
-    lines = []
-    current_line = []
+    lines: list[list[str]] = []
+    current_line: list[str] = []
     current_line_width = 0
 
     for word in words:
@@ -143,24 +146,28 @@ def create_multiline_colored_clip(
             text_w = right - left
             text_h = (bottom - top) + 10
 
-            txt_clip = TextClip(
-                text=w,
-                font=font_path,
-                font_size=font_size,
-                color=color,
-                size=(text_w, text_h),
-                method="label"
-            ).with_duration(duration)
-            txt_clip = txt_clip.with_position((x_offset, 0))
+            txt_clip = (
+                TextClip(
+                    text=w,
+                    font=font_path,
+                    font_size=font_size,
+                    color=color,
+                    size=(text_w, text_h),
+                    method="label",
+                )
+                .with_duration(duration)
+                .with_position((x_offset, 0))
+            )
             x_offset += text_w + space
             word_clips.append(txt_clip)
 
         if word_clips:
             line_width = max(x_offset - space, 1)
             line_height = word_clips[0].h
-            line_composite = CompositeVideoClip(
-                word_clips, size=(line_width, line_height)
-            ).with_duration(duration)
+            line_composite = (
+                CompositeVideoClip(word_clips, size=(line_width, line_height))
+                .with_duration(duration)
+            )
             line_clips.append(line_composite)
         else:
             blank = ColorClip((1, 1), color=(0, 0, 0)).with_duration(duration)
@@ -173,34 +180,25 @@ def create_multiline_colored_clip(
     for lc in line_clips:
         lw, lh = lc.size
         line_x = (max_line_width - lw) // 2
-        line_pos = lc.with_position((line_x, current_y))
-        stacked_clips.append(line_pos)
+        stacked_clips.append(lc.with_position((line_x, current_y)))
         current_y += lh + line_spacing
 
     total_height = max(current_y - line_spacing, 1)
-    final_clip = CompositeVideoClip(
-        stacked_clips,
-        size=(max_line_width, total_height)
-    ).with_duration(duration)
-
-    return final_clip
+    return (
+        CompositeVideoClip(stacked_clips, size=(max_line_width, total_height))
+        .with_duration(duration)
+    )
 
 
 def parse_highlight_words(event: Dict[str, Any]) -> Tuple[Set[str], Set[str]]:
     """
     Parse highlight words from the event.
     """
-    highlight_words_title_raw = event.get("highlightWordsTitle", "") or ""
-    highlight_words_description_raw = event.get("highlightWordsDescription", "") or ""
-
-    highlight_words_title = {
-        w.strip().upper() for w in highlight_words_title_raw.split(",") if w.strip()
-    }
-    highlight_words_description = {
-        w.strip().upper() for w in highlight_words_description_raw.split(",") if w.strip()
-    }
-
-    return highlight_words_title, highlight_words_description
+    title_raw = event.get("highlightWordsTitle", "") or ""
+    desc_raw = event.get("highlightWordsDescription", "") or ""
+    title_set = {w.strip().upper() for w in title_raw.split(",") if w.strip()}
+    desc_set = {w.strip().upper() for w in desc_raw.split(",") if w.strip()}
+    return title_set, desc_set
 
 
 def parse_text(event: Dict[str, Any]) -> Tuple[str, str]:
@@ -210,7 +208,6 @@ def parse_text(event: Dict[str, Any]) -> Tuple[str, str]:
     desc_raw = event.get("description")
     if desc_raw and desc_raw.strip().lower() == "none":
         desc_raw = None
-
     title_text = (event.get("title") or "").upper()
     description_text = desc_raw.upper() if desc_raw else ""
     return title_text, description_text
@@ -218,7 +215,7 @@ def parse_text(event: Dict[str, Any]) -> Tuple[str, str]:
 
 def download_background(
     event: Dict[str, Any],
-    bucket_name: str
+    bucket_name: str,
 ) -> Tuple[str, bool]:
     """
     Download the background (image or video) specified in the event.
@@ -237,7 +234,9 @@ def download_background(
         if background_path.startswith("http"):
             downloaded_bg = download_http_file(background_path, bg_local_path)
         else:
-            downloaded_bg = download_s3_file(bucket_name, background_path, bg_local_path)
+            downloaded_bg = download_s3_file(
+                bucket_name, background_path, bg_local_path
+            )
 
     return bg_local_path, downloaded_bg
 
@@ -248,7 +247,7 @@ def create_background_clip(
     background_type: str,
     width: int,
     height: int,
-    default_duration: int
+    default_duration: int,
 ) -> Tuple[CompositeVideoClip, float]:
     """
     Create and resize a background clip based on whether it's an image or video.
@@ -260,40 +259,53 @@ def create_background_clip(
             duration_sec = raw_bg.duration
             scale_factor = width / raw_bg.w
             new_height = int(raw_bg.h * scale_factor)
-            black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(duration_sec)
+            black_bg = ColorClip((width, height), color=(0, 0, 0)).with_duration(
+                duration_sec
+            )
             y_offset = (height - new_height) // 2
             scaled_bg = (
-                raw_bg
-                .with_effects([vfx.Resize((width, new_height))])
+                raw_bg.with_effects([vfx.Resize((width, new_height))])
                 .with_duration(duration_sec)
                 .with_position((0, y_offset))
             )
-            bg_clip = CompositeVideoClip([black_bg, scaled_bg], size=(width, height))
-            bg_clip = bg_clip.with_duration(duration_sec)
+            bg_clip = CompositeVideoClip(
+                [black_bg, scaled_bg], size=(width, height)
+            ).with_duration(duration_sec)
         else:
             raw_bg = ImageClip(local_path)
             duration_sec = default_duration
             bg_clip = (
-                raw_bg
-                .with_effects([vfx.Resize((width, height))])
+                raw_bg.with_effects([vfx.Resize((width, height))])
                 .with_duration(duration_sec)
             )
     else:
-        logger.warning("Failed to download background or background path missing.")
-        bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(default_duration)
+        logger.warning(
+            "Failed to download background or background path missing."
+        )
+        bg_clip = ColorClip((width, height), color=(0, 0, 0)).with_duration(
+            default_duration
+        )
         duration_sec = default_duration
 
     return bg_clip, duration_sec
 
 
-def create_artifact_clip(spinning_artifact: str, bucket_name: str, background_type: str) -> Optional[VideoFileClip]:
+def create_artifact_clip(
+    spinning_artifact: str,
+    bucket_name: str,
+    background_type: str,
+) -> Optional[VideoFileClip]:
     """
     Download and prepare the artifact clip (NEWS, TRAILER, or FACT), if requested.
     Returns a moviepy clip or None if not used.
-
-    Changed: place artifact 15px lower (was 100px from the top, now 115px).
     """
-    if spinning_artifact not in ["NEWS", "TRAILER", "FACT", "THROWBACK", "VS"]:
+    if spinning_artifact not in [
+        "NEWS",
+        "TRAILER",
+        "FACT",
+        "THROWBACK",
+        "VS",
+    ]:
         return None
 
     if spinning_artifact == "NEWS":
@@ -308,29 +320,26 @@ def create_artifact_clip(spinning_artifact: str, bucket_name: str, background_ty
     elif spinning_artifact == "THROWBACK":
         artifact_key = "artifacts/THROWBACK.mov"
         scale_target = 400
-    elif spinning_artifact == "VS":
+    else:
         artifact_key = "artifacts/VS.mov"
         scale_target = 250
 
-    downloaded_artifact = download_s3_file(bucket_name, artifact_key, LOCAL_NEWS)
-    if downloaded_artifact and os.path.exists(LOCAL_NEWS):
+    downloaded = download_s3_file(bucket_name, artifact_key, LOCAL_NEWS)
+    if downloaded and os.path.exists(LOCAL_NEWS):
         raw_clip = VideoFileClip(LOCAL_NEWS, has_mask=True)
         scale_factor = scale_target / raw_clip.w
         artifact_clip = raw_clip.with_effects([vfx.Resize(scale_factor)])
-        artifact_width = artifact_clip.w
         pos_x = 50
-        pos_y = 250
-        if background_type == "video":
-            pos_y -= 150 
+        pos_y = 250 - 150 if background_type == "video" else 250
         return artifact_clip.with_position((pos_x, pos_y))
-
     return None
 
 
-def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[CompositeVideoClip]:
+def create_logo_clip(
+    bucket_name: str, duration_sec: float
+) -> Optional[CompositeVideoClip]:
     """
-    Download and resize a logo overlay, then add a thin horizontal line on the left side.
-    The entire line+logo composite is placed near the bottom-right with 50px horizontal padding.
+    Download and resize a logo overlay, then add a thin horizontal line.
     """
     logo_key = "artifacts/Logo.png"
     downloaded_logo = download_s3_file(bucket_name, logo_key, LOCAL_LOGO)
@@ -339,49 +348,57 @@ def create_logo_clip(bucket_name: str, duration_sec: float) -> Optional[Composit
 
     raw_logo = ImageClip(LOCAL_LOGO)
     scale_logo = 200 / raw_logo.w
-    logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(duration_sec)
+    logo_clip = raw_logo.with_effects([vfx.Resize(scale_logo)]).with_duration(
+        duration_sec
+    )
 
     line_width_left = 700
     line_height = 4
-    hex_color = "#ec008c"
-    line_color = ImageColor.getrgb(hex_color)
+    line_color = ImageColor.getrgb("#ec008c")
 
-    line_left = ColorClip(size=(line_width_left, line_height), color=line_color).with_duration(duration_sec)
-
-    gap_between_line_and_logo = 20
-    total_width = line_width_left + gap_between_line_and_logo + logo_clip.w
-    total_height = max(line_height, logo_clip.h)
-
-    line_left_x = 0
-    line_left_y = (total_height - line_height) // 2
-
-    logo_x = line_width_left + gap_between_line_and_logo
-    logo_y = (total_height - logo_clip.h) // 2
-
-    composite_with_lines = CompositeVideoClip(
-        [
-            line_left.with_position((line_left_x, line_left_y)),
-            logo_clip.with_position((logo_x, logo_y)),
-        ],
-        size=(total_width, total_height),
+    line_left = ColorClip(
+        size=(line_width_left, line_height), color=line_color
     ).with_duration(duration_sec)
 
-    final_x = DEFAULT_VIDEO_WIDTH - total_width - 50
-    final_y = DEFAULT_VIDEO_HEIGHT - composite_with_lines.h - 100
+    gap = 20
+    total_width = line_width_left + gap + logo_clip.w
+    total_height = max(line_height, logo_clip.h)
 
-    return composite_with_lines.with_position((final_x, final_y))
+    composite = (
+        CompositeVideoClip(
+            [
+                line_left.with_position((0, (total_height - line_height) // 2)),
+                logo_clip.with_position(
+                    (line_width_left + gap, (total_height - logo_clip.h) // 2)
+                ),
+            ],
+            size=(total_width, total_height),
+        )
+        .with_duration(duration_sec)
+        .with_position(
+            (
+                DEFAULT_VIDEO_WIDTH - total_width - 50,
+                DEFAULT_VIDEO_HEIGHT - total_height - 100,
+            )
+        )
+    )
+    return composite
 
 
-def create_gradient_clip(bucket_name: str, duration_sec: float) -> Optional[ImageClip]:
+def create_gradient_clip(
+    bucket_name: str, duration_sec: float
+) -> Optional[ImageClip]:
     """
     Download and prepare a gradient overlay image.
     """
     gradient_key = "artifacts/Black Gradient.png"
-    downloaded_gradient = download_s3_file(bucket_name, gradient_key, LOCAL_GRADIENT)
-    if downloaded_gradient and os.path.exists(LOCAL_GRADIENT):
+    downloaded = download_s3_file(bucket_name, gradient_key, LOCAL_GRADIENT)
+    if downloaded and os.path.exists(LOCAL_GRADIENT):
         return (
             ImageClip(LOCAL_GRADIENT)
-            .with_effects([vfx.Resize((DEFAULT_VIDEO_WIDTH, DEFAULT_VIDEO_HEIGHT))])
+            .with_effects(
+                [vfx.Resize((DEFAULT_VIDEO_WIDTH, DEFAULT_VIDEO_HEIGHT))]
+            )
             .with_duration(duration_sec)
         )
     return None
@@ -394,95 +411,81 @@ def create_text_clips(
     highlight_words_description: Set[str],
     spinning_artifact: str,
     duration_sec: float,
-    background_type: str
+    background_type: str,
 ) -> list:
     """
-    Create text overlay clips (title + optional description) depending
-    on the artifact and text presence.
-
-    Changed: shift text 200px higher if background is an image (was 150).
+    Create text overlay clips (title + optional description).
     """
     clips = []
     width, height = DEFAULT_VIDEO_WIDTH, DEFAULT_VIDEO_HEIGHT
 
     if description_text:
         if background_type == "video" or spinning_artifact == "TRAILER":
-            top_font_size = dynamic_font_size(title_text, 100, 75, 25)
-            subtitle_font_size = dynamic_font_size(description_text, 70, 30, 45)
-            title_max_width = 1000
-            subtitle_max_width = 800
+            top_size = dynamic_font_size(title_text, 100, 75, 25)
+            sub_size = dynamic_font_size(description_text, 70, 30, 45)
         elif spinning_artifact in ["NEWS", "FACT"]:
-            top_font_size = dynamic_font_size(title_text, 100, 70, 30)
-            subtitle_font_size = dynamic_font_size(description_text, 70, 25, 45)
-            title_max_width = 1000
-            subtitle_max_width = 800
+            top_size = dynamic_font_size(title_text, 100, 70, 30)
+            sub_size = dynamic_font_size(description_text, 70, 25, 45)
         else:
-            top_font_size = dynamic_font_size(title_text, 100, 70, 30)
-            subtitle_font_size = dynamic_font_size(description_text, 70, 25, 45)
-            title_max_width = 1000
-            subtitle_max_width = 800
+            top_size = dynamic_font_size(title_text, 100, 70, 30)
+            sub_size = dynamic_font_size(description_text, 70, 25, 45)
 
-        multiline_title_clip = create_multiline_colored_clip(
-            full_text=title_text,
-            highlight_words=highlight_words_title,
-            font_path=FONT_PATH,
-            font_size=top_font_size,
-            max_width=title_max_width,
-            duration=duration_sec
+        title_clip = create_multiline_colored_clip(
+            title_text,
+            highlight_words_title,
+            FONT_PATH,
+            top_size,
+            1000,
+            duration=duration_sec,
+        )
+        sub_clip = create_multiline_colored_clip(
+            description_text,
+            highlight_words_description,
+            SUBTITLE_FONT_PATH,
+            sub_size,
+            800,
+            duration=duration_sec,
         )
 
-        multiline_subtitle_clip = create_multiline_colored_clip(
-            full_text=description_text,
-            highlight_words=highlight_words_description,
-            font_path=SUBTITLE_FONT_PATH,
-            font_size=subtitle_font_size,
-            max_width=subtitle_max_width,
-            duration=duration_sec
-        )
-
-        title_w, title_h = multiline_title_clip.size
-        sub_w, sub_h = multiline_subtitle_clip.size
+        title_w, title_h = title_clip.size
+        sub_w, sub_h = sub_clip.size
 
         if background_type == "video" or spinning_artifact == "TRAILER":
-            title_x = (width - title_w) // 2
-            title_y = 275
-            subtitle_x = (width - sub_w) // 2
-            subtitle_y = int(height * 0.75)
+            title_pos = ((width - title_w) // 2, 275)
+            sub_pos = ((width - sub_w) // 2, int(height * 0.75))
         else:
             bottom_margin = 300
-            gap_between_title_and_sub = 30
-            subtitle_y = height - bottom_margin - sub_h
-            subtitle_x = (width - sub_w) // 2
-            title_y = subtitle_y - gap_between_title_and_sub - title_h
-            title_x = (width - title_w) // 2
+            gap = 30
+            sub_y = height - bottom_margin - sub_h
+            title_y = sub_y - gap - title_h
+            title_pos = ((width - title_w) // 2, title_y)
+            sub_pos = ((width - sub_w) // 2, sub_y)
 
-        multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
-        multiline_subtitle_clip = multiline_subtitle_clip.with_position((subtitle_x, subtitle_y))
-
-        clips.extend([multiline_title_clip, multiline_subtitle_clip])
-
+        clips.extend(
+            [
+                title_clip.with_position(title_pos),
+                sub_clip.with_position(sub_pos),
+            ]
+        )
     else:
-        bigger_font_size = dynamic_font_size(title_text, 100, 75, 40)
-        multiline_title_clip = create_multiline_colored_clip(
-            full_text=title_text,
-            highlight_words=highlight_words_title,
-            font_path=FONT_PATH,
-            font_size=bigger_font_size,
-            max_width=1000,
-            duration=duration_sec
+        font_size = dynamic_font_size(title_text, 100, 75, 40)
+        title_clip = create_multiline_colored_clip(
+            title_text,
+            highlight_words_title,
+            FONT_PATH,
+            font_size,
+            1000,
+            duration=duration_sec,
         )
-        title_w, title_h = multiline_title_clip.size
-
+        title_w, title_h = title_clip.size
         if background_type == "video" or spinning_artifact == "TRAILER":
-            title_x = (width - title_w) // 2
-            title_y = 275
+            title_pos = ((width - title_w) // 2, 275)
         else:
-            bottom_margin = 300
-            title_x = (width - title_w) // 2
-            title_y = height - bottom_margin - title_h
-
-        multiline_title_clip = multiline_title_clip.with_position((title_x, title_y))
-        clips.append(multiline_title_clip)
+            title_pos = (
+                (width - title_w) // 2,
+                height - 300 - title_h,
+            )
+        clips.append(title_clip.with_position(title_pos))
 
     return clips
 
@@ -492,15 +495,14 @@ def compose_and_write_final(
     width: int,
     height: int,
     duration_sec: float,
-    output_path: str
+    output_path: str,
 ):
     """
     Compose the final video from multiple clips and write it to a file.
     """
-    final_comp = CompositeVideoClip(
-        clips_list, size=(width, height)
-    ).with_duration(duration_sec)
-
+    final_comp = CompositeVideoClip(clips_list, size=(width, height)).with_duration(
+        duration_sec
+    )
     final_comp.write_videofile(
         output_path,
         fps=24,
@@ -510,7 +512,7 @@ def compose_and_write_final(
         temp_audiofile="/tmp/temp-audo.m4a",
         remove_temp=True,
         threads=2,
-        ffmpeg_params=["-preset", "ultrafast"]
+        ffmpeg_params=["-preset", "ultrafast"],
     )
     logger.info("Final video written to %s", output_path)
 
@@ -527,8 +529,8 @@ def upload_video_to_s3(local_path: str, bucket_name: str, s3_key: str) -> bool:
             s3_key,
             ExtraArgs={
                 "ContentType": "video/mp4",
-                "ContentDisposition": 'attachment; filename="complete_post.mp4"'
-            }
+                "ContentDisposition": 'attachment; filename="complete_post.mp4"',
+            },
         )
         logger.info("Uploaded video to s3://%s/%s", bucket_name, s3_key)
         return True
@@ -537,12 +539,29 @@ def upload_video_to_s3(local_path: str, bucket_name: str, s3_key: str) -> bool:
         return False
 
 
+def send_task_callback(status: str, video_key: str, message: str = ""):
+    token = os.getenv("TASK_TOKEN")
+    if not token:
+        logger.warning("No TASK_TOKEN supplied; running outside callback?")
+        return
+
+    sfn = boto3.client("stepfunctions")
+    if status == "success":
+        sfn.send_task_success(
+            taskToken=token,
+            output=json.dumps({"status": status, "video_key": video_key}),
+        )
+    else:
+        sfn.send_task_failure(
+            taskToken=token,
+            error="RenderError",
+            cause=message,
+        )
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     """
-    AWS Lambda handler to render a short social-media video clip based on:
-      - a background image or video
-      - spinning artifacts
-      - text overlays
+    AWS Lambda handler to render a social‑media video clip.
     """
     logger.info("Render video lambda started")
 
@@ -550,39 +569,41 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     folder = f"posts/post_{timestamp_str}"
     complete_key = f"{folder}/complete_post.mp4"
 
-    highlight_words_title, highlight_words_description = parse_highlight_words(event)
-
+    hl_title, hl_desc = parse_highlight_words(event)
     title_text, description_text = parse_text(event)
 
     background_type = event.get("backgroundType", "image").lower()
     bg_local_path, downloaded_bg = download_background(event, TARGET_BUCKET)
 
     spinning_artifact = event.get("spinningArtifact", "").strip().upper()
-    artifact_clip = create_artifact_clip(spinning_artifact, TARGET_BUCKET, background_type)
+    artifact_clip = create_artifact_clip(
+        spinning_artifact, TARGET_BUCKET, background_type
+    )
 
     bg_clip, duration_sec = create_background_clip(
-        local_path=bg_local_path,
-        downloaded_bg=downloaded_bg,
-        background_type=background_type,
-        width=DEFAULT_VIDEO_WIDTH,
-        height=DEFAULT_VIDEO_HEIGHT,
-        default_duration=DEFAULT_DURATION
+        bg_local_path,
+        downloaded_bg,
+        background_type,
+        DEFAULT_VIDEO_WIDTH,
+        DEFAULT_VIDEO_HEIGHT,
+        DEFAULT_DURATION,
     )
 
     logo_clip = create_logo_clip(TARGET_BUCKET, duration_sec)
-
-    gradient_clip = create_gradient_clip(TARGET_BUCKET, duration_sec)
-    if background_type == "video":
-        gradient_clip = None
+    gradient_clip = (
+        None
+        if background_type == "video"
+        else create_gradient_clip(TARGET_BUCKET, duration_sec)
+    )
 
     text_clips = create_text_clips(
         title_text,
         description_text,
-        highlight_words_title,
-        highlight_words_description,
+        hl_title,
+        hl_desc,
         spinning_artifact,
         duration_sec,
-        background_type
+        background_type,
     )
 
     clips_complete = [bg_clip]
@@ -595,24 +616,37 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, str]:
     clips_complete.extend(text_clips)
 
     compose_and_write_final(
-        clips_list=clips_complete,
-        width=DEFAULT_VIDEO_WIDTH,
-        height=DEFAULT_VIDEO_HEIGHT,
-        duration_sec=duration_sec,
-        output_path=LOCAL_COMPLETE_VIDEO
+        clips_complete,
+        DEFAULT_VIDEO_WIDTH,
+        DEFAULT_VIDEO_HEIGHT,
+        duration_sec,
+        LOCAL_COMPLETE_VIDEO,
     )
 
     uploaded = upload_video_to_s3(LOCAL_COMPLETE_VIDEO, TARGET_BUCKET, complete_key)
     if not uploaded:
-        return {
-            "status": "error",
-            "video_key": complete_key,
-            "message": "Upload error."
-        }
+        send_task_callback("error", video_key=complete_key, message="Upload error")
+        return {"status": "error", "video_key": complete_key}
 
     logger.info("Render video complete")
+    send_task_callback("success", video_key=complete_key)
+    return {"status": "rendered", "video_key": complete_key}
 
-    return {
-        "status": "rendered",
-        "video_key": complete_key
-    }
+
+if __name__ == "__main__":
+    raw_event = os.getenv("EVENT_JSON", "{}")
+    try:
+        input_event = json.loads(raw_event)
+    except json.JSONDecodeError as exc:
+        logger.error("Invalid EVENT_JSON: %s", exc)
+        sys.exit(1)
+
+    try:
+        result_obj = lambda_handler(input_event, None)
+    except Exception:
+        logger.exception("Unhandled exception in render_video")
+        sys.exit(1)
+
+    logger.info("render_video result: %s", json.dumps(result_obj))
+    if not result_obj or result_obj.get("status") == "error":
+        sys.exit(1)
