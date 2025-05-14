@@ -86,7 +86,7 @@ resource "aws_s3_bucket" "feedutopia-webapp" {
   force_destroy = true
 }
 
-resource "aws_s3_bucket_policy" "feedutopia_webapp_oac" {
+esource "aws_s3_bucket_policy" "feedutopia_webapp" {
   bucket = aws_s3_bucket.feedutopia-webapp.id
 
   policy = jsonencode({
@@ -99,7 +99,6 @@ resource "aws_s3_bucket_policy" "feedutopia_webapp_oac" {
         Principal = { Service = "cloudfront.amazonaws.com" }
         Action    = "s3:GetObject"
         Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/*"
-
         Condition = {
           ArnLike = {
             "AWS:SourceArn" = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"
@@ -121,7 +120,6 @@ resource "aws_s3_bucket_policy" "feedutopia_webapp_oac" {
     ]
   })
 }
-
 
 resource "aws_s3_bucket_cors_configuration" "artifacts_cors" {
   bucket = "prod-sharedservices-artifacts-bucket"
