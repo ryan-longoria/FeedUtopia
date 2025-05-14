@@ -95,18 +95,19 @@ resource "aws_s3_bucket_policy" "feedutopia_webapp_oac" {
       Sid       = "AllowCloudFrontOAC"
       Effect    = "Allow"
       Principal = { Service = "cloudfront.amazonaws.com" }
-
       Action    = "s3:GetObject"
       Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/*"
 
       Condition = {
         StringEquals = {
-          "AWS:SourceArn" = aws_cloudfront_distribution.feedutopia-web.arn
+          "AWS:SourceArn"      = aws_cloudfront_distribution.feedutopia-web.arn
+          "AWS:SourceAccount"  = data.aws_caller_identity.current.account_id
         }
       }
     }]
   })
 }
+
 
 resource "aws_s3_bucket_cors_configuration" "artifacts_cors" {
   bucket = "prod-sharedservices-artifacts-bucket"
@@ -120,24 +121,17 @@ resource "aws_s3_bucket_cors_configuration" "artifacts_cors" {
   }
 }
 
-resource "aws_s3_bucket_policy" "feedutopia_webapp_oac" {
+resource "aws_s3_bucket_policy" "feedutopia_webapp_kb_write" {
   bucket = aws_s3_bucket.feedutopia-webapp.id
 
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
-      Sid       = "AllowCloudFrontOAC"
-      Effect    = "Allow"
-      Principal = { Service = "cloudfront.amazonaws.com" }
-      Action    = "s3:GetObject"
-      Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/*"
-
-      Condition = {
-        StringEquals = {
-          "AWS:SourceArn"      = aws_cloudfront_distribution.feedutopia-web.arn
-          "AWS:SourceAccount"  = data.aws_caller_identity.current.account_id
-        }
-      }
+      Sid      = "AllowLambdaWriteKB"
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:PutObjectAcl"]
+      Resource = "${aws_s3_bucket.feedutopia-webapp.arn}/kb/*"
+      Principal = { AWS = aws_iam_role.lambda_role.arn }
     }]
   })
 }
