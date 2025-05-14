@@ -302,7 +302,7 @@ resource "aws_lambda_function" "kb_presign" {
 
 resource "aws_lambda_function" "kb_list" {
   function_name = "${var.project_name}-kb-list"
-  handler       = "lambda_handler.lambda_handler"
+  handler       = "lambda_function.lambda_handler"
   runtime       = "python3.9"
   role          = aws_iam_role.lambda_role.arn
   timeout       = 10
