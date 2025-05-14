@@ -87,7 +87,7 @@ resource "aws_cloudfront_distribution" "feedutopia-web" {
   }
 
   viewer_certificate {
-    acm_certificate_arn      = data.aws_acm_certificate.api_cert.arn
+    acm_certificate_arn      = data.aws_acm_certificate.web_cf_cert.arn
     ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2021"
   }

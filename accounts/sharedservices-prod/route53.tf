@@ -7,6 +7,13 @@ data "aws_acm_certificate" "api_cert" {
   statuses = ["ISSUED"]
 }
 
+data "aws_acm_certificate" "web_cf_cert" {
+  provider    = aws.us_east_1
+  domain      = "feedutopia.com"
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
 data "aws_route53_zone" "feedutopia_zone" {
   name         = "feedutopia.com."
   private_zone = false
