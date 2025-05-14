@@ -4,13 +4,14 @@ import json
 try:
     import js  # type: ignore
     import pyodide_http  # type: ignore
+    from pyodide import create_proxy # type: ignore
 except ImportError:
     js = ModuleType("js")
     pyodide_http = ModuleType("pyodide_http")
 
 pyodide_http.patch_all()
 
-API_ROOT = f"{js.window.location.origin}/api"
+API_ROOT = "https://api.feedutopia.com"
 OUT_EL = js.document.getElementById("out")
 
 
@@ -69,8 +70,6 @@ async def handle_submit(event):
     log(await submit.text())
 
 
-js.document.getElementById("submit").addEventListener(
-    "click",
-    handle_submit,
-)
+proxy = create_proxy(handle_submit)
+js.document.getElementById("submit").addEventListener("click", proxy)
 
