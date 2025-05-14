@@ -86,7 +86,7 @@ resource "aws_s3_bucket" "feedutopia-webapp" {
   force_destroy = true
 }
 
-esource "aws_s3_bucket_policy" "feedutopia_webapp" {
+resource "aws_s3_bucket_policy" "feedutopia_webapp" {
   bucket = aws_s3_bucket.feedutopia-webapp.id
 
   policy = jsonencode({
