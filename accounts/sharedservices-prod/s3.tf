@@ -91,20 +91,34 @@ resource "aws_s3_bucket_policy" "feedutopia_webapp_oac" {
 
   policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [{
-      Sid       = "AllowCloudFrontOAC"
-      Effect    = "Allow"
-      Principal = { Service = "cloudfront.amazonaws.com" }
-      Action    = "s3:GetObject"
-      Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/*"
+    Statement = [
 
-      Condition = {
-        StringEquals = {
-          "AWS:SourceArn"      = aws_cloudfront_distribution.feedutopia-web.arn
-          "AWS:SourceAccount"  = data.aws_caller_identity.current.account_id
+      {
+        Sid       = "AllowCloudFrontOAC"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/*"
+
+        Condition = {
+          ArnLike = {
+            "AWS:SourceArn" = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"
+          }
+          StringEquals = {
+            "AWS:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
         }
+      },
+
+      {
+        Sid       = "AllowLambdaWriteKB"
+        Effect    = "Allow"
+        Principal = { AWS = aws_iam_role.lambda_role.arn }
+        Action    = ["s3:PutObject","s3:PutObjectAcl"]
+        Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/kb/*"
       }
-    }]
+
+    ]
   })
 }
 
@@ -119,19 +133,4 @@ resource "aws_s3_bucket_cors_configuration" "artifacts_cors" {
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
   }
-}
-
-resource "aws_s3_bucket_policy" "feedutopia_webapp_kb_write" {
-  bucket = aws_s3_bucket.feedutopia-webapp.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Sid      = "AllowLambdaWriteKB"
-      Effect   = "Allow"
-      Action   = ["s3:PutObject", "s3:PutObjectAcl"]
-      Resource = "${aws_s3_bucket.feedutopia-webapp.arn}/kb/*"
-      Principal = { AWS = aws_iam_role.lambda_role.arn }
-    }]
-  })
 }
