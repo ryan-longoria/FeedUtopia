@@ -1,19 +1,58 @@
-import os, json, uuid, boto3, datetime as dt
+import os
+import json
+import uuid
+import traceback
+import boto3
+import datetime as dt
+
 s3 = boto3.client("s3")
 
 def lambda_handler(event, _ctx):
-    body   = json.loads(event["body"] or "{}")
-    title  = body.get("title", "untitled")
-    key    = f"kb/{uuid.uuid4()}.json"
+    try:
+        bucket = os.environ["BUCKET"]
+        body   = json.loads(event.get("body") or "{}")
+        title  = body.get("title", "untitled")
+        key    = f"kb/{uuid.uuid4()}.json"
 
-    url = s3.generate_presigned_url(
-        "put_object",
-        Params={"Bucket": os.environ["BUCKET"], "Key": key, "ContentType": "application/json"},
-        ExpiresIn=60  # 1 min
-    )
+        url = s3.generate_presigned_url(
+            ClientMethod="put_object",
+            Params={
+                "Bucket":      bucket,
+                "Key":         key,
+                "ContentType": "application/json",
+                "Metadata": {"title": title}
+            },
+            ExpiresIn=60
+        )
 
-    return {
-        "statusCode": 200,
-        "headers": {"Access-Control-Allow-Origin": "*"},
-        "body": json.dumps({"uploadUrl": url, "key": key, "created": dt.datetime.utcnow().isoformat(), "title": title})
-    }
+        payload = {
+            "uploadUrl": url,
+            "key":       key,
+            "created":   dt.datetime.utcnow().isoformat(),
+            "title":     title
+        }
+
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin":  "*",
+                "Access-Control-Allow-Methods": "POST,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            },
+            "body": json.dumps(payload)
+        }
+
+    except Exception as e:
+        # Log the error to CloudWatch
+        print("ERROR in kb_presign:", e)
+        print(traceback.format_exc())
+
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Access-Control-Allow-Origin":  "*",
+                "Access-Control-Allow-Methods": "POST,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            },
+            "body": json.dumps({"message": "Internal server error"})
+        }
