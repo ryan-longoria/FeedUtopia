@@ -107,3 +107,15 @@ resource "aws_s3_bucket_policy" "feedutopia_webapp_oac" {
     }]
   })
 }
+
+resource "aws_s3_bucket_cors_configuration" "artifacts_cors" {
+  bucket = "prod-sharedservices-artifacts-bucket"
+
+  cors_rule {
+    allowed_methods = ["GET", "PUT", "HEAD", "POST"]
+    allowed_origins = ["https://feedutopia.com"]
+    allowed_headers = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
