@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>FeedUtopia – Home</title>
+<title>FeedUtopia – Knowledge Base</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 :root {
@@ -33,7 +33,7 @@ header {
 nav {
   display: flex;
   align-items: center;
-  gap: 1.2rem;
+  gap: 1.25rem;
   flex-wrap: wrap;
 }
 
@@ -43,7 +43,6 @@ nav a {
   font-weight: 600;
 }
 
-/* ▼ dropdown */
 .dropdown {
   position: relative;
 }
@@ -86,12 +85,66 @@ main {
 
 h1 {
   font-size: 1.8rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
 }
 
-p {
-  font-size: 1rem;
-  line-height: 1.6;
+#add-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: .6rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+}
+
+#kb-list .kb-article {
+  background: var(--bg-dark);
+  padding: 1rem 1.2rem;
+  border-radius: 8px;
+  margin-bottom: 1.2rem;
+}
+
+#kb-list .kb-article h2 {
+  margin: .2rem 0 .4rem;
+  color: var(--accent);
+}
+
+textarea, input {
+  width: 100%;
+  padding: .55rem;
+  border-radius: 6px;
+  border: none;
+  background: #333;
+  color: #eee;
+}
+
+dialog {
+  border: none;
+  border-radius: 10px;
+  padding: 2rem;
+  background: #222;
+  color: #eee;
+  width: 90%;
+  max-width: 600px;
+}
+
+dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+}
+
+dialog button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: .55rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  align-self: flex-start;
 }
 
 /* ── responsive tweaks ─────────────────────────────────── */
@@ -105,11 +158,20 @@ p {
   }
 
   h1 {
-    font-size: 1.4rem;
+    font-size: 1.5rem;
   }
 
-  p {
-    font-size: 0.95rem;
+  #add-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  #kb-list .kb-article h2 {
+    font-size: 1.1rem;
+  }
+
+  textarea, input {
+    font-size: .95rem;
   }
 }
 </style>
@@ -118,11 +180,8 @@ p {
 
 <header>
   <div style="font-weight:700">FeedUtopia</div>
-
   <nav>
     <a href="index.html">Home</a>
-
-    <!-- Accounts dropdown -->
     <div class="dropdown">
       <a href="#!">Accounts</a>
       <div class="dropdown-content">
@@ -140,8 +199,9 @@ p {
 </header>
 
 <main>
-  <h1>Welcome to FeedUtopia</h1>
-  <p>Your hub for lightning‑fast, automated content creation. Open the psychedelic frog, Utopium, in the corner to start a post!</p>
+  <h1>Knowledge Base</h1>
+  <button id="add-btn">➕ Add Article</button>
+  <section id="kb-list"></section>
 </main>
 
 <script defer src="utopium-widget.js"></script>
