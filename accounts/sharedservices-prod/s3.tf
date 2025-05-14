@@ -85,3 +85,25 @@ resource "aws_s3_bucket" "feedutopia-webapp" {
   bucket        = "feedutopia-webapp"
   force_destroy = true
 }
+
+resource "aws_s3_bucket_policy" "feedutopia_webapp_oac" {
+  bucket = aws_s3_bucket.feedutopia-webapp.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Sid       = "AllowCloudFrontOAC"
+      Effect    = "Allow"
+      Principal = { Service = "cloudfront.amazonaws.com" }
+
+      Action    = "s3:GetObject"
+      Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/*"
+
+      Condition = {
+        StringEquals = {
+          "AWS:SourceArn" = aws_cloudfront_distribution.feedutopia-web.arn
+        }
+      }
+    }]
+  })
+}
