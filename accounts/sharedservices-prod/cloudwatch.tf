@@ -66,6 +66,26 @@ resource "aws_cloudwatch_log_group" "delete_logo_log_group" {
   retention_in_days = 3
 }
 
+resource "aws_cloudwatch_log_group" "create_feed_post_log_group" {
+  name              = "/aws/lambda/create_feed_post"
+  retention_in_days = 3
+}
+
+resource "aws_cloudwatch_log_group" "generate_upload_url_log_group" {
+  name              = "/aws/lambda/generate_upload_url"
+  retention_in_days = 3
+}
+
+resource "aws_cloudwatch_log_group" "kb_list_log_group" {
+  name              = "/aws/lambda/kb_list"
+  retention_in_days = 3
+}
+
+resource "aws_cloudwatch_log_group" "kb_presign_log_group" {
+  name              = "/aws/lambda/kb_presign"
+  retention_in_days = 3
+}
+
 resource "aws_cloudwatch_log_group" "waf_logs" {
   name              = "aws-waf-logs-apigw"
   retention_in_days = 14
