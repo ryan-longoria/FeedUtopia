@@ -77,6 +77,13 @@ resource "aws_cloudfront_distribution" "feedutopia-web" {
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]
     compress               = true
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
   }
 
   viewer_certificate {
