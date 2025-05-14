@@ -110,6 +110,22 @@ resource "aws_iam_role_policy" "lambda_sfn_execution" {
   })
 }
 
+resource "aws_lambda_permission" "allow_apigw_upload" {
+  statement_id  = "AllowAPIGWInvokeUpload"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.generate_upload_url.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "allow_apigw_submit" {
+  statement_id  = "AllowAPIGWInvokeSubmit"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.create_feed_post.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/*"
+}
+
 resource "aws_lambda_permission" "allow_apigw_oauth" {
   statement_id  = "AllowHttpApiInvokeOAuth"
   action        = "lambda:InvokeFunction"
@@ -143,7 +159,7 @@ resource "aws_lambda_permission" "allow_apigw" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.ig_webhook_handler.function_name
   principal     = "apigateway.amazonaws.com"
-  
+
   source_arn = "arn:aws:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${aws_apigatewayv2_api.instagram_api.id}/*/*/instagram/webhook"
 }
 
@@ -195,51 +211,51 @@ resource "aws_iam_role_policy" "step_functions_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        "Effect": "Allow",
-        "Action": [
+        "Effect" : "Allow",
+        "Action" : [
           "lambda:InvokeFunction"
         ],
-        "Resource": [
+        "Resource" : [
           aws_lambda_function.get_logo.arn,
           aws_lambda_function.delete_logo.arn,
           aws_lambda_function.notify_post.arn
         ]
       },
       {
-        "Effect": "Allow",
-        "Action": [
+        "Effect" : "Allow",
+        "Action" : [
           "logs:CreateLogDelivery", "logs:GetLogDelivery", "logs:UpdateLogDelivery",
           "logs:DeleteLogDelivery", "logs:ListLogDeliveries", "logs:PutResourcePolicy",
           "logs:DescribeResourcePolicies", "logs:DescribeLogGroups"
         ],
-        "Resource": "*"
+        "Resource" : "*"
       },
 
       {
-        "Effect": "Allow",
-        "Action": [
+        "Effect" : "Allow",
+        "Action" : [
           "events:PutRule",
           "events:PutTargets",
           "events:DescribeRule",
           "events:RemoveTargets",
           "events:DeleteRule"
         ],
-        "Resource": "arn:aws:events:*:*:rule/StepFunctionsGetEventsForECSTaskRule*"
+        "Resource" : "arn:aws:events:*:*:rule/StepFunctionsGetEventsForECSTaskRule*"
       },
 
       {
-        "Effect": "Allow",
-        "Action": ["ecs:RunTask", "ecs:StopTask", "ecs:DescribeTasks"],
-        "Resource": aws_ecs_task_definition.render_video.arn
+        "Effect" : "Allow",
+        "Action" : ["ecs:RunTask", "ecs:StopTask", "ecs:DescribeTasks"],
+        "Resource" : aws_ecs_task_definition.render_video.arn
       },
       {
-        "Effect": "Allow",
-        "Action": "iam:PassRole",
-        "Resource": [
+        "Effect" : "Allow",
+        "Action" : "iam:PassRole",
+        "Resource" : [
           aws_iam_role.ecs_task_execution_role.arn,
           aws_iam_role.ecs_task_role.arn
         ],
-        "Condition": { "StringEquals": { "iam:PassedToService": "ecs-tasks.amazonaws.com" } }
+        "Condition" : { "StringEquals" : { "iam:PassedToService" : "ecs-tasks.amazonaws.com" } }
       }
     ]
   })
@@ -256,13 +272,13 @@ resource "aws_iam_role_policy" "step_functions_ecs" {
         Resource = aws_ecs_task_definition.render_video.arn
       },
       {
-        Effect     = "Allow",
-        Action     = "iam:PassRole",
-        Resource   = [
+        Effect = "Allow",
+        Action = "iam:PassRole",
+        Resource = [
           aws_iam_role.ecs_task_execution_role.arn,
           aws_iam_role.ecs_task_role.arn
         ],
-        Condition  = { StringEquals = { "iam:PassedToService" = "ecs-tasks.amazonaws.com" } }
+        Condition = { StringEquals = { "iam:PassedToService" = "ecs-tasks.amazonaws.com" } }
       }
     ]
   })
@@ -425,7 +441,7 @@ resource "aws_iam_user_policy_attachment" "ms-copilot_attach_policy" {
 
 data "aws_iam_policy_document" "dns_role_trust" {
   statement {
-    sid = "AllowanimeutopiaAccountToAssume"
+    sid    = "AllowanimeutopiaAccountToAssume"
     effect = "Allow"
 
     principals {
@@ -448,8 +464,8 @@ resource "aws_iam_role" "dns_terraform_role" {
 
 data "aws_iam_policy_document" "dns_role_policy_doc" {
   statement {
-    sid     = "Route53Permissions"
-    effect  = "Allow"
+    sid    = "Route53Permissions"
+    effect = "Allow"
     actions = [
       "route53:*",
     ]
@@ -505,8 +521,8 @@ resource "aws_iam_role_policy" "ecs_send_task_success" {
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
-      Effect   = "Allow",
-      Action   = [
+      Effect = "Allow",
+      Action = [
         "states:SendTaskSuccess",
         "states:SendTaskFailure"
       ],

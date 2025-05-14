@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Anime Utopia</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root {
+  --accent: #ec008c;
+  --bg-darker: #111;
+  --bg-dark: #222;
+  --text-main: #eee;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-darker);
+  color: var(--text-main);
+  font-family: system-ui, sans-serif;
+}
+
+/* ── nav bar ─────────────────────────────────────────────── */
+header {
+  background: var(--accent);
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #fff;
+  flex-wrap: wrap;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+nav a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.dropdown {
+  position: relative;
+}
+
+.dropdown > a::after {
+  content: "▼";
+  font-size: .55rem;
+  margin-left: .35rem;
+  opacity: .7;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--bg-dark);
+  padding: .5rem 0;
+  border-radius: 6px;
+  min-width: 180px;
+  z-index: 10;
+}
+
+.dropdown-content a {
+  display: block;
+  padding: .5rem 1rem;
+  font-weight: 500;
+}
+
+.dropdown:hover .dropdown-content {
+  display: block;
+}
+
+/* ── content ─────────────────────────────────────────────── */
+main {
+  padding: 1.5rem;
+  max-width: 900px;
+  margin: auto;
+}
+
+h1 {
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+}
+
+.stat-card {
+  background: var(--bg-dark);
+  padding: 1.2rem 1.5rem;
+  border-radius: 8px;
+  margin: .9rem 0;
+}
+
+.stat-card h2 {
+  margin: .2rem 0 .6rem;
+  color: var(--accent);
+}
+
+.placeholder {
+  opacity: .65;
+  font-style: italic;
+}
+
+/* ── responsive tweaks ─────────────────────────────────── */
+@media(max-width: 600px) {
+  header {
+    padding: 0.75rem 1rem;
+  }
+
+  nav {
+    gap: 0.8rem;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .stat-card h2 {
+    font-size: 1.1rem;
+  }
+
+  .stat-card p {
+    font-size: .95rem;
+  }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div style="font-weight:700">FeedUtopia</div>
+  <nav>
+    <a href="/index.html">Home</a>
+    <div class="dropdown">
+      <a href="#!">Accounts</a>
+      <div class="dropdown-content">
+        <a href="/account-pages/animeutopia.html">Anime Utopia</a>
+        <a href="/account-pages/wrestleutopia.html">Wrestle Utopia</a>
+        <a href="/account-pages/driftutopia.html">Drift Utopia</a>
+        <a href="/account-pages/xputopia.html">XP Utopia</a>
+        <a href="/account-pages/critterutopia.html">Critter Utopia</a>
+        <a href="/account-pages/cyberutopia.html">Cyber Utopia</a>
+      </div>
+    </div>
+    <a href="/orders.html">Orders</a>
+    <a href="/kb.html">Knowledge Base</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Anime Utopia</h1>
+
+  <div class="stat-card">
+    <h2>Followers</h2>
+    <p class="placeholder">(placeholder count)</p>
+  </div>
+
+  <div class="stat-card">
+    <h2>Posts</h2>
+    <p class="placeholder">(placeholder total)</p>
+  </div>
+
+  <div class="stat-card">
+    <h2>Average Engagement</h2>
+    <p class="placeholder">(placeholder %)</p>
+  </div>
+</main>
+
+<script defer src="/utopium-widget.js"></script>
+</body>
+</html>
