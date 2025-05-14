@@ -119,3 +119,18 @@ resource "aws_s3_bucket_cors_configuration" "artifacts_cors" {
     max_age_seconds = 3000
   }
 }
+
+resource "aws_s3_bucket_policy" "feedutopia_webapp_kb_write" {
+  bucket = aws_s3_bucket.feedutopia-webapp.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Sid      = "AllowLambdaWriteKB"
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:PutObjectAcl"]
+      Resource = "${aws_s3_bucket.feedutopia-webapp.arn}/kb/*"
+      Principal = { AWS = aws_iam_role.lambda_role.arn }
+    }]
+  })
+}

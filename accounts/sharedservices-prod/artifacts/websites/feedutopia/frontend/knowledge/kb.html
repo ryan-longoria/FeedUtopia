@@ -181,20 +181,20 @@ dialog button {
 <header>
   <div style="font-weight:700">FeedUtopia</div>
   <nav>
-    <a href="index.html">Home</a>
+    <a href="/index.html">Home</a>
     <div class="dropdown">
       <a href="#!">Accounts</a>
       <div class="dropdown-content">
-        <a href="account-pages/animeutopia.html">Anime Utopia</a>
-        <a href="account-pages/wrestleutopia.html">Wrestle Utopia</a>
-        <a href="account-pages/driftutopia.html">Drift Utopia</a>
-        <a href="account-pages/xputopia.html">XP Utopia</a>
-        <a href="account-pages/critterutopia.html">Critter Utopia</a>
-        <a href="account-pages/cyberutopia.html">Cyber Utopia</a>
+        <a href="/account-pages/animeutopia.html">Anime Utopia</a>
+        <a href="/account-pages/wrestleutopia.html">Wrestle Utopia</a>
+        <a href="/account-pages/driftutopia.html">Drift Utopia</a>
+        <a href="/account-pages/xputopia.html">XP Utopia</a>
+        <a href="/account-pages/critterutopia.html">Critter Utopia</a>
+        <a href="/account-pages/cyberutopia.html">Cyber Utopia</a>
       </div>
     </div>
-    <a href="orders.html">Orders</a>
-    <a href="kb.html">Knowledge Base</a>
+    <a href="/orders.html">Orders</a>
+    <a href="/kb.html">Knowledge Base</a>
   </nav>
 </header>
 
@@ -204,6 +204,60 @@ dialog button {
   <section id="kb-list"></section>
 </main>
 
-<script defer src="utopium-widget.js"></script>
+<dialog id="kb-dialog">
+  <form id="kb-form">
+    <input id="kb-title" placeholder="Article title" required>
+    <textarea id="kb-body" rows="10" placeholder="Markdown or plain‑text…" required></textarea>
+    <button type="submit">Publish</button>
+  </form>
+</dialog>
+
+<script>
+const apiRoot = "https://api.feedutopia.com";   // your custom domain
+
+const dialog = document.getElementById('kb-dialog');
+const listEl = document.getElementById('kb-list');
+
+document.getElementById('add-btn').onclick = () => dialog.showModal();
+
+document.getElementById('kb-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const title   = document.getElementById('kb-title').value.trim();
+  const content = document.getElementById('kb-body').value.trim();
+
+  // 1. ask backend for a presigned URL
+  const presign = await fetch(`${apiRoot}/kb/upload-url`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({title})
+  }).then(r => r.json());
+
+  // 2. PUT the article body
+  await fetch(presign.uploadUrl, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json', 'x-amz-meta-title': title},
+    body: JSON.stringify({title, content, created: presign.created})
+  });
+
+  dialog.close();
+  loadKB();                 // refresh the list
+};
+
+async function loadKB(){
+  const items = await fetch(`${apiRoot}/kb`).then(r=>r.json());
+  listEl.innerHTML = '';
+  items.forEach(a=>{
+    const el = document.createElement('article');
+    el.className = 'kb-article';
+    el.innerHTML = `<h2>${a.title}</h2>
+                    <small>${new Date(a.created).toLocaleDateString()}</small>`;
+    el.onclick = ()=>window.open(`${apiRoot.replace('api.','')}/kb/${a.key}`,'_blank');
+    listEl.appendChild(el);
+  });
+}
+loadKB();
+</script>
+
+<script defer src="/utopium-widget.js"></script>
 </body>
 </html>
