@@ -80,3 +80,8 @@ resource "aws_s3_bucket_policy" "privacy_policy" {
     ]
   })
 }
+
+resource "aws_s3_bucket" "feedutopia-webapp" {
+  bucket        = "feedutopia-webapp"
+  force_destroy = true
+}

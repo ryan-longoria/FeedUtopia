@@ -32,25 +32,25 @@ variable "teams_webhooks" {
       auto   = string
       manual = string
     }),
-    
+
     driftutopia = object({
       auto   = string
       manual = string
     }),
-    
+
     xputopia = object({
       auto   = string
       manual = string
     }),
-    
+
     critterutopia = object({
-      auto        = string
-      manual      = string
+      auto   = string
+      manual = string
     }),
-    
+
     cyberutopia = object({
-      auto        = string
-      manual      = string
+      auto   = string
+      manual = string
     })
   })
 }

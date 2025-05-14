@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FeedUtopia – Manual Post</title>
+  <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+  <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+  <style>body{font-family:system-ui;margin:0;padding:2rem;background:#111;color:#eee}
+    .card{max-width:600px;margin:0 auto;background:#222;padding:2rem;border-radius:12px}
+    input,select,button,textarea{width:100%;margin:.25rem 0;padding:.5rem;border-radius:6px;border:none}
+    label{font-size:.9rem;color:#9cf} button{background:#ff4081;color:white;font-weight:bold;cursor:pointer}
+  </style>
+</head>
+<body>
+<div class="card">
+  <h2>Create FeedUtopia Post</h2>
+  <label>Account
+    <select id="account">
+      <option>animeutopia</option><option>wrestleutopia</option>
+      <option>driftutopia</option><option>xputopia</option>
+      <option>critterutopia</option><option>cyberutopia</option>
+    </select>
+  </label>
+
+  <label>Post Type
+    <select id="artifact">
+      <option>NEWS</option><option>TRAILER</option>
+      <option>FACT</option><option>THROWBACK</option><option>VS</option><option>Default</option>
+    </select>
+  </label>
+
+  <label>Title <input id="title" placeholder="Main title"></label>
+  <label>Subtitle (optional) <input id="subtitle"></label>
+  <label>Highlight words (title) <input id="hlTitle" placeholder="comma,separated"></label>
+  <label>Highlight words (subtitle) <input id="hlSub"></label>
+
+  <label>Background Type
+    <select id="bgType"><option value="photo">photo</option><option value="video">video</option></select>
+  </label>
+  <label>Upload file <input type="file" id="file"></label>
+
+  <button id="submit">Create Post</button>
+  <pre id="out"></pre>
+</div>
+
+<py-script>
+import js, asyncio, json, time, os, sys, pyodide_http
+pyodide_http.patch_all()    # allow fetch inside PyScript
+
+API   = js.window.location.origin + "/api"    # CloudFront origin + /api stage
+
+out_el = js.document.getElementById("out")
+def log(msg): out_el.textContent += msg + "\n"
+
+async def main(evt):
+    evt.preventDefault()
+    f   = js.document.getElementById("file").files[0]
+    if not f:
+        log("Please choose a file"); return
+    media_type = js.document.getElementById("bgType").value
+
+    # 1) get presigned url
+    res = await js.fetch(API + "/upload-url",
+                         method="POST",
+                         body=json.dumps({"mediaType":media_type}),
+                         headers={"Content-Type":"application/json"})
+    info = await res.json()
+    url, key = info["url"], info["key"]
+
+    # 2) PUT file to S3
+    log("Uploading to S3…")
+    await js.fetch(url, method="PUT", body=f)
+
+    # 3) submit post
+    payload = {
+      "accountName"     : js.document.getElementById("account").value,
+      "title"           : js.document.getElementById("title").value,
+      "description"     : js.document.getElementById("subtitle").value,
+      "highlightWordsTitle"      : js.document.getElementById("hlTitle").value,
+      "highlightWordsDescription": js.document.getElementById("hlSub").value,
+      "backgroundType"  : media_type,
+      "spinningArtifact": js.document.getElementById("artifact").value,
+      "key"             : key
+    }
+    log("Calling FeedUtopia…")
+    res2 = await js.fetch(API + "/submit", method="POST",
+              headers={"Content-Type":"application/json"}, body=json.dumps(payload))
+    out = await res2.text(); log(out)
+
+js.document.getElementById("submit").addEventListener("click", main)
+</py-script>
+</body>
+</html>

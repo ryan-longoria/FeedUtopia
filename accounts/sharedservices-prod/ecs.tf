@@ -13,13 +13,13 @@ resource "aws_ecs_task_definition" "render_video" {
 
   container_definitions = jsonencode([
     {
-      name      = "render_video",
-      image     = var.render_video_image_uri,
-      command   = ["python", "lambda_function.py"],
+      name    = "render_video",
+      image   = var.render_video_image_uri,
+      command = ["python", "lambda_function.py"],
       environment = [
         { name = "TARGET_BUCKET", value = "prod-sharedservices-artifacts-bucket" },
-        { name = "FFMPEG_PATH",   value = "/opt/bin/ffmpeg" },
-        { name = "EVENT_JSON",    value = "" }
+        { name = "FFMPEG_PATH", value = "/opt/bin/ffmpeg" },
+        { name = "EVENT_JSON", value = "" }
       ],
       mountPoints = [{
         sourceVolume  = "efs",
@@ -28,7 +28,7 @@ resource "aws_ecs_task_definition" "render_video" {
       }],
       logConfiguration = {
         logDriver = "awslogs",
-        options   = {
+        options = {
           awslogs-group         = "/ecs/render_video",
           awslogs-region        = var.aws_region,
           awslogs-stream-prefix = "ecs"
@@ -40,12 +40,12 @@ resource "aws_ecs_task_definition" "render_video" {
   volume {
     name = "efs"
     efs_volume_configuration {
-      file_system_id          = aws_efs_file_system.lambda_efs.id
+      file_system_id = aws_efs_file_system.lambda_efs.id
       authorization_config {
-        access_point_id        = aws_efs_access_point.lambda_ap.id
-        iam                    = "ENABLED"
+        access_point_id = aws_efs_access_point.lambda_ap.id
+        iam             = "ENABLED"
       }
-      transit_encryption      = "ENABLED"
+      transit_encryption = "ENABLED"
     }
   }
 }

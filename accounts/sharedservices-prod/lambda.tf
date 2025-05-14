@@ -158,10 +158,10 @@ resource "aws_lambda_function" "sns_to_teams" {
 #############################
 
 resource "aws_lambda_function" "ig_webhook_handler" {
-  function_name = "${var.project_name}-ig-webhook-handler"
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.9"
-  role          = aws_iam_role.lambda_role.arn
+  function_name    = "${var.project_name}-ig-webhook-handler"
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
   filename         = "${path.module}/artifacts/scripts/ig_webhook_handler/ig_webhook_handler.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/ig_webhook_handler/ig_webhook_handler.zip")
 
@@ -201,5 +201,64 @@ resource "aws_lambda_function" "instagram_oauth" {
       INSTAGRAM_APP_SECRET = var.instagram_app_secret
       REDIRECT_URI         = "https://${aws_apigatewayv2_api.instagram_api.api_endpoint}/instagram/auth/callback"
     }
+  }
+}
+
+#############################
+# generate_upload_url
+#############################
+
+resource "aws_lambda_function" "generate_upload_url" {
+  function_name = "${var.project_name}-generate-upload-url"
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.9"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 10
+
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/generate_upload_url/generate_upload_url.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/generate_upload_url/generate_upload_url.zip")
+
+  environment {
+    variables = {
+      UPLOAD_BUCKET = "prod-sharedservices-artifacts-bucket"
+    }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+}
+
+#############################
+# create_feed_post
+#############################
+
+resource "aws_lambda_function" "create_feed_post" {
+  function_name = "${var.project_name}-create-feed-post"
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.9"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 15
+
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/create_feed_post/create_feed_post.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/create_feed_post/create_feed_post.zip")
+
+  environment {
+    variables = {
+      UPLOAD_BUCKET      = "prod-sharedservices-artifacts-bucket"
+      FEEDUTOPIA_API_KEY = aws_api_gateway_api_key.api_key.value
+    }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
   }
 }
