@@ -39,8 +39,6 @@ resource "aws_cloudfront_distribution" "privacy_distribution" {
 
   price_class = "PriceClass_100"
 
-  aliases = ["feedutopia.com"] 
-
   viewer_certificate {
     acm_certificate_arn      = "arn:aws:acm:us-east-1:825765422855:certificate/3d0632d0-0f52-4731-aa7d-8f2d9b6bbe87"
     ssl_support_method       = "sni-only"
@@ -87,6 +85,8 @@ resource "aws_cloudfront_distribution" "feedutopia-web" {
       }
     }
   }
+
+  aliases = ["feedutopia.com"] 
 
   viewer_certificate {
     acm_certificate_arn      = data.aws_acm_certificate.web_cf_cert.arn
