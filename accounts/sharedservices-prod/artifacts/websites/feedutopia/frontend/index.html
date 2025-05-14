@@ -3,22 +3,22 @@
 <head>
   <meta charset="utf-8" />
   <title>FeedUtopia – Manual Post Creator</title>
-
-  <script defer src="https://pyscript.net/latest/pyscript.js"></script>
-  <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
 
   <style>
-    body { margin:0; padding:2rem; font-family:system-ui, sans-serif; background:#111; color:#eee }
-    .card { max-width:600px; margin:0 auto; background:#222; padding:2rem; border-radius:12px;
-            box-shadow:0 4px 10px rgba(0,0,0,.4) }
-    h2 { margin-top:0; color:#9cf }
+    body { margin:0; padding:2rem; font-family:system-ui, sans-serif;
+           background:#111; color:#eee }
+    .card { max-width:600px; margin:0 auto; background:#222; padding:2rem;
+            border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,.4) }
+    h2    { margin-top:0; color:#9cf }
     label { display:block; margin-top:1rem; font-size:.9rem; color:#9cf }
-    input, select, button, textarea {
-      width:100%; margin:.25rem 0; padding:.5rem .75rem; border:none; border-radius:6px;
-      background:#333; color:#eee; font-size:1rem; box-sizing:border-box
+    input,select,button,textarea {
+      width:100%; margin:.25rem 0; padding:.5rem .75rem; border:none;
+      border-radius:6px; background:#333; color:#eee; font-size:1rem
     }
     button { background:#ff4081; font-weight:bold; cursor:pointer }
-    pre { background:#000; padding:1rem; border-radius:8px; max-height:250px; overflow:auto }
+    pre    { background:#000; padding:1rem; border-radius:8px; max-height:250px;
+             overflow:auto; margin-top:1rem }
   </style>
 </head>
 
@@ -42,38 +42,69 @@
       </select>
     </label>
 
-    <label>Title
-      <input id="title" placeholder="Main title">
-    </label>
-
-    <label>Subtitle (optional)
-      <input id="subtitle" placeholder="Optional subtitle">
-    </label>
-
-    <label>Highlight words (title)
-      <input id="hlTitle" placeholder="comma,separated,words">
-    </label>
-
-    <label>Highlight words (subtitle)
-      <input id="hlSub" placeholder="comma,separated,words">
-    </label>
+    <label>Title <input id="title" placeholder="Main title"></label>
+    <label>Subtitle (optional) <input id="subtitle"></label>
+    <label>Highlight words (title) <input id="hlTitle" placeholder="comma,separated"></label>
+    <label>Highlight words (subtitle) <input id="hlSub" placeholder="comma,separated"></label>
 
     <label>Background Type
-      <select id="bgType">
-        <option value="photo">photo</option>
-        <option value="video">video</option>
-      </select>
+      <select id="bgType"><option value="photo">photo</option><option value="video">video</option></select>
     </label>
-
-    <label>Upload file
-      <input type="file" id="file">
-    </label>
+    <label>Upload file <input type="file" id="file"></label>
 
     <button id="submit">Create Post</button>
-
     <pre id="out"></pre>
   </div>
 
-  <py-script src="app.py"></py-script>
+<script>
+(() => {
+  const API = "https://api.feedutopia.com";
+  const $ = id => document.getElementById(id);
+  const log = msg => { $("out").textContent += msg + "\n"; };
+
+  $("submit").addEventListener("click", async evt => {
+    evt.preventDefault();
+
+    const file = $("file").files[0];
+    if (!file) { log("Please choose a file first."); return; }
+
+    const mediaType = $("bgType").value;
+
+    // 1) presigned URL
+    let res = await fetch(API + "/upload-url", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ mediaType })
+    });
+    if (!res.ok) { log("Failed to get upload URL."); return; }
+    const { url, key } = await res.json();
+
+    // 2) upload to S3
+    log("Uploading to S3 …");
+    res = await fetch(url, { method:"PUT", body:file });
+    if (!res.ok) { log("Upload failed."); return; }
+
+    // 3) call backend
+    const payload = {
+      accountName       : $("account").value,
+      title             : $("title").value,
+      description       : $("subtitle").value,
+      highlightWordsTitle       : $("hlTitle").value,
+      highlightWordsDescription : $("hlSub").value,
+      backgroundType    : mediaType,
+      spinningArtifact  : $("artifact").value,
+      key
+    };
+
+    log("Calling FeedUtopia …");
+    res = await fetch(API + "/submit", {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    log(await res.text());
+  });
+})();
+</script>
 </body>
 </html>
