@@ -254,6 +254,10 @@ resource "aws_lambda_function" "create_feed_post" {
     }
   }
 
+  layers = [
+    "arn:aws:lambda:us-east-2:825765422855:layer:Python_Requests:1"
+  ]
+
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
