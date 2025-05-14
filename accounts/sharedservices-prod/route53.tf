@@ -42,3 +42,15 @@ resource "aws_route53_record" "privacy_record" {
     evaluate_target_health = false
   }
 }
+
+resource "aws_route53_record" "webapp_alias_apex" {
+  zone_id = data.aws_route53_zone.feedutopia_zone.zone_id
+  name    = "feedutopia.com"
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.feedutopia-web.domain_name
+    zone_id                = aws_cloudfront_distribution.feedutopia-web.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
