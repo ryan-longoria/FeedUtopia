@@ -240,19 +240,19 @@
   <header>
     <div>FeedUtopia</div>
     <nav>
-      <a href="index.html">Home</a>
+      <a href="/index.html">Home</a>
       <div class="dropdown">
         <a href="#!">Accounts</a>
         <div class="dropdown-content">
-          <a href="account-pages/animeutopia.html">Anime Utopia</a>
-          <a href="account-pages/wrestleutopia.html">Wrestle Utopia</a>
-          <a href="account-pages/driftutopia.html">Drift Utopia</a>
-          <a href="account-pages/xputopia.html">XP Utopia</a>
-          <a href="account-pages/critterutopia.html">Critter Utopia</a>
-          <a href="account-pages/cyberutopia.html">Cyber Utopia</a>
+          <a href="/account-pages/animeutopia.html">Anime Utopia</a>
+          <a href="/account-pages/wrestleutopia.html">Wrestle Utopia</a>
+          <a href="/account-pages/driftutopia.html">Drift Utopia</a>
+          <a href="/account-pages/xputopia.html">XP Utopia</a>
+          <a href="/account-pages/critterutopia.html">Critter Utopia</a>
+          <a href="/account-pages/cyberutopia.html">Cyber Utopia</a>
         </div>
       </div>
-      <a href="orders.html">Orders</a>
+      <a href="/orders.html">Orders</a>
       <a href="kb.html">Knowledge Base</a>
     </nav>
   </header>
@@ -389,7 +389,10 @@
           card.innerHTML = `
             <h3>${a.title}</h3>
             <p>${a.content.slice(0,120)}…</p>
-            <small>${new Date(a.created).toLocaleDateString()}</small>
+            <small>${new Date(a.created).toLocaleString(undefined, {
+              dateStyle: 'medium',
+              timeStyle: 'short'
+            })}</small>
           `;
           card.onclick = () => {
             location.href = `view.html#${encodeURIComponent(a.key)}`;

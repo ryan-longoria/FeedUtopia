@@ -1,9 +1,9 @@
 import os
 import json
 import uuid
-import traceback
 import boto3
 import datetime as dt
+import traceback
 
 s3 = boto3.client("s3")
 
@@ -12,8 +12,13 @@ def lambda_handler(event, _ctx):
         bucket   = os.environ["BUCKET"]
         body     = json.loads(event.get("body") or "{}")
         title    = body.get("title", "untitled")
-        category = body.get("category", "general")
-        key      = body.get("key") or f"kb/{uuid.uuid4()}.json"
+        category = body.get("category", "")
+
+        key = body.get("key") or f"kb/{uuid.uuid4()}.json"
+
+        metadata = {"title": title}
+        if category:
+            metadata["category"] = category
 
         url = s3.generate_presigned_url(
             ClientMethod="put_object",
@@ -21,21 +26,12 @@ def lambda_handler(event, _ctx):
                 "Bucket":      bucket,
                 "Key":         key,
                 "ContentType": "application/json",
-                "Metadata": {
-                    "title":    title,
-                    "category": category
-                }
+                "Metadata":    metadata
             },
-            ExpiresIn=60
+            ExpiresIn=300   # 5 minutes
         )
 
-        payload = {
-            "uploadUrl": url,
-            "key":       key,
-            "created":   dt.datetime.utcnow().isoformat(),
-            "title":     title,
-            "category":  category
-        }
+        created = body.get("created") or dt.datetime.utcnow().isoformat()
 
         return {
             "statusCode": 200,
@@ -44,7 +40,13 @@ def lambda_handler(event, _ctx):
                 "Access-Control-Allow-Methods": "POST,OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type"
             },
-            "body": json.dumps(payload)
+            "body": json.dumps({
+                "uploadUrl": url,
+                "key":       key,
+                "created":   created,
+                "title":     title,
+                "category":  category
+            })
         }
 
     except Exception:
