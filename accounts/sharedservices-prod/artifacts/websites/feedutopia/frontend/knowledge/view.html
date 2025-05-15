@@ -86,6 +86,8 @@
       padding: 1.5rem;
       border-radius: 8px;
       white-space: pre-wrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
     .content a {
       color: var(--accent);
@@ -252,6 +254,7 @@
       </div>
       <a href="/orders.html">Orders</a>
       <a href="/knowledge/kb.html">Knowledge Base</a>
+      <a href="weekly-todo.html">To-Do</a>
     </nav>
   </header>
 
@@ -272,7 +275,6 @@
       <input    id="edit-title"    placeholder="Title" required>
       <select   id="edit-category"  required>
         <option value="" disabled>Choose category…</option>
-        <option value="howto">How-to</option>
         <option value="tech">Tech</option>
         <option value="instagram">Instagram</option>
         <option value="adobe">Adobe</option>
