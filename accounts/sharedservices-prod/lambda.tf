@@ -353,3 +353,90 @@ resource "aws_lambda_function" "kb_delete" {
     mode = "Active"
   }
 }
+
+#############################
+# get_tasks
+#############################
+
+resource "aws_lambda_function" "get_tasks" {
+  function_name    = "${var.project_name}-get-tasks"
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
+
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/get_tasks/get_tasks.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/get_tasks/get_tasks.zip")
+
+  environment {
+    variables = {
+      TABLE_NAME = aws_dynamodb_table.weekly_todo.name
+    }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+}
+
+#############################
+# add_task
+#############################
+
+resource "aws_lambda_function" "add_task" {
+  function_name    = "${var.project_name}-add-task"
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
+
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/add_task/add_task.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/add_task/add_task.zip")
+
+  environment {
+    variables = {
+      TABLE_NAME = aws_dynamodb_table.weekly_todo.name
+    }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+}
+
+#############################
+# delete_task
+#############################
+
+resource "aws_lambda_function" "delete_task" {
+  function_name    = "${var.project_name}-delete-task"
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
+
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/delete_task/delete_task.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/delete_task/delete_task.zip")
+
+  environment {
+    variables = {
+      TABLE_NAME = aws_dynamodb_table.weekly_todo.name
+    }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+}

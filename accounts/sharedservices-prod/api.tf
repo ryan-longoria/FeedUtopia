@@ -422,6 +422,148 @@ resource "aws_api_gateway_integration_response" "kb_delete_integration_response"
   }
 }
 
+resource "aws_api_gateway_resource" "tasks" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_rest_api.api.root_resource_id
+  path_part   = "tasks"
+}
+
+resource "aws_api_gateway_method" "tasks_get" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.tasks.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "tasks_get_int" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.tasks.id
+  http_method             = aws_api_gateway_method.tasks_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.get_tasks.invoke_arn
+}
+
+resource "aws_api_gateway_method" "tasks_post" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.tasks.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "tasks_post_int" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.tasks.id
+  http_method             = aws_api_gateway_method.tasks_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.add_task.invoke_arn
+}
+
+resource "aws_api_gateway_resource" "tasks_id" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_resource.tasks.id
+  path_part   = "{taskId}"
+}
+
+resource "aws_api_gateway_method" "tasks_delete" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.tasks_id.id
+  http_method   = "DELETE"
+  authorization = "NONE"
+
+  request_parameters = {
+    "method.request.path.taskId" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "tasks_delete_int" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.tasks_id.id
+  http_method             = aws_api_gateway_method.tasks_delete.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.delete_task.invoke_arn
+}
+
+locals {
+  cors_headers = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,DELETE,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+resource "aws_api_gateway_method" "tasks_options" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.tasks.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "tasks_options_int" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.tasks.id
+  http_method = aws_api_gateway_method.tasks_options.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "tasks_options_mr" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.tasks.id
+  http_method = aws_api_gateway_method.tasks_options.http_method
+  status_code = "200"
+
+  response_parameters = local.cors_headers
+}
+
+resource "aws_api_gateway_integration_response" "tasks_options_ir" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.tasks.id
+  http_method = aws_api_gateway_method.tasks_options.http_method
+  status_code = aws_api_gateway_method_response.tasks_options_mr.status_code
+
+  response_parameters = local.cors_headers
+}
+
+resource "aws_api_gateway_method" "tasks_id_options" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.tasks_id.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "tasks_id_options_int" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.tasks_id.id
+  http_method = aws_api_gateway_method.tasks_id_options.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "tasks_id_options_mr" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.tasks_id.id
+  http_method = aws_api_gateway_method.tasks_id_options.http_method
+  status_code = "200"
+
+  response_parameters = local.cors_headers
+}
+
+resource "aws_api_gateway_integration_response" "tasks_id_options_ir" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.tasks_id.id
+  http_method = aws_api_gateway_method.tasks_id_options.http_method
+  status_code = aws_api_gateway_method_response.tasks_id_options_mr.status_code
+
+  response_parameters = local.cors_headers
+}
+
 #############################
 # Instagram API Callback/Oauth
 #############################
