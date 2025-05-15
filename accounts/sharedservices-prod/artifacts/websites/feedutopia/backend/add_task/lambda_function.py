@@ -4,42 +4,37 @@ import uuid
 import boto3
 
 dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table(os.environ["TABLE_NAME"])
+table    = dynamodb.Table(os.environ["TABLE_NAME"])
+
+def respond(code, body=None):
+    return {
+        "statusCode": code,
+        "headers": {
+            "Content-Type":                "application/json",
+            "Access-Control-Allow-Origin": "*"
+        },
+        "body": json.dumps(body) if body is not None else ""
+    }
 
 def lambda_handler(event, context):
     try:
-        body = json.loads(event.get("body") or "{}")
-        text = body.get("text", "").strip()
+        data       = json.loads(event.get("body") or "{}")
+        text       = data.get("text", "").strip()
+        assignedTo = data.get("assignedTo", "").strip()
+
         if not text:
-            return {
-                "statusCode": 400,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*"
-                },
-                "body": json.dumps({"error": "Missing 'text' in body"})
-            }
+            return respond(400, {"error": "Missing 'text'"})
+
         task_id = str(uuid.uuid4())
         item = {
-            "taskId": task_id,
-            "text": text,
-            "done": False
+            "taskId":     task_id,
+            "text":       text,
+            "done":       False,
+            "assignedTo": assignedTo
         }
+
         table.put_item(Item=item)
-        return {
-            "statusCode": 201,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*"
-            },
-            "body": json.dumps(item)
-        }
+        return respond(201, item)
+
     except Exception as e:
-        return {
-            "statusCode": 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*"
-            },
-            "body": json.dumps({"error": str(e)})
-        }
+        return respond(500, {"error": str(e)})

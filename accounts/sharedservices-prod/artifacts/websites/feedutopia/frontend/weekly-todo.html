@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>FeedUtopia – Weekly To-Do</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:," />
 
   <style>
     :root {
@@ -36,10 +37,7 @@
       flex-wrap: wrap;
       color: #fff;
     }
-    header > div {
-      font-weight: 700;
-      font-size: 1.25rem;
-    }
+    header > div { font-weight: 700; font-size: 1.25rem; }
     nav {
       display: flex;
       align-items: center;
@@ -71,9 +69,7 @@
       font-weight: 500;
       color: #fff;
     }
-    .dropdown:hover .dropdown-content {
-      display: block;
-    }
+    .dropdown:hover .dropdown-content { display: block; }
 
     /* ── main content ─────────────────────────────────────── */
     main {
@@ -81,9 +77,7 @@
       max-width: 1100px;
       margin: 0 auto;
     }
-    .section {
-      margin-bottom: 2rem;
-    }
+    .section { margin-bottom: 2rem; }
     h2 {
       margin-top: 0;
       color: var(--accent);
@@ -100,26 +94,15 @@
       flex-direction: column;
       gap: var(--gap);
     }
-    .add-task {
-      display: flex;
-      gap: .5rem;
-    }
+    .add-task { display: flex; gap: .5rem; }
     .add-task input {
-      flex: 1;
       padding: .5rem;
       border: none;
       border-radius: 4px;
       background: #333;
       color: #fff;
     }
-    .add-task button {
-      background: var(--accent);
-      border: none;
-      padding: .5rem 1rem;
-      border-radius: 4px;
-      color: #fff;
-      cursor: pointer;
-    }
+    #assigned-to { width: 150px; }
     .tasks-list {
       list-style: none;
       margin: 0;
@@ -133,16 +116,18 @@
       padding: .5rem 0;
       border-bottom: 1px solid rgba(255,255,255,0.1);
     }
-    .tasks-list li:last-child {
-      border-bottom: none;
-    }
+    .tasks-list li:last-child { border-bottom: none; }
     .tasks-list input[type="checkbox"] {
       margin-right: .75rem;
       width: 1.2rem;
       height: 1.2rem;
     }
-    .task-text {
-      flex: 1;
+    .task-text { flex: 1; }
+    .assigned-to {
+      margin-left: .5rem;
+      font-size: .85rem;
+      color: var(--text-muted);
+      font-style: italic;
     }
     .remove-btn {
       background: transparent;
@@ -198,29 +183,27 @@
       <div class="weekly-todo">
         <div class="add-task">
           <input type="text" id="new-task" placeholder="Add a task…">
+          <input type="text" id="assigned-to" placeholder="Assigned to…">
           <button id="add-btn">＋</button>
         </div>
-        <ul class="tasks-list" id="tasks-list">
-          <!-- tasks will appear here -->
-        </ul>
+        <ul class="tasks-list" id="tasks-list"></ul>
       </div>
     </section>
   </main>
 
   <script>
-    // Point to the custom-domain endpoint (no /prod)
-    const API_BASE = "https://api.feedutopia.com/tasks";
-
-    const addBtn    = document.getElementById('add-btn');
-    const newTaskIn = document.getElementById('new-task');
-    const list      = document.getElementById('tasks-list');
+    const API_BASE   = "https://api.feedutopia.com/tasks";
+    const addBtn     = document.getElementById('add-btn');
+    const newTaskIn  = document.getElementById('new-task');
+    const assignIn   = document.getElementById('assigned-to');
+    const list       = document.getElementById('tasks-list');
 
     window.addEventListener('DOMContentLoaded', loadTasks);
 
     async function loadTasks() {
       list.innerHTML = '';
       try {
-        const res = await fetch(API_BASE, { method: 'GET' });
+        const res   = await fetch(API_BASE);
         const tasks = await res.json();
         tasks.forEach(renderTask);
       } catch (e) {
@@ -228,15 +211,25 @@
       }
     }
 
-    function renderTask({ taskId, text, done }) {
-      const li = document.createElement('li');
+    function renderTask({ taskId, text, done, assignedTo }) {
+      const li   = document.createElement('li');
+      const cb   = document.createElement('input');
+      const span = document.createElement('span');
+      const who  = document.createElement('span');
+      const rm   = document.createElement('button');
 
-      const cb = document.createElement('input');
       cb.type    = 'checkbox';
       cb.checked = done;
 
-      // PATCH /tasks/{taskId} on change
+      span.className   = 'task-text';
+      span.textContent = text;
+      if (done) span.style.textDecoration = 'line-through';
+
+      who.className   = 'assigned-to';
+      who.textContent = assignedTo ? `— ${assignedTo}` : '';
+
       cb.addEventListener('change', async () => {
+        const prev = cb.checked;
         try {
           await fetch(`${API_BASE}/${taskId}`, {
             method: 'PATCH',
@@ -245,34 +238,32 @@
           });
         } catch (e) {
           console.error("Failed to update task:", e);
+          cb.checked = !prev;
         }
         span.style.textDecoration = cb.checked ? 'line-through' : '';
       });
 
-      const span = document.createElement('span');
-      span.className = 'task-text';
-      span.textContent = text;
-      if (done) span.style.textDecoration = 'line-through';
-
-      const rm = document.createElement('button');
-      rm.className = 'remove-btn';
+      rm.className   = 'remove-btn';
       rm.textContent = '✕';
+      rm.setAttribute('aria-label','Remove task');
       rm.addEventListener('click', () => deleteTask(taskId));
 
-      li.append(cb, span, rm);
+      li.append(cb, span, who, rm);
       list.appendChild(li);
     }
 
     addBtn.addEventListener('click', async () => {
-      const text = newTaskIn.value.trim();
+      const text       = newTaskIn.value.trim();
+      const assignedTo = assignIn.value.trim();
       if (!text) return;
       try {
         await fetch(API_BASE, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text })
+          body: JSON.stringify({ text, assignedTo })
         });
         newTaskIn.value = '';
+        assignIn.value  = '';
         loadTasks();
       } catch (e) {
         console.error("Failed to add task:", e);
