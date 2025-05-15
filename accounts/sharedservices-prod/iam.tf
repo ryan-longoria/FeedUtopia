@@ -163,6 +163,24 @@ resource "aws_lambda_permission" "allow_apigw" {
   source_arn = "arn:aws:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${aws_apigatewayv2_api.instagram_api.id}/*/*/instagram/webhook"
 }
 
+resource "aws_lambda_permission" "allow_apigw_invoke_kb_list" {
+  statement_id  = "AllowAPIGatewayInvokeKBList"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.kb_list.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_api_gateway_rest_api.api.execution_arn}/*/GET/kb"
+}
+
+resource "aws_lambda_permission" "allow_apigw_invoke_kb_presign" {
+  statement_id  = "AllowAPIGatewayInvokeKBPresign"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.kb_presign.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_api_gateway_rest_api.api.execution_arn}/*/POST/kb/upload-url"
+}
+
 #############################
 # IAM Policy for S3
 #############################
