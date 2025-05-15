@@ -4,6 +4,10 @@
   <meta charset="utf-8">
   <title>FeedUtopia – Knowledge Base</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <!-- Quill Snow theme -->
+  <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+
   <style>
     /* ── your original colors ───────────────────────────────────────── */
     :root {
@@ -37,39 +41,19 @@
       flex-wrap: wrap;
     }
     header > div { font-weight: 700; font-size: 1.25rem; }
-    nav {
-      display: flex;
-      align-items: center;
-      gap: 1.25rem;
-      flex-wrap: wrap;
-    }
-    nav a {
-      color: #fff;
-      text-decoration: none;
-      font-weight: 600;
-    }
+    nav { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
+    nav a { color: #fff; text-decoration: none; font-weight: 600; }
     .dropdown { position: relative; }
     .dropdown > a::after {
-      content: "▼";
-      font-size: .55rem;
-      margin-left: .35rem;
-      opacity: .7;
+      content: "▼"; font-size: .55rem; margin-left: .35rem; opacity: .7;
     }
     .dropdown-content {
-      display: none;
-      position: absolute;
-      top: 100%; left: 0;
-      background: var(--bg-dark);
-      padding: .5rem 0;
-      border-radius: 6px;
-      min-width: 180px;
-      z-index: 10;
+      display: none; position: absolute; top: 100%; left: 0;
+      background: var(--bg-dark); padding: .5rem 0; border-radius: 6px;
+      min-width: 180px; z-index: 10;
     }
     .dropdown-content a {
-      display: block;
-      padding: .5rem 1rem;
-      font-weight: 500;
-      color: #fff;
+      display: block; padding: .5rem 1rem; font-weight: 500; color: #fff;
     }
     .dropdown:hover .dropdown-content { display: block; }
 
@@ -198,7 +182,6 @@
       gap: .8rem;
     }
     dialog input,
-    dialog textarea,
     dialog select {
       padding: .6rem;
       border-radius: 6px;
@@ -207,15 +190,12 @@
       color: var(--text-main);
       font-size: 1rem;
     }
-    dialog button {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      padding: .6rem 1.2rem;
+    /* Quill editor container */
+    #kb-editor {
+      height: 200px;
+      background: var(--bg-light);
+      color: var(--text-main);
       border-radius: 6px;
-      cursor: pointer;
-      font-weight: 600;
-      align-self: flex-end;
     }
     dialog .dialog-actions {
       display: flex;
@@ -236,7 +216,7 @@
 </head>
 <body>
 
-  <!-- ── top banner (unchanged) ─────────────────────────────── -->
+  <!-- ── top banner ─────────────────────────────────────────────── -->
   <header>
     <div>FeedUtopia</div>
     <nav>
@@ -253,15 +233,16 @@
         </div>
       </div>
       <a href="/orders.html">Orders</a>
-      <a href="kb.html">Knowledge Base</a>
+      <a href="/kb.html">Knowledge Base</a>
     </nav>
   </header>
 
-  <!-- ── Add button & main container ───────────────────────── -->
+  <!-- ── Add Article button ───────────────────────────────────── -->
   <button id="add-btn">➕ Add Article</button>
+
   <main>
     <div class="kb-container">
-      <!-- sidebar -->
+      <!-- Sidebar categories -->
       <aside class="kb-sidebar">
         <h2>Categories</h2>
         <ul id="kb-categories">
@@ -274,7 +255,7 @@
         </ul>
       </aside>
 
-      <!-- main content -->
+      <!-- Main grid -->
       <div class="kb-main">
         <div class="kb-header">
           <input id="kb-search" type="search" placeholder="Search articles…" aria-label="Search articles">
@@ -284,11 +265,11 @@
     </div>
   </main>
 
-  <!-- ── Publish dialog (dark themed) ───────────────────────── -->
+  <!-- ── Publish dialog with Quill editor ─────────────────────── -->
   <dialog id="kb-dialog">
     <form id="kb-form">
-      <input    id="kb-title"    placeholder="Title"           required>
-      <select   id="kb-category"  required>
+      <input id="kb-title" placeholder="Title" required>
+      <select id="kb-category" required>
         <option value="" disabled selected>Choose category…</option>
         <option value="howto">How-to</option>
         <option value="tech">Tech</option>
@@ -296,9 +277,7 @@
         <option value="adobe">Adobe</option>
         <option value="utopium">Utopium</option>
       </select>
-      <textarea id="kb-content"  rows="8" placeholder="Content" required></textarea>
-  
-      <!-- action buttons -->
+      <div id="kb-editor"></div>
       <div class="dialog-actions">
         <button type="button" id="kb-cancel">Cancel</button>
         <button type="submit">Publish</button>
@@ -306,33 +285,52 @@
     </form>
   </dialog>
 
+  <!-- Quill core script -->
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+  <!-- Utopium widget (if needed) -->
   <script defer src="/utopium-widget.js"></script>
+
   <script>
     const apiRoot  = "https://api.feedutopia.com";
     const siteRoot = location.origin;
     let articles   = [];
 
-    const dialog     = document.getElementById('kb-dialog');
-    const cancelBtn  = document.getElementById('kb-cancel');
-    cancelBtn.addEventListener('click', () => dialog.close());
+    // initialize Quill
+    const quill = new Quill('#kb-editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ header: [1, 2, 3, false] }],
+          ['bold','italic','underline','strike'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link','blockquote','code-block'],
+          [{ color: [] }, { background: [] }],
+          ['clean']
+        ]
+      }
+    });
+
+    // dialog controls
+    const dialog    = document.getElementById('kb-dialog');
+    const cancelBtn = document.getElementById('kb-cancel');
+    cancelBtn.addEventListener('click', () => {
+      dialog.close();
+      quill.setContents([]);  // clear editor
+    });
 
     document.getElementById('add-btn').onclick = () =>
-      document.getElementById('kb-dialog').showModal();
+      dialog.showModal();
 
+    // Publish (new or edit)
     document.getElementById('kb-form').onsubmit = async e => {
       e.preventDefault();
       const titleEl    = document.getElementById('kb-title');
       const categoryEl = document.getElementById('kb-category');
-      const contentEl  = document.getElementById('kb-content');
+      const title      = titleEl.value.trim();
+      const category   = categoryEl.value;
+      const content    = quill.root.innerHTML;
 
-      const title    = titleEl.value.trim();
-      const category = categoryEl.value;
-      const content  = contentEl.value.trim();
-
-      document.getElementById('kb-cancel').onclick = () =>
-      document.getElementById('kb-dialog').close();
-
-      // 1) Get presigned URL
+      // 1) presign
       const presignRes = await fetch(`${apiRoot}/kb/upload-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -344,7 +342,7 @@
       }
       const { uploadUrl, key, created } = await presignRes.json();
 
-      // 2) Upload JSON
+      // 2) upload
       const putRes = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
@@ -360,11 +358,13 @@
       }
 
       // reset & refresh
-      titleEl.value = categoryEl.value = contentEl.value = '';
-      document.getElementById('kb-dialog').close();
+      titleEl.value = categoryEl.value = '';
+      quill.setContents([]);
+      dialog.close();
       loadArticles();
     };
 
+    // Load list
     async function loadArticles() {
       const list = await fetch(`${apiRoot}/kb`).then(r=>r.json());
       articles = await Promise.all(list.map(async a => {
@@ -374,6 +374,7 @@
       renderArticles();
     }
 
+    // Render grid
     function renderArticles() {
       const grid      = document.getElementById('kb-grid');
       const q         = document.getElementById('kb-search').value.toLowerCase();
@@ -382,34 +383,38 @@
 
       articles
         .filter(a => activeCat==='all' || a.category===activeCat)
-        .filter(a => a.title.toLowerCase().includes(q) || a.content.toLowerCase().includes(q))
+        .filter(a => {
+          const hay = (a.title + a.content).toLowerCase();
+          return hay.includes(q);
+        })
         .forEach(a => {
           const card = document.createElement('div');
           card.className = 'kb-card';
           card.innerHTML = `
             <h3>${a.title}</h3>
-            <p>${a.content.slice(0,120)}…</p>
-            <small>${new Date(a.created).toLocaleString(undefined, {
-              dateStyle: 'medium',
-              timeStyle: 'short'
+            <p>${a.content.replace(/<[^>]+>/g,'').slice(0,120)}…</p>
+            <small>${new Date(a.created).toLocaleString(undefined,{
+              dateStyle:'medium', timeStyle:'short'
             })}</small>
           `;
-          card.onclick = () => {
+          card.onclick = () =>
             location.href = `view.html#${encodeURIComponent(a.key)}`;
-          };
           grid.appendChild(card);
         });
     }
 
+    // Search & category filters
     document.getElementById('kb-search').oninput = renderArticles;
     document.querySelectorAll('#kb-categories li').forEach(li => {
       li.onclick = () => {
-        document.querySelectorAll('#kb-categories li').forEach(x=>x.classList.remove('active'));
+        document.querySelectorAll('#kb-categories li')
+          .forEach(x=>x.classList.remove('active'));
         li.classList.add('active');
         renderArticles();
       };
     });
 
+    // initial load
     loadArticles();
   </script>
 </body>
