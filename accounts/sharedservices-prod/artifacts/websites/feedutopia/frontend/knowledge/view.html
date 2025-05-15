@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FeedUtopia – Article</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root {
+      --accent:      #ec008c;
+      --bg-darker:   #111;
+      --bg-dark:     #222;
+      --bg-light:    #333;
+      --text-main:   #eee;
+      --text-muted:  rgba(238,238,238,0.7);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg-darker);
+      color: var(--text-main);
+      font-family: system-ui, sans-serif;
+      line-height: 1.6;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* ── same top banner ───────────────────────────────────── */
+    header {
+      background: var(--accent);
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fff; flex-wrap: wrap;
+    }
+    header > div { font-weight:700; font-size:1.25rem; }
+    nav { display:flex; align-items:center; gap:1.25rem; flex-wrap:wrap; }
+    nav a { color:#fff; text-decoration:none; font-weight:600; }
+    .dropdown { position:relative; }
+    .dropdown > a::after {
+      content:"▼"; font-size:.55rem; margin-left:.35rem; opacity:.7;
+    }
+    .dropdown-content {
+      display:none; position:absolute; top:100%; left:0;
+      background:var(--bg-dark); padding:.5rem 0; border-radius:6px;
+      min-width:180px; z-index:10;
+    }
+    .dropdown-content a {
+      display:block; padding:.5rem 1rem; font-weight:500; color:#fff;
+    }
+    .dropdown:hover .dropdown-content { display:block; }
+
+    main {
+      max-width:800px; margin:2rem auto; padding:0 1rem;
+    }
+    h1 { font-size:2rem; margin-bottom:.5rem; }
+    .meta {
+      font-size:.9rem; color:var(--text-muted); margin-bottom:1.5rem;
+    }
+    .content {
+      background:var(--bg-light); padding:1.5rem; border-radius:8px;
+      white-space:pre-wrap;
+    }
+    .actions {
+      margin-top:1.5rem;
+      display:flex; gap:1rem;
+    }
+    .actions a, .actions button {
+      background:var(--accent); color:#fff; border:none;
+      padding:.6rem 1.2rem; border-radius:6px; cursor:pointer;
+      font-weight:600; text-decoration:none;
+    }
+    .actions a { display:inline-block; }
+    /* ── edit dialog ───────────────────────────────────────── */
+    dialog {
+      border:none; border-radius:10px; padding:2rem;
+      background:var(--bg-dark); color:var(--text-main);
+      width:90%; max-width:600px;
+    }
+    dialog form {
+      display:flex; flex-direction:column; gap:.8rem;
+    }
+    dialog input, dialog textarea, dialog select {
+      padding:.6rem; border:none; border-radius:6px;
+      background:var(--bg-light); color:var(--text-main);
+      font-size:1rem;
+    }
+    .dialog-actions {
+      display:flex; justify-content:flex-end; gap:.5rem;
+      margin-top:1rem;
+    }
+    .dialog-actions button:first-child {
+      background: var(--bg-light);
+      color: var(--text-main);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>FeedUtopia</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <div class="dropdown">
+        <a href="#!">Accounts</a>
+        <div class="dropdown-content">
+          <a href="account-pages/animeutopia.html">Anime Utopia</a>
+          <a href="account-pages/wrestleutopia.html">Wrestle Utopia</a>
+          <a href="account-pages/driftutopia.html">Drift Utopia</a>
+          <a href="account-pages/xputopia.html">XP Utopia</a>
+          <a href="account-pages/critterutopia.html">Critter Utopia</a>
+          <a href="account-pages/cyberutopia.html">Cyber Utopia</a>
+        </div>
+      </div>
+      <a href="orders.html">Orders</a>
+      <a href="kb.html">Knowledge Base</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1 id="article-title">Loading…</h1>
+    <div class="meta" id="article-meta"></div>
+    <div class="content" id="article-content"></div>
+
+    <div class="actions">
+      <a href="kb.html">← Back</a>
+      <button id="edit-btn">✏️ Edit</button>
+    </div>
+  </main>
+
+  <!-- Edit dialog -->
+  <dialog id="edit-dialog">
+    <form id="edit-form">
+      <input    id="edit-title"    placeholder="Title"           required>
+      <select   id="edit-category"  required>
+        <option value="" disabled>Choose category…</option>
+        <option value="howto">How-to</option>
+        <option value="tech">Tech</option>
+        <option value="instagram">Instagram</option>
+        <option value="adobe">Adobe</option>
+        <option value="utopium">Utopium</option>
+      </select>
+      <textarea id="edit-content"  rows="8" placeholder="Content" required></textarea>
+      <div class="dialog-actions">
+        <button type="button" id="edit-cancel">Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script defer src="utopium-widget.js"></script>
+  <script>
+    const apiRoot  = "https://api.feedutopia.com";
+    const siteRoot = location.origin;
+    let article;
+
+    // load & render
+    (async ()=>{
+      const key = decodeURIComponent(location.hash.slice(1));
+      if (!key) return;
+      const res = await fetch(`${siteRoot}/${key}`);
+      article = await res.json();
+      document.getElementById('article-title').textContent   = article.title;
+      document.getElementById('article-meta').textContent    =
+        `Category: ${article.category} · ${new Date(article.created).toLocaleString()}`;
+      document.getElementById('article-content').textContent = article.content;
+    })();
+
+    // wire up Edit button
+    const editDialog  = document.getElementById('edit-dialog');
+    document.getElementById('edit-btn').onclick = () => {
+      // prefill fields
+      document.getElementById('edit-title').value    = article.title;
+      document.getElementById('edit-category').value = article.category;
+      document.getElementById('edit-content').value  = article.content;
+      editDialog.showModal();
+    };
+
+    // Cancel in edit dialog
+    document.getElementById('edit-cancel')
+      .onclick = () => editDialog.close();
+
+    // submit edits
+    document.getElementById('edit-form').onsubmit = async e => {
+      e.preventDefault();
+      const title    = document.getElementById('edit-title').value.trim();
+      const category = document.getElementById('edit-category').value;
+      const content  = document.getElementById('edit-content').value.trim();
+
+      // 1) get presigned URL for the same key
+      const presignRes = await fetch(`${apiRoot}/kb/upload-url`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ title, category, key: article.key })
+      });
+      const { uploadUrl } = await presignRes.json();
+
+      // 2) PUT updated JSON
+      await fetch(uploadUrl, {
+        method:'PUT',
+        headers:{
+          'Content-Type':'application/json',
+          'x-amz-meta-title':    title,
+          'x-amz-meta-category': category
+        },
+        body: JSON.stringify({ title, category, content, created: article.created })
+      });
+
+      // refresh page
+      editDialog.close();
+      location.reload();
+    };
+  </script>
+</body>
+</html>

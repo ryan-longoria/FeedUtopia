@@ -198,7 +198,8 @@
       gap: .8rem;
     }
     dialog input,
-    dialog textarea {
+    dialog textarea,
+    dialog select {
       padding: .6rem;
       border-radius: 6px;
       border: none;
@@ -215,6 +216,16 @@
       cursor: pointer;
       font-weight: 600;
       align-self: flex-end;
+    }
+    dialog .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: .5rem;
+      margin-top: 1rem;
+    }
+    dialog #kb-cancel {
+      background: var(--bg-light);
+      color: var(--text-main);
     }
 
     @media(max-width: 800px) {
@@ -255,8 +266,11 @@
         <h2>Categories</h2>
         <ul id="kb-categories">
           <li data-cat="all" class="active">All</li>
-          <li data-cat="howto">How-To</li>
-          <li data-cat="faq">FAQ</li>
+          <li data-cat="howto">How-to</li>
+          <li data-cat="tech">Tech</li>
+          <li data-cat="instagram">Instagram</li>
+          <li data-cat="adobe">Adobe</li>
+          <li data-cat="utopium">Utopium</li>
         </ul>
       </aside>
 
@@ -273,50 +287,64 @@
   <!-- ── Publish dialog (dark themed) ───────────────────────── -->
   <dialog id="kb-dialog">
     <form id="kb-form">
-      <input   id="kb-title"     placeholder="Title"          required>
-      <input   id="kb-category"  placeholder="Category"       required>
+      <input    id="kb-title"    placeholder="Title"           required>
+      <select   id="kb-category"  required>
+        <option value="" disabled selected>Choose category…</option>
+        <option value="howto">How-to</option>
+        <option value="tech">Tech</option>
+        <option value="instagram">Instagram</option>
+        <option value="adobe">Adobe</option>
+        <option value="utopium">Utopium</option>
+      </select>
       <textarea id="kb-content"  rows="8" placeholder="Content" required></textarea>
-      <button type="submit">Publish</button>
+  
+      <!-- action buttons -->
+      <div class="dialog-actions">
+        <button type="button" id="kb-cancel">Cancel</button>
+        <button type="submit">Publish</button>
+      </div>
     </form>
   </dialog>
 
-  <script defer src="utopium-widget.js"></script>
+  <script defer src="/utopium-widget.js"></script>
   <script>
     const apiRoot  = "https://api.feedutopia.com";
     const siteRoot = location.origin;
     let articles   = [];
-  
-    // Show the Publish dialog
+
+    const dialog     = document.getElementById('kb-dialog');
+    const cancelBtn  = document.getElementById('kb-cancel');
+    cancelBtn.addEventListener('click', () => dialog.close());
+
     document.getElementById('add-btn').onclick = () =>
       document.getElementById('kb-dialog').showModal();
-  
-    // Handle form submit
+
     document.getElementById('kb-form').onsubmit = async e => {
       e.preventDefault();
-
       const titleEl    = document.getElementById('kb-title');
       const categoryEl = document.getElementById('kb-category');
       const contentEl  = document.getElementById('kb-content');
 
       const title    = titleEl.value.trim();
-      const category = categoryEl.value.trim().toLowerCase();
+      const category = categoryEl.value;
       const content  = contentEl.value.trim();
 
-      // 1) Call the right endpoint: /kb/upload-url
+      document.getElementById('kb-cancel').onclick = () =>
+      document.getElementById('kb-dialog').close();
+
+      // 1) Get presigned URL
       const presignRes = await fetch(`${apiRoot}/kb/upload-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, category })
       });
-
       if (!presignRes.ok) {
         console.error('Presign failed', await presignRes.text());
         return alert('Error getting upload URL');
       }
-
       const { uploadUrl, key, created } = await presignRes.json();
 
-      // 2) PUT to the presigned URL
+      // 2) Upload JSON
       const putRes = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
@@ -326,31 +354,26 @@
         },
         body: JSON.stringify({ title, category, content, created })
       });
-
       if (!putRes.ok) {
         console.error('Upload failed', await putRes.text());
         return alert('Error uploading article');
       }
 
-      // clear, close, reload
+      // reset & refresh
       titleEl.value = categoryEl.value = contentEl.value = '';
       document.getElementById('kb-dialog').close();
       loadArticles();
     };
 
-    // Load list + details
     async function loadArticles() {
       const list = await fetch(`${apiRoot}/kb`).then(r=>r.json());
-      articles  = await Promise.all(
-        list.map(async a => {
-          const js = await fetch(`${siteRoot}/${a.key}`).then(r=>r.json());
-          return { ...a, content: js.content, category: js.category };
-        })
-      );
+      articles = await Promise.all(list.map(async a => {
+        const js = await fetch(`${siteRoot}/${a.key}`).then(r=>r.json());
+        return { ...a, content: js.content, category: js.category };
+      }));
       renderArticles();
     }
 
-    // Render grid
     function renderArticles() {
       const grid      = document.getElementById('kb-grid');
       const q         = document.getElementById('kb-search').value.toLowerCase();
@@ -368,12 +391,13 @@
             <p>${a.content.slice(0,120)}…</p>
             <small>${new Date(a.created).toLocaleDateString()}</small>
           `;
-          card.onclick = () => window.open(`${siteRoot}/${a.key}`, '_blank');
+          card.onclick = () => {
+            location.href = `view.html#${encodeURIComponent(a.key)}`;
+          };
           grid.appendChild(card);
         });
     }
 
-    // Search & category listeners
     document.getElementById('kb-search').oninput = renderArticles;
     document.querySelectorAll('#kb-categories li').forEach(li => {
       li.onclick = () => {
@@ -383,7 +407,6 @@
       };
     });
 
-    // Initial load
     loadArticles();
   </script>
 </body>

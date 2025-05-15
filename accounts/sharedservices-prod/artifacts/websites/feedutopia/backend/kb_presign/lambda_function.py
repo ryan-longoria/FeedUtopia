@@ -13,7 +13,7 @@ def lambda_handler(event, _ctx):
         body     = json.loads(event.get("body") or "{}")
         title    = body.get("title", "untitled")
         category = body.get("category", "general")
-        key      = f"kb/{uuid.uuid4()}.json"
+        key      = body.get("key") or f"kb/{uuid.uuid4()}.json"
 
         url = s3.generate_presigned_url(
             ClientMethod="put_object",
@@ -47,10 +47,8 @@ def lambda_handler(event, _ctx):
             "body": json.dumps(payload)
         }
 
-    except Exception as e:
-        print("ERROR in kb_presign:", e)
-        print(traceback.format_exc())
-
+    except Exception:
+        traceback.print_exc()
         return {
             "statusCode": 500,
             "headers": {
