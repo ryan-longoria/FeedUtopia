@@ -440,3 +440,32 @@ resource "aws_lambda_function" "delete_task" {
     mode = "Active"
   }
 }
+
+#############################
+# update_task
+#############################
+
+resource "aws_lambda_function" "update_task" {
+  function_name    = "${var.project_name}-update-task"
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 10
+
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/update_task/update_task.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/update_task/update_task.zip")
+
+  environment {
+    variables = {
+      TABLE_NAME = aws_dynamodb_table.weekly_todo.name
+    }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+}

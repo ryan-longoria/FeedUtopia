@@ -577,6 +577,23 @@ resource "aws_api_gateway_integration_response" "tasks_id_options_ir" {
   }
 }
 
+resource "aws_api_gateway_method" "tasks_patch" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.tasks_id.id
+  http_method   = "PATCH"
+  authorization = "NONE"
+  request_parameters = { "method.request.path.taskId" = true }
+}
+
+resource "aws_api_gateway_integration" "tasks_patch_int" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.tasks_id.id
+  http_method             = aws_api_gateway_method.tasks_patch.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.update_task.invoke_arn
+}
+
 #############################
 # Instagram API Callback/Oauth
 #############################

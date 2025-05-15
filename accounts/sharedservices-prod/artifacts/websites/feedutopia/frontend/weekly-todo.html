@@ -208,16 +208,15 @@
   </main>
 
   <script>
-    // base URL for your API Gateway (adjust stage name if different)
+    // Point to the custom-domain endpoint (no /prod)
     const API_BASE = "https://api.feedutopia.com/tasks";
-  
+
     const addBtn    = document.getElementById('add-btn');
     const newTaskIn = document.getElementById('new-task');
     const list      = document.getElementById('tasks-list');
-  
-    // on page load: fetch and render existing tasks
+
     window.addEventListener('DOMContentLoaded', loadTasks);
-  
+
     async function loadTasks() {
       list.innerHTML = '';
       try {
@@ -228,30 +227,42 @@
         console.error("Failed to load tasks:", e);
       }
     }
-  
-    // render one <li> with checkbox, label & delete btn
+
     function renderTask({ taskId, text, done }) {
       const li = document.createElement('li');
-  
+
       const cb = document.createElement('input');
-      cb.type = 'checkbox';
+      cb.type    = 'checkbox';
       cb.checked = done;
-      // (you could hook up a PATCH here to update 'done')
-  
+
+      // PATCH /tasks/{taskId} on change
+      cb.addEventListener('change', async () => {
+        try {
+          await fetch(`${API_BASE}/${taskId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ done: cb.checked })
+          });
+        } catch (e) {
+          console.error("Failed to update task:", e);
+        }
+        span.style.textDecoration = cb.checked ? 'line-through' : '';
+      });
+
       const span = document.createElement('span');
       span.className = 'task-text';
       span.textContent = text;
-  
+      if (done) span.style.textDecoration = 'line-through';
+
       const rm = document.createElement('button');
       rm.className = 'remove-btn';
       rm.textContent = '✕';
       rm.addEventListener('click', () => deleteTask(taskId));
-  
+
       li.append(cb, span, rm);
       list.appendChild(li);
     }
-  
-    // add new task via POST then re-load
+
     addBtn.addEventListener('click', async () => {
       const text = newTaskIn.value.trim();
       if (!text) return;
@@ -267,12 +278,11 @@
         console.error("Failed to add task:", e);
       }
     });
-  
+
     newTaskIn.addEventListener('keyup', e => {
       if (e.key === 'Enter') addBtn.click();
     });
-  
-    // delete by calling DELETE /tasks/{taskId}
+
     async function deleteTask(id) {
       try {
         await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
@@ -282,7 +292,6 @@
       }
     }
   </script>
-  <script defer src="/utopium-widget.js"></script>
-  
+  <script defer src="utopium-widget.js"></script>
 </body>
 </html>
