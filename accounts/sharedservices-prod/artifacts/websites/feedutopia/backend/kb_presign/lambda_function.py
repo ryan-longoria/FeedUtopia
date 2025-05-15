@@ -9,10 +9,11 @@ s3 = boto3.client("s3")
 
 def lambda_handler(event, _ctx):
     try:
-        bucket = os.environ["BUCKET"]
-        body   = json.loads(event.get("body") or "{}")
-        title  = body.get("title", "untitled")
-        key    = f"kb/{uuid.uuid4()}.json"
+        bucket   = os.environ["BUCKET"]
+        body     = json.loads(event.get("body") or "{}")
+        title    = body.get("title", "untitled")
+        category = body.get("category", "general")
+        key      = f"kb/{uuid.uuid4()}.json"
 
         url = s3.generate_presigned_url(
             ClientMethod="put_object",
@@ -20,7 +21,10 @@ def lambda_handler(event, _ctx):
                 "Bucket":      bucket,
                 "Key":         key,
                 "ContentType": "application/json",
-                "Metadata": {"title": title}
+                "Metadata": {
+                    "title":    title,
+                    "category": category
+                }
             },
             ExpiresIn=60
         )
@@ -29,7 +33,8 @@ def lambda_handler(event, _ctx):
             "uploadUrl": url,
             "key":       key,
             "created":   dt.datetime.utcnow().isoformat(),
-            "title":     title
+            "title":     title,
+            "category":  category
         }
 
         return {
@@ -43,7 +48,6 @@ def lambda_handler(event, _ctx):
         }
 
     except Exception as e:
-        # Log the error to CloudWatch
         print("ERROR in kb_presign:", e)
         print(traceback.format_exc())
 

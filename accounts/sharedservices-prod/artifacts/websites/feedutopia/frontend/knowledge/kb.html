@@ -1,263 +1,390 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>FeedUtopia – Knowledge Base</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-:root {
-  --accent: #ec008c;
-  --bg-darker: #111;
-  --bg-dark: #222;
-  --text-main: #eee;
-}
+  <meta charset="utf-8">
+  <title>FeedUtopia – Knowledge Base</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    /* ── your original colors ───────────────────────────────────────── */
+    :root {
+      --accent:      #ec008c;
+      --bg-darker:   #111;
+      --bg-dark:     #222;
+      --bg-light:    #333;
+      --text-main:   #eee;
+      --text-muted:  rgba(238,238,238,0.7);
+    }
 
-body {
-  margin: 0;
-  background: var(--bg-darker);
-  color: var(--text-main);
-  font-family: system-ui, sans-serif;
-}
+    /* ── global resets ──────────────────────────────────────────────── */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg-darker);
+      color: var(--text-main);
+      font-family: system-ui, sans-serif;
+      line-height: 1.5;
+    }
+    a { color: inherit; text-decoration: none; }
 
-/* ── top bar ─────────────────────────────────────────────── */
-header {
-  background: var(--accent);
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #fff;
-  flex-wrap: wrap;
-}
+    /* ── your original header ───────────────────────────────────────── */
+    header {
+      background: var(--accent);
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fff;
+      flex-wrap: wrap;
+    }
+    header > div { font-weight: 700; font-size: 1.25rem; }
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+    nav a {
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .dropdown { position: relative; }
+    .dropdown > a::after {
+      content: "▼";
+      font-size: .55rem;
+      margin-left: .35rem;
+      opacity: .7;
+    }
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%; left: 0;
+      background: var(--bg-dark);
+      padding: .5rem 0;
+      border-radius: 6px;
+      min-width: 180px;
+      z-index: 10;
+    }
+    .dropdown-content a {
+      display: block;
+      padding: .5rem 1rem;
+      font-weight: 500;
+      color: #fff;
+    }
+    .dropdown:hover .dropdown-content { display: block; }
 
-nav {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  flex-wrap: wrap;
-}
+    /* ── add-article button under header ───────────────────────────── */
+    #add-btn {
+      display: block;
+      margin: 1rem auto;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: .6rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
 
-nav a {
-  color: #fff;
-  text-decoration: none;
-  font-weight: 600;
-}
+    /* ── main layout ──────────────────────────────────────────────── */
+    main {
+      max-width: 1200px;
+      margin: 0 auto 2rem;
+      padding: 0 1rem;
+    }
+    .kb-container {
+      display: flex;
+      gap: 1rem;
+    }
 
-.dropdown {
-  position: relative;
-}
+    /* ── sidebar ─────────────────────────────────────────────────── */
+    aside.kb-sidebar {
+      width: 200px;
+      background: var(--bg-dark);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .kb-sidebar h2 {
+      margin-top: 0;
+      color: var(--accent);
+      font-size: 1.1rem;
+    }
+    .kb-sidebar ul {
+      list-style: none;
+      margin: 0; padding: 0;
+    }
+    .kb-sidebar li {
+      padding: .5rem;
+      color: var(--text-main);
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: .25rem;
+    }
+    .kb-sidebar li:hover,
+    .kb-sidebar li.active {
+      background: var(--accent);
+      color: #fff;
+    }
 
-.dropdown > a::after {
-  content: "▼";
-  font-size: .55rem;
-  margin-left: .35rem;
-  opacity: .7;
-}
+    /* ── content area ───────────────────────────────────────────── */
+    .kb-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .kb-header {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .kb-header input[type=search] {
+      flex: 1;
+      background: var(--bg-light);
+      color: var(--text-main);
+      border: none;
+      border-radius: 6px;
+      padding: .8rem;
+      font-size: 1rem;
+    }
 
-.dropdown-content {
-  display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background: var(--bg-dark);
-  padding: .5rem 0;
-  border-radius: 6px;
-  min-width: 180px;
-  z-index: 10;
-}
+    /* ── grid & cards ───────────────────────────────────────────── */
+    .kb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px,1fr));
+      gap: 1rem;
+    }
+    .kb-card {
+      background: var(--bg-light);
+      border-radius: 8px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+      transition: transform .1s, box-shadow .1s;
+    }
+    .kb-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .kb-card h3 {
+      margin: 0 0 .5rem;
+      color: var(--accent);
+      font-size: 1.1rem;
+    }
+    .kb-card p {
+      flex: 1;
+      margin: .5rem 0;
+      color: var(--text-muted);
+      font-size: .95rem;
+    }
+    .kb-card small {
+      color: var(--text-muted);
+      font-size: .85rem;
+    }
 
-.dropdown-content a {
-  display: block;
-  padding: .5rem 1rem;
-  font-weight: 500;
-}
+    /* ── dialog ─────────────────────────────────────────────────── */
+    dialog {
+      border: none;
+      border-radius: 10px;
+      padding: 2rem;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      width: 90%;
+      max-width: 600px;
+    }
+    dialog form {
+      display: flex;
+      flex-direction: column;
+      gap: .8rem;
+    }
+    dialog input,
+    dialog textarea {
+      padding: .6rem;
+      border-radius: 6px;
+      border: none;
+      background: var(--bg-light);
+      color: var(--text-main);
+      font-size: 1rem;
+    }
+    dialog button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: .6rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      align-self: flex-end;
+    }
 
-.dropdown:hover .dropdown-content {
-  display: block;
-}
-
-/* ── page content ───────────────────────────────────────── */
-main {
-  padding: 1.5rem;
-  max-width: 900px;
-  margin: auto;
-}
-
-h1 {
-  font-size: 1.8rem;
-  margin-bottom: 1rem;
-}
-
-#add-btn {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  padding: .6rem 1.2rem;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-bottom: 1.5rem;
-  font-weight: 600;
-}
-
-#kb-list .kb-article {
-  background: var(--bg-dark);
-  padding: 1rem 1.2rem;
-  border-radius: 8px;
-  margin-bottom: 1.2rem;
-}
-
-#kb-list .kb-article h2 {
-  margin: .2rem 0 .4rem;
-  color: var(--accent);
-}
-
-textarea, input {
-  width: 100%;
-  padding: .55rem;
-  border-radius: 6px;
-  border: none;
-  background: #333;
-  color: #eee;
-}
-
-dialog {
-  border: none;
-  border-radius: 10px;
-  padding: 2rem;
-  background: #222;
-  color: #eee;
-  width: 90%;
-  max-width: 600px;
-}
-
-dialog form {
-  display: flex;
-  flex-direction: column;
-  gap: .8rem;
-}
-
-dialog button {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  padding: .55rem 1.2rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-  align-self: flex-start;
-}
-
-/* ── responsive tweaks ─────────────────────────────────── */
-@media(max-width: 600px) {
-  header {
-    padding: 0.75rem 1rem;
-  }
-
-  nav {
-    gap: 0.8rem;
-  }
-
-  h1 {
-    font-size: 1.5rem;
-  }
-
-  #add-btn {
-    width: 100%;
-    text-align: center;
-  }
-
-  #kb-list .kb-article h2 {
-    font-size: 1.1rem;
-  }
-
-  textarea, input {
-    font-size: .95rem;
-  }
-}
-</style>
+    @media(max-width: 800px) {
+      .kb-container { flex-direction: column; }
+      aside.kb-sidebar { width: 100%; }
+    }
+  </style>
 </head>
 <body>
 
-<header>
-  <div style="font-weight:700">FeedUtopia</div>
-  <nav>
-    <a href="/index.html">Home</a>
-    <div class="dropdown">
-      <a href="#!">Accounts</a>
-      <div class="dropdown-content">
-        <a href="/account-pages/animeutopia.html">Anime Utopia</a>
-        <a href="/account-pages/wrestleutopia.html">Wrestle Utopia</a>
-        <a href="/account-pages/driftutopia.html">Drift Utopia</a>
-        <a href="/account-pages/xputopia.html">XP Utopia</a>
-        <a href="/account-pages/critterutopia.html">Critter Utopia</a>
-        <a href="/account-pages/cyberutopia.html">Cyber Utopia</a>
+  <!-- ── top banner (unchanged) ─────────────────────────────── -->
+  <header>
+    <div>FeedUtopia</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <div class="dropdown">
+        <a href="#!">Accounts</a>
+        <div class="dropdown-content">
+          <a href="account-pages/animeutopia.html">Anime Utopia</a>
+          <a href="account-pages/wrestleutopia.html">Wrestle Utopia</a>
+          <a href="account-pages/driftutopia.html">Drift Utopia</a>
+          <a href="account-pages/xputopia.html">XP Utopia</a>
+          <a href="account-pages/critterutopia.html">Critter Utopia</a>
+          <a href="account-pages/cyberutopia.html">Cyber Utopia</a>
+        </div>
+      </div>
+      <a href="orders.html">Orders</a>
+      <a href="kb.html">Knowledge Base</a>
+    </nav>
+  </header>
+
+  <!-- ── Add button & main container ───────────────────────── -->
+  <button id="add-btn">➕ Add Article</button>
+  <main>
+    <div class="kb-container">
+      <!-- sidebar -->
+      <aside class="kb-sidebar">
+        <h2>Categories</h2>
+        <ul id="kb-categories">
+          <li data-cat="all" class="active">All</li>
+          <li data-cat="howto">How-To</li>
+          <li data-cat="faq">FAQ</li>
+        </ul>
+      </aside>
+
+      <!-- main content -->
+      <div class="kb-main">
+        <div class="kb-header">
+          <input id="kb-search" type="search" placeholder="Search articles…" aria-label="Search articles">
+        </div>
+        <section id="kb-grid" class="kb-grid"></section>
       </div>
     </div>
-    <a href="/orders.html">Orders</a>
-    <a href="/kb.html">Knowledge Base</a>
-  </nav>
-</header>
+  </main>
 
-<main>
-  <h1>Knowledge Base</h1>
-  <button id="add-btn">➕ Add Article</button>
-  <section id="kb-list"></section>
-</main>
+  <!-- ── Publish dialog (dark themed) ───────────────────────── -->
+  <dialog id="kb-dialog">
+    <form id="kb-form">
+      <input   id="kb-title"     placeholder="Title"          required>
+      <input   id="kb-category"  placeholder="Category"       required>
+      <textarea id="kb-content"  rows="8" placeholder="Content" required></textarea>
+      <button type="submit">Publish</button>
+    </form>
+  </dialog>
 
-<dialog id="kb-dialog">
-  <form id="kb-form">
-    <input id="kb-title" placeholder="Article title" required>
-    <textarea id="kb-body" rows="10" placeholder="Markdown or plain‑text…" required></textarea>
-    <button type="submit">Publish</button>
-  </form>
-</dialog>
+  <script defer src="utopium-widget.js"></script>
+  <script>
+    const apiRoot  = "https://api.feedutopia.com";
+    const siteRoot = location.origin;
+    let articles   = [];
+  
+    // Show the Publish dialog
+    document.getElementById('add-btn').onclick = () =>
+      document.getElementById('kb-dialog').showModal();
+  
+    // Handle form submit
+    document.getElementById('kb-form').onsubmit = async e => {
+      e.preventDefault();
 
-<script>
-const apiRoot = "https://api.feedutopia.com";   // your custom domain
+      const titleEl    = document.getElementById('kb-title');
+      const categoryEl = document.getElementById('kb-category');
+      const contentEl  = document.getElementById('kb-content');
 
-const dialog = document.getElementById('kb-dialog');
-const listEl = document.getElementById('kb-list');
+      const title    = titleEl.value.trim();
+      const category = categoryEl.value.trim().toLowerCase();
+      const content  = contentEl.value.trim();
 
-document.getElementById('add-btn').onclick = () => dialog.showModal();
+      // 1) Call the right endpoint: /kb/upload-url
+      const presignRes = await fetch(`${apiRoot}/kb/upload-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, category })
+      });
 
-document.getElementById('kb-form').onsubmit = async (e) => {
-  e.preventDefault();
-  const title   = document.getElementById('kb-title').value.trim();
-  const content = document.getElementById('kb-body').value.trim();
+      if (!presignRes.ok) {
+        console.error('Presign failed', await presignRes.text());
+        return alert('Error getting upload URL');
+      }
 
-  // 1. ask backend for a presigned URL
-  const presign = await fetch(`${apiRoot}/kb/upload-url`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({title})
-  }).then(r => r.json());
+      const { uploadUrl, key, created } = await presignRes.json();
 
-  // 2. PUT the article body
-  await fetch(presign.uploadUrl, {
-    method:'PUT',
-    headers:{'Content-Type':'application/json', 'x-amz-meta-title': title},
-    body: JSON.stringify({title, content, created: presign.created})
-  });
+      // 2) PUT to the presigned URL
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type':        'application/json',
+          'x-amz-meta-title':    title,
+          'x-amz-meta-category': category
+        },
+        body: JSON.stringify({ title, category, content, created })
+      });
 
-  dialog.close();
-  loadKB();                 // refresh the list
-};
+      if (!putRes.ok) {
+        console.error('Upload failed', await putRes.text());
+        return alert('Error uploading article');
+      }
 
-async function loadKB(){
-  const items = await fetch(`${apiRoot}/kb`).then(r=>r.json());
-  listEl.innerHTML = '';
-  items.forEach(a=>{
-    const el = document.createElement('article');
-    el.className = 'kb-article';
-    el.innerHTML = `<h2>${a.title}</h2>
-                    <small>${new Date(a.created).toLocaleDateString()}</small>`;
-    el.onclick = ()=>window.open(`${apiRoot.replace('api.','')}/kb/${a.key}`,'_blank');
-    listEl.appendChild(el);
-  });
-}
-loadKB();
-</script>
+      // clear, close, reload
+      titleEl.value = categoryEl.value = contentEl.value = '';
+      document.getElementById('kb-dialog').close();
+      loadArticles();
+    };
 
-<script defer src="/utopium-widget.js"></script>
+    // Load list + details
+    async function loadArticles() {
+      const list = await fetch(`${apiRoot}/kb`).then(r=>r.json());
+      articles  = await Promise.all(
+        list.map(async a => {
+          const js = await fetch(`${siteRoot}/${a.key}`).then(r=>r.json());
+          return { ...a, content: js.content, category: js.category };
+        })
+      );
+      renderArticles();
+    }
+
+    // Render grid
+    function renderArticles() {
+      const grid      = document.getElementById('kb-grid');
+      const q         = document.getElementById('kb-search').value.toLowerCase();
+      const activeCat = document.querySelector('#kb-categories li.active').dataset.cat;
+      grid.innerHTML  = '';
+
+      articles
+        .filter(a => activeCat==='all' || a.category===activeCat)
+        .filter(a => a.title.toLowerCase().includes(q) || a.content.toLowerCase().includes(q))
+        .forEach(a => {
+          const card = document.createElement('div');
+          card.className = 'kb-card';
+          card.innerHTML = `
+            <h3>${a.title}</h3>
+            <p>${a.content.slice(0,120)}…</p>
+            <small>${new Date(a.created).toLocaleDateString()}</small>
+          `;
+          card.onclick = () => window.open(`${siteRoot}/${a.key}`, '_blank');
+          grid.appendChild(card);
+        });
+    }
+
+    // Search & category listeners
+    document.getElementById('kb-search').oninput = renderArticles;
+    document.querySelectorAll('#kb-categories li').forEach(li => {
+      li.onclick = () => {
+        document.querySelectorAll('#kb-categories li').forEach(x=>x.classList.remove('active'));
+        li.classList.add('active');
+        renderArticles();
+      };
+    });
+
+    // Initial load
+    loadArticles();
+  </script>
 </body>
 </html>
