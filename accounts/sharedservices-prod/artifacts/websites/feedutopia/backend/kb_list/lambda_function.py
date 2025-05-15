@@ -10,15 +10,21 @@ def lambda_handler(event, _ctx):
         bucket = os.environ["BUCKET"]
         objs = s3.list_objects_v2(Bucket=bucket, Prefix="kb/")
         items = []
+
         for o in objs.get("Contents", []):
             meta = s3.head_object(Bucket=bucket, Key=o["Key"])
+            md   = meta.get("Metadata", {})
+
             items.append({
-                "key":     o["Key"],
-                "title":   meta["Metadata"].get("title", "untitled"),
-                "created": meta["LastModified"].isoformat()
+                "key":      o["Key"],
+                "title":    md.get("title", "untitled"),
+                "category": md.get("category", "general"),
+                "created":  meta["LastModified"].isoformat()
             })
 
-        body = json.dumps(sorted(items, key=lambda i: i["created"], reverse=True))
+        body = json.dumps(
+            sorted(items, key=lambda i: i["created"], reverse=True)
+        )
         return {
             "statusCode": 200,
             "headers": {
@@ -32,7 +38,6 @@ def lambda_handler(event, _ctx):
     except Exception as e:
         print("ERROR in kb_list:", e)
         print(traceback.format_exc())
-
         return {
             "statusCode": 500,
             "headers": {
