@@ -132,3 +132,15 @@ resource "aws_s3_bucket_cors_configuration" "artifacts_cors" {
     max_age_seconds = 3000
   }
 }
+
+resource "aws_s3_bucket_cors_configuration" "feedutopia_webapp_cors" {
+  bucket = aws_s3_bucket.feedutopia-webapp.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST", "HEAD"]
+    allowed_origins = ["https://feedutopia.com"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 300
+  }
+}
