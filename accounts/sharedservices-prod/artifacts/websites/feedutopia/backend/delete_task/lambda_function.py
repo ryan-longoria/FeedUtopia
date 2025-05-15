@@ -12,7 +12,10 @@ def lambda_handler(event, context):
     if not task_id:
         return {
             "statusCode": 400,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
             "body": json.dumps({"error": "Missing path parameter 'taskId'"})
         }
 
@@ -20,12 +23,18 @@ def lambda_handler(event, context):
         table.delete_item(Key={"taskId": task_id})
         return {
             "statusCode": 204,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
             "body": ""
         }
     except Exception as e:
         return {
             "statusCode": 500,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
             "body": json.dumps({"error": str(e)})
         }

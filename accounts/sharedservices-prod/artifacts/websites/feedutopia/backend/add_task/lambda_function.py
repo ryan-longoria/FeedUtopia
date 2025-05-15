@@ -13,7 +13,10 @@ def lambda_handler(event, context):
         if not text:
             return {
                 "statusCode": 400,
-                "headers": {"Content-Type": "application/json"},
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                },
                 "body": json.dumps({"error": "Missing 'text' in body"})
             }
         task_id = str(uuid.uuid4())
@@ -25,12 +28,18 @@ def lambda_handler(event, context):
         table.put_item(Item=item)
         return {
             "statusCode": 201,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
             "body": json.dumps(item)
         }
     except Exception as e:
         return {
             "statusCode": 500,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
             "body": json.dumps({"error": str(e)})
         }
