@@ -422,12 +422,14 @@ resource "aws_api_gateway_integration_response" "kb_delete_integration_response"
   }
 }
 
+# 1) Create /tasks resource
 resource "aws_api_gateway_resource" "tasks" {
   rest_api_id = aws_api_gateway_rest_api.api.id
   parent_id   = aws_api_gateway_rest_api.api.root_resource_id
   path_part   = "tasks"
 }
 
+# 2) GET /tasks
 resource "aws_api_gateway_method" "tasks_get" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.tasks.id
@@ -444,6 +446,7 @@ resource "aws_api_gateway_integration" "tasks_get_int" {
   uri                     = aws_lambda_function.get_tasks.invoke_arn
 }
 
+# 3) POST /tasks
 resource "aws_api_gateway_method" "tasks_post" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.tasks.id
@@ -460,6 +463,7 @@ resource "aws_api_gateway_integration" "tasks_post_int" {
   uri                     = aws_lambda_function.add_task.invoke_arn
 }
 
+# 4) DELETE /tasks/{taskId}
 resource "aws_api_gateway_resource" "tasks_id" {
   rest_api_id = aws_api_gateway_rest_api.api.id
   parent_id   = aws_api_gateway_resource.tasks.id
@@ -486,14 +490,6 @@ resource "aws_api_gateway_integration" "tasks_delete_int" {
   uri                     = aws_lambda_function.delete_task.invoke_arn
 }
 
-locals {
-  cors_headers = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,DELETE,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
-  }
-}
-
 resource "aws_api_gateway_method" "tasks_options" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.tasks.id
@@ -517,7 +513,11 @@ resource "aws_api_gateway_method_response" "tasks_options_mr" {
   http_method = aws_api_gateway_method.tasks_options.http_method
   status_code = "200"
 
-  response_parameters = local.cors_headers
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
 }
 
 resource "aws_api_gateway_integration_response" "tasks_options_ir" {
@@ -526,9 +526,14 @@ resource "aws_api_gateway_integration_response" "tasks_options_ir" {
   http_method = aws_api_gateway_method.tasks_options.http_method
   status_code = aws_api_gateway_method_response.tasks_options_mr.status_code
 
-  response_parameters = local.cors_headers
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,DELETE,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
 }
 
+# OPTIONS on /tasks/{taskId}
 resource "aws_api_gateway_method" "tasks_id_options" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.tasks_id.id
@@ -552,7 +557,11 @@ resource "aws_api_gateway_method_response" "tasks_id_options_mr" {
   http_method = aws_api_gateway_method.tasks_id_options.http_method
   status_code = "200"
 
-  response_parameters = local.cors_headers
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
 }
 
 resource "aws_api_gateway_integration_response" "tasks_id_options_ir" {
@@ -561,7 +570,11 @@ resource "aws_api_gateway_integration_response" "tasks_id_options_ir" {
   http_method = aws_api_gateway_method.tasks_id_options.http_method
   status_code = aws_api_gateway_method_response.tasks_id_options_mr.status_code
 
-  response_parameters = local.cors_headers
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,DELETE,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
 }
 
 #############################
