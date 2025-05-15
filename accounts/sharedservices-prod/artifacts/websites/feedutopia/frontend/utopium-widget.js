@@ -5,51 +5,92 @@
 // • Runs the same state‑machine logic you already had
 // --------------------------------------------------
 
-(function(){
-    /* ───── 1. Inject widget styles ─────────────────────────────── */
-    const css = `
-      #utopium-widget{position:fixed;bottom:16px;right:20px;z-index:9999;font-family:system-ui,sans-serif}
-      #ut-launcher{background:var(--accent);color:#fff;border:none;width:64px;height:64px;
-          border-radius:50%;box-shadow:0 4px 12px rgba(0,0,0,.4);cursor:pointer;
-          display:flex;align-items:center;justify-content:center;font-size:1.75rem}
-      #ut-window{display:none;flex-direction:column;width:360px;height:520px;
-          background:var(--bg-dark);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.6)}
-      #ut-header{background:var(--accent);border-radius:14px 14px 0 0;
-          padding:0.9rem 1.2rem;font-weight:700;color:#fff}
-      #ut-messages{flex:1;overflow-y:auto;padding:1rem 1rem .5rem}
-      #ut-input{display:flex;padding:.5rem;border-top:1px solid var(--bg-medium)}
-      #ut-input input{flex:1;border:none;border-radius:8px 0 0 8px;
-          padding:.55rem .8rem;background:var(--bg-medium);color:var(--text-main);font-size:1rem}
-      #ut-input button{border:none;border-radius:0 8px 8px 0;
-          background:var(--accent-light);font-weight:600;padding:.55rem 1rem;cursor:pointer}
-      .ut-msg{max-width:88%;margin:.35rem 0;padding:.55rem .75rem;border-radius:18px;
-          font-size:.95rem;line-height:1.35}
-      .ut-user{background:#555;color:#fff;margin-left:auto}
-      .ut-bot {background:var(--bg-light);color:var(--text-sub)}
-      .ut-qr{display:inline-block;background:var(--bg-medium);color:#fff;padding:.3rem .7rem;
-             border-radius:14px;margin:.25rem .2rem;font-size:.85rem;cursor:pointer}
-      #ut-file{margin-top:.5rem}`;
-    const style = document.createElement('style');
-    style.textContent = css;
-    document.head.appendChild(style);
-  
-    /* ───── 2. Append widget markup ─────────────────────────────── */
-    const widgetHTML = `
-      <div id="utopium-widget">
-        <button id="ut-launcher" aria-label="Open chat">
-          <img src="/img/utopium.png" alt="Chat icon"
-               style="width:66%;height:66%;object-fit:contain;pointer-events:none;">
-        </button>
-        <div id="ut-window" role="dialog" aria-modal="true" aria-label="Utopium Chat">
-          <div id="ut-header">Utopium</div>
-          <div id="ut-messages"></div>
-          <div id="ut-input">
-            <input id="ut-text" placeholder="Type here…" autocomplete="off">
-            <button id="ut-send">➤</button>
-          </div>
+(function () {
+  /* ───── 1. Inject widget styles ───────────────────────── */
+  const css = `
+    /* root container */
+    #utopium-widget{
+      position:fixed;
+      bottom:clamp(12px,4vw,20px);
+      right:clamp(12px,4vw,20px);
+      z-index:9999;
+      font-family:system-ui,sans-serif
+    }
+    /* launcher button – scales from 48‑64 px */
+    #ut-launcher{
+      background:var(--accent);color:#fff;border:none;
+      width:clamp(48px,14vw,64px);height:clamp(48px,14vw,64px);
+      border-radius:50%;box-shadow:0 4px 12px rgba(0,0,0,.4);cursor:pointer;
+      display:flex;align-items:center;justify-content:center;font-size:1.75rem
+    }
+    /* chat window – fluid width/height with max bounds */
+    #ut-window{
+      display:none;flex-direction:column;
+      width:min(90vw,360px);height:min(80vh,520px);
+      background:var(--bg-dark);border-radius:14px;
+      box-shadow:0 6px 24px rgba(0,0,0,.6)
+    }
+    #ut-header{
+      background:var(--accent);border-radius:14px 14px 0 0;
+      padding:.9rem 1.2rem;font-weight:700;color:#fff
+    }
+    #ut-messages{flex:1;overflow-y:auto;padding:1rem 1rem .5rem}
+    /* input row */
+    #ut-input{display:flex;padding:.5rem;border-top:1px solid var(--bg-medium)}
+    #ut-input input{
+      flex:1;border:none;border-radius:8px 0 0 8px;
+      padding:.55rem .8rem;background:var(--bg-medium);
+      color:var(--text-main);font-size:1rem
+    }
+    #ut-input button{
+      border:none;border-radius:0 8px 8px 0;
+      background:var(--accent-light);font-weight:600;
+      padding:.55rem 1rem;cursor:pointer
+    }
+    /* chat bubbles */
+    .ut-msg{
+      max-width:88%;margin:.35rem 0;padding:.55rem .75rem;
+      border-radius:18px;font-size:.95rem;line-height:1.35
+    }
+    .ut-user{background:#555;color:#fff;margin-left:auto}
+    .ut-bot {background:var(--bg-light);color:var(--text-sub)}
+    /* quick‑reply pills */
+    .ut-qr{
+      display:inline-block;background:var(--bg-medium);color:#fff;
+      padding:.3rem .7rem;border-radius:14px;margin:.25rem .2rem;
+      font-size:.85rem;cursor:pointer
+    }
+    /* drag‑and‑drop zone */
+    #ut-file{margin-top:.5rem}
+
+    /* ── narrow phone fallback (≤420 px) ─────────────── */
+    @media(max-width:420px){
+      #ut-window{width:92vw;height:78vh}
+      #ut-launcher{width:56px;height:56px;font-size:1.5rem}
+      .ut-msg{font-size:.9rem}
+    }
+  `;
+  const style = document.createElement('style');
+  style.textContent = css;
+  document.head.appendChild(style);
+
+  /* ───── 2. Append widget markup (unchanged) ─────────── */
+  const widgetHTML = `
+    <div id="utopium-widget">
+      <button id="ut-launcher" aria-label="Open chat">
+        <img src="/img/utopium.png" alt="Chat icon"
+             style="width:66%;height:66%;object-fit:contain;pointer-events:none;">
+      </button>
+      <div id="ut-window" role="dialog" aria-modal="true" aria-label="Utopium Chat">
+        <div id="ut-header">Utopium</div>
+        <div id="ut-messages"></div>
+        <div id="ut-input">
+          <input id="ut-text" placeholder="Type here…" autocomplete="off">
+          <button id="ut-send">➤</button>
         </div>
-      </div>`;
-    document.body.insertAdjacentHTML('beforeend', widgetHTML);
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', widgetHTML);
   
     /* ───── 3. Chatbot logic (same as before) ───────────────────── */
     const API_ROOT = "https://api.feedutopia.com";

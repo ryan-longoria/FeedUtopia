@@ -86,25 +86,38 @@ resource "aws_s3_bucket" "feedutopia-webapp" {
   force_destroy = true
 }
 
-resource "aws_s3_bucket_policy" "feedutopia_webapp_oac" {
+resource "aws_s3_bucket_policy" "feedutopia_webapp" {
   bucket = aws_s3_bucket.feedutopia-webapp.id
 
   policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [{
-      Sid       = "AllowCloudFrontOAC"
-      Effect    = "Allow"
-      Principal = { Service = "cloudfront.amazonaws.com" }
+    Statement = [
 
-      Action    = "s3:GetObject"
-      Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/*"
-
-      Condition = {
-        StringEquals = {
-          "AWS:SourceArn" = aws_cloudfront_distribution.feedutopia-web.arn
+      {
+        Sid       = "AllowCloudFrontOAC"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/*"
+        Condition = {
+          ArnLike = {
+            "AWS:SourceArn" = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"
+          }
+          StringEquals = {
+            "AWS:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
         }
+      },
+
+      {
+        Sid       = "AllowLambdaWriteKB"
+        Effect    = "Allow"
+        Principal = { AWS = aws_iam_role.lambda_role.arn }
+        Action    = ["s3:PutObject","s3:PutObjectAcl"]
+        Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/kb/*"
       }
-    }]
+
+    ]
   })
 }
 
@@ -117,5 +130,17 @@ resource "aws_s3_bucket_cors_configuration" "artifacts_cors" {
     allowed_headers = ["*"]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "feedutopia_webapp_cors" {
+  bucket = aws_s3_bucket.feedutopia-webapp.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST", "HEAD"]
+    allowed_origins = ["https://feedutopia.com"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 300
   }
 }
