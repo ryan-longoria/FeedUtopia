@@ -624,6 +624,17 @@ resource "aws_api_gateway_integration" "strategy_int" {
   uri                     = aws_lambda_function.strategy_presign.invoke_arn
 }
 
+resource "aws_s3_bucket_cors_configuration" "feedutopia_webapp_cors" {
+  bucket = aws_s3_bucket.feedutopia-webapp.id
+
+  cors_rule {
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = ["https://feedutopia.com"]
+    allowed_headers = ["*"]
+    max_age_seconds = 3000
+  }
+}
+
 #############################
 # Instagram API Callback/Oauth
 #############################
