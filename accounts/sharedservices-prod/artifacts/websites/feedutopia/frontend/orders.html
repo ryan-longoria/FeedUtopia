@@ -1,218 +1,315 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>FeedUtopia – Orders</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-:root{
-  --accent:#ec008c;
-  --bg-darker:#111;
-  --bg-dark:#222;
-  --text-main:#eee;
-  --text-muted:#bbb;
-  --card-bg:#1b1b1b;
-}
-body{
-  margin:0;
-  background:var(--bg-darker);
-  color:var(--text-main);
-  font-family:system-ui,sans-serif;
-}
-/* ── top bar ─────────────────────────────────────────────── */
-header{
-  background:var(--accent);
-  padding:1rem 1.5rem;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  color:#fff;
-  flex-wrap:wrap;
-}
-nav{display:flex;align-items:center;gap:1.1rem;flex-wrap:wrap}
-nav a{color:#fff;text-decoration:none;font-weight:600}
-nav a.active{opacity:.55;cursor:default}
+  <meta charset="utf-8">
+  <title>FeedUtopia – Orders</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
 
-/* ▼ dropdown */
-.dropdown{position:relative}
-.dropdown > a::after{content:"▼";font-size:.55rem;margin-left:.35rem;opacity:.7}
-.dropdown-content{
-  display:none;position:absolute;top:100%;left:0;
-  background:var(--bg-dark);padding:.5rem 0;border-radius:6px;
-  min-width:180px;z-index:10;
-}
-.dropdown-content a{display:block;padding:.5rem 1rem;font-weight:500}
-.dropdown:hover .dropdown-content{display:block}
+  <style>
+    :root {
+      --accent:      #ec008c;
+      --bg-darker:   #111;
+      --bg-dark:     #222;
+      --text-main:   #eee;
+      --text-muted:  #bbb;
+      --card-bg:     #1b1b1b;
+      --gap:         1rem;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg-darker);
+      color: var(--text-main);
+      font-family: system-ui, sans-serif;
+      line-height: 1.5;
+      padding-bottom: var(--gap);
+    }
+    a { color: inherit; text-decoration: none; }
 
-/* ── page content ───────────────────────────────────────── */
-main{padding:1.5rem;max-width:1100px;margin:auto}
-.section{margin-bottom:2.25rem}
-h2{margin-top:0;color:var(--accent)}
-.card{background:var(--card-bg);border-radius:10px;padding:1.25rem;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+    /* ── header/nav ───────────────────────────────────────── */
+    header {
+      background: var(--accent);
+      padding: var(--gap) var(--gap);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      color: #fff;
+    }
+    header > div {
+      font-weight: 700;
+      font-size: 1.25rem;
+    }
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    nav a {
+      color: #fff;
+      font-weight: 600;
+      padding: .5rem;
+    }
+    .dropdown { position: relative; }
+    .dropdown > a::after {
+      content: "▼"; font-size: .6rem; margin-left: .3rem; opacity: .7;
+    }
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%; left: 0;
+      background: var(--bg-dark);
+      padding: .5rem 0;
+      border-radius: 6px;
+      min-width: 160px;
+      z-index: 10;
+    }
+    .dropdown-content a {
+      display: block;
+      padding: .5rem 1rem;
+      font-weight: 500;
+      color: #fff;
+    }
+    .dropdown:hover .dropdown-content {
+      display: block;
+    }
 
-/* summary grid */
-.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.1rem}
-.summary-item{background:var(--card-bg);padding:1rem;border-radius:10px;text-align:center}
-.summary-item span{display:block}
-.summary-item .label{font-size:.8rem;color:var(--text-muted);margin-bottom:.25rem}
-.summary-item .value{font-size:1.35rem;font-weight:700}
+    /* ── main content ─────────────────────────────────────── */
+    main {
+      padding: var(--gap) 1rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .section {
+      margin-bottom: 2rem;
+    }
+    h2 {
+      margin-top: 0;
+      color: var(--accent);
+      font-size: 1.2rem;
+      margin-bottom: .75rem;
+    }
 
-/* tables */
-.table-responsive{width:100%;overflow-x:auto}
-.table-responsive table{width:100%;border-collapse:collapse;font-size:.93rem;min-width:600px}
-th,td{padding:.55rem 1rem;text-align:left}
-th{background:var(--bg-dark)}
-tr:nth-child(even){background:rgba(255,255,255,.04)}
+    /* ── summary grid ─────────────────────────────────────── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px,1fr));
+      gap: .75rem;
+    }
+    .summary-item {
+      background: var(--card-bg);
+      padding: .8rem;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .summary-item .label {
+      display: block;
+      font-size: .8rem;
+      color: var(--text-muted);
+      margin-bottom: .25rem;
+    }
+    .summary-item .value {
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+    .summary-item.total {
+      background: var(--accent);
+      color: #fff;
+    }
 
-/* badges */
-.badge{display:inline-block;padding:.25rem .6rem;border-radius:6px;font-size:.75rem;font-weight:700}
-.badge.pending{background:#ffb347;color:#222}
-.badge.shipped{background:#5ec8f5;color:#222}
-.badge.delivered{background:#8bc34a;color:#222}
-.badge.refunded{background:#e74c3c;color:#fff}
+    /* ── table styles ─────────────────────────────────────── */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+      min-width: 500px;
+    }
+    th, td {
+      padding: .6rem .8rem;
+      text-align: left;
+    }
+    th {
+      background: var(--bg-dark);
+      font-weight: 600;
+    }
+    tr:nth-child(even) {
+      background: rgba(255,255,255,0.04);
+    }
 
-/* ── responsive tweaks ─────────────────────────────────── */
-@media(max-width:600px){
-  header{padding:0.75rem 1rem}
-  nav{gap:.75rem}
-  .summary-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
-  h2{font-size:1.1rem}
-  .summary-item .value{font-size:1.15rem}
-  th,td{padding:.5rem .75rem;font-size:.85rem}
-}
-</style>
+    /* ── badges ────────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: .25rem .6rem;
+      border-radius: 6px;
+      font-size: .75rem;
+      font-weight: 700;
+    }
+    .badge.pending   { background: #ffb347; color: #222; }
+    .badge.shipped   { background: #5ec8f5; color: #222; }
+    .badge.delivered { background: #8bc34a; color: #222; }
+    .badge.refunded  { background: #e74c3c; color: #fff; }
+
+    /* ── responsive tweaks ─────────────────────────────────── */
+    @media (min-width: 600px) {
+      .summary-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px,1fr));
+      }
+      h2 { font-size: 1.3rem; }
+    }
+    @media (min-width: 900px) {
+      .summary-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px,1fr));
+      }
+      table { font-size: .95rem; min-width: 600px; }
+      th, td { padding: .8rem 1rem; }
+    }
+    /* ── small‐screen banner match ─────────────────────────── */
+    @media (max-width: 600px) {
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .5rem;
+      }
+      nav {
+        width: 100%;
+        flex-direction: column;
+        gap: .5rem;
+      }
+    }
+  </style>
 </head>
+
 <body>
-
-<header>
-  <div style="font-weight:700">FeedUtopia</div>
-
-  <nav>
-    <a href="index.html">Home</a>
-
-    <!-- Accounts dropdown -->
-    <div class="dropdown">
-      <a href="#">Accounts</a>
-      <div class="dropdown-content">
-        <a href="account-pages/animeutopia.html">Anime Utopia</a>
-        <a href="account-pages/wrestleutopia.html">Wrestle Utopia</a>
-        <a href="account-pages/driftutopia.html">Drift Utopia</a>
-        <a href="account-pages/xputopia.html">XP Utopia</a>
-        <a href="account-pages/critterutopia.html">Critter Utopia</a>
-        <a href="account-pages/cyberutopia.html">Cyber Utopia</a>
+  <header>
+    <div>FeedUtopia</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <div class="dropdown">
+        <a href="#">Accounts</a>
+        <div class="dropdown-content">
+          <a href="account-pages/animeutopia.html">Anime Utopia</a>
+          <a href="account-pages/wrestleutopia.html">Wrestle Utopia</a>
+          <a href="account-pages/driftutopia.html">Drift Utopia</a>
+          <a href="account-pages/xputopia.html">XP Utopia</a>
+          <a href="account-pages/critterutopia.html">Critter Utopia</a>
+          <a href="account-pages/cyberutopia.html">Cyber Utopia</a>
+        </div>
       </div>
-    </div>
-    <a href="orders.html" class="active">Orders</a>
-    <a href="knowledge/kb.html">Knowledge Base</a>
-  </nav>
-</header>
+      <a href="orders.html" class="active">Orders</a>
+      <a href="knowledge/kb.html">Knowledge Base</a>
+    </nav>
+  </header>
 
-<main>
-  <!-- Summary section -->
-  <section class="section">
-    <h2>Account Revenue (Last 30 Days)</h2>
-    <div class="summary-grid">
-      <div class="summary-item"><span class="label">Anime Utopia</span><span class="value">$4,230</span></div>
-      <div class="summary-item"><span class="label">Wrestle Utopia</span><span class="value">$7,980</span></div>
-      <div class="summary-item"><span class="label">Drift Utopia</span><span class="value">$3,410</span></div>
-      <div class="summary-item"><span class="label">XP Utopia</span><span class="value">$1,850</span></div>
-      <div class="summary-item"><span class="label">Critter Utopia</span><span class="value">$960</span></div>
-      <div class="summary-item"><span class="label">Cyber Utopia</span><span class="value">$2,120</span></div>
-      <div class="summary-item" style="background:var(--accent);color:#fff"><span class="label">Total Revenue</span><span class="value">$20,550</span></div>
-    </div>
-  </section>
+  <main>
+    <!-- Summary section -->
+    <section class="section">
+      <h2>Account Revenue (Last 30 Days)</h2>
+      <div class="summary-grid">
+        <div class="summary-item"><span class="label">Anime Utopia</span><span class="value">$4,230</span></div>
+        <div class="summary-item"><span class="label">Wrestle Utopia</span><span class="value">$7,980</span></div>
+        <div class="summary-item"><span class="label">Drift Utopia</span><span class="value">$3,410</span></div>
+        <div class="summary-item"><span class="label">XP Utopia</span><span class="value">$1,850</span></div>
+        <div class="summary-item"><span class="label">Critter Utopia</span><span class="value">$960</span></div>
+        <div class="summary-item"><span class="label">Cyber Utopia</span><span class="value">$2,120</span></div>
+        <div class="summary-item total"><span class="label">Total Revenue</span><span class="value">$20,550</span></div>
+      </div>
+    </section>
 
-  <!-- Recent orders table -->
-  <section class="section">
-    <h2>Recent Orders</h2>
-    <div class="card table-responsive">
-      <table>
-        <thead>
-          <tr>
-            <th>Order #</th>
-            <th>Date</th>
-            <th>Account</th>
-            <th>Total</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>#10234</td>
-            <td>2025‑05‑14</td>
-            <td>Anime Utopia</td>
-            <td>$62.99</td>
-            <td><span class="badge pending">Pending</span></td>
-          </tr>
-          <tr>
-            <td>#10233</td>
-            <td>2025‑05‑13</td>
-            <td>Drift Utopia</td>
-            <td>$129.50</td>
-            <td><span class="badge shipped">Shipped</span></td>
-          </tr>
-          <tr>
-            <td>#10232</td>
-            <td>2025‑05‑13</td>
-            <td>Wrestle Utopia</td>
-            <td>$34.00</td>
-            <td><span class="badge delivered">Delivered</span></td>
-          </tr>
-          <tr>
-            <td>#10231</td>
-            <td>2025‑05‑12</td>
-            <td>Cyber Utopia</td>
-            <td>$79.99</td>
-            <td><span class="badge delivered">Delivered</span></td>
-          </tr>
-          <tr>
-            <td>#10230</td>
-            <td>2025‑05‑12</td>
-            <td>XP Utopia</td>
-            <td>$19.99</td>
-            <td><span class="badge refunded">Refunded</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+    <!-- Recent orders table -->
+    <section class="section">
+      <h2>Recent Orders</h2>
+      <div class="card table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>Date</th>
+              <th>Account</th>
+              <th>Total</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>#10234</td>
+              <td>2025-05-14</td>
+              <td>Anime Utopia</td>
+              <td>$62.99</td>
+              <td><span class="badge pending">Pending</span></td>
+            </tr>
+            <tr>
+              <td>#10233</td>
+              <td>2025-05-13</td>
+              <td>Drift Utopia</td>
+              <td>$129.50</td>
+              <td><span class="badge shipped">Shipped</span></td>
+            </tr>
+            <tr>
+              <td>#10232</td>
+              <td>2025-05-13</td>
+              <td>Wrestle Utopia</td>
+              <td>$34.00</td>
+              <td><span class="badge delivered">Delivered</span></td>
+            </tr>
+            <tr>
+              <td>#10231</td>
+              <td>2025-05-12</td>
+              <td>Cyber Utopia</td>
+              <td>$79.99</td>
+              <td><span class="badge delivered">Delivered</span></td>
+            </tr>
+            <tr>
+              <td>#10230</td>
+              <td>2025-05-12</td>
+              <td>XP Utopia</td>
+              <td>$19.99</td>
+              <td><span class="badge refunded">Refunded</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-  <!-- Shipping status -->
-  <section class="section">
-    <h2>Shipping Status</h2>
-    <div class="card table-responsive">
-      <table>
-        <thead>
-          <tr>
-            <th>Order #</th>
-            <th>Carrier</th>
-            <th>Tracking #</th>
-            <th>Estimated Arrival</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>#10234</td>
-            <td>USPS</td>
-            <td>9400 1234 5678 9012 3456 78</td>
-            <td>May 20, 2025</td>
-            <td><span class="badge pending">Label Created</span></td>
-          </tr>
-          <tr>
-            <td>#10233</td>
-            <td>FedEx</td>
-            <td>7712 3456 7890</td>
-            <td>May 17, 2025</td>
-            <td><span class="badge shipped">In Transit</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+    <!-- Shipping status -->
+    <section class="section">
+      <h2>Shipping Status</h2>
+      <div class="card table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>Carrier</th>
+              <th>Tracking #</th>
+              <th>Estimated Arrival</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>#10234</td>
+              <td>USPS</td>
+              <td>9400 1234 5678 9012 3456 78</td>
+              <td>May 20, 2025</td>
+              <td><span class="badge pending">Label Created</span></td>
+            </tr>
+            <tr>
+              <td>#10233</td>
+              <td>FedEx</td>
+              <td>7712 3456 7890</td>
+              <td>May 17, 2025</td>
+              <td><span class="badge shipped">In Transit</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
 
-</main>
-
-<script defer src="utopium-widget.js"></script>
+  <script defer src="utopium-widget.js"></script>
 </body>
 </html>

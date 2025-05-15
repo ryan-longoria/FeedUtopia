@@ -9,7 +9,6 @@
   <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
 
   <style>
-    /* ── your original colors ───────────────────────────────────────── */
     :root {
       --accent:      #ec008c;
       --bg-darker:   #111;
@@ -17,71 +16,85 @@
       --bg-light:    #333;
       --text-main:   #eee;
       --text-muted:  rgba(238,238,238,0.7);
+      --gap:         1rem;
     }
-
-    /* ── global resets ──────────────────────────────────────────────── */
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; }
     body {
       margin: 0;
       background: var(--bg-darker);
       color: var(--text-main);
       font-family: system-ui, sans-serif;
       line-height: 1.5;
+      padding-bottom: var(--gap);
     }
     a { color: inherit; text-decoration: none; }
 
-    /* ── your original header ───────────────────────────────────────── */
+    /* ── header/nav ───────────────────────────────────────── */
     header {
       background: var(--accent);
-      padding: 1rem 1.5rem;
+      padding: var(--gap) var(--gap);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      color: #fff;
       flex-wrap: wrap;
     }
-    header > div { font-weight: 700; font-size: 1.25rem; }
-    nav { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
-    nav a { color: #fff; text-decoration: none; font-weight: 600; }
+    header > div { font-weight:700; font-size:1.25rem; }
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    nav a { color:#fff; font-weight:600; padding:.5rem; }
     .dropdown { position: relative; }
     .dropdown > a::after {
-      content: "▼"; font-size: .55rem; margin-left: .35rem; opacity: .7;
+      content:"▼"; font-size:.55rem; margin-left:.35rem; opacity:.7;
     }
     .dropdown-content {
-      display: none; position: absolute; top: 100%; left: 0;
-      background: var(--bg-dark); padding: .5rem 0; border-radius: 6px;
-      min-width: 180px; z-index: 10;
+      display: none;
+      position: absolute;
+      top:100%; left:0;
+      background:var(--bg-dark);
+      padding:.5rem 0;
+      border-radius:6px;
+      min-width:180px;
+      z-index:10;
     }
     .dropdown-content a {
-      display: block; padding: .5rem 1rem; font-weight: 500; color: #fff;
+      display:block;
+      padding:.5rem 1rem;
+      font-weight:500;
+      color:#fff;
     }
-    .dropdown:hover .dropdown-content { display: block; }
+    .dropdown:hover .dropdown-content { display:block; }
 
-    /* ── add-article button under header ───────────────────────────── */
+    /* ── add-article button ───────────────────────────────────── */
     #add-btn {
       display: block;
-      margin: 1rem auto;
+      margin: var(--gap) auto;
       background: var(--accent);
       color: #fff;
       border: none;
-      padding: .6rem 1.2rem;
+      padding: .8rem 1.2rem;
       border-radius: 6px;
       cursor: pointer;
       font-weight: 600;
+      font-size: 1rem;
+      max-width: 200px;
     }
 
-    /* ── main layout ──────────────────────────────────────────────── */
+    /* ── main layout ─────────────────────────────────────────── */
     main {
       max-width: 1200px;
-      margin: 0 auto 2rem;
+      margin: 0 auto;
       padding: 0 1rem;
     }
     .kb-container {
       display: flex;
-      gap: 1rem;
+      gap: var(--gap);
     }
 
-    /* ── sidebar ─────────────────────────────────────────────────── */
+    /* ── sidebar ─────────────────────────────────────────────── */
     aside.kb-sidebar {
       width: 200px;
       background: var(--bg-dark);
@@ -110,7 +123,7 @@
       color: #fff;
     }
 
-    /* ── content area ───────────────────────────────────────────── */
+    /* ── content area ───────────────────────────────────────── */
     .kb-main {
       flex: 1;
       display: flex;
@@ -118,8 +131,8 @@
     }
     .kb-header {
       display: flex;
-      gap: 1rem;
-      margin-bottom: 1rem;
+      gap: var(--gap);
+      margin-bottom: var(--gap);
     }
     .kb-header input[type=search] {
       flex: 1;
@@ -131,11 +144,11 @@
       font-size: 1rem;
     }
 
-    /* ── grid & cards ───────────────────────────────────────────── */
+    /* ── grid & cards ───────────────────────────────────────── */
     .kb-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(240px,1fr));
-      gap: 1rem;
+      gap: var(--gap);
     }
     .kb-card {
       background: var(--bg-light);
@@ -166,7 +179,7 @@
       font-size: .85rem;
     }
 
-    /* ── dialog ─────────────────────────────────────────────────── */
+    /* ── dialog ───────────────────────────────────────────────── */
     dialog {
       border: none;
       border-radius: 10px;
@@ -183,16 +196,15 @@
     }
     dialog input,
     dialog select {
-      padding: .6rem;
+      padding: .8rem;
       border-radius: 6px;
       border: none;
       background: var(--bg-light);
       color: var(--text-main);
       font-size: 1rem;
     }
-    /* Quill editor container */
     #kb-editor {
-      height: 200px;
+      height: 250px;
       background: var(--bg-light);
       color: var(--text-main);
       border-radius: 6px;
@@ -208,15 +220,60 @@
       color: var(--text-main);
     }
 
-    @media(max-width: 800px) {
+    /* ── dark-theme Quill overrides ───────────────────────────── */
+    .ql-snow .ql-toolbar {
+      background: var(--bg-dark);
+      border: none;
+      border-radius: 4px 4px 0 0;
+    }
+    .ql-snow .ql-container {
+      background: var(--bg-light);
+      color: var(--text-main);
+      border: none;
+      border-radius: 0 0 4px 4px;
+    }
+    .ql-snow .ql-editor {
+      background: var(--bg-light);
+      color: var(--text-main);
+      min-height: 220px;
+    }
+    .ql-snow .ql-picker,
+    .ql-snow .ql-picker-label,
+    .ql-snow .ql-picker-item,
+    .ql-snow .ql-toolbar button {
+      color: var(--text-main);
+    }
+    .ql-snow .ql-picker-options,
+    .ql-tooltip {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      z-index:300 !important;
+      overflow: visible !important;
+    }
+
+    /* ── Responsive tweaks ──────────────────────────────────── */
+    @media (max-width: 800px) {
       .kb-container { flex-direction: column; }
-      aside.kb-sidebar { width: 100%; }
+      aside.kb-sidebar { width: 100%; margin-bottom: var(--gap); }
+    }
+    @media (max-width: 600px) {
+      header { flex-direction: column; align-items: flex-start; gap: .5rem; }
+      nav { flex-direction: column; width: 100%; gap: .5rem; }
+      #add-btn { width: 100%; max-width: none; }
+      .kb-header input { font-size: .9rem; padding: .6rem; }
+      .kb-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 400px) {
+      header > div { font-size: 1.1rem; }
+      nav a { font-size: .9rem; padding: .4rem; }
+      #add-btn { font-size: .9rem; padding: .6rem; }
+      .kb-card h3 { font-size: 1rem; }
+      .kb-card p { font-size: .85rem; }
     }
   </style>
 </head>
 <body>
 
-  <!-- ── top banner ─────────────────────────────────────────────── -->
   <header>
     <div>FeedUtopia</div>
     <nav>
@@ -233,16 +290,14 @@
         </div>
       </div>
       <a href="/orders.html">Orders</a>
-      <a href="/kb.html">Knowledge Base</a>
+      <a href="/knowledge/kb.html">Knowledge Base</a>
     </nav>
   </header>
 
-  <!-- ── Add Article button ───────────────────────────────────── -->
   <button id="add-btn">➕ Add Article</button>
 
   <main>
     <div class="kb-container">
-      <!-- Sidebar categories -->
       <aside class="kb-sidebar">
         <h2>Categories</h2>
         <ul id="kb-categories">
@@ -255,7 +310,6 @@
         </ul>
       </aside>
 
-      <!-- Main grid -->
       <div class="kb-main">
         <div class="kb-header">
           <input id="kb-search" type="search" placeholder="Search articles…" aria-label="Search articles">
@@ -265,7 +319,6 @@
     </div>
   </main>
 
-  <!-- ── Publish dialog with Quill editor ─────────────────────── -->
   <dialog id="kb-dialog">
     <form id="kb-form">
       <input id="kb-title" placeholder="Title" required>
@@ -285,17 +338,13 @@
     </form>
   </dialog>
 
-  <!-- Quill core script -->
   <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
-  <!-- Utopium widget (if needed) -->
   <script defer src="/utopium-widget.js"></script>
-
   <script>
     const apiRoot  = "https://api.feedutopia.com";
     const siteRoot = location.origin;
     let articles   = [];
 
-    // initialize Quill
     const quill = new Quill('#kb-editor', {
       theme: 'snow',
       modules: {
@@ -310,18 +359,13 @@
       }
     });
 
-    // dialog controls
     const dialog    = document.getElementById('kb-dialog');
-    const cancelBtn = document.getElementById('kb-cancel');
-    cancelBtn.addEventListener('click', () => {
+    document.getElementById('add-btn').onclick = () => dialog.showModal();
+    document.getElementById('kb-cancel').onclick = () => {
       dialog.close();
-      quill.setContents([]);  // clear editor
-    });
+      quill.setContents([]);
+    };
 
-    document.getElementById('add-btn').onclick = () =>
-      dialog.showModal();
-
-    // Publish (new or edit)
     document.getElementById('kb-form').onsubmit = async e => {
       e.preventDefault();
       const titleEl    = document.getElementById('kb-title');
@@ -330,41 +374,32 @@
       const category   = categoryEl.value;
       const content    = quill.root.innerHTML;
 
-      // 1) presign
-      const presignRes = await fetch(`${apiRoot}/kb/upload-url`, {
+      const presign = await fetch(`${apiRoot}/kb/upload-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, category })
       });
-      if (!presignRes.ok) {
-        console.error('Presign failed', await presignRes.text());
-        return alert('Error getting upload URL');
-      }
-      const { uploadUrl, key, created } = await presignRes.json();
+      if (!presign.ok) return alert('Error getting upload URL');
+      const { uploadUrl, key, created } = await presign.json();
 
-      // 2) upload
-      const putRes = await fetch(uploadUrl, {
+      const put = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
-          'Content-Type':        'application/json',
-          'x-amz-meta-title':    title,
+          'Content-Type':'application/json',
+          'x-amz-meta-title': title,
           'x-amz-meta-category': category
         },
         body: JSON.stringify({ title, category, content, created })
       });
-      if (!putRes.ok) {
-        console.error('Upload failed', await putRes.text());
-        return alert('Error uploading article');
-      }
+      if (!put.ok) return alert('Error uploading article');
 
-      // reset & refresh
-      titleEl.value = categoryEl.value = '';
+      titleEl.value = '';
+      categoryEl.value = '';
       quill.setContents([]);
       dialog.close();
       loadArticles();
     };
 
-    // Load list
     async function loadArticles() {
       const list = await fetch(`${apiRoot}/kb`).then(r=>r.json());
       articles = await Promise.all(list.map(async a => {
@@ -374,7 +409,6 @@
       renderArticles();
     }
 
-    // Render grid
     function renderArticles() {
       const grid      = document.getElementById('kb-grid');
       const q         = document.getElementById('kb-search').value.toLowerCase();
@@ -383,10 +417,7 @@
 
       articles
         .filter(a => activeCat==='all' || a.category===activeCat)
-        .filter(a => {
-          const hay = (a.title + a.content).toLowerCase();
-          return hay.includes(q);
-        })
+        .filter(a => (a.title+a.content).toLowerCase().includes(q))
         .forEach(a => {
           const card = document.createElement('div');
           card.className = 'kb-card';
@@ -403,7 +434,6 @@
         });
     }
 
-    // Search & category filters
     document.getElementById('kb-search').oninput = renderArticles;
     document.querySelectorAll('#kb-categories li').forEach(li => {
       li.onclick = () => {
