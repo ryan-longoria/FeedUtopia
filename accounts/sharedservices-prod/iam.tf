@@ -189,6 +189,38 @@ resource "aws_lambda_permission" "allow_apigw_invoke_kb_delete" {
   source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/DELETE/kb"
 }
 
+resource "aws_lambda_permission" "allow_apigw_invoke_get_tasks" {
+  statement_id  = "AllowAPIGatewayInvokeGetTasks"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.get_tasks.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/GET/tasks"
+}
+
+resource "aws_lambda_permission" "allow_apigw_invoke_add_task" {
+  statement_id  = "AllowAPIGatewayInvokeAddTask"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.add_task.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/POST/tasks"
+}
+
+resource "aws_lambda_permission" "allow_apigw_invoke_delete_task" {
+  statement_id  = "AllowAPIGatewayInvokeDeleteTask"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.delete_task.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/DELETE/tasks/*"
+}
+
+resource "aws_lambda_permission" "allow_apigw_invoke_update_task" {
+  statement_id  = "AllowAPIGatewayInvokeUpdateTask"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.update_task.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/PATCH/tasks/*"
+}
+
 #############################
 # IAM Policy for S3
 #############################
@@ -557,4 +589,31 @@ resource "aws_iam_role_policy" "ecs_send_task_success" {
       Resource = "*"
     }]
   })
+}
+
+#############################
+# IAM for DynamoDB
+#############################
+
+data "aws_iam_policy_document" "todo_table_access" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "dynamodb:PutItem",
+      "dynamodb:GetItem",
+      "dynamodb:Scan",
+      "dynamodb:DeleteItem",
+      "dynamodb:UpdateItem"
+    ]
+    resources = [
+      aws_dynamodb_table.weekly_todo.arn,
+      "${aws_dynamodb_table.weekly_todo.arn}/*"
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "lambda_todo_policy" {
+  name   = "LambdaWeeklyTodoPolicy"
+  role   = aws_iam_role.lambda_role.id
+  policy = data.aws_iam_policy_document.todo_table_access.json
 }
