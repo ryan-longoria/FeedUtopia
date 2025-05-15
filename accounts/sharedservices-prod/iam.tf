@@ -181,6 +181,14 @@ resource "aws_lambda_permission" "allow_apigw_invoke_kb_presign" {
   source_arn = "${aws_api_gateway_rest_api.api.execution_arn}/*/POST/kb/upload-url"
 }
 
+resource "aws_lambda_permission" "allow_apigw_invoke_kb_delete" {
+  statement_id  = "AllowAPIGatewayInvokeKBDelete"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.kb_delete.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/DELETE/kb"
+}
+
 #############################
 # IAM Policy for S3
 #############################
