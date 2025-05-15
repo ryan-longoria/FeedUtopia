@@ -582,7 +582,10 @@ resource "aws_api_gateway_method" "tasks_patch" {
   resource_id   = aws_api_gateway_resource.tasks_id.id
   http_method   = "PATCH"
   authorization = "NONE"
-  request_parameters = { "method.request.path.taskId" = true }
+
+  request_parameters = {
+    "method.request.path.taskId" = true
+  }
 }
 
 resource "aws_api_gateway_integration" "tasks_patch_int" {

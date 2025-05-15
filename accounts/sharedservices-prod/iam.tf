@@ -213,6 +213,14 @@ resource "aws_lambda_permission" "allow_apigw_invoke_delete_task" {
   source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/DELETE/tasks/*"
 }
 
+resource "aws_lambda_permission" "allow_apigw_invoke_update_task" {
+  statement_id  = "AllowAPIGatewayInvokeUpdateTask"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.update_task.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/PATCH/tasks/*"
+}
+
 #############################
 # IAM Policy for S3
 #############################
