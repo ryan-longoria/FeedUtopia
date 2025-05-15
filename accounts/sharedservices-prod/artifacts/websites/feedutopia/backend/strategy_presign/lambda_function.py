@@ -5,7 +5,7 @@ BUCKET = os.environ["BUCKET"]
 
 def lambda_handler(event, _):
     body = json.loads(event["body"])
-    key  = urllib.parse.quote(body["key"], safe="")
+    key  = urllib.parse.quote(body["key"], safe="/")
 
     url = s3.generate_presigned_url(
         "put_object",
