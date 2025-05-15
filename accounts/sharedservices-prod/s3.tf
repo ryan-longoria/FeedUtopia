@@ -115,6 +115,14 @@ resource "aws_s3_bucket_policy" "feedutopia_webapp" {
         Principal = { AWS = aws_iam_role.lambda_role.arn }
         Action    = ["s3:PutObject","s3:PutObjectAcl"]
         Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/kb/*"
+      },
+
+      {
+        Sid    = "AllowLambdaWriteStrategy"
+        Effect = "Allow"
+        Principal = { AWS = aws_iam_role.lambda_role.arn }
+        Action   = ["s3:PutObject","s3:PutObjectAcl"]
+        Resource = "${aws_s3_bucket.feedutopia-webapp.arn}/strategies/*"
       }
 
     ]

@@ -597,6 +597,33 @@ resource "aws_api_gateway_integration" "tasks_patch_int" {
   uri                     = aws_lambda_function.update_task.invoke_arn
 }
 
+resource "aws_api_gateway_resource" "strategy" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_rest_api.api.root_resource_id
+  path_part   = "strategy"
+}
+resource "aws_api_gateway_resource" "strategy_upload" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_resource.strategy.id
+  path_part   = "upload-url"
+}
+resource "aws_api_gateway_method" "strategy_post" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.strategy_upload.id
+  http_method   = "POST"
+  authorization = "NONE"
+  api_key_required = false
+}
+
+resource "aws_api_gateway_integration" "strategy_int" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.strategy_upload.id
+  http_method             = aws_api_gateway_method.strategy_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.strategy_presign.invoke_arn
+}
+
 #############################
 # Instagram API Callback/Oauth
 #############################
