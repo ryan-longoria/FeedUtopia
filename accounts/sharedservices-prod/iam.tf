@@ -602,7 +602,8 @@ data "aws_iam_policy_document" "todo_table_access" {
       "dynamodb:PutItem",
       "dynamodb:GetItem",
       "dynamodb:Scan",
-      "dynamodb:DeleteItem"
+      "dynamodb:DeleteItem",
+      "dynamodb:UpdateItem"
     ]
     resources = [
       aws_dynamodb_table.weekly_todo.arn,
