@@ -469,3 +469,32 @@ resource "aws_lambda_function" "update_task" {
     mode = "Active"
   }
 }
+
+#############################
+# strategy_presign
+#############################
+
+resource "aws_lambda_function" "strategy_presign" {
+  function_name = "${var.project_name}-strategy-presign"
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.9"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 10
+
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/strategy_presign/strategy_presign.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/strategy_presign/strategy_presign.zip")
+
+  environment {
+    variables = {
+      BUCKET = aws_s3_bucket.feedutopia-webapp.bucket
+    }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+}

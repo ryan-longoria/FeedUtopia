@@ -9,7 +9,9 @@
       --accent:      #ec008c;
       --bg-darker:   #111;
       --bg-dark:     #222;
+      --bg-light:    #333;
       --text-main:   #eee;
+      --text-muted:  rgba(238,238,238,0.7);
       --gap:         1rem;
     }
     *, *::before, *::after { box-sizing: border-box; }
@@ -33,111 +35,81 @@
       flex-wrap: wrap;
       color: #fff;
     }
-    header > div {
-      font-weight: 700;
-      font-size: 1.25rem;
-    }
-    nav {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-    nav a {
-      color: #fff;
-      font-weight: 600;
-      padding: .5rem;
-    }
+    header > div { font-weight: 700; font-size: 1.25rem; }
+    nav { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    nav a { color: #fff; font-weight: 600; padding: .5rem; }
     .dropdown { position: relative; }
     .dropdown > a::after {
       content: "▼"; font-size: .6rem; margin-left: .3rem; opacity: .7;
     }
     .dropdown-content {
-      display: none;
-      position: absolute;
-      top: 100%; left: 0;
-      background: var(--bg-dark);
-      padding: .5rem 0;
-      border-radius: 6px;
-      min-width: 160px;
-      z-index: 10;
+      display: none; position: absolute; top: 100%; left: 0;
+      background: var(--bg-dark); padding: .5rem 0; border-radius: 6px;
+      min-width: 160px; z-index: 10;
     }
-    .dropdown-content a {
-      display: block;
-      padding: .5rem 1rem;
-      font-weight: 500;
-      color: #fff;
-    }
-    .dropdown:hover .dropdown-content {
-      display: block;
-    }
+    .dropdown-content a { display: block; padding: .5rem 1rem; color: #fff; }
+    .dropdown:hover .dropdown-content { display: block; }
 
     /* ── main & stats grid ───────────────────────────────── */
     main {
-      padding: var(--gap);
-      max-width: 900px;
-      margin: 0 auto;
+      padding: var(--gap); max-width: 900px; margin: 0 auto;
     }
-    h1 {
-      font-size: 1.8rem;
-      margin-bottom: var(--gap);
-    }
+    h1 { font-size: 1.8rem; margin-bottom: var(--gap); }
     .stats-grid {
-      display: grid;
-      gap: var(--gap);
+      display: grid; gap: var(--gap);
       grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
     }
     .stat-card {
-      background: var(--bg-dark);
-      padding: 1.2rem 1.5rem;
-      border-radius: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: .5rem;
+      background: var(--bg-dark); padding: 1.2rem 1.5rem;
+      border-radius: 8px; display: flex; flex-direction: column; gap: .5rem;
     }
-    .stat-card h2 {
-      margin: 0;
-      color: var(--accent);
-      font-size: 1.2rem;
+    .stat-card h2 { margin: 0; color: var(--accent); font-size: 1.2rem; }
+    .stat-card p { margin: 0; font-size: 1rem; }
+    .placeholder { opacity: .65; font-style: italic; }
+
+    /* ── inline Strategy editor ───────────────────────────── */
+    #strategy-section { margin-top: var(--gap); }
+    #strategy-editor-container {
+      background: var(--bg-dark); border-radius: 6px; overflow: hidden;
     }
-    .stat-card p {
-      margin: 0;
-      font-size: 1rem;
+    #strategy-editor {
+      background: var(--bg-light);
+      min-height: 150px;
+      padding: 1rem;
+      color: var(--text-main);
+      outline: none;
     }
-    .placeholder {
+    #strategy-editor.placeholder {
       opacity: .65;
       font-style: italic;
+    }
+    #strategy-toggle-btn {
+      margin-top: .8rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: .6rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    #strategy-status {
+      margin-top: .5rem;
+      font-size: .9rem;
+      color: var(--text-muted);
     }
 
     /* ── responsive tweaks ───────────────────────────────── */
     @media (max-width: 600px) {
-      header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: .5rem;
-      }
-      nav {
-        width: 100%;
-        flex-direction: column;
-        gap: .5rem;
-      }
-      h1 {
-        font-size: 1.5rem;
-      }
-      .stat-card h2 {
-        font-size: 1.1rem;
-      }
-      .stat-card p {
-        font-size: .95rem;
-      }
+      header { flex-direction: column; align-items: flex-start; gap: .5rem; }
+      nav { width: 100%; flex-direction: column; gap: .5rem; }
+      h1 { font-size: 1.5rem; }
+      .stat-card h2 { font-size: 1.1rem; }
+      .stat-card p { font-size: .95rem; }
     }
     @media (min-width: 900px) {
-      h1 {
-        font-size: 2rem;
-      }
-      .stat-card h2 {
-        font-size: 1.3rem;
-      }
+      h1 { font-size: 2rem; }
+      .stat-card h2 { font-size: 1.3rem; }
     }
   </style>
 </head>
@@ -181,8 +153,81 @@
         <p class="placeholder">(placeholder %)</p>
       </div>
     </div>
+
+    <section id="strategy-section">
+      <h2>Strategy</h2>
+      <div id="strategy-editor-container">
+        <div id="strategy-editor" class="placeholder" contenteditable="false">
+          No strategy written yet.
+        </div>
+      </div>
+      <button id="strategy-toggle-btn">Edit Strategy</button>
+      <div id="strategy-status" aria-live="polite"></div>
+    </section>
   </main>
 
   <script defer src="/utopium-widget.js"></script>
+  <script>
+  (function(){
+    const apiRoot    = "https://api.feedutopia.com";
+    const bucketURL  = "https://feedutopia.com/strategies";
+    const slug       = document.title.toLowerCase().replace(/\s+/g,'');
+
+    const editor    = document.getElementById('strategy-editor');
+    const toggleBtn = document.getElementById('strategy-toggle-btn');
+    const statusEl  = document.getElementById('strategy-status');
+    let   editing   = false;
+
+    // Load existing content
+    fetch(`${bucketURL}/${slug}.json`, { cache:'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        editor.textContent = '';
+        editor.insertAdjacentHTML('beforeend', data.content);
+        editor.classList.remove('placeholder');
+      })
+      .catch(() => {
+        editor.textContent = 'No strategy written yet.';
+        editor.classList.add('placeholder');
+      });
+
+    toggleBtn.onclick = async () => {
+      if (!editing) {
+        // Enter edit mode
+        editing = true;
+        editor.contentEditable = 'true';
+        editor.focus();
+        toggleBtn.textContent = 'Save Strategy';
+        editor.classList.remove('placeholder');
+      } else {
+        // Save and exit edit mode
+        const content = editor.innerHTML;
+        statusEl.textContent = 'Saving…';
+        toggleBtn.disabled = true;
+
+        // get presigned URL
+        const { uploadUrl } = await fetch(`${apiRoot}/strategy/upload-url`, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ key:`strategies/${slug}.json` })
+        }).then(r=>r.json());
+
+        // PUT the JSON
+        await fetch(uploadUrl, {
+          method:'PUT',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ content, updated: Date.now() })
+        });
+
+        statusEl.textContent = 'Saved ✔️';
+        toggleBtn.disabled = false;
+        toggleBtn.textContent = 'Edit Strategy';
+        editor.contentEditable = 'false';
+        editing = false;
+        setTimeout(()=> statusEl.textContent = '', 2000);
+      }
+    };
+  })();
+  </script>
 </body>
 </html>

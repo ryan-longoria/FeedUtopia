@@ -597,6 +597,77 @@ resource "aws_api_gateway_integration" "tasks_patch_int" {
   uri                     = aws_lambda_function.update_task.invoke_arn
 }
 
+resource "aws_api_gateway_resource" "strategy" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_rest_api.api.root_resource_id
+  path_part   = "strategy"
+}
+resource "aws_api_gateway_resource" "strategy_upload" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_resource.strategy.id
+  path_part   = "upload-url"
+}
+resource "aws_api_gateway_method" "strategy_post" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.strategy_upload.id
+  http_method   = "POST"
+  authorization = "NONE"
+  api_key_required = false
+}
+
+resource "aws_api_gateway_integration" "strategy_int" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.strategy_upload.id
+  http_method             = aws_api_gateway_method.strategy_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.strategy_presign.invoke_arn
+}
+
+resource "aws_api_gateway_method" "strategy_options" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.strategy_upload.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "strategy_options_mock" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.strategy_upload.id
+  http_method = aws_api_gateway_method.strategy_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "strategy_options_response" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.strategy_upload.id
+  http_method = aws_api_gateway_method.strategy_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "strategy_options_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.strategy_upload.id
+  http_method = aws_api_gateway_method.strategy_options.http_method
+  status_code = aws_api_gateway_method_response.strategy_options_response.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
 #############################
 # Instagram API Callback/Oauth
 #############################

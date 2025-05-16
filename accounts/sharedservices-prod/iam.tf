@@ -221,6 +221,14 @@ resource "aws_lambda_permission" "allow_apigw_invoke_update_task" {
   source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/PATCH/tasks/*"
 }
 
+resource "aws_lambda_permission" "allow_apigw_invoke_strategy_presign" {
+  statement_id  = "AllowAPIGatewayInvokeStrategyPresign"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.strategy_presign.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/POST/strategy/upload-url"
+}
+
 #############################
 # IAM Policy for S3
 #############################

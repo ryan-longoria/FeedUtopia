@@ -90,7 +90,7 @@ resource "aws_s3_bucket_policy" "feedutopia_webapp" {
   bucket = aws_s3_bucket.feedutopia-webapp.id
 
   policy = jsonencode({
-    Version = "2012-10-17",
+    Version = "2012-10-17"
     Statement = [
 
       {
@@ -115,6 +115,13 @@ resource "aws_s3_bucket_policy" "feedutopia_webapp" {
         Principal = { AWS = aws_iam_role.lambda_role.arn }
         Action    = ["s3:PutObject","s3:PutObjectAcl"]
         Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/kb/*"
+      },
+      {
+        Sid       = "AllowLambdaWriteStrategy"
+        Effect    = "Allow"
+        Principal = { AWS = aws_iam_role.lambda_role.arn }
+        Action    = ["s3:PutObject","s3:PutObjectAcl"]
+        Resource  = "${aws_s3_bucket.feedutopia-webapp.arn}/strategies/*"
       }
 
     ]
@@ -137,10 +144,16 @@ resource "aws_s3_bucket_cors_configuration" "feedutopia_webapp_cors" {
   bucket = aws_s3_bucket.feedutopia-webapp.id
 
   cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["GET", "PUT", "POST", "HEAD"]
+    allowed_methods = ["GET", "HEAD"]
     allowed_origins = ["https://feedutopia.com"]
-    expose_headers  = ["ETag"]
-    max_age_seconds = 300
+    allowed_headers = ["*"]
+    max_age_seconds = 3000
+  }
+
+  cors_rule {
+    allowed_methods = ["PUT", "POST", "HEAD"]
+    allowed_origins = ["https://feedutopia.com"]
+    allowed_headers = ["*"]
+    max_age_seconds = 3000
   }
 }
