@@ -95,6 +95,11 @@ const persist = () => {
   localStorage.setItem('utopium-history', $messages.innerHTML);
 };
 
+window.addEventListener('beforeunload', () => {
+  localStorage.removeItem('utopium-state');
+  localStorage.removeItem('utopium-history');
+});
+
 /* ───── 6. Message helpers ───────────────────────────── */
 const bubble = (html, cls) => {
   const d = Object.assign(document.createElement('div'), {className:`ut-msg ${cls}`, innerHTML:html});
