@@ -56,7 +56,7 @@ const ARTIFACTS = ["NEWS","TRAILER","FACT","THROWBACK","VS","Default"];
 
 const FIELD_STEPS = {
   account:               0,
-  "post type":                  1,
+  "post type":           1,   // <── renamed label
   title:                 2,
   subtitle:              3,
   "highlight title":     4,
@@ -71,7 +71,7 @@ let state = {
   restartPending: false,
   awaitYes: false,
   changePending: false,
-  editing: null,          // ← NEW: which single field is being edited?
+  editing: null,
   file: null
 };
 
@@ -95,9 +95,16 @@ const persist = () => {
   localStorage.setItem('utopium-history', $messages.innerHTML);
 };
 
-window.addEventListener('beforeunload', () => {
-  localStorage.removeItem('utopium-state');
-  localStorage.removeItem('utopium-history');
+/* Clear storage on refresh / tab‑close (desktop & mobile) */
+function clearStore(){
+  try{
+    localStorage.removeItem('utopium-state');
+    localStorage.removeItem('utopium-history');
+  }catch(_){}
+}
+window.addEventListener('beforeunload', clearStore);           // desktop
+window.addEventListener('pagehide', e=>{                       // iOS & BFCache‑aware
+  if(!e.persisted) clearStore();
 });
 
 /* ───── 6. Message helpers ───────────────────────────── */
@@ -129,6 +136,7 @@ function askHLTitle()   { bot('Comma‑separated <em>highlight</em> words for ti
 function askHLSub()     { bot('Highlight words for subtitle (optional).'); }
 function askBgType()    { bot('Is your background a <strong>photo</strong> or <strong>video</strong>?'); quickReplies(['photo','video']); }
 
+/* (askFile unchanged) */
 function askFile(){
   bot('Please choose or drag in the media file.');
   const drop=document.createElement('div');
@@ -152,7 +160,7 @@ const steps=[askAccount,askArtifact,askTitle,askSubtitle,askHLTitle,askHLSub,ask
 const next=()=>{ steps[state.step++](); persist(); };
 const jumpTo=idx=>{ state.step=idx; next(); };
 
-/* ─── helper: after editing ONE field, go back to summary ── */
+/* helper after editing one field */
 function afterSingleEdit(){
   state.editing=null;
   confirmAndSend();
@@ -162,22 +170,22 @@ function afterSingleEdit(){
 function acceptInput(text){
   const tl=text.toLowerCase();
 
-  /* If we're currently editing a single field */
+  /* Editing one field */
   if(state.editing){
     user(text);
     switch(state.editing){
       case 'account':              state.data.account  = text; afterSingleEdit(); return;
-      case 'post type':                 state.data.artifact = text; afterSingleEdit(); return;
+      case 'post type':            state.data.artifact = text; afterSingleEdit(); return;
       case 'title':                state.data.title    = text; afterSingleEdit(); return;
       case 'subtitle':             state.data.subtitle = text; afterSingleEdit(); return;
       case 'highlight title':      state.data.hlTitle  = text; afterSingleEdit(); return;
       case 'highlight subtitle':   state.data.hlSub    = text; afterSingleEdit(); return;
       case 'background type':
-        state.data.bgType=text;    askFile();                 return;            // after file selection we call afterSingleEdit()
+        state.data.bgType=text;    askFile();                 return;
     }
   }
 
-  /* change‑pending (“What would you like to change?”) */
+  /* change‑pending */
   if(state.changePending){
     user(text);
     state.changePending=false;
@@ -194,11 +202,10 @@ function acceptInput(text){
       state.changePending=true; return;
     }
 
-    /* Set editing mode & re‑ask only that question */
     state.editing=idxName;
     switch(idxName){
       case 'account':             askAccount();  break;
-      case 'post type':                askArtifact(); break;
+      case 'post type':           askArtifact(); break;
       case 'title':               askTitle();    break;
       case 'subtitle':            askSubtitle(); break;
       case 'highlight title':     askHLTitle();  break;
