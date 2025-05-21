@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <title>Anime Utopia</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <!-- Quill Snow theme -->
+  <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
   <style>
     :root {
       --accent:      #ec008c;
@@ -67,23 +69,37 @@
     .stat-card p { margin: 0; font-size: 1rem; }
     .placeholder { opacity: .65; font-style: italic; }
 
-    /* ── inline Strategy editor ───────────────────────────── */
+    /* ── Strategy block ───────────────────────────────────── */
     #strategy-section { margin-top: var(--gap); }
-    #strategy-editor-container {
-      background: var(--bg-dark); border-radius: 6px; overflow: hidden;
-    }
-    #strategy-editor {
-      background: var(--bg-light);
-      min-height: 150px;
+    /* view mode */
+    #strategy-view {
+      background: var(--bg-dark);
       padding: 1rem;
+      border-radius: 6px;
+      min-height: 120px;
+    }
+    /* edit mode hidden initially */
+    #strategy-toolbar,
+    #strategy-editor-container {
+      display: none;
+      margin-top: var(--gap);
+    }
+    /* toolbar styling */
+    #strategy-toolbar.ql-toolbar.ql-snow {
+      background: var(--bg-dark);
+      border-radius: 6px 6px 0 0;
+    }
+    /* editor container styling */
+    #strategy-editor-container .ql-container {
+      background: var(--bg-light);
+      border-radius: 0 0 6px 6px;
+    }
+    #strategy-editor .ql-editor {
+      min-height: 150px;
       color: var(--text-main);
-      outline: none;
     }
-    #strategy-editor.placeholder {
-      opacity: .65;
-      font-style: italic;
-    }
-    #strategy-toggle-btn {
+    #strategy-toggle-btn,
+    #strategy-cancel-btn {
       margin-top: .8rem;
       background: var(--accent);
       color: #fff;
@@ -92,6 +108,10 @@
       border-radius: 6px;
       cursor: pointer;
       font-weight: 600;
+    }
+    #strategy-cancel-btn {
+      background: var(--bg-dark);
+      margin-left: .5rem;
     }
     #strategy-status {
       margin-top: .5rem;
@@ -156,78 +176,124 @@
 
     <section id="strategy-section">
       <h2>Strategy</h2>
+
+      <!-- VIEW MODE -->
+      <div id="strategy-view">
+        <em>Loading…</em>
+      </div>
+
+      <!-- EDIT MODE -->
+      <div id="strategy-toolbar" class="ql-toolbar ql-snow">
+        <span class="ql-formats">
+          <select class="ql-header">
+            <option selected></option>
+            <option value="1"></option>
+            <option value="2"></option>
+          </select>
+          <button class="ql-bold"></button>
+          <button class="ql-italic"></button>
+          <button class="ql-underline"></button>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-list" value="ordered"></button>
+          <button class="ql-list" value="bullet"></button>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-link"></button>
+          <button class="ql-clean"></button>
+        </span>
+      </div>
       <div id="strategy-editor-container">
-        <div id="strategy-editor" class="placeholder" contenteditable="false">
-          No strategy written yet.
+        <div id="strategy-editor" class="ql-container ql-snow">
+          <div class="ql-editor"></div>
         </div>
       </div>
+
+      <!-- ACTIONS -->
       <button id="strategy-toggle-btn">Edit Strategy</button>
+      <button id="strategy-cancel-btn">Cancel</button>
       <div id="strategy-status" aria-live="polite"></div>
     </section>
   </main>
 
-  <script defer src="/utopium-widget.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
   <script>
   (function(){
-    const apiRoot    = "https://api.feedutopia.com";
-    const bucketURL  = "https://feedutopia.com/strategies";
-    const slug       = document.title.toLowerCase().replace(/\s+/g,'');
+    const apiRoot   = "https://api.feedutopia.com";
+    const bucketURL = "https://feedutopia.com/strategies";
+    const slug      = document.title.toLowerCase().replace(/\s+/g,'');
 
-    const editor    = document.getElementById('strategy-editor');
-    const toggleBtn = document.getElementById('strategy-toggle-btn');
-    const statusEl  = document.getElementById('strategy-status');
-    let   editing   = false;
+    const view        = document.getElementById('strategy-view');
+    const toolbar     = document.getElementById('strategy-toolbar');
+    const editorCont  = document.getElementById('strategy-editor-container');
+    const toggleBtn   = document.getElementById('strategy-toggle-btn');
+    const cancelBtn   = document.getElementById('strategy-cancel-btn');
+    const statusEl    = document.getElementById('strategy-status');
 
-    // Load existing content
+    // initialize Quill
+    const quill = new Quill('#strategy-editor', {
+      theme: 'snow',
+      modules: { toolbar: '#strategy-toolbar' }
+    });
+    quill.enable(false);
+
+    let editing = false;
+
+    // load existing content
     fetch(`${bucketURL}/${slug}.json`, { cache:'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => {
-        editor.textContent = '';
-        editor.insertAdjacentHTML('beforeend', data.content);
-        editor.classList.remove('placeholder');
-      })
-      .catch(() => {
-        editor.textContent = 'No strategy written yet.';
-        editor.classList.add('placeholder');
-      });
+      .then(data => view.innerHTML = data.content)
+      .catch(_ => view.innerHTML = '<em>No strategy written yet.</em>');
+
+    function enterEdit() {
+      editing = true;
+      view.style.display       = 'none';
+      toolbar.style.display    = 'block';
+      editorCont.style.display = 'block';
+      toggleBtn.textContent    = 'Save Strategy';
+      cancelBtn.style.display  = 'inline-block';
+      quill.root.innerHTML     = view.innerHTML;
+      quill.enable(true);
+      quill.focus();
+    }
+    function exitEdit(saved) {
+      editing = false;
+      view.style.display       = 'block';
+      toolbar.style.display    = 'none';
+      editorCont.style.display = 'none';
+      toggleBtn.textContent    = 'Edit Strategy';
+      cancelBtn.style.display  = 'none';
+      quill.enable(false);
+      if (saved) view.innerHTML = quill.root.innerHTML;
+    }
 
     toggleBtn.onclick = async () => {
       if (!editing) {
-        // Enter edit mode
-        editing = true;
-        editor.contentEditable = 'true';
-        editor.focus();
-        toggleBtn.textContent = 'Save Strategy';
-        editor.classList.remove('placeholder');
+        enterEdit();
       } else {
-        // Save and exit edit mode
-        const content = editor.innerHTML;
-        statusEl.textContent = 'Saving…';
-        toggleBtn.disabled = true;
-
-        // get presigned URL
-        const { uploadUrl } = await fetch(`${apiRoot}/strategy/upload-url`, {
+        statusEl.textContent   = 'Saving…';
+        toggleBtn.disabled     = true;
+        const content          = quill.root.innerHTML;
+        const { uploadUrl }    = await fetch(`${apiRoot}/strategy/upload-url`, {
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ key:`strategies/${slug}.json` })
         }).then(r=>r.json());
-
-        // PUT the JSON
         await fetch(uploadUrl, {
           method:'PUT',
           headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ content, updated: Date.now() })
+          body: JSON.stringify({ content, updated:Date.now() })
         });
-
         statusEl.textContent = 'Saved ✔️';
-        toggleBtn.disabled = false;
-        toggleBtn.textContent = 'Edit Strategy';
-        editor.contentEditable = 'false';
-        editing = false;
+        toggleBtn.disabled   = false;
+        exitEdit(true);
         setTimeout(()=> statusEl.textContent = '', 2000);
       }
     };
+
+    cancelBtn.onclick = () => exitEdit(false);
   })();
   </script>
+  <script defer src="/utopium-widget.js"></script>
 </body>
 </html>
