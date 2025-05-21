@@ -56,7 +56,7 @@ const ARTIFACTS = ["NEWS","TRAILER","FACT","THROWBACK","VS","Default"];
 
 const FIELD_STEPS = {
   account:               0,
-  type:                  1,
+  "post type":                  1,
   title:                 2,
   subtitle:              3,
   "highlight title":     4,
@@ -167,7 +167,7 @@ function acceptInput(text){
     user(text);
     switch(state.editing){
       case 'account':              state.data.account  = text; afterSingleEdit(); return;
-      case 'type':                 state.data.artifact = text; afterSingleEdit(); return;
+      case 'post type':                 state.data.artifact = text; afterSingleEdit(); return;
       case 'title':                state.data.title    = text; afterSingleEdit(); return;
       case 'subtitle':             state.data.subtitle = text; afterSingleEdit(); return;
       case 'highlight title':      state.data.hlTitle  = text; afterSingleEdit(); return;
@@ -198,7 +198,7 @@ function acceptInput(text){
     state.editing=idxName;
     switch(idxName){
       case 'account':             askAccount();  break;
-      case 'type':                askArtifact(); break;
+      case 'post type':                askArtifact(); break;
       case 'title':               askTitle();    break;
       case 'subtitle':            askSubtitle(); break;
       case 'highlight title':     askHLTitle();  break;
