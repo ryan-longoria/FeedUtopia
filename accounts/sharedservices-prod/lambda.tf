@@ -521,16 +521,3 @@ resource "aws_lambda_function" "edge_auth" {
   ]
 }
 
-module "edge_auth" {
-  source  = "nickshine/lambda-edge-azure-auth/aws"
-  version = "0.3.3"                 # current at May 2025
-
-  client_id     = var.azuread_client_id      # from step 2
-  client_secret = var.azuread_client_secret  # from step 2
-  tenant        = var.azuread_tenant_id      # from step 2
-  redirect_uri  = "https://feedutopia.com/_auth/callback"
-
-  # Optional tweaks
-  session_duration = 24        # hours
-  simple_urls_enabled = true   # map /about/ → /about/index.html
-}
