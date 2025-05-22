@@ -4,7 +4,7 @@
 
 module "edge_auth" {
   source  = "nickshine/lambda-edge-azure-auth/aws"
-  version = "0.3.4"
+  version = "0.4.0"
 
   client_id     = var.azuread_client_id
   client_secret = var.azuread_client_secret
