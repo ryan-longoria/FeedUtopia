@@ -632,13 +632,21 @@ resource "aws_iam_role_policy" "lambda_todo_policy" {
 
 resource "aws_iam_role" "edge_lambda" {
   name = "${var.project_name}_edge_lambda_role"
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [{
-      Effect    = "Allow",
-      Action    = "sts:AssumeRole",
-      Principal = { Service = "lambda.amazonaws.com" }
-    }]
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = [
+            "lambda.amazonaws.com",
+            "edgelambda.amazonaws.com"
+          ]
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
   })
 }
 
