@@ -61,6 +61,10 @@ resource "aws_cloudfront_origin_access_control" "feedutopia-oac" {
 }
 
 resource "aws_cloudfront_distribution" "feedutopia-web" {
+  depends_on = [
+    aws_iam_role.edge_lambda,
+    aws_lambda_function.edge_auth
+  ]
   enabled             = true
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
