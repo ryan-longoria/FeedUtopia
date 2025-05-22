@@ -523,7 +523,7 @@ resource "aws_lambda_function" "edge_auth" {
 
 module "edge_auth" {
   source  = "nickshine/lambda-edge-azure-auth/aws"
-  version = "0.4.4"                 # current at May 2025
+  version = "0.3.4"                 # current at May 2025
 
   client_id     = var.azuread_client_id      # from step 2
   client_secret = var.azuread_client_secret  # from step 2
