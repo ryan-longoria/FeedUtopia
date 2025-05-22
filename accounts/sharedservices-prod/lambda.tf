@@ -517,7 +517,7 @@ resource "aws_lambda_function" "edge_auth" {
   publish = true
 
   layers = [
-    "arn:aws:lambda:us-east-2:825765422855:layer:Python_jwt:1"
+    "arn:aws:lambda:us-east-1:825765422855:layer:Python_jwt:1"
   ]
 }
 
