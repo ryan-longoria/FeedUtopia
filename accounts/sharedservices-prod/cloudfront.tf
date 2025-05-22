@@ -80,7 +80,7 @@ resource "aws_cloudfront_distribution" "feedutopia-web" {
 
     lambda_function_association {
       event_type   = "viewer-request"
-      lambda_arn   = module.edge_auth.lambda_arn
+      lambda_arn   = aws_lambda_function.edge_auth.qualified_arn
       include_body = false
     }
 
@@ -95,18 +95,16 @@ resource "aws_cloudfront_distribution" "feedutopia-web" {
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]
-    compress               = true
 
     lambda_function_association {
       event_type   = "viewer-request"
-      lambda_arn   = module.edge_auth.lambda_arn
+      lambda_arn   = aws_lambda_function.edge_auth.qualified_arn
       include_body = false
     }
 
     forwarded_values {
-      cookies { forward = "all" }
-      headers = ["Authorization"]
       query_string = false
+      cookies { forward = "all" }
     }
   }
 
