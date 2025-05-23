@@ -27,13 +27,11 @@ CORS_HEADERS: Dict[str, str] = {
 }
 
 def _response(status: int, body: Any) -> Dict[str, Any]:
-    return {
-        "statusCode": status,
-        "headers":    CORS_HEADERS,
-        "body":       json.dumps(body),
-    }
+    return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
 
 def lambda_handler(event, _ctx):
+    log.info("got event: %s", event)
+
     if event.get("httpMethod") == "OPTIONS":
         return _response(200, {})
 
@@ -47,29 +45,28 @@ def lambda_handler(event, _ctx):
         if not prompt or not model or not size:
             return _response(400, {"error": "prompt, model and size are required"})
 
-        if ref_key:
+        if isinstance(ref_key, str) and ref_key.strip():
             try:
                 obj = s3.get_object(Bucket=UPLOAD_BUCKET, Key=ref_key)
             except ClientError as e:
                 code = e.response.get("Error", {}).get("Code")
                 if code == "NoSuchKey":
                     return _response(404, {"error": f"reference image '{ref_key}' not found"})
-                else:
-                    log.exception("Error fetching from S3")
-                    return _response(500, {"error": "Error fetching reference image"})
+                log.exception("S3 failure")
+                return _response(500, {"error": "Error fetching reference image"})
             data = obj["Body"].read()
 
             img_buf = io.BytesIO(data)
             img_buf.name = "reference.png"
 
             orig = Image.open(io.BytesIO(data))
-            mask_img = Image.new("RGBA", orig.size, (255,255,255,255))
+            mask = Image.new("RGBA", orig.size, (255,255,255,255))
             mask_buf = io.BytesIO()
-            mask_img.save(mask_buf, format="PNG")
+            mask.save(mask_buf, format="PNG")
             mask_buf.name = "mask.png"
             mask_buf.seek(0)
 
-            log.info("Calling OpenAI images.edit with model=%s size=%s", model, size)
+            log.info("Calling OpenAI images.edit model=%s size=%s", model, size)
             resp = client.images.edit(
                 image=img_buf,
                 mask=mask_buf,
@@ -80,7 +77,7 @@ def lambda_handler(event, _ctx):
             url = resp.data[0].url
 
         else:
-            log.info("Calling OpenAI images.generate with model=%s size=%s", model, size)
+            log.info("Calling OpenAI images.generate model=%s size=%s", model, size)
             gen = client.images.generate(
                 model=model,
                 prompt=prompt,
