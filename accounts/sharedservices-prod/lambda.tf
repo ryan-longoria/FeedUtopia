@@ -520,7 +520,7 @@ resource "aws_lambda_function" "edge_auth" {
 resource "aws_lambda_function" "gpt_ig_caption" {
   function_name = "${var.project_name}-gpt-ig-caption"
   handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.12"
+  runtime       = "python3.9"
   role          = aws_iam_role.lambda_role.arn
   timeout       = 15
 
@@ -535,6 +535,7 @@ resource "aws_lambda_function" "gpt_ig_caption" {
   }
 
   layers = [
-    "arn:aws:lambda:${var.aws_region}:825765422855:layer:Python_openai:1"
+    "arn:aws:lambda:us-east-2:825765422855:layer:Python_Requests:1",
+    "arn:aws:lambda:${var.aws_region}:825765422855:layer:Python_openai:2"
   ]
 }
