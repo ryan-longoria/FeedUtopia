@@ -107,35 +107,6 @@ variable "common_tags" {
   }
 }
 
-variable "instagram_verify_token" {
-  type = string
-}
-
-variable "instagram_app_id" {
-  type = string
-}
-
-variable "instagram_app_secret" {
-  type = string
-}
-
-variable "azuread_client_id" {
-  type = string
-}
-
-variable "azuread_client_secret" {
-  type = string
-}
-
-variable "azuread_tenant_id" {
-  type = string
-}
-
-variable "openai_api_key" {
-  type = string
-  sensitive   = true
-}
-
 variable "gpt_model" {
   type        = string
 }
