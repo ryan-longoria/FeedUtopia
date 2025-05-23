@@ -2,7 +2,6 @@ import json
 import os
 import logging
 import io
-import base64
 from typing import Any, Dict
 
 import boto3
@@ -26,66 +25,55 @@ CORS_HEADERS: Dict[str, str] = {
     "Content-Type":                 "application/json",
 }
 
+
 def _response(status: int, body: Any) -> Dict[str, Any]:
-    return {
-        "statusCode": status,
-        "headers":    CORS_HEADERS,
-        "body":       json.dumps(body),
-    }
+    return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
 
 
 def lambda_handler(event, _ctx):
-    log.info("got event: %s", event)
+    log.info("event: %s", event)
 
     if event.get("httpMethod") == "OPTIONS":
         return _response(200, {})
 
     try:
-        body = json.loads(event.get("body") or "{}")
-        prompt = body.get("prompt")
-        model  = body.get("model")
-        size   = body.get("size")
+        body      = json.loads(event.get("body") or "{}")
+        prompt    = body.get("prompt")
+        size      = body.get("size")
+        ref_key   = body.get("refImageId")
 
-        ref_data_b64 = body.get("refImageData")
-        ref_key      = body.get("refImageId")
+        if not prompt or not size:
+            return _response(400, {"error": "prompt and size are required"})
 
-        if not prompt or not model or not size:
-            return _response(400, {"error": "prompt, model and size are required"})
+        model = "dall-e-3"
 
-        def make_buffers(img_bytes: bytes):
-            img_buf = io.BytesIO(img_bytes)
+        if ref_key:
+            if not UPLOAD_BUCKET:
+                return _response(500, {"error": "UPLOAD_BUCKET not configured"})
+
+            try:
+                obj  = s3.get_object(Bucket=UPLOAD_BUCKET, Key=ref_key)
+                data = obj["Body"].read()
+            except ClientError as e:
+                code = e.response.get("Error", {}).get("Code", "")
+                if code == "NoSuchKey":
+                    return _response(404, {"error": f"ref image '{ref_key}' not found"})
+                log.exception("S3 get_object failed")
+                return _response(500, {"error": "error retrieving reference image"})
+
+            img_buf = io.BytesIO(data)
             img_buf.name = "reference.png"
-            orig = Image.open(io.BytesIO(img_bytes))
-            mask = Image.new("RGBA", orig.size, (255,255,255,255))
+
+            orig     = Image.open(io.BytesIO(data))
+            mask_img = Image.new("RGBA", orig.size, (255, 255, 255, 255))
             mask_buf = io.BytesIO()
+            mask_img.save(mask_buf, format="PNG")
             mask_buf.name = "mask.png"
-            mask.save(mask_buf, format="PNG")
             mask_buf.seek(0)
-            return img_buf, mask_buf
 
-        if ref_data_b64 or ref_key:
-            if ref_data_b64:
-                log.info("using inline base64 reference image")
-                try:
-                    data = base64.b64decode(ref_data_b64)
-                except Exception:
-                    return _response(400, {"error": "invalid base64 in refImageData"})
-            else:
-                if not UPLOAD_BUCKET:
-                    return _response(500, {"error": "UPLOAD_BUCKET not configured"})
-                try:
-                    obj = s3.get_object(Bucket=UPLOAD_BUCKET, Key=ref_key)
-                    data = obj["Body"].read()
-                except ClientError as e:
-                    code = e.response.get("Error", {}).get("Code", "")
-                    if code == "NoSuchKey":
-                        return _response(404, {"error": f"reference image '{ref_key}' not found"})
-                    log.exception("S3 get_object failed")
-                    return _response(500, {"error": "error retrieving reference image"})
-
-            img_buf, mask_buf = make_buffers(data)
-            log.info("Calling OpenAI images.edit model=%s size=%s", model, size)
+            log.info("Calling images.edit with DALL·E-3, size=%s", size)
             resp = client.images.edit(
+                model=model,
                 image=img_buf,
                 mask=mask_buf,
                 prompt=prompt,
@@ -95,7 +83,7 @@ def lambda_handler(event, _ctx):
             url = resp.data[0].url
 
         else:
-            log.info("Calling OpenAI images.generate model=%s size=%s", model, size)
+            log.info("Calling images.generate with DALL·E-3, size=%s", size)
             gen = client.images.generate(
                 model=model,
                 prompt=prompt,
@@ -111,5 +99,5 @@ def lambda_handler(event, _ctx):
         return _response(500, {"error": str(oe)})
 
     except Exception:
-        log.exception("Unexpected failure in image-gen")
+        log.exception("Unexpected failure")
         return _response(500, {"error": "Internal error"})
