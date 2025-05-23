@@ -535,6 +535,7 @@ resource "aws_lambda_function" "gpt_ig_caption" {
   }
 
   layers = [
-    "arn:aws:lambda:${var.aws_region}:113088814899:layer:AWSSDKPandas-Python312:3"
+    "arn:aws:lambda:${var.aws_region}:113088814899:layer:AWSSDKPandas-Python312:3",
+    "arn:aws:lambda:${var.aws_region}:825765422855:layer:Python_openai:1"
   ]
 }
