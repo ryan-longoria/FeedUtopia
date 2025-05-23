@@ -668,6 +668,41 @@ resource "aws_api_gateway_integration_response" "strategy_options_integration_re
   }
 }
 
+resource "aws_api_gateway_resource" "gpt" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_rest_api.api.root_resource_id
+  path_part   = "gpt"
+}
+resource "aws_api_gateway_resource" "gpt_ig_caption" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_resource.gpt.id
+  path_part   = "ig-caption"
+}
+
+resource "aws_api_gateway_method" "gpt_ig_caption_post" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.gpt_ig_caption.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "gpt_ig_caption_int" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.gpt_ig_caption.id
+  http_method             = aws_api_gateway_method.gpt_ig_caption_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.gpt_ig_caption.invoke_arn
+}
+
+resource "aws_lambda_permission" "allow_apigw_invoke_gpt_ig_caption" {
+  statement_id  = "AllowAPIGwInvokeGPTCaption"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.gpt_ig_caption.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/POST/gpt/ig-caption"
+}
+
 #############################
 # Instagram API Callback/Oauth
 #############################
