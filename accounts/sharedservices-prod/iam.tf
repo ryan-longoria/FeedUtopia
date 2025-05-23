@@ -664,7 +664,7 @@ resource "aws_iam_role_policy" "edge_ssm" {
     Statement = [{
       Effect   = "Allow",
       Action   = ["ssm:GetParameter"],
-      Resource = "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/entra/*"
+      Resource = "arn:aws:ssm:us-east-2:${data.aws_caller_identity.current.account_id}:parameter/entra/*"
     }]
   })
 }
