@@ -561,6 +561,7 @@ resource "aws_lambda_function" "gpt_image_gen" {
   environment {
     variables = {
       OPENAI_API_KEY = data.aws_ssm_parameter.openai.value
+      UPLOAD_BUCKET = aws_s3_bucket.feedutopia-webapp.bucket
     }
   }
 
