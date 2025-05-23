@@ -566,6 +566,6 @@ resource "aws_lambda_function" "gpt_image_gen" {
 
   layers = [
     "arn:aws:lambda:${var.aws_region}:825765422855:layer:Python_openai:2",
-    "arn:aws:lambda:us-east-2:825765422855:layer:Python_pillow:3"
+    "arn:aws:lambda:us-east-2:825765422855:layer:Python_pillow:4"
   ]
 }
