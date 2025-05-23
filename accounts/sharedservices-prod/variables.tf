@@ -130,3 +130,12 @@ variable "azuread_client_secret" {
 variable "azuread_tenant_id" {
   type = string
 }
+
+variable "openai_api_key" {
+  type = string
+  sensitive   = true
+}
+
+variable "gpt_model" {
+  type        = string
+}
