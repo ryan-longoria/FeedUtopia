@@ -17,7 +17,9 @@ resource "aws_lambda_function" "fetch_data" {
 
   environment {
     variables = {
-      TEAMS_WEBHOOK_URL = local.TEAMS_WEBHOOK_URL
+      TEAMS_WEBHOOK_URL = local.TEAMS_WEBHOOK_URL,
+      ANN_NEWS_USER = data.aws_ssm_parameter.ann_news_user.value
+      ANN_NEWS_PASS = data.aws_ssm_parameter.ann_news_pass.value
     }
   }
 
