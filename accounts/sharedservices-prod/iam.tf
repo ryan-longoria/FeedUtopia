@@ -625,3 +625,46 @@ resource "aws_iam_role_policy" "lambda_todo_policy" {
   role   = aws_iam_role.lambda_role.id
   policy = data.aws_iam_policy_document.todo_table_access.json
 }
+
+#############################
+# IAM Policy for Edge Auth
+#############################
+
+resource "aws_iam_role" "edge_lambda" {
+  name = "${var.project_name}_edge_lambda_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = [
+            "lambda.amazonaws.com",
+            "edgelambda.amazonaws.com"
+          ]
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "edge_lambda_basic" {
+  role       = aws_iam_role.edge_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "edge_ssm" {
+  name = "edgeLambdaSSMRead"
+  role = aws_iam_role.edge_lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect   = "Allow",
+      Action   = ["ssm:GetParameter"],
+      Resource = "arn:aws:ssm:us-east-2:${data.aws_caller_identity.current.account_id}:parameter/entra/*"
+    }]
+  })
+}

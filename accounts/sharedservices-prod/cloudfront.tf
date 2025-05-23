@@ -61,6 +61,10 @@ resource "aws_cloudfront_origin_access_control" "feedutopia-oac" {
 }
 
 resource "aws_cloudfront_distribution" "feedutopia-web" {
+  depends_on = [
+    aws_iam_role.edge_lambda,
+    aws_lambda_function.edge_auth
+  ]
   enabled             = true
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
@@ -71,22 +75,44 @@ resource "aws_cloudfront_distribution" "feedutopia-web" {
     origin_access_control_id = aws_cloudfront_origin_access_control.feedutopia-oac.id
   }
 
+  ordered_cache_behavior {
+    path_pattern         = "_auth/*"
+    target_origin_id     = "webapp-s3"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods      = ["GET", "HEAD", "OPTIONS"]
+    cached_methods       = ["GET", "HEAD"]
+
+    lambda_function_association {
+      event_type   = "viewer-request"
+      lambda_arn   = aws_lambda_function.edge_auth.qualified_arn
+      include_body = false
+    }
+
+    forwarded_values {
+      query_string = true
+      cookies { forward = "all" }
+    }
+  }
+
   default_cache_behavior {
     target_origin_id       = "webapp-s3"
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]
-    compress               = true
+
+    lambda_function_association {
+      event_type   = "viewer-request"
+      lambda_arn   = aws_lambda_function.edge_auth.qualified_arn
+      include_body = false
+    }
 
     forwarded_values {
       query_string = false
-      cookies {
-        forward = "none"
-      }
+      cookies { forward = "all" }
     }
   }
 
-  aliases = ["feedutopia.com"] 
+  aliases = ["feedutopia.com"]
 
   viewer_certificate {
     acm_certificate_arn      = data.aws_acm_certificate.web_cf_cert.arn
@@ -94,7 +120,9 @@ resource "aws_cloudfront_distribution" "feedutopia-web" {
     minimum_protocol_version = "TLSv1.2_2021"
   }
 
-  restrictions {
-    geo_restriction { restriction_type = "none" }
+  restrictions { 
+    geo_restriction { 
+      restriction_type = "none" 
+      } 
   }
 }

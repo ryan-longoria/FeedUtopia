@@ -498,3 +498,22 @@ resource "aws_lambda_function" "strategy_presign" {
     mode = "Active"
   }
 }
+
+#############################
+# edge_auth
+#############################
+
+resource "aws_lambda_function" "edge_auth" {
+  provider      = aws.us_east_1
+  function_name = "${var.project_name}-edge-auth"
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.9"
+  role          = aws_iam_role.edge_lambda.arn
+  timeout       = 5
+
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/edge_auth/edge_auth.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/edge_auth/edge_auth.zip")
+
+  publish = true
+}
+

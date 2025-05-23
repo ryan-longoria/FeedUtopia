@@ -118,3 +118,15 @@ variable "instagram_app_id" {
 variable "instagram_app_secret" {
   type = string
 }
+
+variable "azuread_client_id" {
+  type = string
+}
+
+variable "azuread_client_secret" {
+  type = string
+}
+
+variable "azuread_tenant_id" {
+  type = string
+}
