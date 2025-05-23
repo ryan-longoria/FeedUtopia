@@ -8,7 +8,7 @@ import os
 import time
 
 # Initialize SSM client for us-east-1 (Lambda@Edge origin region)
-SSM = boto3.client("ssm", region_name="us-east-1")
+SSM = boto3.client("ssm", region_name="us-east-2")
 
 # Read parameters (will be fetched at cold start)
 TENANT_ID  = SSM.get_parameter(Name="/entra/azuread_tenant_id",   WithDecryption=True)["Parameter"]["Value"]
