@@ -169,7 +169,7 @@ resource "aws_lambda_function" "ig_webhook_handler" {
 
   environment {
     variables = {
-      VERIFY_TOKEN = var.instagram_verify_token
+      VERIFY_TOKEN = data.aws_ssm_parameter.instagram_verify_token.value
     }
   }
 
@@ -197,8 +197,8 @@ resource "aws_lambda_function" "instagram_oauth" {
 
   environment {
     variables = {
-      INSTAGRAM_APP_ID     = var.instagram_app_id
-      INSTAGRAM_APP_SECRET = var.instagram_app_secret
+      INSTAGRAM_APP_ID     = data.aws_ssm_parameter.instagram_app_id.value
+      INSTAGRAM_APP_SECRET = data.aws_ssm_parameter.instagram_app_secret.value
       REDIRECT_URI         = "https://${aws_apigatewayv2_api.instagram_api.api_endpoint}/instagram/auth/callback"
     }
   }
