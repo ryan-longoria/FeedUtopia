@@ -529,7 +529,7 @@ resource "aws_lambda_function" "gpt_ig_caption" {
 
   environment {
     variables = {
-      OPENAI_API_KEY = var.openai_api_key
+      OPENAI_API_KEY = data.aws_ssm_parameter.openai.value
       OPENAI_MODEL   = var.gpt_model
     }
   }
