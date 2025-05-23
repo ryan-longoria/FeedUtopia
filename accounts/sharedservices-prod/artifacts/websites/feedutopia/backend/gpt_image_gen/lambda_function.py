@@ -7,11 +7,10 @@ from typing import Any, Dict
 import boto3
 from botocore.exceptions import ClientError
 from PIL import Image
-
 from openai import OpenAI, OpenAIError
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-UPLOAD_BUCKET  = os.environ["UPLOAD_BUCKET"]
+UPLOAD_BUCKET  = os.environ.get("UPLOAD_BUCKET", "")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 s3     = boto3.client("s3")
@@ -26,8 +25,14 @@ CORS_HEADERS: Dict[str, str] = {
     "Content-Type":                 "application/json",
 }
 
+
 def _response(status: int, body: Any) -> Dict[str, Any]:
-    return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
+    return {
+        "statusCode": status,
+        "headers":    CORS_HEADERS,
+        "body":       json.dumps(body),
+    }
+
 
 def lambda_handler(event, _ctx):
     log.info("got event: %s", event)
@@ -45,24 +50,26 @@ def lambda_handler(event, _ctx):
         if not prompt or not model or not size:
             return _response(400, {"error": "prompt, model and size are required"})
 
-        if isinstance(ref_key, str) and ref_key.strip():
+        if ref_key:
+            if not UPLOAD_BUCKET:
+                return _response(500, {"error": "UPLOAD_BUCKET not configured"})
             try:
-                obj = s3.get_object(Bucket=UPLOAD_BUCKET, Key=ref_key)
+                obj  = s3.get_object(Bucket=UPLOAD_BUCKET, Key=ref_key)
+                data = obj["Body"].read()
             except ClientError as e:
-                code = e.response.get("Error", {}).get("Code")
+                code = e.response.get("Error", {}).get("Code", "")
                 if code == "NoSuchKey":
                     return _response(404, {"error": f"reference image '{ref_key}' not found"})
-                log.exception("S3 failure")
-                return _response(500, {"error": "Error fetching reference image"})
-            data = obj["Body"].read()
+                log.exception("Error fetching reference from S3")
+                return _response(500, {"error": "error retrieving reference image"})
 
             img_buf = io.BytesIO(data)
             img_buf.name = "reference.png"
 
-            orig = Image.open(io.BytesIO(data))
-            mask = Image.new("RGBA", orig.size, (255,255,255,255))
+            orig     = Image.open(io.BytesIO(data))
+            mask_img = Image.new("RGBA", orig.size, (255,255,255,255))
             mask_buf = io.BytesIO()
-            mask.save(mask_buf, format="PNG")
+            mask_img.save(mask_buf, format="PNG")
             mask_buf.name = "mask.png"
             mask_buf.seek(0)
 
