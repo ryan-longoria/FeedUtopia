@@ -130,3 +130,7 @@ variable "azuread_client_secret" {
 variable "azuread_tenant_id" {
   type = string
 }
+
+variable "opeai_api_key" {
+  type = string
+}
