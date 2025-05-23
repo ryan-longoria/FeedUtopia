@@ -132,10 +132,10 @@ if (document.getElementById('utopium-widget')) {
       drop.textContent = 'Drop file here or click to browse';
       const inp = Object.assign(document.createElement('input'), { type:'file', style:'display:none' });
       inp.onchange = ()=>{ if(inp.files.length) cb(inp.files[0]); };
-      drop.onclick = ()=> inp.click();
-      drop.ondragover = e => { e.preventDefault(); drop.style.borderColor='#ec008c'; drop.style.background='#333'; };
-      drop.ondragleave = ()=> { drop.style.borderColor='#999'; drop.style.background=''; };
-      drop.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files.length) cb(e.dataTransfer.files[0]); };
+      drop.onclick       = ()=> inp.click();
+      drop.ondragover    = e => { e.preventDefault(); drop.style.borderColor='#ec008c'; drop.style.background='#333'; };
+      drop.ondragleave   = ()=> { drop.style.borderColor='#999'; drop.style.background=''; };
+      drop.ondrop        = e => { e.preventDefault(); if(e.dataTransfer.files.length) cb(e.dataTransfer.files[0]); };
       const wrap = bubble('');
       wrap.appendChild(drop);
       wrap.appendChild(inp);
@@ -182,13 +182,12 @@ if (document.getElementById('utopium-widget')) {
           refId = objectKey;
         }
 
-        // choose model & size
-        const useRef = Boolean(refId);
-        const model  = useRef ? 'gpt-image-1' : 'dall-e-3';
-        const size   = useRef ? '1024x1536' : '1024x1792';
+        // always DALL·E-3 at 1024×1024
+        const model = 'dall-e-3';
+        const size  = '1024x1024';
 
         const payload = { prompt: state.imgPrompt, model, size };
-        if(refId) payload.refImageId = refId;
+        if (refId) payload.refImageId = refId;
 
         const res = await fetch(`${API_ROOT}/gpt/image-gen`, {
           method:'POST',
