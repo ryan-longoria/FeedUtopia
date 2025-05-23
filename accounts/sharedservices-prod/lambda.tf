@@ -520,7 +520,7 @@ resource "aws_lambda_function" "edge_auth" {
 resource "aws_lambda_function" "gpt_ig_caption" {
   function_name = "${var.project_name}-gpt-ig-caption"
   handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.9"
+  runtime       = "python3.12"
   role          = aws_iam_role.lambda_role.arn
   timeout       = 15
 
