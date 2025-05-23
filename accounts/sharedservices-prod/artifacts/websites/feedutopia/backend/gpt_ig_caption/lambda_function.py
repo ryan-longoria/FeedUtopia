@@ -1,42 +1,43 @@
-import os, json, boto3, openai, logging
+import json, os, openai
 
 openai.api_key = os.environ["OPENAI_API_KEY"]
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1")
 
-sys_prompt = (
-  "You are an assistant that writes high‑engagement Instagram titles, "
-  "subtitle text for images, and a longer caption. "
-  "Return markdown with two sections:\n\n"
-  "### 🔥 Image Text Ideas\n"
-  "- Title (NEWLINE) Subtitle\n\n"
-  "### 📲 Caption\n\n"
-  "Use dashes for bullet points. Optimise for emotion and the Instagram algorithm."
-)
+CORS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Content-Type": "application/json",
+}
 
 def lambda_handler(event, _ctx):
-    body = json.loads(event["body"] or "{}")
-    context = body.get("context", "").strip()
-    if not context:
-        return {"statusCode": 400, "body": "context required"}
+    try:
+        body = json.loads(event.get("body") or "{}")
+        context = body.get("context", "").strip()
+        if not context:
+            raise ValueError("context required")
 
-    resp = openai.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": context},
-        ],
-        temperature=0.8,
-        max_tokens=800,
-    )
+        resp = openai.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": "You write IG titles & captions."},
+                {"role": "user", "content": context},
+            ],
+            temperature=0.8,
+            max_tokens=800,
+        )
 
-    answer = resp.choices[0].message.content
-    return {
-        "statusCode": 200,
-        "headers": {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Allow-Methods": "POST,OPTIONS"
-        },
-        "body": json.dumps({"text": answer}),
-    }
+        return {
+            "statusCode": 200,
+            "headers": CORS,
+            "body": json.dumps({"text": resp.choices[0].message.content}),
+        }
+
+    except Exception as e:
+        # log for CW
+        print("ERROR:", e)
+        return {
+            "statusCode": 500,
+            "headers": CORS,
+            "body": json.dumps({"error": str(e)}),
+        }
