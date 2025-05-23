@@ -131,7 +131,7 @@ variable "azuread_tenant_id" {
   type = string
 }
 
-variable "opeai_api_key" {
+variable "openai_api_key" {
   type = string
 }
 

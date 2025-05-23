@@ -529,8 +529,8 @@ resource "aws_lambda_function" "gpt_ig_caption" {
 
   environment {
     variables = {
-      OPENAI_API_KEY = var.opeai_api_key
-      OPENAI_MODEL   = "gpt-4o-mini"
+      OPENAI_API_KEY = var.openai_api_key
+      OPENAI_MODEL   = var.gpt_model
     }
   }
 
