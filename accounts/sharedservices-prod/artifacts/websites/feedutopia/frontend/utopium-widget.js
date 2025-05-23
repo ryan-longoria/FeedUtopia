@@ -85,8 +85,6 @@ if (document.getElementById('utopium-widget')) {
         localStorage.removeItem('utopium-history');
       }catch{}
     };
-    window.addEventListener('beforeunload',clearStore);
-    window.addEventListener('pagehide',e=>{ if(!e.persisted) clearStore(); });
 
     /* ───────── Helpers ───────── */
     const bubble = (html,cls)=>{
