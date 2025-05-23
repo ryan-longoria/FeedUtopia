@@ -517,6 +517,10 @@ resource "aws_lambda_function" "edge_auth" {
   publish = true
 }
 
+#############################
+# gpt_ig_caption
+#############################
+
 resource "aws_lambda_function" "gpt_ig_caption" {
   function_name = "${var.project_name}-gpt-ig-caption"
   handler       = "lambda_function.lambda_handler"
@@ -536,6 +540,31 @@ resource "aws_lambda_function" "gpt_ig_caption" {
 
   layers = [
     "arn:aws:lambda:us-east-2:825765422855:layer:Python_Requests:1",
+    "arn:aws:lambda:${var.aws_region}:825765422855:layer:Python_openai:2"
+  ]
+}
+
+#############################
+# gpt_image_gen
+#############################
+
+resource "aws_lambda_function" "gpt_image_gen" {
+  function_name = "${var.project_name}-gpt-image-gen"
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.12"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 60
+
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/gpt_image_gen/gpt_image_gen.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/gpt_image_gen/gpt_image_gen.zip")
+
+  environment {
+    variables = {
+      OPENAI_API_KEY = data.aws_ssm_parameter.openai.value
+    }
+  }
+
+  layers = [
     "arn:aws:lambda:${var.aws_region}:825765422855:layer:Python_openai:2"
   ]
 }
