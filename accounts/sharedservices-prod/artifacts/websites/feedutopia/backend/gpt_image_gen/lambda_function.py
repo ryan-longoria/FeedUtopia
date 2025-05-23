@@ -1,7 +1,11 @@
-import json, os, logging, io
+import json
+import os
+import logging
+import io
 from typing import Any, Dict
 
 import boto3
+from botocore.exceptions import ClientError
 from PIL import Image
 
 from openai import OpenAI, OpenAIError
@@ -23,25 +27,36 @@ CORS_HEADERS: Dict[str, str] = {
 }
 
 def _response(status: int, body: Any) -> Dict[str, Any]:
-    return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
-
+    return {
+        "statusCode": status,
+        "headers":    CORS_HEADERS,
+        "body":       json.dumps(body),
+    }
 
 def lambda_handler(event, _ctx):
     if event.get("httpMethod") == "OPTIONS":
         return _response(200, {})
 
     try:
-        body      = json.loads(event.get("body") or "{}")
-        prompt    = body.get("prompt")
-        model     = body.get("model")
-        size      = body.get("size")
-        ref_key   = body.get("refImageId")
+        body    = json.loads(event.get("body") or "{}")
+        prompt  = body.get("prompt")
+        model   = body.get("model")
+        size    = body.get("size")
+        ref_key = body.get("refImageId")
 
         if not prompt or not model or not size:
             return _response(400, {"error": "prompt, model and size are required"})
 
         if ref_key:
-            obj = s3.get_object(Bucket=UPLOAD_BUCKET, Key=ref_key)
+            try:
+                obj = s3.get_object(Bucket=UPLOAD_BUCKET, Key=ref_key)
+            except ClientError as e:
+                code = e.response.get("Error", {}).get("Code")
+                if code == "NoSuchKey":
+                    return _response(404, {"error": f"reference image '{ref_key}' not found"})
+                else:
+                    log.exception("Error fetching from S3")
+                    return _response(500, {"error": "Error fetching reference image"})
             data = obj["Body"].read()
 
             img_buf = io.BytesIO(data)
@@ -79,6 +94,7 @@ def lambda_handler(event, _ctx):
     except OpenAIError as oe:
         log.exception("OpenAI API error")
         return _response(500, {"error": str(oe)})
+
     except Exception:
         log.exception("Unexpected failure in image-gen")
         return _response(500, {"error": "Internal error"})
