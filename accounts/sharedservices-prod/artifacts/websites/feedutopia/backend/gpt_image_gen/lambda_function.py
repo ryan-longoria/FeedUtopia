@@ -1,12 +1,16 @@
-import json
-import os
-import logging
+import json, os, logging, io
 from typing import Any, Dict
+
+import boto3
+from PIL import Image
 
 from openai import OpenAI, OpenAIError
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+UPLOAD_BUCKET  = os.environ["UPLOAD_BUCKET"]
+
 client = OpenAI(api_key=OPENAI_API_KEY)
+s3     = boto3.client("s3")
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -18,43 +22,63 @@ CORS_HEADERS: Dict[str, str] = {
     "Content-Type":                 "application/json",
 }
 
-
 def _response(status: int, body: Any) -> Dict[str, Any]:
     return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
 
 
 def lambda_handler(event, _ctx):
-    """Handle POST /gpt/image-gen with JSON {prompt,model,size[,refImageId]}."""
     if event.get("httpMethod") == "OPTIONS":
         return _response(200, {})
 
     try:
-        body = json.loads(event.get("body") or "{}")
-        prompt = body.get("prompt")
-        model  = body.get("model")
-        size   = body.get("size")
-        ref_id = body.get("refImageId")
+        body      = json.loads(event.get("body") or "{}")
+        prompt    = body.get("prompt")
+        model     = body.get("model")
+        size      = body.get("size")
+        ref_key   = body.get("refImageId")
 
         if not prompt or not model or not size:
             return _response(400, {"error": "prompt, model and size are required"})
 
-        gen_args: Dict[str, Any] = {
-            "model":  model,
-            "prompt": prompt,
-            "size":   size,
-            "n":      1,
-        }
-        if ref_id:
-            gen_args["reference_image_id"] = ref_id
+        if ref_key:
+            obj = s3.get_object(Bucket=UPLOAD_BUCKET, Key=ref_key)
+            data = obj["Body"].read()
 
-        log.info("Calling OpenAI images.generate with %s", gen_args)
-        images = client.images.generate(**gen_args)
-        url = images.data[0].url
+            img_buf = io.BytesIO(data)
+            img_buf.name = "reference.png"
+
+            orig = Image.open(io.BytesIO(data))
+            mask_img = Image.new("RGBA", orig.size, (255,255,255,255))
+            mask_buf = io.BytesIO()
+            mask_img.save(mask_buf, format="PNG")
+            mask_buf.name = "mask.png"
+            mask_buf.seek(0)
+
+            log.info("Calling OpenAI images.edit with model=%s size=%s", model, size)
+            resp = client.images.edit(
+                image=img_buf,
+                mask=mask_buf,
+                prompt=prompt,
+                n=1,
+                size=size,
+            )
+            url = resp.data[0].url
+
+        else:
+            log.info("Calling OpenAI images.generate with model=%s size=%s", model, size)
+            gen = client.images.generate(
+                model=model,
+                prompt=prompt,
+                n=1,
+                size=size,
+            )
+            url = gen.data[0].url
+
         return _response(200, {"url": url})
 
     except OpenAIError as oe:
         log.exception("OpenAI API error")
         return _response(500, {"error": str(oe)})
-    except Exception as exc:
-        log.exception("image-gen failed")
-        return _response(500, {"error": "Internal error"}) 
+    except Exception:
+        log.exception("Unexpected failure in image-gen")
+        return _response(500, {"error": "Internal error"})

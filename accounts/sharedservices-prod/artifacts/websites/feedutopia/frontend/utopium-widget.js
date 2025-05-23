@@ -176,7 +176,7 @@ if (document.getElementById('utopium-widget')) {
             body: JSON.stringify({ filename: state.refFile.name, purpose:'img-ref' })
           });
           if(!presign.ok) throw new Error(`upload URL ${presign.status}`);
-          const { uploadUrl, objectKey } = await presign.json();
+          const { url: uploadUrl, objectKey } = await presign.json();
           // 2) upload file
           await fetch(uploadUrl, { method:'PUT', body: state.refFile });
           refId = objectKey;
