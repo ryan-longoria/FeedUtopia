@@ -134,6 +134,15 @@ resource "aws_lambda_permission" "allow_apigw_oauth" {
   source_arn    = "${aws_apigatewayv2_api.instagram_api.execution_arn}/*/GET/instagram/auth/callback"
 }
 
+resource "aws_lambda_permission" "allow_apigw_invoke_gpt_ig_caption" {
+  statement_id  = "AllowAPIGwInvokeGPTCaption"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.gpt_ig_caption.function_name
+
+  principal = "apigateway.amazonaws.com"
+  source_arn = "${aws_api_gateway_rest_api.api.execution_arn}/*/POST/gpt/ig-caption"
+}
+
 resource "aws_iam_role_policy" "lambda_assume_each_account" {
   for_each = var.aws_account_ids
 
