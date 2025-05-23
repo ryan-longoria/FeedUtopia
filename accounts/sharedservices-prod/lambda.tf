@@ -517,3 +517,24 @@ resource "aws_lambda_function" "edge_auth" {
   publish = true
 }
 
+resource "aws_lambda_function" "gpt_ig_caption" {
+  function_name = "${var.project_name}-gpt-ig-caption"
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.12"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 15
+
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/gpt_ig_caption/gpt_ig_caption.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/gpt_ig_caption/gpt_ig_caption.zip")
+
+  environment {
+    variables = {
+      OPENAI_API_KEY = var.opeai_api_key
+      OPENAI_MODEL   = "gpt-4o-mini"
+    }
+  }
+
+  layers = [
+    "arn:aws:lambda:${var.aws_region}:113088814899:layer:AWSSDKPandas-Python312:3"
+  ]
+}

@@ -134,3 +134,7 @@ variable "azuread_tenant_id" {
 variable "opeai_api_key" {
   type = string
 }
+
+variable "gpt_model" {
+  type        = string
+}
