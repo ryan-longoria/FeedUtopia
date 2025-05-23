@@ -695,14 +695,6 @@ resource "aws_api_gateway_integration" "gpt_ig_caption_int" {
   uri                     = aws_lambda_function.gpt_ig_caption.invoke_arn
 }
 
-resource "aws_lambda_permission" "allow_apigw_invoke_gpt_ig_caption" {
-  statement_id  = "AllowAPIGwInvokeGPTCaption"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.gpt_ig_caption.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/POST/gpt/ig-caption"
-}
-
 #############################
 # Instagram API Callback/Oauth
 #############################
