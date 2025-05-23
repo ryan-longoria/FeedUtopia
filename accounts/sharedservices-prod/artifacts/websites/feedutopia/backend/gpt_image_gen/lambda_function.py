@@ -7,7 +7,7 @@ import boto3
 from openai import OpenAI, OpenAIError
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-UPLOAD_BUCKET   = os.environ.get("UPLOAD_BUCKET", "")
+UPLOAD_BUCKET  = os.environ.get("UPLOAD_BUCKET", "")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 s3     = boto3.client("s3")
@@ -22,10 +22,8 @@ CORS_HEADERS: Dict[str, str] = {
     "Content-Type":                 "application/json",
 }
 
-
 def _response(status: int, body: Any) -> Dict[str, Any]:
     return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
-
 
 def lambda_handler(event, _ctx):
     log.info("Event: %s", event)
@@ -41,29 +39,35 @@ def lambda_handler(event, _ctx):
         if not prompt:
             return _response(400, {"error": "prompt is required"})
 
-        inputs = []
+        content = []
+
         if ref_key:
             if not UPLOAD_BUCKET:
                 return _response(500, {"error": "UPLOAD_BUCKET not configured"})
-
             ref_url = s3.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": UPLOAD_BUCKET, "Key": ref_key},
                 ExpiresIn=3600,
             )
-            inputs.append({
+            content.append({
                 "type":      "input_image",
                 "image_url": ref_url
             })
 
-        inputs.append({
+        content.append({
             "type": "input_text",
             "text": prompt
         })
 
+        user_message = {
+            "type":    "message",
+            "role":    "user",
+            "content": content
+        }
+
         resp = client.responses.create(
             model="gpt-4.1-mini",
-            input=inputs,
+            input=[user_message],
             tools=[{
                 "type": "image_generation",
                 "size": "1024x1536"
@@ -78,7 +82,6 @@ def lambda_handler(event, _ctx):
             return _response(500, {"error": "no image_generation_call in response"})
 
         b64_img = gen_call.result
-
         html = (
             f'<img src="data:image/png;base64,{b64_img}" '
             'style="width:100%;border-radius:12px" alt="Generated image">'
