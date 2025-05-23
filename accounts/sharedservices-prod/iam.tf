@@ -650,6 +650,11 @@ resource "aws_iam_role" "edge_lambda" {
   })
 }
 
+resource "aws_iam_role_policy_attachment" "edge_lambda_basic" {
+  role       = aws_iam_role.edge_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
 resource "aws_iam_role_policy" "edge_ssm" {
   name = "edgeLambdaSSMRead"
   role = aws_iam_role.edge_lambda.id
