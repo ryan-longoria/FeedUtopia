@@ -767,11 +767,18 @@ resource "aws_apigatewayv2_stage" "image_gen" {
 
 resource "aws_apigatewayv2_domain_name" "image_gen" {
   domain_name = "api.feedutopia.com"
+
   domain_name_configuration {
-    certificate_arn = aws_acm_certificate.yours.arn
+    certificate_arn = data.aws_acm_certificate.api_cert.arn
     endpoint_type   = "REGIONAL"
     security_policy = "TLS_1_2"
   }
+}
+
+resource "aws_apigatewayv2_api_mapping" "image_gen_map" {
+  api_id      = aws_apigatewayv2_api.your_http_api.id
+  domain_name = aws_apigatewayv2_domain_name.image_gen.domain_name
+  stage       = aws_apigatewayv2_stage.default.name
 }
 
 resource "aws_apigatewayv2_api_mapping" "image_gen" {
