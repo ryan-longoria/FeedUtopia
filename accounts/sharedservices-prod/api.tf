@@ -739,6 +739,77 @@ resource "aws_api_gateway_integration_response" "gpt_ig_caption_options_integrat
   }
 }
 
+resource "aws_apigatewayv2_api" "image_gen" {
+  name          = "feedutopia-image-api"
+  protocol_type = "HTTP"
+}
+
+resource "aws_apigatewayv2_integration" "image_gen" {
+  api_id                         = aws_apigatewayv2_api.image_gen.id
+  integration_type               = "AWS_PROXY"
+  integration_method             = "POST"
+  integration_uri                = aws_lambda_function.gpt_image_gen.invoke_arn
+  payload_format_version         = "2.0"
+  timeout_milliseconds           = 120000
+}
+
+resource "aws_apigatewayv2_route" "image_gen" {
+  api_id    = aws_apigatewayv2_api.image_gen.id
+  route_key = "POST /gpt/image-gen"
+  target    = "integrations/${aws_apigatewayv2_integration.image_gen.id}"
+}
+
+resource "aws_apigatewayv2_stage" "image_gen" {
+  api_id      = aws_apigatewayv2_api.image_gen.id
+  name        = "$default"
+  auto_deploy = true
+}
+
+resource "aws_apigatewayv2_domain_name" "image_gen" {
+  domain_name = "api.feedutopia.com"
+
+  domain_name_configuration {
+    certificate_arn = data.aws_acm_certificate.api_cert.arn
+    endpoint_type   = "REGIONAL"
+    security_policy = "TLS_1_2"
+  }
+}
+
+resource "aws_apigatewayv2_api_mapping" "image_gen_map" {
+  api_id      = aws_apigatewayv2_api.your_http_api.id
+  domain_name = aws_apigatewayv2_domain_name.image_gen.domain_name
+  stage       = aws_apigatewayv2_stage.default.name
+}
+
+resource "aws_apigatewayv2_api_mapping" "image_gen" {
+  api_id      = aws_apigatewayv2_api.image_gen.id
+  domain_name = aws_apigatewayv2_domain_name.image_gen.domain_name
+  stage       = aws_apigatewayv2_stage.image_gen.name
+}
+
+
+resource "aws_api_gateway_gateway_response" "default_5xx_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  response_type = "DEFAULT_5XX"
+
+  response_parameters = {
+    "gatewayresponse.header.Access-Control-Allow-Origin"  = "'*'"
+    "gatewayresponse.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+    "gatewayresponse.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+  }
+}
+
+resource "aws_api_gateway_gateway_response" "default_4xx_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  response_type = "DEFAULT_4XX"
+
+  response_parameters = {
+    "gatewayresponse.header.Access-Control-Allow-Origin"  = "'*'"
+    "gatewayresponse.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+    "gatewayresponse.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+  }
+}
+
 #############################
 # Instagram API Callback/Oauth
 #############################
