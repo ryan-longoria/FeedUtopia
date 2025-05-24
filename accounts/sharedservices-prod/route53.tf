@@ -25,7 +25,7 @@ resource "aws_route53_record" "api_feedutopia_alias" {
   type    = "A"
 
   alias {
-    name                   = aws_apigatewayv2_domain_name.image_gen.domain_name_configuration[0].hosted_zone_id == "" ? "" : aws_apigatewayv2_domain_name.image_gen.domain_name_configuration[0].api_gateway_domain_name
+    name                   = aws_api_gateway_domain_name.api_feedutopia_domain.regional_domain_name
     zone_id                = aws_api_gateway_domain_name.api_feedutopia_domain.regional_zone_id
     evaluate_target_health = false
   }
