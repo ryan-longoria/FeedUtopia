@@ -1,5 +1,6 @@
 import json
 import os
+import base64
 import logging
 from typing import Any, Dict
 
@@ -41,17 +42,23 @@ def lambda_handler(event, _ctx):
 
         content = []
 
+
         if ref_key:
             if not UPLOAD_BUCKET:
                 return _response(500, {"error": "UPLOAD_BUCKET not configured"})
-            ref_url = s3.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": UPLOAD_BUCKET, "Key": ref_key},
-                ExpiresIn=3600,
-            )
+
+            try:
+                obj_data = s3.get_object(Bucket=UPLOAD_BUCKET, Key=ref_key)["Body"].read()
+            except Exception:
+                log.exception("Failed to fetch ref image from S3")
+                return _response(500, {"error": "Couldn’t retrieve reference image"})
+
+            b64 = base64.b64encode(obj_data).decode("utf-8")
+            data_url = f"data:image/png;base64,{b64}"
+
             content.append({
                 "type":      "input_image",
-                "image_url": ref_url
+                "image_url": data_url
             })
 
         content.append({
