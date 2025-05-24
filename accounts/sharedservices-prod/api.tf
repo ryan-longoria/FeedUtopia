@@ -759,7 +759,7 @@ resource "aws_api_gateway_integration" "gpt_image_gen_int" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.gpt_image_gen.invoke_arn
-  timeout_milliseconds    = 29000
+  timeout_milliseconds    = 120000
 }
 
 resource "aws_api_gateway_method" "gpt_image_gen_options" {
