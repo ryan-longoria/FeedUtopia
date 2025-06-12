@@ -243,6 +243,14 @@ resource "aws_lambda_permission" "allow_apigw_invoke_strategy_presign" {
   source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/POST/strategy/upload-url"
 }
 
+resource "aws_lambda_permission" "apigw_invoke_gpt_image_gen" {
+  statement_id  = "AllowExecutionFromAPIGatewayImageGen"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.gpt_image_gen.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn = "${aws_api_gateway_rest_api.api.execution_arn}/*/*/gpt/image-gen"
+}
+
 #############################
 # IAM Policy for S3
 #############################
