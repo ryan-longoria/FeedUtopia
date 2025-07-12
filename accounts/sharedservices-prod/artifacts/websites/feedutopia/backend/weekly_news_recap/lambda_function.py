@@ -5,18 +5,16 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 
+# ── Optional: MoviePy only needed for video backgrounds ─────────────────────
 try:
     from moviepy.video.io.VideoFileClip import VideoFileClip
 except ImportError:
-    VideoFileClip = None
+    VideoFileClip = None  # Lambda layer without MoviePy → will skip videos
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
-logging.basicConfig(
-    format="%(asctime)s %(levelname)s %(message)s",
-    level=logging.INFO,
-)
+logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s",
+                    level=logging.INFO)
 
 # ── Visual constants ─────────────────────────────────────────────────────────
 WIDTH, HEIGHT = 1080, 1350                      # final canvas size
@@ -132,6 +130,7 @@ def fetch_background(bg_type: str, key: str) -> Image.Image | None:
             logger.warning("Failed video frame extract: %s", exc)
             return None
         img = Image.fromarray(frame).convert("RGBA")
+
     # ── IMAGE ────────────────────────────────────────────────────────────────
     else:
         img = Image.open(local).convert("RGBA")
@@ -151,9 +150,11 @@ def fetch_background(bg_type: str, key: str) -> Image.Image | None:
 def render_item(item: Dict[str, Any], account: str) -> Image.Image:
     canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
 
+    # determine background type early
+    bg_type = item.get("backgroundType", "image").lower()
+
     # background
-    bg = fetch_background(item.get("backgroundType", "image"),
-                          item.get("s3Key", ""))
+    bg = fetch_background(bg_type, item.get("s3Key", ""))
     if bg:
         canvas.paste(bg, (0, 0))
 
@@ -164,51 +165,39 @@ def render_item(item: Dict[str, Any], account: str) -> Image.Image:
     # title / subtitle
     title     = (item["title"] or "").upper()
     subtitle  = (item.get("subtitle") or "").upper()
-    hl_title  = {
-        w.strip().upper()
-        for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()
-    }
-    hl_sub    = {
-        w.strip().upper()
-        for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()
-    }
+    hl_title  = {w.strip().upper()
+                 for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
+    hl_sub    = {w.strip().upper()
+                 for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
 
-    # autosize fonts
     t_font = autosize(title,  TITLE_MAX, TITLE_MIN, 30)
     s_font = autosize(subtitle, DESC_MAX,  DESC_MIN, 45)
 
-    # render text images
-    t_img = multiline_colored(title, hl_title, FONT_PATH_TITLE, t_font, 1000)
-    sub_img = None
-    if subtitle:
-        sub_img = multiline_colored(subtitle, hl_sub, FONT_PATH_DESC, s_font, 900)
+    # render title and subtitle images
+    t_img = multiline_colored(title,    hl_title, FONT_PATH_TITLE, t_font, 1000)
+    sub_img = multiline_colored(subtitle, hl_sub, FONT_PATH_DESC, s_font, 900) if subtitle else None
 
-    # dynamic layout: stack title + subtitle for image backgrounds
-    bg_type = item.get("backgroundType", "image").lower()
-    if bg_type == "image" and sub_img is not None:
-        gap = 50
-        total_h = t_img.height + sub_img.height + gap
-        y_start = (HEIGHT - total_h) // 2
-        y_title = y_start
-        y_sub   = y_title + t_img.height + gap
-    else:
-        # original fixed positions for video (or no subtitle)
-        y_title = 260
-        y_sub = HEIGHT - 335 - sub_img.height if sub_img is not None else None
+    # place title at fixed y
+    y_title = 260
+    canvas.alpha_composite(t_img, ((WIDTH - t_img.width)//2, y_title))
 
-    # composite title
-    canvas.alpha_composite(t_img, ((WIDTH - t_img.width) // 2, y_title))
-    # composite subtitle
-    if sub_img is not None and y_sub is not None:
-        canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width) // 2, y_sub))
+    # **new**: place subtitle 50px below title for images,
+    # otherwise keep your old bottom‑aligned logic
+    if sub_img:
+        if bg_type == "image":
+            y_sub = y_title + t_img.height + 50
+        else:
+            # your original bottom‑align:
+            y_sub = HEIGHT - 335 - sub_img.height
+        canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width)//2, y_sub))
 
     # logo + stripe (50 px lower)
     if (logo := fetch_logo(account)):
         lx = WIDTH - logo.width - 50
-        ly = HEIGHT - logo.height - 50
+        ly = HEIGHT - logo.height - 50  # 50px up from bottom
         stripe = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
         canvas.alpha_composite(stripe, (lx - 720, ly + logo.height//2 - 2))
-        canvas.alpha_composite(logo,   (lx, ly))
+        canvas.alpha_composite(logo,   (lx,       ly))
 
     return canvas.convert("RGB")
 
@@ -216,20 +205,15 @@ def render_item(item: Dict[str, Any], account: str) -> Image.Image:
 def list_accounts() -> Set[str]:
     seen: Set[str] = set()
     paginator = table.meta.client.get_paginator("scan")
-    for page in paginator.paginate(
-        TableName=NEWS_TABLE,
-        ProjectionExpression="accountName"
-    ):
+    for page in paginator.paginate(TableName=NEWS_TABLE,
+                                   ProjectionExpression="accountName"):
         for i in page.get("Items", []):
             seen.add(i["accountName"])
     return seen
 
 def latest_items_for_account(account: str, limit: int = 4) -> List[Dict[str, Any]]:
-    return table.query(
-        KeyConditionExpression=Key("accountName").eq(account),
-        ScanIndexForward=False,
-        Limit=limit
-    )["Items"]
+    return table.query(KeyConditionExpression=Key("accountName").eq(account),
+                       ScanIndexForward=False, Limit=limit)["Items"]
 
 # ── Lambda entry-point ───────────────────────────────────────────────────────
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
@@ -247,29 +231,22 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         for idx, item in enumerate(items):
             img = render_item(item, account)
             key = f"weekly_recap/{account}/recap_{timestamp}_{idx:03d}.png"
-            buf = io.BytesIO()
-            img.save(buf, format="PNG", compress_level=3)
-            buf.seek(0)
+            buf = io.BytesIO(); img.save(buf, format="PNG", compress_level=3); buf.seek(0)
             s3.upload_fileobj(buf, TARGET_BUCKET, key,
                               ExtraArgs={"ContentType": "image/png"})
             image_keys.append(key)
             logger.info("Uploaded %s", key)
 
-        lambda_cl.invoke(
-            FunctionName=NOTIFY_POST_ARN,
-            InvocationType="Event",
-            Payload=json.dumps({
-                "accountName": account,
-                "imageKeys": image_keys
-            }).encode()
-        )
+        lambda_cl.invoke(FunctionName=NOTIFY_POST_ARN,
+                         InvocationType="Event",
+                         Payload=json.dumps({"accountName": account,
+                                             "imageKeys": image_keys}).encode())
         summary[account] = len(image_keys)
         logger.info("Notify → %s (%d thumbnails)", account, len(image_keys))
 
     return {"status": "complete", "accounts": summary}
 
-
 if __name__ == "__main__":
-    import json, os
+    import json
     event = json.loads(os.environ.get("EVENT_JSON", "{}") or "{}")
     lambda_handler(event, None)
