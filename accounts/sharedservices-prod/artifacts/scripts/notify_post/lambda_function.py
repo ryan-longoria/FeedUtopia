@@ -24,9 +24,10 @@ def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
 
 def build_message_card(urls: List[str], account: str) -> Dict[str, Any]:
     """
-    Legacy **MessageCard** payload – this is the format Teams’ incoming‑webhook
-    connector renders most reliably (thumbnail grid + pink stripe).
-    Clicking a thumbnail opens the image in Teams’ viewer.
+    MessageCard payload with
+      • pink theme bar
+      • thumbnail grid
+      • one download‑button per image
     """
     return {
         "@type":    "MessageCard",
@@ -34,17 +35,21 @@ def build_message_card(urls: List[str], account: str) -> Dict[str, Any]:
         "summary":  f"Weekly NEWS recap for {account}",
         "themeColor": "EC008C",
         "title":    "Your weekly news post is ready!",
+        "text":     f"**{account}**",
         "sections": [
             {
-                "activityTitle": f"**{account}**",
                 "images": [
-                    {
-                        "image": u,
-                        "title": f"Recap {i+1}"
-                    }
-                    for i, u in enumerate(urls)
+                    {"image": u, "title": f"Recap {i+1}"} for i, u in enumerate(urls)
                 ]
             }
+        ],
+        "potentialAction": [
+            {
+                "@type":  "OpenUri",
+                "name":   f"Download Recap {i+1}",
+                "targets": [{"os": "default", "uri": u}],
+            }
+            for i, u in enumerate(urls)
         ],
     }
 
@@ -89,7 +94,9 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
             data=json.dumps(card),
             timeout=20,
         )
-        logger.info("Teams webhook → %s %s", resp.status_code, resp.text.strip()[:200])
+        logger.info(
+            "Teams webhook → %s %s", resp.status_code, resp.text.strip()[:200]
+        )
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.exception("Failed to post to Teams: %s", exc)
