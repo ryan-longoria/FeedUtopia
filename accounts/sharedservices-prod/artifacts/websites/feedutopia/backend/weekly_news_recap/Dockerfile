@@ -4,7 +4,7 @@ RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         ffmpeg fontconfig wget curl unzip \
-        nfs-common python3-botocore; \
+        nfs-common python3-botocore ; \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -18,10 +18,6 @@ RUN mkdir -p /usr/share/fonts/truetype/msttcorefonts && \
       https://raw.githubusercontent.com/ryan-longoria/FeedUtopia/main/accounts/animeutopia-prod/artifacts/adobe/Montserrat-Medium.ttf && \
     fc-cache -f -v
 
-WORKDIR /app
 COPY lambda_function.py .
 
-RUN adduser --disabled-password --gecos '' appuser
-USER appuser
-
-ENTRYPOINT ["python", "lambda_function.py"]
+CMD ["lambda_function.lambda_handler"]
