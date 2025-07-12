@@ -556,17 +556,16 @@ resource "aws_iam_role_policy" "step_functions_eventbridge" {
         "events:PutRule",
         "events:DescribeRule",
         "events:DeleteRule",
+        "events:EnableRule",
+        "events:DisableRule",
         "events:PutTargets",
         "events:RemoveTargets",
-        "events:TagResource",
-        "events:EnableRule",
-        "events:DisableRule"
+        "events:TagResource"
       ]
       Resource = "*"
     }]
   })
 }
-
 #############################
 # IAM Policy for SQS
 #############################
