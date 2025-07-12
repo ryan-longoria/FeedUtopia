@@ -571,3 +571,31 @@ resource "aws_lambda_function" "gpt_image_gen" {
     "arn:aws:lambda:us-east-2:825765422855:layer:Python_pillow:5"
   ]
 } 
+
+#############################
+# weekly_news_recap
+#############################
+
+resource "aws_lambda_function" "weekly_news_recap" {
+  function_name    = "${var.project_name}-weekly-news-recap"
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.12"
+  role             = aws_iam_role.lambda_role.arn
+  timeout          = 180
+  
+  filename         = "${path.module}/artifacts/websites/feedutopia/backend/weekly_news_recap/weekly_news_recap.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/weekly_news_recap/weekly_news_recap.zip")
+
+  environment {
+    variables = {
+      NEWS_TABLE    = aws_dynamodb_table.weekly_news_posts.name
+      TARGET_BUCKET = "prod-sharedservices-artifacts-bucket"
+      TEAMS_JSON    = jsonencode(var.teams_webhooks)
+    }
+  }
+
+  layers = [
+    "arn:aws:lambda:us-east-2:825765422855:layer:Python_Requests:1",
+    "arn:aws:lambda:${var.aws_region}:825765422855:layer:Python_pillow:5"
+  ]
+}
