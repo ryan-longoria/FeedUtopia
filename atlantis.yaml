@@ -6,20 +6,14 @@ workflows:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - init:
-            extra_args:
-              - "--backend-config=backends/prod-ue2-${PROJECT_NAME}.backend.tfvars"
-              - "--reconfigure"
+            extra_args: []
         - plan:
-            extra_args:
-              - "-var-file=tfvars/prod-ue2-${PROJECT_NAME}.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+            extra_args: []
     apply:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - apply:
-            extra_args:
-              - "-var-file=tfvars/prod-ue2-${PROJECT_NAME}.tfvars"
-              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+            extra_args: []
 
 projects:
   - name: animeutopia-prod
@@ -32,8 +26,17 @@ projects:
         - "tfvars/**"
         - "backends/**"
         - "atlantis.yaml"
-    env_vars:
-      PROJECT_NAME: animeutopia
+    workflow_config:
+      plan:
+        extra_args:
+          - "--backend-config=backends/prod-ue2-animeutopia.backend.tfvars"
+          - "--reconfigure"
+          - "-var-file=tfvars/prod-ue2-animeutopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+      apply:
+        extra_args:
+          - "-var-file=tfvars/prod-ue2-animeutopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
   - name: xputopia-prod
     dir: accounts/xputopia-prod
@@ -45,8 +48,17 @@ projects:
         - "tfvars/**"
         - "backends/**"
         - "atlantis.yaml"
-    env_vars:
-      PROJECT_NAME: xputopia
+    workflow_config:
+      plan:
+        extra_args:
+          - "--backend-config=backends/prod-ue2-xputopia.backend.tfvars"
+          - "--reconfigure"
+          - "-var-file=tfvars/prod-ue2-xputopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+      apply:
+        extra_args:
+          - "-var-file=tfvars/prod-ue2-xputopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
   - name: wrestleutopia-prod
     dir: accounts/wrestleutopia-prod
@@ -58,8 +70,17 @@ projects:
         - "tfvars/**"
         - "backends/**"
         - "atlantis.yaml"
-    env_vars:
-      PROJECT_NAME: wrestleutopia
+    workflow_config:
+      plan:
+        extra_args:
+          - "--backend-config=backends/prod-ue2-wrestleutopia.backend.tfvars"
+          - "--reconfigure"
+          - "-var-file=tfvars/prod-ue2-wrestleutopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+      apply:
+        extra_args:
+          - "-var-file=tfvars/prod-ue2-wrestleutopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
   - name: driftutopia-prod
     dir: accounts/driftutopia-prod
@@ -71,8 +92,17 @@ projects:
         - "tfvars/**"
         - "backends/**"
         - "atlantis.yaml"
-    env_vars:
-      PROJECT_NAME: driftutopia
+    workflow_config:
+      plan:
+        extra_args:
+          - "--backend-config=backends/prod-ue2-driftutopia.backend.tfvars"
+          - "--reconfigure"
+          - "-var-file=tfvars/prod-ue2-driftutopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+      apply:
+        extra_args:
+          - "-var-file=tfvars/prod-ue2-driftutopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
   - name: critterutopia-prod
     dir: accounts/critterutopia-prod
@@ -84,8 +114,17 @@ projects:
         - "tfvars/**"
         - "backends/**"
         - "atlantis.yaml"
-    env_vars:
-      PROJECT_NAME: critterutopia
+    workflow_config:
+      plan:
+        extra_args:
+          - "--backend-config=backends/prod-ue2-critterutopia.backend.tfvars"
+          - "--reconfigure"
+          - "-var-file=tfvars/prod-ue2-critterutopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+      apply:
+        extra_args:
+          - "-var-file=tfvars/prod-ue2-critterutopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
   - name: cyberutopia-prod
     dir: accounts/cyberutopia-prod
@@ -97,8 +136,17 @@ projects:
         - "tfvars/**"
         - "backends/**"
         - "atlantis.yaml"
-    env_vars:
-      PROJECT_NAME: cyberutopia
+    workflow_config:
+      plan:
+        extra_args:
+          - "--backend-config=backends/prod-ue2-cyberutopia.backend.tfvars"
+          - "--reconfigure"
+          - "-var-file=tfvars/prod-ue2-cyberutopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+      apply:
+        extra_args:
+          - "-var-file=tfvars/prod-ue2-cyberutopia.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
   - name: sharedservices-prod
     dir: accounts/sharedservices-prod
@@ -110,5 +158,14 @@ projects:
         - "tfvars/**"
         - "backends/**"
         - "atlantis.yaml"
-    env_vars:
-      PROJECT_NAME: sharedservices
+    workflow_config:
+      plan:
+        extra_args:
+          - "--backend-config=backends/prod-ue2-sharedservices.backend.tfvars"
+          - "--reconfigure"
+          - "-var-file=tfvars/prod-ue2-sharedservices.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+      apply:
+        extra_args:
+          - "-var-file=tfvars/prod-ue2-sharedservices.tfvars"
+          - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
