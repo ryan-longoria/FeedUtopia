@@ -1,5 +1,5 @@
 boto3
 requests
-Pillow>=10.0
-moviepy>=1.0.3
+Pillow
+moviepy
 imageio[pyav]
