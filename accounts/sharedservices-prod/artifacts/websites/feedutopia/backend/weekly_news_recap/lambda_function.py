@@ -33,12 +33,15 @@ table     = dynamodb.Table(NEWS_TABLE)
 s3        = boto3.client("s3")
 lambda_cl = boto3.client("lambda")
 
+
 def measure(word: str, font: ImageFont.FreeTypeFont) -> int:
     return font.getbbox(word)[2]
 
+
 def autosize(text: str, max_size: int, min_size: int, ideal: int) -> int:
-    size = max_size if len(text) <= ideal else max_size - (len(text) - ideal)*(max_size-min_size)/ideal
+    size = max_size if len(text) <= ideal else max_size - (len(text) - ideal) * (max_size - min_size) / ideal
     return max(int(size), min_size)
+
 
 def multiline_colored(text: str, highlights: Set[str],
                       font_path: str, font_size: int,
@@ -78,7 +81,7 @@ def multiline_colored(text: str, highlights: Set[str],
             line_img.paste(img, (xo, 0), img)
         rendered.append(line_img)
 
-    total_h = sum(img.height for img in rendered) + 10 * (len(rendered)-1)
+    total_h = sum(img.height for img in rendered) + 10 * (len(rendered) - 1)
     canvas = Image.new("RGBA", (max_width, total_h), (0,0,0,0))
     y = 0
     for img in rendered:
@@ -87,7 +90,8 @@ def multiline_colored(text: str, highlights: Set[str],
 
     return canvas
 
-def download_to_tmp(key: str) -> str|None:
+
+def download_to_tmp(key: str) -> str | None:
     local = os.path.join(tempfile.gettempdir(), os.path.basename(key))
     try:
         s3.download_file(TARGET_BUCKET, key, local)
@@ -96,20 +100,23 @@ def download_to_tmp(key: str) -> str|None:
         logger.warning("download_to_tmp failed for %s: %s", key, exc)
         return None
 
-def fetch_gradient() -> Image.Image|None:
+
+def fetch_gradient() -> Image.Image | None:
     p = download_to_tmp(GRADIENT_KEY)
     if not p: return None
     return Image.open(p).convert("RGBA").resize((WIDTH, HEIGHT))
 
-def fetch_logo(account: str) -> Image.Image|None:
+
+def fetch_logo(account: str) -> Image.Image | None:
     key = f"artifacts/{account.lower()}/logo.png"
     p = download_to_tmp(key)
     if not p: return None
     logo = Image.open(p).convert("RGBA")
-    scale = 200/logo.width
-    return logo.resize((int(logo.width*scale), int(logo.height*scale)))
+    scale = 200 / logo.width
+    return logo.resize((int(logo.width * scale), int(logo.height * scale)))
 
-def fetch_background(bg_type: str, key: str) -> Image.Image|None:
+
+def fetch_background(bg_type: str, key: str) -> Image.Image | None:
     if not key:
         return None
 
@@ -132,20 +139,17 @@ def fetch_background(bg_type: str, key: str) -> Image.Image|None:
     img = img.resize((WIDTH, new_h), Image.LANCZOS)
 
     if bg_type == "video":
-        canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
-
         if new_h > HEIGHT:
             center_y = (new_h - HEIGHT) // 2
-            y0 = center_y - 100
+            y0 = center_y - 125
             y0 = max(0, min(y0, new_h - HEIGHT))
-            region = img.crop((0, y0, WIDTH, y0 + HEIGHT))
-            canvas.paste(region, (0, 0))
+            return img.crop((0, y0, WIDTH, y0 + HEIGHT))
         else:
+            canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
             y0 = (HEIGHT - new_h) // 2 - 150
             y0 = max(0, min(y0, HEIGHT - new_h))
             canvas.paste(img, (0, y0))
-
-        return canvas
+            return canvas
 
     if new_h >= HEIGHT:
         return img.crop((0, 0, WIDTH, HEIGHT))
@@ -156,11 +160,6 @@ def fetch_background(bg_type: str, key: str) -> Image.Image|None:
 
 
 def render_item(item: Dict[str, Any], account: str) -> Image.Image:
-    """
-    Render a single post image/video thumbnail with title, subtitle, gradient, logo, etc.
-    For video backgrounds, the title is pinned to y=0 and the subtitle is 50px lower
-    than its normal position above the logo.
-    """
     canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
 
     bg_type = item.get("backgroundType", "image").lower()
@@ -190,18 +189,19 @@ def render_item(item: Dict[str, Any], account: str) -> Image.Image:
     else:
         ly = HEIGHT - 100
 
-    if bg_type == "video":
-        y_title = 25
-        if sub_img:
-            y_sub = ly - sub_img.height
-        else:
-            y_sub = None
-    else:
+    if bg_type != "video":
         if sub_img:
             y_sub   = ly - 50 - sub_img.height
             y_title = y_sub - 50 - t_img.height
         else:
             y_title = HEIGHT - 300 - t_img.height
+
+    else:
+        y_title = 25
+        if sub_img:
+            y_sub = ly - sub_img.height
+        else:
+            y_sub = None
 
     canvas.alpha_composite(
         t_img,
@@ -214,48 +214,91 @@ def render_item(item: Dict[str, Any], account: str) -> Image.Image:
         )
 
     if logo:
-        stripe = Image.new(
-            "RGBA",
-            (700, 4),
-            ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,),
-        )
-        canvas.alpha_composite(
-            stripe,
-            (lx - 720, ly + logo.height // 2 - 2)
-        )
+        stripe = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
+        canvas.alpha_composite(stripe, (lx - 720, ly + logo.height // 2 - 2))
         canvas.alpha_composite(logo, (lx, ly))
 
     return canvas.convert("RGB")
 
 
 def list_accounts() -> Set[str]:
-    seen=set()
-    for page in table.meta.client.get_paginator("scan").paginate(TableName=NEWS_TABLE,ProjectionExpression="accountName"):
-        for i in page.get("Items",[]): seen.add(i["accountName"])
+    seen = set()
+    for page in table.meta.client.get_paginator("scan").paginate(
+        TableName=NEWS_TABLE,
+        ProjectionExpression="accountName"
+    ):
+        for i in page.get("Items", []):
+            seen.add(i["accountName"])
     return seen
 
-def latest_items_for_account(account:str,limit:int=4)->List[Dict[str,Any]]:
-    return table.query(KeyConditionExpression=Key("accountName").eq(account),ScanIndexForward=False,Limit=limit)["Items"]
 
-def lambda_handler(event:Dict[str,Any],_ctx:Any)->Dict[str,Any]:
-    logger.info("start")
-    summary={}
+def latest_items_for_account(account: str, limit: int = 4) -> List[Dict[str, Any]]:
+    return table.query(
+        KeyConditionExpression=Key("accountName").eq(account),
+        ScanIndexForward=False,
+        Limit=limit
+    )["Items"]
+
+
+def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
+    logger.info("start weekly recap")
+    summary: Dict[str, int] = {}
+
     for account in list_accounts():
-        items=latest_items_for_account(account)
-        if not items: continue
-        keys=[]
-        ts=datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        for idx,item in enumerate(items):
-            img=render_item(item,account)
-            key=f"weekly_recap/{account}/recap_{ts}_{idx:03d}.png"
-            buf=io.BytesIO(); img.save(buf,"PNG",compress_level=3); buf.seek(0)
-            s3.upload_fileobj(buf,TARGET_BUCKET,key,ExtraArgs={"ContentType":"image/png"})
-            keys.append(key)
-        lambda_cl.invoke(FunctionName=NOTIFY_POST_ARN,InvocationType="Event",Payload=json.dumps({"accountName":account,"imageKeys":keys}).encode())
-        summary[account]=len(keys)
-    logger.info(f"complete: {summary}")
-    return {"status":"complete","accounts":summary}
+        items = latest_items_for_account(account)
+        if not items:
+            continue
 
-if __name__=="__main__":
-    ev=json.loads(os.environ.get("EVENT_JSON","{}") or "{}")
-    lambda_handler(ev,None)
+        ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        image_keys: List[str] = []
+        video_key: str | None = None
+
+        for idx, item in enumerate(items):
+            if item.get("backgroundType", "").lower() == "video" and VideoFileClip:
+                src = item["s3Key"]
+                dst = f"weekly_recap/{account}/video_{ts}_{idx:03d}.mp4"
+                copy_source = {"Bucket": TARGET_BUCKET, "Key": src}
+                s3.copy_object(
+                    Bucket=TARGET_BUCKET,
+                    CopySource=copy_source,
+                    Key=dst,
+                    ContentType="video/mp4",
+                    MetadataDirective="REPLACE"
+                )
+                video_key = dst
+
+            else:
+                img = render_item(item, account)
+                dst = f"weekly_recap/{account}/recap_{ts}_{idx:03d}.png"
+                buf = io.BytesIO()
+                img.save(buf, "PNG", compress_level=3)
+                buf.seek(0)
+                s3.upload_fileobj(
+                    buf,
+                    TARGET_BUCKET,
+                    dst,
+                    ExtraArgs={"ContentType": "image/png"}
+                )
+                image_keys.append(dst)
+
+        payload: Dict[str, Any] = {"accountName": account}
+        if image_keys:
+            payload["imageKeys"] = image_keys
+        if video_key:
+            payload["video_key"] = video_key
+
+        lambda_cl.invoke(
+            FunctionName=NOTIFY_POST_ARN,
+            InvocationType="Event",
+            Payload=json.dumps(payload).encode()
+        )
+
+        summary[account] = len(image_keys) + (1 if video_key else 0)
+
+    logger.info(f"complete: {summary}")
+    return {"status": "complete", "accounts": summary}
+
+
+if __name__ == "__main__":
+    ev = json.loads(os.environ.get("EVENT_JSON", "{}") or "{}")
+    lambda_handler(ev, None)
