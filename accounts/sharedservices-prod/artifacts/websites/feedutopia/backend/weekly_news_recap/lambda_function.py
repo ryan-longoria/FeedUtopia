@@ -78,10 +78,14 @@ def multiline_colored(
         x = 0
         pieces = []
         for w in line:
-            clean = w.strip(",.!?;:").upper()
-            color = HIGHLIGHT_COLOR if clean in highlight_words else DEFAULT_COLOR
-            fnt = ImageFont.truetype(font_path, font_size)
-            w_w, w_h = fnt.getbbox(w)[2:], fnt.getbbox(w)[3]
+            clean  = w.strip(",.!?;:").upper()
+            color  = HIGHLIGHT_COLOR if clean in highlight_words else DEFAULT_COLOR
+            fnt    = ImageFont.truetype(font_path, font_size)
+
+            bbox   = fnt.getbbox(w)
+            w_w    = bbox[2] - bbox[0]
+            w_h    = bbox[3] - bbox[1]
+
             img = Image.new("RGBA", (w_w, w_h), (255, 0, 0, 0))
             d = ImageDraw.Draw(img)
             d.text((0,0), w, font=fnt, fill=color)
