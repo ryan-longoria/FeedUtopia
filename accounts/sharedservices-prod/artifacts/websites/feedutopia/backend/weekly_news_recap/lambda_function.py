@@ -45,40 +45,35 @@ def multiline_colored(text: str, highlights: Set[str],
                       max_width: int, space: int = 15) -> Image.Image:
     font = ImageFont.truetype(font_path, font_size)
     words = text.split()
-    lines: List[List[str]] = []
-    cur: List[str] = []
-    cur_w = 0
+    lines, cur_line, cur_w = [], [], 0
 
     for w in words:
-        mask = font.getmask(w)
-        w_w, w_h = mask.size
-        add = w_w if not cur else w_w + space
-        if cur_w + add <= max_width:
-            cur.append(w)
-            cur_w += add
+        bbox = font.getbbox(w)
+        w_w, w_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        advance = w_w if not cur_line else w_w + space
+        if cur_w + advance <= max_width:
+            cur_line.append((w, bbox))
+            cur_w += advance
         else:
-            lines.append(cur)
-            cur = [w]
-            cur_w = w_w
-    if cur:
-        lines.append(cur)
+            lines.append(cur_line)
+            cur_line, cur_w = [(w, bbox)], w_w
+    if cur_line:
+        lines.append(cur_line)
 
-    rendered: List[Image.Image] = []
-    for ln in lines:
-        x = 0
-        max_h = 0
-        pieces: List[tuple[Image.Image,int]] = []
-        for w in ln:
-            clean = w.strip(",.!?;:").upper()
-            color = HIGHLIGHT_COLOR if clean in highlights else BASE_COLOR
-            mask = font.getmask(w)
-            w_w, w_h = mask.size
+    rendered = []
+    for line in lines:
+        x_offset, line_h = 0, 0
+        pieces = []
+        for w, bbox in line:
+            x0, y0, x1, y1 = bbox
+            w_w, w_h = x1 - x0, y1 - y0
+            color = HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else BASE_COLOR
             img = Image.new("RGBA", (w_w, w_h), (0,0,0,0))
-            ImageDraw.Draw(img).text((0,0), w, font=font, fill=color)
-            pieces.append((img, x))
-            x += w_w + space
-            max_h = max(max_h, w_h)
-        line_img = Image.new("RGBA", (x - space, max_h), (0,0,0,0))
+            ImageDraw.Draw(img).text((-x0, -y0), w, font=font, fill=color)
+            pieces.append((img, x_offset))
+            x_offset += w_w + space
+            line_h = max(line_h, w_h)
+        line_img = Image.new("RGBA", (x_offset - space, line_h), (0,0,0,0))
         for img, xo in pieces:
             line_img.paste(img, (xo, 0), img)
         rendered.append(line_img)
@@ -89,6 +84,7 @@ def multiline_colored(text: str, highlights: Set[str],
     for img in rendered:
         canvas.paste(img, ((max_width - img.width)//2, y), img)
         y += img.height + 10
+
     return canvas
 
 def download_to_tmp(key: str) -> str|None:
