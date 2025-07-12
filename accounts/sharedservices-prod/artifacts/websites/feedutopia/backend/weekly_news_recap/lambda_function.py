@@ -1,28 +1,32 @@
-import datetime
-import io
-import json
-import logging
-import os
+import datetime, io, json, logging, os, tempfile
 from typing import Any, Dict, List, Set
 
 import boto3
 from boto3.dynamodb.conditions import Key
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 
+# ─── Optional: MoviePy only needed for video backgrounds ─────────────────────
+try:
+    from moviepy.video.io.VideoFileClip import VideoFileClip
+except ImportError:
+    VideoFileClip = None  # Lambda layer without MoviePy → will skip videos
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-WIDTH, HEIGHT          = 1080, 1350
-BACKGROUND_COLOR       = (0, 0, 0)
-GRADIENT_KEY           = "artifacts/Black Gradient.png"
-ROOT                   = os.path.dirname(__file__)
-FONT_PATH_TITLE        = os.path.join(ROOT, "ariblk.ttf")
-FONT_PATH_DESC         = os.path.join(ROOT, "Montserrat-Medium.ttf")
-TITLE_MAX, TITLE_MIN   = 90, 60
-DESC_MAX,  DESC_MIN    = 60, 30
-HIGHLIGHT_COLOR        = "#ec008c"
-BASE_COLOR             = "white"
+# ── Visual constants ─────────────────────────────────────────────────────────
+WIDTH, HEIGHT = 1080, 1350                      # final canvas size
+TITLE_MAX, TITLE_MIN = 90, 60
+DESC_MAX,  DESC_MIN  = 60, 30
+HIGHLIGHT_COLOR = "#ec008c"
+BASE_COLOR      = "white"
 
+GRADIENT_KEY = "artifacts/Black Gradient.png"   # shared
+ROOT = os.path.dirname(__file__)
+FONT_PATH_TITLE = os.path.join(ROOT, "ariblk.ttf")
+FONT_PATH_DESC  = os.path.join(ROOT, "Montserrat-Medium.ttf")
+
+# ── Environment / AWS clients ────────────────────────────────────────────────
 TARGET_BUCKET   = os.environ["TARGET_BUCKET"]
 NEWS_TABLE      = os.environ["NEWS_TABLE"]
 NOTIFY_POST_ARN = os.environ["NOTIFY_POST_FUNCTION_ARN"]
@@ -32,213 +36,199 @@ table     = dynamodb.Table(NEWS_TABLE)
 s3        = boto3.client("s3")
 lambda_cl = boto3.client("lambda")
 
-def _measure(word: str, font_path: str, size: int) -> int:
-    return ImageFont.truetype(font_path, size).getbbox(word)[2]
+# ── Utility helpers ──────────────────────────────────────────────────────────
+def measure(word: str, font: ImageFont.FreeTypeFont) -> int:
+    return font.getbbox(word)[2]
 
-def _autosize(text: str, hi: int, lo: int, ideal: int) -> int:
+def autosize(text: str, max_size: int, min_size: int, ideal: int) -> int:
     if len(text) <= ideal:
-        return hi
-    size = hi - (len(text) - ideal) * (hi - lo) / ideal
-    return max(int(size), lo)
+        return max_size
+    size = max_size - (len(text) - ideal) * (max_size - min_size) / ideal
+    return max(int(size), min_size)
 
-def multiline_colored(text: str,
-                      highlights: Set[str],
-                      font_path: str,
-                      font_size: int,
-                      max_width: int,
-                      space: int = 15,
-                      line_gap: int = 10) -> Image.Image:
-    """Word‑wrap & colour selected words, return RGBA image."""
-    words, lines, cur, line_w = text.split(), [], [], 0
+def multiline_colored(text: str, highlights: Set[str],
+                      font_path: str, font_size: int,
+                      max_width: int, space: int = 15) -> Image.Image:
+    """Return a RGBA image of wrapped text with highlighted words."""
+    font = ImageFont.truetype(font_path, font_size)
+    words, lines, cur, cur_w = text.split(), [], [], 0
     for w in words:
-        w_w = _measure(w, font_path, font_size)
-        if line_w + (w_w if not cur else w_w + space) <= max_width:
-            cur.append(w); line_w += (w_w if not cur else w_w + space)
+        w_w = measure(w, font)
+        add = w_w if not cur else w_w + space
+        if cur_w + add <= max_width:
+            cur.append(w); cur_w += add
         else:
-            lines.append(cur); cur, line_w = [w], w_w
+            lines.append(cur); cur, cur_w = [w], w_w
     if cur: lines.append(cur)
 
     rendered: List[Image.Image] = []
-    for line in lines:
-        x_offset, parts = 0, []
-        for w in line:
+    for ln in lines:
+        x, pieces = 0, []
+        for w in ln:
             color = HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else BASE_COLOR
-            font  = ImageFont.truetype(font_path, font_size)
-            w_w   = font.getbbox(w)[2]
-            w_h   = font.getbbox(w)[3]
-            img   = Image.new("RGBA", (w_w, w_h), (0, 0, 0, 0))
+            img = Image.new("RGBA", font.getbbox(w)[2:], (0, 0, 0, 0))
             ImageDraw.Draw(img).text((0, 0), w, font=font, fill=color)
-            parts.append((img, x_offset))
-            x_offset += w_w + space
-        line_img = Image.new("RGBA", (x_offset - space, w_h), (0, 0, 0, 0))
-        for seg, x in parts:
-            line_img.paste(seg, (x, 0), seg)
+            pieces.append((img, x)); x += img.width + space
+        line_img = Image.new("RGBA", (x - space, font.size), (0, 0, 0, 0))
+        for img, x_off in pieces:
+            line_img.paste(img, (x_off, 0), img)
         rendered.append(line_img)
 
-    total_h = sum(im.height for im in rendered) + line_gap * (len(rendered) - 1)
-    canvas  = Image.new("RGBA", (max_width, total_h), (0, 0, 0, 0))
+    total_h = sum(i.height for i in rendered) + 10 * (len(rendered) - 1)
+    canvas = Image.new("RGBA", (max_width, total_h), (0, 0, 0, 0))
     y = 0
-    for ln in rendered:
-        canvas.paste(ln, ((max_width - ln.width) // 2, y), ln)
-        y += ln.height + line_gap
+    for img in rendered:
+        canvas.paste(img, ((max_width - img.width) // 2, y), img)
+        y += img.height + 10
     return canvas
 
-def _dl(key: str, dest: str) -> bool:
+def download_to_tmp(key: str) -> str | None:
+    """Download S3 object to /tmp and return its local path (or None)."""
+    local = os.path.join(tempfile.gettempdir(), os.path.basename(key))
     try:
-        s3.download_file(TARGET_BUCKET, key, dest)
-        return True
+        s3.download_file(TARGET_BUCKET, key, local)
+        return local
     except Exception as exc:
         logger.warning("Download %s failed: %s", key, exc)
-        return False
+        return None
 
+# ── Background / Logo helpers ────────────────────────────────────────────────
 def fetch_gradient() -> Image.Image | None:
-    tmp = "/tmp/gradient.png"
-    return (Image.open(tmp).convert("RGBA").resize((WIDTH, HEIGHT))
-            if _dl(GRADIENT_KEY, tmp) else None)
+    p = download_to_tmp(GRADIENT_KEY)
+    return Image.open(p).convert("RGBA").resize((WIDTH, HEIGHT)) if p else None
 
 def fetch_logo(account: str) -> Image.Image | None:
-    tmp = "/tmp/logo.png"
-    logo_key = f"artifacts/{account}/logo.png"
-    if not _dl(logo_key, tmp):
+    key = f"artifacts/{account.lower()}/logo.png"
+    p = download_to_tmp(key)
+    if not p:
         return None
-    logo = Image.open(tmp).convert("RGBA")
+    logo = Image.open(p).convert("RGBA")
     scale = 200 / logo.width
     return logo.resize((int(logo.width * scale), int(logo.height * scale)))
 
-def fetch_background(bucket: str, bg_type: str, key: str) -> Image.Image | None:
-    if not key or bg_type == "video":
+def fetch_background(bg_type: str, key: str) -> Image.Image | None:
+    """Return a 1080-wide image, center-cropped (no stretch)."""
+    if not key:
         return None
 
-    tmp = "/tmp/bg.jpg"
-    try:
-        s3.download_file(bucket, key, tmp)
-    except Exception as exc:
-        logger.warning("Download %s/%s failed: %s", bucket, key, exc)
+    local = download_to_tmp(key)
+    if not local:
         return None
 
-    img = Image.open(tmp).convert("RGBA")
+    # ── VIDEO ────────────────────────────────────────────────────────────────
+    if bg_type.lower() == "video":
+        if VideoFileClip is None:
+            logger.warning("MoviePy not available – skipping video background")
+            return None
+        try:
+            with VideoFileClip(local) as clip:
+                frame_time = clip.duration / 2
+                frame = clip.get_frame(frame_time)  # numpy array
+        except Exception as exc:
+            logger.warning("Failed video frame extract: %s", exc)
+            return None
+        img = Image.fromarray(frame).convert("RGBA")
 
-    if img.width == 1080 and img.height >= HEIGHT:
-        top = 0
-        left = 0
-        right = 1080
-        bottom = HEIGHT
-        return img.crop((left, top, right, bottom))
+    # ── IMAGE ────────────────────────────────────────────────────────────────
+    else:
+        img = Image.open(local).convert("RGBA")
 
-    img = img.resize((1080, int(img.height * (1080 / img.width))))
-    return img.crop((0, 0, 1080, HEIGHT))
+    # Fit width to 1080, maintain aspect
+    scale = WIDTH / img.width
+    new_h = int(img.height * scale)
+    img = img.resize((WIDTH, new_h), Image.LANCZOS)
 
+    # Center-crop/tighten to HEIGHT
+    if new_h > HEIGHT:
+        y0 = (new_h - HEIGHT) // 2
+        img = img.crop((0, y0, WIDTH, y0 + HEIGHT))
+    return img
+
+# ── Core rendering ───────────────────────────────────────────────────────────
 def render_item(item: Dict[str, Any], account: str) -> Image.Image:
-    canvas = Image.new("RGBA", (WIDTH, HEIGHT), BACKGROUND_COLOR)
+    canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
 
-    bg = fetch_background(TARGET_BUCKET,
-                          item.get("backgroundType", "image"),
+    # background
+    bg = fetch_background(item.get("backgroundType", "image"),
                           item.get("s3Key", ""))
     if bg:
         canvas.paste(bg, (0, 0))
 
+    # gradient overlay
     if (grad := fetch_gradient()):
         canvas.alpha_composite(grad)
 
-    title     = item["title"].upper()
+    # title / subtitle
+    title     = (item["title"] or "").upper()
     subtitle  = (item.get("subtitle") or "").upper()
+    hl_title  = {w.strip().upper()
+                 for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
+    hl_sub    = {w.strip().upper()
+                 for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
 
-    hl_title  = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
-    hl_sub    = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
+    t_font = autosize(title,  TITLE_MAX, TITLE_MIN, 30)
+    s_font = autosize(subtitle, DESC_MAX,  DESC_MIN, 45)
 
-    title_img = multiline_colored(
-        title, hl_title,
-        FONT_PATH_TITLE,
-        _autosize(title, TITLE_MAX, TITLE_MIN, 30),
-        1000
-    )
+    t_img = multiline_colored(title,    hl_title, FONT_PATH_TITLE, t_font, 1000)
+    y_title = 260  # slightly above original 275 to balance new crop
+    canvas.alpha_composite(t_img, ((WIDTH - t_img.width)//2, y_title))
 
-    sub_img = None
     if subtitle:
-        sub_img = multiline_colored(
-            subtitle, hl_sub,
-            FONT_PATH_DESC,
-            _autosize(subtitle, DESC_MAX, DESC_MIN, 45),
-            900
-        )
+        sub_img = multiline_colored(subtitle, hl_sub, FONT_PATH_DESC, s_font, 900)
+        y_sub = HEIGHT - 335 - sub_img.height  # maintain gap
+        canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width)//2, y_sub))
 
-    BOTTOM_MARGIN = 250
-    GAP           = 30
-
-    if sub_img:
-        sub_y   = HEIGHT - BOTTOM_MARGIN - sub_img.height
-        title_y = sub_y - GAP - title_img.height
-        canvas.alpha_composite(title_img, ((WIDTH - title_img.width)//2, title_y))
-        canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width)//2, sub_y))
-    else:
-        title_y = HEIGHT - BOTTOM_MARGIN - title_img.height
-        canvas.alpha_composite(title_img, ((WIDTH - title_img.width)//2, title_y))
-
+    # logo + stripe (50 px lower)
     if (logo := fetch_logo(account)):
         lx = WIDTH - logo.width - 50
-        ly = HEIGHT - logo.height - 50
-        line = Image.new("RGBA", (700, 4),
-                         ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
-        canvas.alpha_composite(line, (lx - 720, ly + logo.height//2 - 2))
-        canvas.alpha_composite(logo, (lx, ly))
+        ly = HEIGHT - logo.height - 50  # ↓ 50px
+        stripe = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
+        canvas.alpha_composite(stripe, (lx - 720, ly + logo.height//2 - 2))
+        canvas.alpha_composite(logo,   (lx,       ly))
 
     return canvas.convert("RGB")
 
+# ── DynamoDB utilities ───────────────────────────────────────────────────────
 def list_accounts() -> Set[str]:
-    paginator = table.meta.client.get_paginator("scan")
     seen: Set[str] = set()
-    for page in paginator.paginate(
-        TableName=NEWS_TABLE,
-        ProjectionExpression="accountName"
-    ):
-        for itm in page.get("Items", []):
-            seen.add(itm["accountName"])
+    paginator = table.meta.client.get_paginator("scan")
+    for page in paginator.paginate(TableName=NEWS_TABLE,
+                                   ProjectionExpression="accountName"):
+        for i in page.get("Items", []):
+            seen.add(i["accountName"])
     return seen
 
 def latest_items_for_account(account: str, limit: int = 4) -> List[Dict[str, Any]]:
-    return table.query(
-        KeyConditionExpression=Key("accountName").eq(account),
-        ScanIndexForward=False,
-        Limit=limit
-    )["Items"]
+    return table.query(KeyConditionExpression=Key("accountName").eq(account),
+                       ScanIndexForward=False, Limit=limit)["Items"]
 
+# ── Lambda entry-point ───────────────────────────────────────────────────────
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
     logger.info("weekly_news_recap start")
 
-    accounts = list_accounts()
-    logger.info("Found %d account(s) with NEWS posts", len(accounts))
-
     summary: Dict[str, int] = {}
-
-    for account in accounts:
+    for account in list_accounts():
         items = latest_items_for_account(account)
         if not items:
             continue
 
         image_keys: List[str] = []
-        ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
 
-        for i, item in enumerate(items):
+        for idx, item in enumerate(items):
             img = render_item(item, account)
-            key = f"weekly_recap/{account}/recap_{ts}_{i:03d}.png"
-            buf = io.BytesIO()
-            img.save(buf, format="PNG", compress_level=3)
-            buf.seek(0)
+            key = f"weekly_recap/{account}/recap_{timestamp}_{idx:03d}.png"
+            buf = io.BytesIO(); img.save(buf, format="PNG", compress_level=3); buf.seek(0)
             s3.upload_fileobj(buf, TARGET_BUCKET, key,
                               ExtraArgs={"ContentType": "image/png"})
             image_keys.append(key)
             logger.info("Uploaded %s", key)
 
-        lambda_cl.invoke(
-            FunctionName   = NOTIFY_POST_ARN,
-            InvocationType = "Event",
-            Payload        = json.dumps({
-                                "accountName": account,
-                                "imageKeys"  : image_keys
-                             }).encode(),
-        )
+        lambda_cl.invoke(FunctionName=NOTIFY_POST_ARN,
+                         InvocationType="Event",
+                         Payload=json.dumps({"accountName": account,
+                                             "imageKeys": image_keys}).encode())
         summary[account] = len(image_keys)
-        logger.info("Invoked notify_post for %s with %d thumbnail(s)",
-                    account, len(image_keys))
+        logger.info("Notify → %s (%d thumbnails)", account, len(image_keys))
 
     return {"status": "complete", "accounts": summary}
