@@ -63,6 +63,7 @@ def lambda_handler(event, _ctx):
 
     r = requests.post(FEED_API, json=payload, headers=HEADERS, timeout=10)
     r.raise_for_status()
+    cache_if_news(payload, media_key=data["key"])
     return _ok({"status":"success","feedutopiaResponse":r.json()})
 
 def _ok(b):  return {"statusCode":200,"headers":{"Access-Control-Allow-Origin":"*"},"body":json.dumps(b)}
