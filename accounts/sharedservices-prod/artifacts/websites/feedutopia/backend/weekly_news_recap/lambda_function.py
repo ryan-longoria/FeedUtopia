@@ -109,7 +109,7 @@ def fetch_logo(account: str) -> Image.Image|None:
     scale = 200/logo.width
     return logo.resize((int(logo.width*scale), int(logo.height*scale)))
 
-def fetch_background(bg_type: str, key: str) -> Image.Image|None:
+def fetch_background(bg_type: str, key: str) -> Image.Image | None:
     if not key:
         return None
     local = download_to_tmp(key)
@@ -131,11 +131,13 @@ def fetch_background(bg_type: str, key: str) -> Image.Image|None:
     img = img.resize((WIDTH, new_h), Image.LANCZOS)
 
     if bg_type == "video":
-        canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
         center_y = (new_h - HEIGHT) // 2
-        y0 = center_y - 150
+        up_shift = min(150, center_y)
+        y0 = center_y - up_shift
         y0 = max(0, min(y0, new_h - HEIGHT))
+
         crop = img.crop((0, y0, WIDTH, y0 + HEIGHT))
+        canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
         canvas.paste(crop, (0, 0))
         return canvas
 
@@ -149,7 +151,8 @@ def fetch_background(bg_type: str, key: str) -> Image.Image|None:
 def render_item(item: Dict[str, Any], account: str) -> Image.Image:
     """
     Render a single post image/video thumbnail with title, subtitle, gradient, logo, etc.
-    For video backgrounds, the title is pinned to y=0 and subtitle to y=50.
+    For video backgrounds, the title is pinned to y=0 and the subtitle is 50px lower
+    than its normal position above the logo.
     """
     canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
 
@@ -162,53 +165,45 @@ def render_item(item: Dict[str, Any], account: str) -> Image.Image:
     if grad:
         canvas.alpha_composite(grad)
 
-    title = (item.get("title") or "").upper()
+    title    = (item.get("title") or "").upper()
     subtitle = (item.get("subtitle") or "").upper()
-
-    hl_title = {
-        w.strip().upper()
-        for w in (item.get("highlightWordsTitle") or "").split(",")
-        if w.strip()
-    }
-    hl_sub = {
-        w.strip().upper()
-        for w in (item.get("highlightWordsDescription") or "").split(",")
-        if w.strip()
-    }
+    hl_title = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
+    hl_sub   = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
 
     t_font = autosize(title, TITLE_MAX, TITLE_MIN, 30)
     s_font = autosize(subtitle, DESC_MAX, DESC_MIN, 45)
 
-    t_img = multiline_colored(title, hl_title, FONT_PATH_TITLE, t_font, 1000)
-    sub_img = (
-        multiline_colored(subtitle, hl_sub, FONT_PATH_DESC, s_font, 900)
-        if subtitle
-        else None
-    )
+    t_img   = multiline_colored(title,    hl_title, FONT_PATH_TITLE, t_font, 1000)
+    sub_img = multiline_colored(subtitle, hl_sub,   FONT_PATH_DESC,  s_font,  900) if subtitle else None
 
     logo = fetch_logo(account)
     if logo:
-        lx = WIDTH - logo.width - 50
+        lx = WIDTH - logo.width  - 50
         ly = HEIGHT - logo.height - 50
     else:
         ly = HEIGHT - 100
 
     if bg_type == "video":
         y_title = 0
-        y_sub = 50 if sub_img else None
+        if sub_img:
+            y_sub = ly - sub_img.height
+        else:
+            y_sub = None
     else:
         if sub_img:
-            y_sub = ly - 50 - sub_img.height
+            y_sub   = ly - 50 - sub_img.height
             y_title = y_sub - 50 - t_img.height
         else:
             y_title = HEIGHT - 300 - t_img.height
 
     canvas.alpha_composite(
-        t_img, ((WIDTH - t_img.width) // 2, y_title)
+        t_img,
+        ((WIDTH - t_img.width) // 2, y_title)
     )
-    if sub_img:
+    if sub_img and y_sub is not None:
         canvas.alpha_composite(
-            sub_img, ((WIDTH - sub_img.width) // 2, y_sub)
+            sub_img,
+            ((WIDTH - sub_img.width) // 2, y_sub)
         )
 
     if logo:
@@ -218,11 +213,13 @@ def render_item(item: Dict[str, Any], account: str) -> Image.Image:
             ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,),
         )
         canvas.alpha_composite(
-            stripe, (lx - 720, ly + logo.height // 2 - 2)
+            stripe,
+            (lx - 720, ly + logo.height // 2 - 2)
         )
         canvas.alpha_composite(logo, (lx, ly))
 
     return canvas.convert("RGB")
+
 
 def list_accounts() -> Set[str]:
     seen=set()
