@@ -540,10 +540,6 @@ resource "aws_iam_role_policy_attachment" "attach_sfn_logs" {
   policy_arn = aws_iam_policy.step_functions_logs_policy.arn
 }
 
-resource "aws_iam_service_linked_role" "step_functions" {
-  aws_service_name = "states.amazonaws.com"
-}
-
 resource "aws_iam_role_policy" "step_functions_eventbridge" {
   name = "StepFunctionsEventBridgeIntegration"
   role = aws_iam_role.step_functions_role.id
@@ -566,6 +562,7 @@ resource "aws_iam_role_policy" "step_functions_eventbridge" {
     }]
   })
 }
+
 #############################
 # IAM Policy for SQS
 #############################
