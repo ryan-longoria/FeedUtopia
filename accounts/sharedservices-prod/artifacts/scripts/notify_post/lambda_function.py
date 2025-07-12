@@ -13,9 +13,8 @@ TARGET_BUCKET       = os.environ["TARGET_BUCKET"]
 s3 = boto3.client("s3")
 
 
-# ── helpers ────────────────────────────────────────────────────────────────
 def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
-    """Return a presigned HTTPS URL for an S3 object."""
+    """Return a presigned GET URL for this object."""
     return s3.generate_presigned_url(
         "get_object",
         Params={"Bucket": TARGET_BUCKET, "Key": key},
@@ -23,69 +22,40 @@ def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
     )
 
 
-def build_adaptive_card(urls: List[str], account: str) -> Dict[str, Any]:
+def build_message_card(urls: List[str], account: str) -> Dict[str, Any]:
     """
-    Adaptive‑Card body (v 1.2) that Teams’ incoming‑webhook connector
-    actually renders: pink heading + square thumbnails that are clickable.
+    Legacy **MessageCard** payload – this is the format Teams’ incoming‑webhook
+    connector renders most reliably (thumbnail grid + pink stripe).
+    Clicking a thumbnail opens the image in Teams’ viewer.
     """
     return {
-        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-        "type":    "AdaptiveCard",
-        "version": "1.2",
-        "body": [
+        "@type":    "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "summary":  f"Weekly NEWS recap for {account}",
+        "themeColor": "EC008C",
+        "title":    "Your weekly news post is ready!",
+        "sections": [
             {
-                "type":   "TextBlock",
-                "text":   "Your weekly news post is ready!",
-                "size":   "Large",
-                "weight": "Bolder",
-                "color":  "Accent"
-            },
-            {
-                "type":    "TextBlock",
-                "text":    account,
-                "spacing": "None"
-            },
-            {
-                "type":      "ImageSet",
-                "imageSize": "Medium",
-                "spacing":   "Medium",
+                "activityTitle": f"**{account}**",
                 "images": [
                     {
-                        "type":       "Image",
-                        "url":        u,
-                        "selectAction": { "type": "Action.OpenUrl", "url": u }
+                        "image": u,
+                        "title": f"Recap {i+1}"
                     }
-                    for u in urls
+                    for i, u in enumerate(urls)
                 ]
             }
-        ]
+        ],
     }
 
 
-def build_connector_payload(card: Dict[str, Any], account: str) -> Dict[str, Any]:
-    """
-    Connector envelope that satisfies the ‘summary/text required’ rule and
-    embeds the AdaptiveCard under attachments.
-    """
-    return {
-        "summary": f"Weekly news recap – {account}",
-        "text":    f"Weekly news for **{account}**",
-        "themeColor": "EC008C",
-        "attachments": [{
-            "contentType": "application/vnd.microsoft.card.adaptive",
-            "content": card
-        }]
-    }
-
-
-# ── Lambda entry‑point ─────────────────────────────────────────────────────
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
     logger.info("notify_post event: %s", json.dumps(event))
 
     try:
         teams_map = json.loads(TEAMS_WEBHOOKS_JSON)
     except json.JSONDecodeError:
-        logger.error("TEAMS_WEBHOOKS_JSON is not valid JSON")
+        logger.error("TEAMS_WEBHOOKS_JSON is invalid JSON")
         return {"error": "bad webhook map"}
 
     account = (event.get("accountName") or "").lower()
@@ -93,42 +63,37 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("No Teams webhook for account '%s'", account)
         return {"error": "no webhook"}
 
-    image_keys = event.get("imageKeys") or []
-    if not image_keys:
+    keys = event.get("imageKeys") or []
+    if not keys:
         logger.error("No imageKeys provided")
         return {"error": "no images"}
 
-    # presign each thumbnail
-    thumb_urls: List[str] = []
-    for key in image_keys:
+    urls: List[str] = []
+    for k in keys:
         try:
-            thumb_urls.append(presign(key))
+            urls.append(presign(k))
         except ClientError as exc:
-            logger.warning("Presign failed for %s: %s", key, exc)
+            logger.warning("Presign failed for %s: %s", k, exc)
 
-    if not thumb_urls:
-        logger.error("Could not generate any presigned URLs")
+    if not urls:
+        logger.error("Failed to generate presigned URLs")
         return {"error": "presign failed"}
 
-    # build payload
-    adaptive = build_adaptive_card(thumb_urls, account)
-    payload  = build_connector_payload(adaptive, account)
-    webhook  = teams_map[account]["manual"]
+    card = build_message_card(urls, account)
+    webhook_url = teams_map[account]["manual"]
 
     try:
         resp = requests.post(
-            webhook,
+            webhook_url,
             headers={"Content-Type": "application/json"},
-            data=json.dumps(payload),
+            data=json.dumps(card),
             timeout=20,
         )
-        logger.info("Teams webhook → %s %s",
-                    resp.status_code, resp.text.strip()[:200])
+        logger.info("Teams webhook → %s %s", resp.status_code, resp.text.strip()[:200])
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.exception("Failed to post to Teams: %s", exc)
         return {"error": str(exc)}
 
-    logger.info("Posted %d thumbnails to Teams for %s",
-                len(thumb_urls), account)
-    return {"status": "posted", "thumbCount": len(thumb_urls)}
+    logger.info("Posted %d thumbnails to Teams for %s", len(urls), account)
+    return {"status": "posted", "thumbCount": len(urls)}
