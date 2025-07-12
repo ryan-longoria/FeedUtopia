@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import boto3
 import requests
@@ -10,109 +10,126 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Environment & global clients
-# ──────────────────────────────────────────────────────────────────────────────
-TEAMS_WEBHOOKS_ENV = "TEAMS_WEBHOOKS_JSON"
-TARGET_BUCKET_ENV  = "TARGET_BUCKET"
+TEAMS_WEBHOOKS = json.loads(os.environ["TEAMS_WEBHOOKS_JSON"])
+TARGET_BUCKET  = os.environ["TARGET_BUCKET"]
 
 s3 = boto3.client("s3")
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────────────────────────────────────
-def get_environment_variables() -> Dict[str, str]:
-    try:
-        return {
-            "teams_webhooks_json": os.environ[TEAMS_WEBHOOKS_ENV],
-            "target_bucket":       os.environ[TARGET_BUCKET_ENV],
-        }
-    except KeyError as missing:
-        raise ValueError(f"Missing env var {missing}") from None
-
-
-def get_teams_webhook_url(webhooks: Dict[str, Dict[str, str]], account: str) -> str:
-    """Return the manual‑posting channel for an account."""
-    return webhooks[account]["manual"]
-
-
-def generate_presigned_s3_url(bucket: str, key: str, expiration: int = 7 * 24 * 3600) -> str:
+def presign(key: str, exp: int = 7 * 24 * 3600) -> Optional[str]:
+    """Return a presigned GET url for the given S3 key (or None on failure)."""
     try:
         return s3.generate_presigned_url(
             "get_object",
-            Params={"Bucket": bucket, "Key": key},
-            ExpiresIn=expiration,
+            Params={"Bucket": TARGET_BUCKET, "Key": key},
+            ExpiresIn=exp,
         )
     except ClientError as exc:
-        logger.warning("Presign failed for %s/%s – %s", bucket, key, exc)
-        return ""
+        logger.warning("presign %s failed: %s", key, exc)
+        return None
 
 
-def build_message_card(account: str, thumbs: List[str]) -> Dict[str, Any]:
-    """Classic MessageCard with inline thumbnails (works in every Teams tenant)."""
+def card_thumbnails(account: str, urls: List[str]) -> Dict[str, Any]:
+    """Adaptive‑Card with clickable thumbnails."""
+    images = [
+        {
+            "type": "Image",
+            "url": u,
+            "size": "Medium",
+            "selectAction": {"type": "Action.OpenUrl", "url": u},
+            "altText": f"{account} recap {i+1}",
+        }
+        for i, u in enumerate(urls)
+    ]
+
     return {
-        "@type":    "MessageCard",
-        "@context": "http://schema.org/extensions",
-        "summary":  "Weekly recap ready",
-        "themeColor": "EC008C",
-        "title":    "Your weekly news post is ready!",
-        "sections": [
+        "type": "message",
+        "attachments": [
             {
-                "activityTitle": account,
-                "images": [
-                    {"image": url, "title": f"Recap {i+1}"}
-                    for i, url in enumerate(thumbs)
-                ],
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.5",
+                    "body": [
+                        {
+                            "type": "TextBlock",
+                            "size": "Large",
+                            "weight": "Bolder",
+                            "text": f"Weekly NEWS recap – **{account}**",
+                            "wrap": True,
+                        },
+                        {"type": "ImageSet", "images": images, "imageSize": "Medium"},
+                    ],
+                },
             }
         ],
     }
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Lambda entry‑point
-# ──────────────────────────────────────────────────────────────────────────────
+
+def card_video_link(url: str) -> Dict[str, Any]:
+    """Simple MessageCard with a ‘View video’ link (shows as a previewable tile)."""
+    return {
+        "@type":    "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "themeColor": "EC008C",
+        "summary":  "New post ready",
+        "title":    "Your new post is ready!",
+        "text":     f"[View Video]({url})",
+    }
+
+
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
     logger.info("notify_post event: %s", json.dumps(event))
 
-    try:
-        env = get_environment_variables()
-    except ValueError as err:
-        logger.error(str(err))
-        return {"error": str(err)}
-
     account = (event.get("accountName") or "").lower()
-    keys    = event.get("imageKeys", [])
+    image_keys: list[str] = event.get("imageKeys", [])
+    video_key: str | None = (
+        event.get("videoResult", {}).get("video_key")
+        if isinstance(event.get("videoResult"), dict)
+        else None
+    )
 
-    if not account or not keys:
-        logger.error("Missing accountName or imageKeys")
-        return {"error": "invalid event"}
+    if not account:
+        return {"error": "missing accountName"}
 
     try:
-        webhooks = json.loads(env["teams_webhooks_json"])
-        webhook_url = get_teams_webhook_url(webhooks, account)
-    except (json.JSONDecodeError, KeyError) as err:
-        logger.error("No Teams webhook for %s – %s", account, err)
-        return {"error": "no webhook"}
+        webhook_url = TEAMS_WEBHOOKS[account]["manual"]
+    except KeyError:
+        return {"error": f"No Teams webhook configured for '{account}'"}
 
-    thumb_urls = [
-        u for k in keys if (u := generate_presigned_s3_url(env["target_bucket"], k))
-    ]
-    if not thumb_urls:
-        logger.error("Could not generate any presigned URLs")
-        return {"error": "url generation failed"}
+    payload: Dict[str, Any]
 
-    payload = build_message_card(account, thumb_urls)
+    if image_keys:
+        urls = [u for k in image_keys if (u := presign(k))]
+        if not urls:
+            return {"error": "could not presign any images"}
+        payload = card_thumbnails(account, urls)
+
+    elif video_key:
+        video_url = presign(video_key)
+        if not video_url:
+            return {"error": "could not presign video"}
+        payload = card_video_link(video_url)
+
+    else:
+        return {"error": "event had neither imageKeys nor videoResult"}
+
     try:
-        resp = requests.post(
+        r = requests.post(
             webhook_url,
             headers={"Content-Type": "application/json"},
             data=json.dumps(payload),
-            timeout=15,
+            timeout=20,
         )
-        logger.info("Teams webhook → %s %s", resp.status_code, resp.text)
-        resp.raise_for_status()
+        logger.info("Teams webhook → %s %s", r.status_code, r.text)
+        r.raise_for_status()
     except requests.RequestException as exc:
-        logger.exception("Teams post failed: %s", exc)
+        logger.exception("Post to Teams failed: %s", exc)
         return {"error": str(exc)}
 
-    logger.info("Posted %d thumbnails to Teams for %s", len(thumb_urls), account)
-    return {"status": "posted", "thumbCount": len(thumb_urls)}
+    logger.info(
+        "Posted to Teams for %s (%s)",
+        account,
+        "thumbnails" if image_keys else "video",
+    )
+    return {"status": "posted"}
