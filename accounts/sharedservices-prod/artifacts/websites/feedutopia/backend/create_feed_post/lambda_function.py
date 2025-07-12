@@ -1,4 +1,7 @@
-import json, os, boto3, time, requests
+import json, os, boto3, time, requests, logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 s3   = boto3.client("s3")
 HEADERS = {
@@ -29,7 +32,11 @@ def cache_if_news(payload: dict, media_key: str) -> None:
         "s3Bucket": BUCKET,
         "s3Key":    media_key,
     }
-    news_table.put_item(Item=record)
+    try:
+        news_table.put_item(Item=record)
+    except Exception as e:
+        print("PutItem failed", e)
+        raise
 
 def lambda_handler(event, _ctx):
     data = json.loads(event.get("body", "{}"))
