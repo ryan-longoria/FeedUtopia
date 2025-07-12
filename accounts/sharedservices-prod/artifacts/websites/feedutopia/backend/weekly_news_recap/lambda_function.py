@@ -110,25 +110,43 @@ def fetch_logo(account: str) -> Image.Image|None:
     return logo.resize((int(logo.width*scale), int(logo.height*scale)))
 
 def fetch_background(bg_type: str, key: str) -> Image.Image|None:
-    if not key: return None
+    if not key:
+        return None
     local = download_to_tmp(key)
-    if not local: return None
-    if bg_type=="video" and VideoFileClip:
+    if not local:
+        return None
+
+    if bg_type == "video" and VideoFileClip:
         try:
             with VideoFileClip(local) as clip:
-                frame = clip.get_frame(clip.duration/2)
+                frame = clip.get_frame(clip.duration / 2)
             img = Image.fromarray(frame).convert("RGBA")
         except Exception:
             return None
     else:
         img = Image.open(local).convert("RGBA")
-    scale = WIDTH/img.width
-    new_h = int(img.height*scale)
-    img = img.resize((WIDTH,new_h), Image.LANCZOS)
-    if new_h>HEIGHT:
-        y0=(new_h-HEIGHT)//2
-        img=img.crop((0,y0,WIDTH,y0+HEIGHT))
-    return img
+
+    scale = WIDTH / img.width
+    new_h = int(img.height * scale)
+    img = img.resize((WIDTH, new_h), Image.LANCZOS)
+
+    if bg_type == "video":
+        bg_canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
+        if new_h >= HEIGHT:
+            top = (new_h - HEIGHT) // 2
+            img = img.crop((0, top, WIDTH, top + HEIGHT))
+            bg_canvas.paste(img, (0, 0))
+        else:
+            y_off = (HEIGHT - new_h) // 2
+            bg_canvas.paste(img, (0, y_off))
+        return bg_canvas
+    else:
+        if new_h > HEIGHT:
+            return img.crop((0, 0, WIDTH, HEIGHT))
+        else:
+            bg_canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
+            bg_canvas.paste(img, (0, 0))
+            return bg_canvas
 
 def render_item(item: Dict[str,Any], account: str) -> Image.Image:
     canvas = Image.new("RGBA",(WIDTH,HEIGHT),(0,0,0,255))

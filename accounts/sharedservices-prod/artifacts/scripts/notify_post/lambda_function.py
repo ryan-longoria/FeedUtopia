@@ -27,7 +27,7 @@ def build_image_card(urls: List[str], account: str) -> Dict[str, Any]:
         "@context": "http://schema.org/extensions",
         "summary":  f"Weekly NEWS recap for {account}",
         "themeColor": "EC008C",
-        "title":    "Your weekly news post is ready!",
+        "title":    "Your weekly recap post is ready!",
         "text":     f"**{account}**",
         "sections": [
             {
@@ -53,7 +53,7 @@ def build_video_card(url: str, account: str) -> Dict[str, Any]:
         "@context": "http://schema.org/extensions",
         "summary":  f"Your video for {account} is ready!",
         "themeColor": "EC008C",
-        "title":    "Your social‑media video is ready!",
+        "title":    "Your video is ready!",
         "text":     f"**{account}**",
         "potentialAction": [
             {
