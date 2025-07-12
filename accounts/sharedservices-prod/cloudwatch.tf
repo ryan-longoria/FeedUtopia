@@ -177,3 +177,18 @@ resource "aws_cloudwatch_metric_alarm" "dlq_alarm" {
 
   alarm_actions = [aws_sns_topic.monitoring_topic.arn]
 }
+
+#############################
+# Weekly Post Schedule
+#############################
+
+resource "aws_cloudwatch_event_rule" "weekly_recap_rule" {
+  name                = "weekly-news-recap"
+  schedule_expression = "cron(0 17 ? * SAT *)"
+}
+
+resource "aws_cloudwatch_event_target" "weekly_recap_target" {
+  rule      = aws_cloudwatch_event_rule.weekly_recap_rule.name
+  target_id = "recap"
+  arn       = aws_lambda_function.weekly_news_recap.arn
+}

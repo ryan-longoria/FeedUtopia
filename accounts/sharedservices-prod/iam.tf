@@ -251,6 +251,48 @@ resource "aws_lambda_permission" "apigw_invoke_gpt_image_gen" {
   source_arn = "${aws_api_gateway_rest_api.api.execution_arn}/*/*/gpt/image-gen"
 }
 
+data "aws_iam_policy_document" "ddb_put" {
+  statement {
+    actions   = ["dynamodb:PutItem"]
+    resources = [aws_dynamodb_table.weekly_news_posts.arn]
+    effect    = "Allow"
+  }
+}
+
+resource "aws_iam_role_policy" "lambda_news_put" {
+  role   = aws_iam_role.lambda_role.id
+  policy = data.aws_iam_policy_document.ddb_put.json
+}
+
+resource "aws_lambda_permission" "recap_events" {
+  statement_id  = "AllowEventInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.weekly_news_recap.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.weekly_recap_rule.arn
+}
+
+data "aws_iam_policy_document" "recap_perms" {
+  statement {
+    actions   = ["dynamodb:Query", "dynamodb:DeleteItem"]
+    resources = [aws_dynamodb_table.weekly_news_posts.arn]
+    effect    = "Allow"
+  }
+  statement {
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = [
+      "arn:aws:s3:::prod-sharedservices-artifacts-bucket",
+      "arn:aws:s3:::prod-sharedservices-artifacts-bucket/*"
+    ]
+    effect = "Allow"
+  }
+}
+
+resource "aws_iam_role_policy" "recap_lambda_policy" {
+  role   = aws_iam_role.lambda_role.id
+  policy = data.aws_iam_policy_document.recap_perms.json
+}
+
 #############################
 # IAM Policy for S3
 #############################
