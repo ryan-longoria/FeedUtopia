@@ -125,41 +125,45 @@ def fetch_background(bucket: str, bg_type: str, key: str) -> Image.Image | None:
         return None
     return Image.open(tmp).convert("RGBA").resize((WIDTH, HEIGHT))
 
-# ── Rendering ────────────────────────────────────────────────────────────────
 def render_item(item: Dict[str, Any]) -> Image.Image:
-    bg  = fetch_background(item.get("backgroundType", "image"), item.get("s3Key", ""))
-    canvas = Image.new("RGBA", (WIDTH, HEIGHT), BACKGROUND_COLOR)
-    if bg: canvas.paste(bg, (0, 0))
+    bg = fetch_background(
+        TARGET_BUCKET,
+        item.get("backgroundType", "image"),
+        item.get("s3Key", "")
+    )
 
-    if (grad := fetch_gradient()): canvas.alpha_composite(grad)
+    canvas = Image.new("RGBA", (WIDTH, HEIGHT), BACKGROUND_COLOR)
+    if bg:
+        canvas.paste(bg, (0, 0))
+
+    if (grad := fetch_gradient()):
+        canvas.alpha_composite(grad)
 
     title = item["title"].upper()
-    sub   = (item.get("subtitle") or "").upper()
+    subtitle = (item.get("subtitle") or "").upper()
 
     hl_title = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
     hl_sub   = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
 
     title_font = autosize(title, TITLE_MAX, TITLE_MIN, 30)
     title_img  = multiline_colored(title, hl_title, FONT_PATH_TITLE, title_font, 1000)
-    tx = (WIDTH - title_img.width) // 2
-    canvas.alpha_composite(title_img, (tx, 275))
+    canvas.alpha_composite(title_img, ((WIDTH - title_img.width)//2, 275))
 
-    if sub:
-        desc_font = autosize(sub, DESC_MAX, DESC_MIN, 45)
-        desc_img  = multiline_colored(sub, hl_sub, FONT_PATH_DESC, desc_font, 900)
-        dx = (WIDTH - desc_img.width) // 2
-        dy = HEIGHT - 300 - desc_img.height
-        canvas.alpha_composite(desc_img, (dx, dy))
+    if subtitle:
+        desc_font = autosize(subtitle, DESC_MAX, DESC_MIN, 45)
+        desc_img  = multiline_colored(subtitle, hl_sub, FONT_PATH_DESC, desc_font, 900)
+        canvas.alpha_composite(desc_img, ((WIDTH - desc_img.width)//2,
+                                          HEIGHT - 300 - desc_img.height))
 
     if (logo := fetch_logo()):
         lx = WIDTH - logo.width - 50
         ly = HEIGHT - logo.height - 100
-        line = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
-        canvas.alpha_composite(line, (lx - 720, ly + logo.height // 2 - 2))
+        line = Image.new("RGBA", (700, 4),
+                         ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
+        canvas.alpha_composite(line, (lx - 720, ly + logo.height//2 - 2))
         canvas.alpha_composite(logo, (lx, ly))
 
     return canvas.convert("RGB")
-
 # ── DynamoDB helpers ─────────────────────────────────────────────────────────
 def list_accounts() -> Set[str]:
     """Return a distinct set of accountName values."""
