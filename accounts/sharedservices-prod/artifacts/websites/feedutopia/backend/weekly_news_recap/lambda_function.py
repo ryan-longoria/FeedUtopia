@@ -1,142 +1,228 @@
-from __future__ import annotations
-
+import datetime
 import io
 import json
+import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List
+from typing import Any, Dict, Optional, Set, Tuple
 
 import boto3
 import requests
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageColor, ImageDraw, ImageFont
 
-DDB = boto3.resource("dynamodb")
-S3  = boto3.client("s3")
-
-TABLE        = DDB.Table(os.environ["NEWS_TABLE"])
-BUCKET       = os.environ["TARGET_BUCKET"]
-TEAMS_CONFIG = json.loads(os.environ["TEAMS_JSON"])
+###############################################################################
+# CONSTANTS & GLOBALS
+###############################################################################
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 WIDTH, HEIGHT = 1080, 1350
-TITLE_FONT    = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
-SUB_FONT      = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",       58)
-PINK          = "#ec008c"
+BACKGROUND_COLOR = (0, 0, 0)
+GRADIENT_KEY = "artifacts/Black Gradient.png"
+LOGO_KEY     = "artifacts/Logo.png"
 
-def fetch_records(account: str) -> List[Dict]:
-    """Return un‑processed items from the last 7 days."""
-    week_ago = int((datetime.now(timezone.utc) - timedelta(days=7)).timestamp())
+ROOT = os.path.dirname(__file__)
+FONT_PATH_TITLE = os.path.join(ROOT, "DejaVuSans-Bold.ttf")
+FONT_PATH_DESC  = os.path.join(ROOT, "Montserrat-Medium.ttf")
+DEFAULT_TITLE_MAX = 90
+DEFAULT_TITLE_MIN = 60
+DEFAULT_DESC_MAX  = 60
+DEFAULT_DESC_MIN  = 30
+HIGHLIGHT_COLOR   = "#ec008c"
+DEFAULT_COLOR     = "white"
 
-    resp = TABLE.query(
-        KeyConditionExpression="accountName = :acct AND createdAt >= :start",
-        ExpressionAttributeValues={":acct": account, ":start": week_ago},
-    )
-    return resp["Items"]
+TARGET_BUCKET = os.environ.get("TARGET_BUCKET", "prod-sharedservices-artifacts-bucket")
+NEWS_TABLE    = os.environ["NEWS_TABLE"]
 
+s3    = boto3.client("s3")
+dynamodb = boto3.resource("dynamodb")
+table = dynamodb.Table(NEWS_TABLE)
 
-def mark_done(item: Dict) -> None:
-    """Delete the record – TTL would also remove it eventually."""
-    TABLE.delete_item(
-        Key={
-            "accountName": item["accountName"],
-            "createdAt":   item["createdAt"],
-        }
-    )
+###############################################################################
+# TEXT HELPERS (ported from MoviePy versions)
+###############################################################################
+def measure_text_width_pillow(word: str, font_path: str, font_size: int) -> int:
+    fnt = ImageFont.truetype(font_path, font_size)
+    return fnt.getbbox(word)[2]
 
+def dynamic_font_size(text: str, max_size: int, min_size: int, ideal_len: int) -> int:
+    if len(text) <= ideal_len:
+        return max_size
+    factor = (max_size - min_size) / ideal_len
+    new_size = int(max_size - (len(text) - ideal_len) * factor)
+    return max(new_size, min_size)
 
-def text_wrap(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont, max_w: int) -> List[str]:
-    """Split text into lines that fit `max_w`."""
-    words, lines, cur = text.split(), [], ""
+def multiline_colored(
+    full_text: str,
+    highlight_words: Set[str],
+    font_path: str,
+    font_size: int,
+    max_width: int,
+    space: int = 15,
+    line_spacing: int = 10,
+) -> Image.Image:
+    """Return a PIL image containing wrapped, colour-highlighted text."""
+    words = full_text.split()
+    lines, current, cur_w = [], [], 0
     for w in words:
-        test = f"{cur} {w}".strip()
-        if draw.textlength(test, font=font) <= max_w:
-            cur = test
+        w_w = measure_text_width_pillow(w, font_path, font_size)
+        if cur_w + (w_w if not current else w_w + space) <= max_width:
+            current.append(w)
+            cur_w += (w_w if not current else w_w + space)
         else:
-            lines.append(cur)
-            cur = w
-    lines.append(cur)
-    return lines
+            lines.append(current); current, cur_w = [w], w_w
+    if current: lines.append(current)
 
+    line_imgs = []
+    for line in lines:
+        x = 0
+        pieces = []
+        for w in line:
+            clean = w.strip(",.!?;:").upper()
+            color = HIGHLIGHT_COLOR if clean in highlight_words else DEFAULT_COLOR
+            fnt = ImageFont.truetype(font_path, font_size)
+            w_w, w_h = fnt.getbbox(w)[2:], fnt.getbbox(w)[3]
+            img = Image.new("RGBA", (w_w, w_h), (255, 0, 0, 0))
+            d = ImageDraw.Draw(img)
+            d.text((0,0), w, font=fnt, fill=color)
+            pieces.append((img, x))
+            x += w_w + space
+        line_img = Image.new("RGBA", (x-space, w_h), (255,0,0,0))
+        for img, xoff in pieces:
+            line_img.paste(img, (xoff, 0), img)
+        line_imgs.append(line_img)
 
-def build_image(bg_bytes: bytes, title: str, subtitle: str) -> bytes:
-    """Return JPEG bytes (1080×1350) with overlaid text."""
-    bg = Image.open(io.BytesIO(bg_bytes)).convert("RGB")
-    bg = ImageOps.fit(bg, (WIDTH, HEIGHT), Image.LANCZOS)
+    total_h = sum(im.height for im in line_imgs) + line_spacing*(len(line_imgs)-1)
+    final = Image.new("RGBA", (max_width, total_h), (255,0,0,0))
+    y=0
+    for im in line_imgs:
+        final.paste(im, ((max_width - im.width)//2, y), im)
+        y += im.height + line_spacing
+    return final
 
-    gradient = Image.new("L", (1, HEIGHT), color=0xFF)
-    for y in range(HEIGHT):
-        gradient.putpixel((0, y), int(150 * (y / HEIGHT)))
-    alpha = gradient.resize(bg.size)
-    black = Image.new("RGBA", bg.size, color="black")
-    bg = Image.composite(bg, black, alpha).convert("RGB")
+###############################################################################
+# S3 HELPERS
+###############################################################################
+def download_s3(key: str, local_path: str) -> bool:
+    try:
+        s3.download_file(TARGET_BUCKET, key, local_path)
+        logger.info("Downloaded %s", key)
+        return True
+    except Exception as exc:
+        logger.warning("Could not download %s: %s", key, exc)
+        return False
 
-    draw = ImageDraw.Draw(bg)
-    margin = 80
-    max_w  = WIDTH - 2 * margin
+def fetch_gradient() -> Optional[Image.Image]:
+    tmp = "/tmp/gradient.png"
+    if download_s3(GRADIENT_KEY, tmp):
+        return Image.open(tmp).convert("RGBA").resize((WIDTH, HEIGHT))
+    return None
 
-    y = 200
-    for line in text_wrap(draw, title.upper(), TITLE_FONT, max_w):
-        draw.text((margin, y), line, font=TITLE_FONT, fill=PINK)
-        y += TITLE_FONT.size + 10
+def fetch_logo() -> Optional[Image.Image]:
+    tmp = "/tmp/logo.png"
+    if download_s3(LOGO_KEY, tmp):
+        logo = Image.open(tmp).convert("RGBA")
+        scale = 200 / logo.width
+        return logo.resize((int(logo.width*scale), int(logo.height*scale)))
+    return None
+
+def fetch_bg(bg_type: str, bg_key: str) -> Optional[Image.Image]:
+    if not bg_key:
+        return None
+    tmp = "/tmp/bg"
+    tmp += ".mp4" if bg_type == "video" else ".img"
+    if not download_s3(bg_key, tmp):
+        return None
+    if bg_type == "video":
+        logger.warning("Video backgrounds are not supported for recap image")
+        return None
+    return Image.open(tmp).convert("RGBA").resize((WIDTH, HEIGHT))
+
+###############################################################################
+# MAIN RENDER
+###############################################################################
+def render_recap_image(item: Dict[str, Any]) -> Image.Image:
+    """
+    Build the recap poster from one DynamoDB item.  If you want to collage
+    several items, call this repeatedly and composite as you like.
+    """
+    bg = fetch_bg(item.get("backgroundType","image"), item.get("s3Key", ""))
+    canvas = Image.new("RGBA", (WIDTH, HEIGHT), BACKGROUND_COLOR)
+    if bg:
+        canvas.paste(bg, (0,0))
+    gradient = fetch_gradient()
+    if gradient:
+        canvas.alpha_composite(gradient)
+
+    title = item["title"].upper()
+    subtitle = (item.get("subtitle") or "").upper()
+
+    hl_title  = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
+    hl_sub    = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
+
+    title_size = dynamic_font_size(title, DEFAULT_TITLE_MAX, DEFAULT_TITLE_MIN, 30)
+    title_img  = multiline_colored(title, hl_title, FONT_PATH_TITLE, title_size, 1000)
 
     if subtitle:
-        y += 40
-        for line in text_wrap(draw, subtitle.upper(), SUB_FONT, max_w):
-            draw.text((margin, y), line, font=SUB_FONT, fill="white")
-            y += SUB_FONT.size + 8
+        desc_size  = dynamic_font_size(subtitle, DEFAULT_DESC_MAX, DEFAULT_DESC_MIN, 45)
+        desc_img   = multiline_colored(subtitle, hl_sub, FONT_PATH_DESC, desc_size, 900)
+    else:
+        desc_img = None
 
-    out = io.BytesIO()
-    bg.save(out, format="JPEG", quality=90)
-    return out.getvalue()
+    title_x = (WIDTH - title_img.width)//2
+    title_y = 275
+    canvas.alpha_composite(title_img, (title_x, title_y))
 
+    if desc_img:
+        desc_x = (WIDTH - desc_img.width)//2
+        desc_y = HEIGHT - 300 - desc_img.height
+        canvas.alpha_composite(desc_img, (desc_x, desc_y))
 
-def s3_bytes(bucket: str, key: str) -> bytes:
-    resp = S3.get_object(Bucket=bucket, Key=key)
-    return resp["Body"].read()
+    logo = fetch_logo()
+    if logo:
+        lx = WIDTH - logo.width - 50
+        ly = HEIGHT - logo.height - 100
+        line = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR)+(255,))
+        canvas.alpha_composite(line, (lx - 700 - 20, ly + logo.height//2 - 2))
+        canvas.alpha_composite(logo, (lx, ly))
 
+    return canvas.convert("RGB")
 
-def upload_and_url(data: bytes, key: str, expires: int = 604800) -> str:
-    S3.put_object(Bucket=BUCKET, Key=key, Body=data, ContentType="image/jpeg")
-    return S3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": BUCKET, "Key": key},
-        ExpiresIn=expires,
-    )
+###############################################################################
+# LAMBDA ENTRY
+###############################################################################
+def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, str]:
+    """
+    1. Query DynamoDB for this week's NEWS posts (for the first account only).
+    2. Render the first one into a PNG poster.
+    3. Upload to S3  (posts/recap_YYYYMMDD_HHMM.png).
+    """
+    logger.info("weekly_news_recap start")
+    account_name = (event.get("accountName") or "animeutopia").lower()
 
+    try:
+        resp = table.query(
+            KeyConditionExpression="accountName = :n",
+            ExpressionAttributeValues={":n": account_name},
+            ScanIndexForward=False,
+            Limit=1,
+        )
+    except Exception as exc:
+        logger.exception("DynamoDB query failed: %s", exc)
+        return {"status": "error", "message": "ddb failure"}
 
-def send_to_teams(account: str, img_url: str) -> None:
-    webhook = TEAMS_CONFIG[account]["manual"]
-    card = {
-        "@type": "MessageCard",
-        "@context": "http://schema.org/extensions",
-        "summary": "Weekly recap image",
-        "sections": [
-            {
-                "activityTitle": f"Weekly recap – {account}",
-                "images": [{"image": img_url}],
-            }
-        ],
-    }
-    resp = requests.post(webhook, headers={"Content-Type": "application/json"}, json=card, timeout=15)
-    resp.raise_for_status()
+    if not resp.get("Items"):
+        logger.warning("No NEWS items found for %s", account_name)
+        return {"status": "empty"}
 
+    item = resp["Items"][0]
+    image = render_recap_image(item)
 
-def lambda_handler(event, context):
-    """Entry‑point."""
-    now = datetime.now(timezone.utc)
-    week_tag = now.strftime("week-%Y%m%d")
+    key = f"weekly_recap/recap_{datetime.datetime.utcnow():%Y%m%d_%H%M%S}.png"
+    buf = io.BytesIO()
+    image.save(buf, format="PNG", compress_level=3)
+    buf.seek(0)
+    s3.upload_fileobj(buf, TARGET_BUCKET, key, ExtraArgs={"ContentType": "image/png"})
+    logger.info("Uploaded recap image to s3://%s/%s", TARGET_BUCKET, key)
 
-    for account in TEAMS_CONFIG.keys():
-        for item in fetch_records(account):
-            try:
-                bg_bytes = s3_bytes(item["s3Bucket"], item["s3Key"])
-                img      = build_image(bg_bytes, item["title"], item["subtitle"])
-                key      = f"recaps/{account}/{week_tag}/{int(time.time())}.jpg"
-                url      = upload_and_url(img, key)
-
-                send_to_teams(account, url)
-                mark_done(item)
-            except Exception as exc:
-                print(f"[WARN] Failed recap for {account}: {exc}")
-
-    return {"status": "ok"}
+    return {"status": "rendered", "s3_key": key}
