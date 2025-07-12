@@ -251,6 +251,20 @@ resource "aws_lambda_permission" "apigw_invoke_gpt_image_gen" {
   source_arn = "${aws_api_gateway_rest_api.api.execution_arn}/*/*/gpt/image-gen"
 }
 
+data "aws_iam_policy_document" "ddb_put" {
+  statement {
+    actions   = ["dynamodb:PutItem"]
+    resources = [aws_dynamodb_table.weekly_news_posts.arn]
+    effect    = "Allow"
+  }
+}
+
+resource "aws_iam_role_policy" "lambda_news_put" {
+  role   = aws_iam_role.lambda_role.id
+  policy = data.aws_iam_policy_document.ddb_put.json
+}
+
+
 #############################
 # IAM Policy for S3
 #############################
@@ -371,6 +385,181 @@ resource "aws_iam_role_policy" "step_functions_ecs" {
         Condition = { StringEquals = { "iam:PassedToService" = "ecs-tasks.amazonaws.com" } }
       }
     ]
+  })
+}
+
+resource "aws_iam_role_policy" "step_functions_policy_recap" {
+  name = "${var.project_name}_step_functions_policy"
+  role = aws_iam_role.step_functions_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = ["lambda:InvokeFunction"],
+        Resource = [
+          aws_lambda_function.get_logo.arn,
+          aws_lambda_function.delete_logo.arn,
+          aws_lambda_function.notify_post.arn
+        ]
+      },
+      {
+        Effect   = "Allow",
+        Action   = ["ecs:RunTask", "ecs:StopTask", "ecs:DescribeTasks"],
+        Resource = [
+          aws_ecs_task_definition.render_video.arn,
+          aws_ecs_task_definition.weekly_news_recap.arn
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = "iam:PassRole",
+        Resource = [
+          aws_iam_role.ecs_task_execution_role.arn,
+          aws_iam_role.ecs_task_role.arn
+        ],
+        Condition = { "StringEquals": { "iam:PassedToService": "ecs-tasks.amazonaws.com" } }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "recap_task_permissions" {
+  name = "WeeklyRecapTaskPolicy"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = [
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:GetItem"
+        ],
+        Resource = [
+          aws_dynamodb_table.weekly_news_posts.arn,
+          "${aws_dynamodb_table.weekly_news_posts.arn}/*"
+        ]
+      },
+      {
+        Effect   = "Allow",
+        Action   = "lambda:InvokeFunction",
+        Resource = aws_lambda_function.notify_post.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role" "scheduler_invoke_sfn" {
+  name = "scheduler_start_weekly_recap"
+  assume_role_policy = jsonencode({
+    Version : "2012-10-17",
+    Statement : [{
+      Effect = "Allow",
+      Action = "sts:AssumeRole",
+      Principal = { Service = "scheduler.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "scheduler_start_exec" {
+  name = "SchedulerStartSFN"
+  role = aws_iam_role.scheduler_invoke_sfn.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect   = "Allow",
+      Action   = "states:StartExecution",
+      Resource = aws_sfn_state_machine.weekly_recap.arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "step_functions_ecs_permissions" {
+  name = "step-functions-ecs-permissions"
+  role = aws_iam_role.step_functions_role.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecs:RunTask",
+          "ecs:DescribeTasks",
+          "ecs:DescribeTaskDefinition",
+          "iam:PassRole"
+        ]
+        Resource = [
+          aws_ecs_task_definition.weekly_news_recap.arn,
+          aws_ecs_cluster.render_cluster.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = "iam:PassRole"
+        Resource = [
+          aws_iam_role.ecs_task_execution_role.arn,
+          aws_iam_role.ecs_task_role.arn
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "step_functions_logs_policy" {
+  name = "step-functions-logs-access"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogDelivery",
+          "logs:GetLogDelivery",
+          "logs:UpdateLogDelivery",
+          "logs:DeleteLogDelivery",
+          "logs:ListLogDeliveries",
+          "logs:PutResourcePolicy",
+          "logs:DescribeResourcePolicies",
+          "logs:DescribeLogGroups"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_sfn_logs" {
+  role       = aws_iam_role.step_functions_role.name
+  policy_arn = aws_iam_policy.step_functions_logs_policy.arn
+}
+
+resource "aws_iam_role_policy" "step_functions_eventbridge" {
+  name = "StepFunctionsEventBridgeIntegration"
+  role = aws_iam_role.step_functions_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "events:PutRule",
+        "events:DescribeRule",
+        "events:DeleteRule",
+        "events:EnableRule",
+        "events:DisableRule",
+        "events:PutTargets",
+        "events:RemoveTargets",
+        "events:TagResource"
+      ]
+      Resource = "*"
+    }]
   })
 }
 
@@ -618,6 +807,22 @@ resource "aws_iam_role_policy" "ecs_send_task_success" {
       ],
       Resource = "*"
     }]
+  })
+}
+
+resource "aws_iam_role_policy" "ecs_invoke_notify_post" {
+  name = "EcsInvokeNotifyPost"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = "lambda:InvokeFunction",
+        Resource = aws_lambda_function.notify_post.arn
+      }
+    ]
   })
 }
 

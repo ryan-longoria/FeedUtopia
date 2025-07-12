@@ -1,163 +1,123 @@
-import json
-import logging
-import os
-from typing import Any, Dict, Optional
+import json, logging, os
+from typing import Any, Dict, List
 
-import boto3
-import requests
+import boto3, requests
 from botocore.exceptions import ClientError
-
-TEAMS_WEBHOOKS_ENV_VAR = "TEAMS_WEBHOOKS_JSON"
-TARGET_BUCKET_ENV_VAR = "TARGET_BUCKET"
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+TEAMS_WEBHOOKS_JSON = os.environ["TEAMS_WEBHOOKS_JSON"]
+TARGET_BUCKET       = os.environ["TARGET_BUCKET"]
 
-def get_environment_variables() -> Dict[str, str]:
-    """
-    Retrieves and returns all necessary environment variables.
-    Raises ValueError if any required environment variable is missing.
-    """
-    teams_webhooks_json = os.environ.get(TEAMS_WEBHOOKS_ENV_VAR)
-    if not teams_webhooks_json:
-        raise ValueError(f"{TEAMS_WEBHOOKS_ENV_VAR} not found in environment.")
-
-    target_bucket = os.environ.get(TARGET_BUCKET_ENV_VAR)
-
-    return {
-        "teams_webhooks_json": teams_webhooks_json,
-        "target_bucket": target_bucket,
-    }
+s3 = boto3.client("s3")
 
 
-def get_teams_webhook_url(
-    teams_webhooks: Dict[str, Dict[str, str]], account_name: str
-) -> str:
-    """
-    Retrieves the Teams webhook URL for a given account name.
-    
-    :param teams_webhooks: A dict of accountName -> { "manual": "url" }
-    :param account_name: The name of the account.
-    :return: The webhook URL (string).
-    :raises KeyError: If the accountName or "manual" key is not found.
-    """
-    return teams_webhooks[account_name]["manual"]
-
-
-def generate_presigned_s3_url(
-    bucket: str, key: str, expiration: int = 604800
-) -> Optional[str]:
-    """
-    Generates a presigned URL for an S3 object.
-
-    :param bucket: Name of the S3 bucket.
-    :param key: The S3 object key.
-    :param expiration: Link expiration in seconds (default: 604800 = 7 days).
-    :return: The presigned URL if successful, otherwise None.
-    """
-    s3 = boto3.client("s3")
-    try:
-        url = s3.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": bucket, "Key": key},
-            ExpiresIn=expiration
-        )
-        return url
-    except ClientError as exc:
-        logger.exception("Error generating presigned URL for %s/%s: %s", bucket, key, exc)
-        return None
-
-
-def post_to_teams(webhook_url: str, message: str, timeout: int = 20) -> None:
-    """
-    Posts a message to a Microsoft Teams webhook.
-
-    :param webhook_url: The Teams webhook URL.
-    :param message: The message to send.
-    :param timeout: Timeout in seconds for the request.
-    :raises requests.HTTPError: If the POST request is unsuccessful.
-    """
-    payload = {"text": message}
-    resp = requests.post(
-        webhook_url, 
-        headers={"Content-Type": "application/json"}, 
-        data=json.dumps(payload),
-        timeout=timeout
+def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
+    return s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": TARGET_BUCKET, "Key": key},
+        ExpiresIn=exp,
     )
-    resp.raise_for_status()
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """
-    AWS Lambda handler that reads environment variables and event data to
-    construct and post a message to Microsoft Teams via a webhook. The
-    function expects the following in the event:
-        - event["accountName"]: The account name string.
-        - event["videoResult"]["video_key"]: The S3 key for the processed video.
-
-    Environment variables required:
-        - TEAMS_WEBHOOKS_JSON: A JSON string mapping account names to webhook
-          URLs. For example:
-              {
-                "someAccountName": {
-                  "manual": "https://outlook.office.com/webhook/..."
-                }
-              }
-        - TARGET_BUCKET: The name of the S3 bucket containing the video file.
-
-    :param event: The event data passed to the Lambda function (dict).
-    :param context: The runtime context object (unused in this function).
-    :return: A dictionary containing the status of the message post, 
-             the account name, the video key, and a presigned S3 URL (if available).
-    """
-    try:
-        env_vars = get_environment_variables()
-    except ValueError as err:
-        logger.error(str(err))
-        return {"error": str(err)}
-
-    account_name = event.get("accountName")
-    if not account_name:
-        msg = "No accountName found in event input."
-        logger.error(msg)
-        return {"error": msg}
-
-    try:
-        teams_webhooks = json.loads(env_vars["teams_webhooks_json"])
-        teams_webhook_url = get_teams_webhook_url(teams_webhooks, account_name)
-    except (json.JSONDecodeError, KeyError) as err:
-        msg = f"Failed to get webhook URL for account '{account_name}': {err}"
-        logger.error(msg)
-        return {"error": msg}
-
-    video_keys = event.get("videoResult", {}).get("video_key")
-    if not video_keys:
-        logger.warning("No video_key in event. Using fallback message.")
-        video_keys = "No final video key?"
-
-    presigned_url = None
-    if env_vars["target_bucket"] and isinstance(video_keys, str):
-        presigned_url = generate_presigned_s3_url(env_vars["target_bucket"], video_keys)
-
-    if presigned_url:
-        message_text = f"Your new post is ready!\n\n[View Video]({presigned_url})"
-    else:
-        message_text = "Your new post is ready!\n\n(No URL available)"
-
-    try:
-        post_to_teams(teams_webhook_url, message_text)
-        logger.info("Posted to Teams successfully.")
-    except requests.HTTPError as http_err:
-        logger.exception("Failed to post to Teams (HTTP error): %s", http_err)
-        return {"error": str(http_err)}
-    except requests.RequestException as req_exc:
-        logger.exception("Failed to post to Teams (Request error): %s", req_exc)
-        return {"error": str(req_exc)}
-
+def build_image_card(urls: List[str], account: str) -> Dict[str, Any]:
     return {
-        "status": "message_posted",
-        "accountName": account_name,
-        "videoKey": video_keys,
-        "videoUrl": presigned_url
+        "@type":    "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "summary":  f"Weekly NEWS recap for {account}",
+        "themeColor": "EC008C",
+        "title":    "Your weekly recap post is ready!",
+        "text":     f"**{account}**",
+        "sections": [
+            {
+                "images": [
+                    {"image": u, "title": f"Recap {i+1}"} for i, u in enumerate(urls)
+                ]
+            }
+        ],
+        "potentialAction": [
+            {
+                "@type":  "OpenUri",
+                "name":   f"Download Recap {i+1}",
+                "targets": [{"os": "default", "uri": u}],
+            }
+            for i, u in enumerate(urls)
+        ],
     }
+
+
+def build_video_card(url: str, account: str) -> Dict[str, Any]:
+    return {
+        "@type":    "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "summary":  f"Your video for {account} is ready!",
+        "themeColor": "EC008C",
+        "title":    "Your video is ready!",
+        "text":     f"**{account}**",
+        "potentialAction": [
+            {
+                "@type":  "OpenUri",
+                "name":   "Download Video",
+                "targets": [{"os": "default", "uri": url}],
+            }
+        ],
+    }
+
+
+def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
+    logger.info("notify_post event: %s", json.dumps(event))
+
+    try:
+        teams_map = json.loads(TEAMS_WEBHOOKS_JSON)
+    except json.JSONDecodeError:
+        logger.error("TEAMS_WEBHOOKS_JSON is invalid JSON")
+        return {"error": "bad webhook map"}
+
+    account = (event.get("accountName") or "").lower()
+    if account not in teams_map:
+        logger.error("No Teams webhook for account '%s'", account)
+        return {"error": "no webhook"}
+
+    keys: List[str] = event.get("imageKeys") or []
+
+    video_key = event.get("video_key") or (event.get("videoResult") or {}).get("video_key")
+    if video_key:
+        keys = [video_key]
+
+    if not keys:
+        logger.error("No imageKeys or video_key provided")
+        return {"error": "no images or video"}
+
+    urls: List[str] = []
+    for k in keys:
+        try:
+            urls.append(presign(k))
+        except ClientError as exc:
+            logger.warning("Presign failed for %s: %s", k, exc)
+
+    if not urls:
+        logger.error("Failed to generate presigned URLs")
+        return {"error": "presign failed"}
+
+    if video_key:
+        card = build_video_card(urls[0], account)
+    else:
+        card = build_image_card(urls, account)
+
+    webhook_url = teams_map[account]["manual"]
+    try:
+        resp = requests.post(
+            webhook_url,
+            headers={"Content-Type": "application/json"},
+            data=json.dumps(card),
+            timeout=20,
+        )
+        logger.info("Teams webhook → %s %s", resp.status_code, resp.text.strip()[:200])
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        logger.exception("Failed to post to Teams: %s", exc)
+        return {"error": str(exc)}
+
+    logger.info("Posted %d item(s) to Teams for %s", len(urls), account)
+    return {"status": "posted", "itemCount": len(urls)}
