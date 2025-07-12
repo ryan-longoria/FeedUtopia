@@ -10,6 +10,6 @@ provider "aws" {
   }
 
   assume_role {
-    role_arn = "arn:aws:iam::${var.aws_account_ids.project}:role/TerraformExecutionRole"
+    role_arn = "arn:aws:iam::${var.aws_account_ids.flixutopia}:role/TerraformExecutionRole"
   }
 }
