@@ -19,44 +19,46 @@ def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
         ExpiresIn=exp,
     )
 
-def build_adaptive_card(urls: list[str], account: str) -> dict:
-    header_bar = {
-        "type": "Container",
-        "height": "stretch",
-        "style": "accent",
-        "items": [],
-        "spacing": "None"
-    }
-
-    columns = [{
-        "type":  "Column",
-        "width": "auto",
-        "items": [{
-            "type": "Image",
-            "url":  u,
-            "size": "Medium",
-            "selectAction": {"type": "Action.OpenUrl", "url": u},
-        }]
-    } for u in urls]
+def build_adaptive_card(urls: List[str], account: str) -> Dict[str, Any]:
+    """Adaptive Card with square thumbnails + pink header line."""
+    columns = [
+        {
+            "type": "Column",
+            "width": "auto",
+            "items": [
+                {
+                    "type": "Image",
+                    "url": u,
+                    "size": "Medium",
+                    "selectAction": {"type": "Action.OpenUrl", "url": u},
+                }
+            ],
+        }
+        for u in urls
+    ]
 
     adaptive = {
-        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-        "type":    "AdaptiveCard",
-        "version": "1.5",
+        "$schema":  "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type":     "AdaptiveCard",
+        "version":  "1.5",
         "body": [
-            header_bar,
-            {"type": "TextBlock", "text": "Your weekly news post is ready!", "weight": "Bolder", "size": "Large"},
+            {"type": "TextBlock",
+             "text": "Your weekly news post is ready!",
+             "size": "Large",
+             "weight": "Bolder"},
             {"type": "TextBlock", "text": account, "spacing": "None"},
             {"type": "ColumnSet", "columns": columns, "spacing": "Medium"},
         ],
     }
 
     return {
-        "summary": "Weekly NEWS recap",
+        "summary":  "Weekly NEWS recap",
+        "themeColor": "EC008C",
         "attachments": [{
             "contentType": "application/vnd.microsoft.card.adaptive",
             "content": adaptive,
         }],
+        "type": "message",
     }
 
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
