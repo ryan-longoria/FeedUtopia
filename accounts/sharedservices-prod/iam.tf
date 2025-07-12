@@ -274,7 +274,7 @@ resource "aws_lambda_permission" "recap_events" {
 
 data "aws_iam_policy_document" "recap_perms" {
   statement {
-    actions   = ["dynamodb:Query", "dynamodb:DeleteItem"]
+    actions   = ["dynamodb:Query", "dynamodb:Scan", "dynamodb:DeleteItem"]
     resources = [aws_dynamodb_table.weekly_news_posts.arn]
     effect    = "Allow"
   }
