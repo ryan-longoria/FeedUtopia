@@ -62,7 +62,7 @@ resource "aws_ecs_task_definition" "weekly_news_recap" {
 
   container_definitions = jsonencode([
     {
-      name  = "weekly_news_recap"
+      name  = "weekly_recap"
       image = var.weekly_recap_image_uri
 
       command = ["python", "lambda_function.py"]
@@ -82,7 +82,7 @@ resource "aws_ecs_task_definition" "weekly_news_recap" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = "/ecs/weekly_news_recap"
+          awslogs-group         = "/ecs/weekly_recap"
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = "ecs"
         }

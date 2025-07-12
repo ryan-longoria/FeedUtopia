@@ -96,6 +96,11 @@ resource "aws_cloudwatch_log_group" "weekly_recap_log_group" {
   retention_in_days = 3
 }
 
+resource "aws_cloudwatch_log_group" "weekly_recap" {
+  name              = "/ecs/weekly_recap"
+  retention_in_days = 3
+}
+
 #############################
 # Lambda Error Alarms
 #############################
