@@ -251,6 +251,7 @@ resource "aws_lambda_function" "create_feed_post" {
     variables = {
       UPLOAD_BUCKET      = "prod-sharedservices-artifacts-bucket"
       FEEDUTOPIA_API_KEY = aws_api_gateway_api_key.api_key.value
+      NEWS_TABLE         = aws_dynamodb_table.weekly_news_posts.name
     }
   }
 

@@ -27,3 +27,37 @@ resource "aws_sfn_state_machine" "manual_workflow" {
     log_destination        = "${aws_cloudwatch_log_group.manual_step_function_log_group.arn}:*"
   }
 }
+
+resource "aws_sfn_state_machine" "weekly_recap" {
+  name     = "weekly_news_recap"
+  role_arn = aws_iam_role.step_functions_role.arn
+  type     = "STANDARD"
+
+  definition = templatefile("${path.module}/weekly_recap_state_machine.json.tpl", {
+    ecs_cluster_arn   = aws_ecs_cluster.render_cluster.arn
+    recap_task_def_arn = aws_ecs_task_definition.weekly_news_recap.arn
+    subnet_ids        = jsonencode([
+      aws_subnet.API_public_subnet_1.id,
+      aws_subnet.API_public_subnet_2.id
+    ])
+    sg_ids            = jsonencode([aws_security_group.efs_sg.id])
+  })
+
+  logging_configuration {
+    include_execution_data = true
+    level                  = "ALL"
+    log_destination        = "${aws_cloudwatch_log_group.weekly_recap_log_group.arn}:*"
+  }
+}
+
+resource "aws_scheduler_schedule" "weekly_recap_cron" {
+  name                 = "weekly-recap-friday-6pm-cst"
+  schedule_expression  = "cron(0 0 ? * SAT *)"
+  flexible_time_window { mode = "OFF" }
+
+  target {
+    arn      = aws_sfn_state_machine.weekly_recap.arn
+    role_arn = aws_iam_role.scheduler_invoke_sfn.arn
+    input    = jsonencode({})
+  }
+}
