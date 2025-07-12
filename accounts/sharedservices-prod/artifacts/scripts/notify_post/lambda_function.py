@@ -90,26 +90,17 @@ def post_to_teams(webhook_url: str, message: str, timeout: int = 20) -> None:
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    AWS Lambda handler that reads environment variables and event data to
-    construct and post a message to Microsoft Teams via a webhook. The
-    function expects the following in the event:
-        - event["accountName"]: The account name string.
-        - event["videoResult"]["video_key"]: The S3 key for the processed video.
+    Posts a Teams message when a video or weekly‑news image is ready.
 
-    Environment variables required:
-        - TEAMS_WEBHOOKS_JSON: A JSON string mapping account names to webhook
-          URLs. For example:
-              {
-                "someAccountName": {
-                  "manual": "https://outlook.office.com/webhook/..."
-                }
-              }
-        - TARGET_BUCKET: The name of the S3 bucket containing the video file.
+    Expects in the event:
+        • accountName               – required
+        • videoResult.video_key     – for regular video posts   (old flow)
+        • media_key                 – for image‑based recap     (new flow)
+        • postType                  – "weekly_news" or omitted/other
 
-    :param event: The event data passed to the Lambda function (dict).
-    :param context: The runtime context object (unused in this function).
-    :return: A dictionary containing the status of the message post, 
-             the account name, the video key, and a presigned S3 URL (if available).
+    Environment variables (set in Terraform):
+        • TEAMS_WEBHOOKS_JSON
+        • TARGET_BUCKET
     """
     try:
         env_vars = get_environment_variables()
@@ -131,19 +122,32 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         logger.error(msg)
         return {"error": msg}
 
-    video_keys = event.get("videoResult", {}).get("video_key")
-    if not video_keys:
-        logger.warning("No video_key in event. Using fallback message.")
-        video_keys = "No final video key?"
+    post_type  = (event.get("postType") or "regular").lower()
+    is_weekly  = post_type == "weekly_news"
+
+    media_key = (
+        event.get("media_key")
+        or event.get("videoResult", {}).get("video_key")
+    )
+    if not media_key:
+        logger.warning("No media_key/video_key in event; message will have no link")
+        media_key = "No media key?"
 
     presigned_url = None
-    if env_vars["target_bucket"] and isinstance(video_keys, str):
-        presigned_url = generate_presigned_s3_url(env_vars["target_bucket"], video_keys)
+    if env_vars["target_bucket"] and isinstance(media_key, str):
+        presigned_url = generate_presigned_s3_url(
+            env_vars["target_bucket"], media_key
+        )
+
+    descriptor = "weekly news post" if is_weekly else "new post"
+    link_label = "View Image"        if is_weekly else "View Video"
 
     if presigned_url:
-        message_text = f"Your new post is ready!\n\n[View Video]({presigned_url})"
+        message_text = (
+            f"Your {descriptor} is ready! \n\n[{link_label}]({presigned_url})"
+        )
     else:
-        message_text = "Your new post is ready!\n\n(No URL available)"
+        message_text = f"Your {descriptor} is ready!\n\n(No URL available)"
 
     try:
         post_to_teams(teams_webhook_url, message_text)
@@ -156,8 +160,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return {"error": str(req_exc)}
 
     return {
-        "status": "message_posted",
-        "accountName": account_name,
-        "videoKey": video_keys,
-        "videoUrl": presigned_url
+        "status":       "message_posted",
+        "accountName":  account_name,
+        "mediaKey":     media_key,
+        "mediaUrl":     presigned_url,
+        "postType":     post_type,
     }

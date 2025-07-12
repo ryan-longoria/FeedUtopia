@@ -591,6 +591,7 @@ resource "aws_lambda_function" "weekly_news_recap" {
       NEWS_TABLE    = aws_dynamodb_table.weekly_news_posts.name
       TARGET_BUCKET = "prod-sharedservices-artifacts-bucket"
       TEAMS_JSON    = jsonencode(var.teams_webhooks)
+      NOTIFY_POST_FUNCTION = aws_lambda_function.notify_post.arn
     }
   }
 

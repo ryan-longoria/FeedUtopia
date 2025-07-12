@@ -290,7 +290,14 @@ data "aws_iam_policy_document" "recap_perms" {
 
 resource "aws_iam_role_policy" "recap_lambda_policy" {
   role   = aws_iam_role.lambda_role.id
-  policy = data.aws_iam_policy_document.recap_perms.json
+  policy = jsonencode({
+    Version : "2012-10-17",
+    Statement : [{
+      Effect   : "Allow",
+      Action   : "lambda:InvokeFunction",
+      Resource : aws_lambda_function.notify_post.arn
+    }]
+  })
 }
 
 #############################
