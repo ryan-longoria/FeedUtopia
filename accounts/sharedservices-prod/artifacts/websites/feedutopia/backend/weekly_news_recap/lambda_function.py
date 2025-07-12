@@ -136,7 +136,7 @@ def fetch_background(bg_type: str, key: str) -> Image.Image|None:
 
         if new_h > HEIGHT:
             center_y = (new_h - HEIGHT) // 2
-            y0 = center_y - 150
+            y0 = center_y - 100
             y0 = max(0, min(y0, new_h - HEIGHT))
             region = img.crop((0, y0, WIDTH, y0 + HEIGHT))
             canvas.paste(region, (0, 0))
