@@ -20,46 +20,37 @@ def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
     )
 
 def build_adaptive_card(urls: List[str], account: str) -> Dict[str, Any]:
-    """Adaptive Card with square thumbnails + pink header line."""
-    columns = [
-        {
-            "type": "Column",
-            "width": "auto",
-            "items": [
-                {
-                    "type": "Image",
-                    "url": u,
-                    "size": "Medium",
-                    "selectAction": {"type": "Action.OpenUrl", "url": u},
-                }
-            ],
-        }
-        for u in urls
-    ]
+    columns = [{
+        "type": "Column",
+        "width": "auto",
+        "items": [{
+            "type":  "Image",
+            "url":   u,
+            "size":  "Medium",
+            "selectAction": {"type": "Action.OpenUrl", "url": u}
+        }]
+    } for u in urls]
 
     adaptive = {
         "$schema":  "http://adaptivecards.io/schemas/adaptive-card.json",
         "type":     "AdaptiveCard",
-        "version":  "1.5",
+        "version":  "1.2",
         "body": [
             {"type": "TextBlock",
              "text": "Your weekly news post is ready!",
              "size": "Large",
-             "weight": "Bolder"},
-            {"type": "TextBlock", "text": account, "spacing": "None"},
-            {"type": "ColumnSet", "columns": columns, "spacing": "Medium"},
-        ],
+             "weight": "Bolder",
+             "color": "Accent"},
+            {"type": "TextBlock",
+             "text": account,
+             "spacing": "None"},
+            {"type": "ColumnSet",
+             "spacing": "Medium",
+             "columns": columns}
+        ]
     }
 
-    return {
-        "summary":  "Weekly NEWS recap",
-        "themeColor": "EC008C",
-        "attachments": [{
-            "contentType": "application/vnd.microsoft.card.adaptive",
-            "content": adaptive,
-        }],
-        "type": "message",
-    }
+    return adaptive
 
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
     logger.info("notify_post event: %s", json.dumps(event))
@@ -91,14 +82,14 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("Could not generate any presigned URLs")
         return {"error": "presign failed"}
 
-    card = build_adaptive_card(thumb_urls, account)
+    card_json = build_adaptive_card(thumb_urls, account)
     webhook_url = teams_map[account]["manual"]
 
     try:
         resp = requests.post(
             webhook_url,
             headers={"Content-Type": "application/json"},
-            data=json.dumps(card),
+            data=json.dumps(card_json),
             timeout=20,
         )
         logger.info("Teams webhook → %s %s", resp.status_code, resp.text.strip()[:200])
