@@ -582,6 +582,7 @@ resource "aws_lambda_function" "weekly_news_recap" {
   runtime          = "python3.12"
   role             = aws_iam_role.lambda_role.arn
   timeout          = 180
+  memory_size      = 512
   
   filename         = "${path.module}/artifacts/websites/feedutopia/backend/weekly_news_recap/weekly_news_recap.zip"
   source_code_hash = filebase64sha256("${path.module}/artifacts/websites/feedutopia/backend/weekly_news_recap/weekly_news_recap.zip")
