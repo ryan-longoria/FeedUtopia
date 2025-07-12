@@ -14,7 +14,6 @@ s3 = boto3.client("s3")
 
 
 def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
-    """Return a presigned GET URL for this object."""
     return s3.generate_presigned_url(
         "get_object",
         Params={"Bucket": TARGET_BUCKET, "Key": key},
@@ -22,13 +21,7 @@ def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
     )
 
 
-def build_message_card(urls: List[str], account: str) -> Dict[str, Any]:
-    """
-    MessageCard payload with
-      • pink theme bar
-      • thumbnail grid
-      • one download‑button per image
-    """
+def build_image_card(urls: List[str], account: str) -> Dict[str, Any]:
     return {
         "@type":    "MessageCard",
         "@context": "http://schema.org/extensions",
@@ -54,6 +47,24 @@ def build_message_card(urls: List[str], account: str) -> Dict[str, Any]:
     }
 
 
+def build_video_card(url: str, account: str) -> Dict[str, Any]:
+    return {
+        "@type":    "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "summary":  f"Your video for {account} is ready!",
+        "themeColor": "EC008C",
+        "title":    "Your social‑media video is ready!",
+        "text":     f"**{account}**",
+        "potentialAction": [
+            {
+                "@type":  "OpenUri",
+                "name":   "Download Video",
+                "targets": [{"os": "default", "uri": url}],
+            }
+        ],
+    }
+
+
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
     logger.info("notify_post event: %s", json.dumps(event))
 
@@ -69,9 +80,13 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         return {"error": "no webhook"}
 
     keys = event.get("imageKeys") or []
+    video_key = event.get("video_key")
+    if not keys and video_key:
+        keys = [video_key]
+
     if not keys:
-        logger.error("No imageKeys provided")
-        return {"error": "no images"}
+        logger.error("No imageKeys or video_key provided")
+        return {"error": "no images or video"}
 
     urls: List[str] = []
     for k in keys:
@@ -84,9 +99,12 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("Failed to generate presigned URLs")
         return {"error": "presign failed"}
 
-    card = build_message_card(urls, account)
-    webhook_url = teams_map[account]["manual"]
+    if video_key:
+        card = build_video_card(urls[0], account)
+    else:
+        card = build_image_card(urls, account)
 
+    webhook_url = teams_map[account]["manual"]
     try:
         resp = requests.post(
             webhook_url,
@@ -94,13 +112,12 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
             data=json.dumps(card),
             timeout=20,
         )
-        logger.info(
-            "Teams webhook → %s %s", resp.status_code, resp.text.strip()[:200]
-        )
+        logger.info("Teams webhook → %s %s", resp.status_code, resp.text.strip()[:200])
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.exception("Failed to post to Teams: %s", exc)
         return {"error": str(exc)}
 
-    logger.info("Posted %d thumbnails to Teams for %s", len(urls), account)
-    return {"status": "posted", "thumbCount": len(urls)}
+    kind = "video" if video_key else "thumbnails"
+    logger.info("Posted %s to Teams for %s", kind, account)
+    return {"status": "posted", "count": len(urls)}
