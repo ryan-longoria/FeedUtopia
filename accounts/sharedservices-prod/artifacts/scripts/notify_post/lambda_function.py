@@ -79,9 +79,10 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("No Teams webhook for account '%s'", account)
         return {"error": "no webhook"}
 
-    keys = event.get("imageKeys") or []
-    video_key = event.get("video_key")
-    if not keys and video_key:
+    keys: List[str] = event.get("imageKeys") or []
+
+    video_key = event.get("video_key") or (event.get("videoResult") or {}).get("video_key")
+    if video_key:
         keys = [video_key]
 
     if not keys:
@@ -118,6 +119,5 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.exception("Failed to post to Teams: %s", exc)
         return {"error": str(exc)}
 
-    kind = "video" if video_key else "thumbnails"
-    logger.info("Posted %s to Teams for %s", kind, account)
-    return {"status": "posted", "count": len(urls)}
+    logger.info("Posted %d item(s) to Teams for %s", len(urls), account)
+    return {"status": "posted", "itemCount": len(urls)}
