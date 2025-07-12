@@ -236,3 +236,8 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.info("Notify → %s (%d thumbnails)", account, len(image_keys))
 
     return {"status": "complete", "accounts": summary}
+
+if __name__ == "__main__":
+    import json, os
+    event = json.loads(os.environ.get("EVENT_JSON", "{}") or "{}")
+    lambda_handler(event, None)
