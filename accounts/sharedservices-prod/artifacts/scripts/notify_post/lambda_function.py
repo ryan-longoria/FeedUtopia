@@ -12,46 +12,74 @@ TARGET_BUCKET       = os.environ["TARGET_BUCKET"]
 
 s3 = boto3.client("s3")
 
+
+# ── helpers ────────────────────────────────────────────────────────────────
 def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
+    """Return a presigned HTTPS URL for an S3 object."""
     return s3.generate_presigned_url(
         "get_object",
         Params={"Bucket": TARGET_BUCKET, "Key": key},
         ExpiresIn=exp,
     )
 
+
 def build_adaptive_card(urls: List[str], account: str) -> Dict[str, Any]:
+    """Adaptive‑Card body (v 1.2) with pink header and square thumbnails."""
     columns = [{
-        "type": "Column",
+        "type":  "Column",
         "width": "auto",
         "items": [{
             "type":  "Image",
             "url":   u,
             "size":  "Medium",
+            "style": "person",                # square crop
             "selectAction": {"type": "Action.OpenUrl", "url": u}
         }]
     } for u in urls]
 
-    adaptive = {
-        "$schema":  "http://adaptivecards.io/schemas/adaptive-card.json",
-        "type":     "AdaptiveCard",
-        "version":  "1.2",
+    return {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type":    "AdaptiveCard",
+        "version": "1.2",
         "body": [
-            {"type": "TextBlock",
-             "text": "Your weekly news post is ready!",
-             "size": "Large",
-             "weight": "Bolder",
-             "color": "Accent"},
-            {"type": "TextBlock",
-             "text": account,
-             "spacing": "None"},
-            {"type": "ColumnSet",
-             "spacing": "Medium",
-             "columns": columns}
+            {
+                "type":   "TextBlock",
+                "text":   "Your weekly news post is ready!",
+                "size":   "Large",
+                "weight": "Bolder",
+                "color":  "Accent"            # Teams accent → pink
+            },
+            {
+                "type":    "TextBlock",
+                "text":    account,
+                "spacing": "None"
+            },
+            {
+                "type":     "ColumnSet",
+                "spacing":  "Medium",
+                "columns":  columns
+            }
         ]
     }
 
-    return adaptive
 
+def build_connector_payload(card: Dict[str, Any], account: str) -> Dict[str, Any]:
+    """
+    Connector envelope that satisfies the ‘summary/text required’ rule and
+    embeds the AdaptiveCard under attachments.
+    """
+    return {
+        "summary": f"Weekly news recap – {account}",
+        "text":    f"Weekly news for **{account}**",         # shows in e‑mail et al.
+        "themeColor": "EC008C",
+        "attachments": [{
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": card
+        }]
+    }
+
+
+# ── Lambda entry‑point ─────────────────────────────────────────────────────
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
     logger.info("notify_post event: %s", json.dumps(event))
 
@@ -71,6 +99,7 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("No imageKeys provided")
         return {"error": "no images"}
 
+    # presign each thumbnail
     thumb_urls: List[str] = []
     for key in image_keys:
         try:
@@ -82,21 +111,25 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("Could not generate any presigned URLs")
         return {"error": "presign failed"}
 
-    card_json = build_adaptive_card(thumb_urls, account)
-    webhook_url = teams_map[account]["manual"]
+    # build payload
+    adaptive = build_adaptive_card(thumb_urls, account)
+    payload  = build_connector_payload(adaptive, account)
+    webhook  = teams_map[account]["manual"]
 
     try:
         resp = requests.post(
-            webhook_url,
+            webhook,
             headers={"Content-Type": "application/json"},
-            data=json.dumps(card_json),
+            data=json.dumps(payload),
             timeout=20,
         )
-        logger.info("Teams webhook → %s %s", resp.status_code, resp.text.strip()[:200])
+        logger.info("Teams webhook → %s %s",
+                    resp.status_code, resp.text.strip()[:200])
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.exception("Failed to post to Teams: %s", exc)
         return {"error": str(exc)}
 
-    logger.info("Posted %d thumbnails to Teams for %s", len(thumb_urls), account)
+    logger.info("Posted %d thumbnails to Teams for %s",
+                len(thumb_urls), account)
     return {"status": "posted", "thumbCount": len(thumb_urls)}
