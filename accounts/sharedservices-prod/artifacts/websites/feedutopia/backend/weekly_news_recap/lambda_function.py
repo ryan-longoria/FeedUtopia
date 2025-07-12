@@ -22,7 +22,7 @@ GRADIENT_KEY = "artifacts/Black Gradient.png"
 LOGO_KEY     = "artifacts/Logo.png"
 
 ROOT = os.path.dirname(__file__)
-FONT_PATH_TITLE = os.path.join(ROOT, "DejaVuSans-Bold.ttf")
+FONT_PATH_TITLE = os.path.join(ROOT, "ariblk.ttf")
 FONT_PATH_DESC  = os.path.join(ROOT, "Montserrat-Medium.ttf")
 DEFAULT_TITLE_MAX = 90
 DEFAULT_TITLE_MIN = 60
