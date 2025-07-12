@@ -91,6 +91,11 @@ resource "aws_cloudwatch_log_group" "waf_logs" {
   retention_in_days = 14
 }
 
+resource "aws_cloudwatch_log_group" "weekly_recap_log_group" {
+  name              = "/aws/stepfunctions/weekly_recap"
+  retention_in_days = 3
+}
+
 #############################
 # Lambda Error Alarms
 #############################
