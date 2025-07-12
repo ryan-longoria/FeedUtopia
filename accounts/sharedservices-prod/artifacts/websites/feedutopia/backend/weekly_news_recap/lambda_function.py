@@ -44,43 +44,53 @@ def multiline_colored(text: str, highlights: Set[str],
                       font_path: str, font_size: int,
                       max_width: int, space: int = 15) -> Image.Image:
     font = ImageFont.truetype(font_path, font_size)
-    words, lines, cur, cur_w = text.split(), [], [], 0
+    words = text.split()
+    lines: List[List[str]] = []
+    cur: List[str] = []
+    cur_w = 0
+
     for w in words:
-        w_w = font.getbbox(w)[2] - font.getbbox(w)[0]
+        mask = font.getmask(w)
+        w_w, w_h = mask.size
         add = w_w if not cur else w_w + space
         if cur_w + add <= max_width:
-            cur.append(w); cur_w += add
+            cur.append(w)
+            cur_w += add
         else:
-            lines.append(cur); cur, cur_w = [w], w_w
-    if cur: lines.append(cur)
+            lines.append(cur)
+            cur = [w]
+            cur_w = w_w
+    if cur:
+        lines.append(cur)
 
     rendered: List[Image.Image] = []
     for ln in lines:
-        x, pieces = 0, []
+        x = 0
         max_h = 0
+        pieces: List[tuple[Image.Image,int]] = []
         for w in ln:
             clean = w.strip(",.!?;:").upper()
             color = HIGHLIGHT_COLOR if clean in highlights else BASE_COLOR
-            bbox = font.getbbox(w)
-            w_w, w_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-            img = Image.new("RGBA", (w_w, w_h + 10), (0, 0, 0, 0))
-            ImageDraw.Draw(img).text((0, 0), w, font=font, fill=color)
+            mask = font.getmask(w)
+            w_w, w_h = mask.size
+            img = Image.new("RGBA", (w_w, w_h), (0,0,0,0))
+            ImageDraw.Draw(img).text((0,0), w, font=font, fill=color)
             pieces.append((img, x))
             x += w_w + space
-            max_h = max(max_h, img.height)
-
-        line_img = Image.new("RGBA", (x - space, max_h), (0, 0, 0, 0))
-        for img, x_off in pieces:
-            line_img.paste(img, (x_off, 0), img)
+            max_h = max(max_h, w_h)
+        line_img = Image.new("RGBA", (x - space, max_h), (0,0,0,0))
+        for img, xo in pieces:
+            line_img.paste(img, (xo, 0), img)
         rendered.append(line_img)
 
-    total_h = sum(i.height for i in rendered) + 10 * (len(rendered) - 1)
-    canvas = Image.new("RGBA", (max_width, total_h), (0, 0, 0, 0))
+    total_h = sum(img.height for img in rendered) + 10 * (len(rendered)-1)
+    canvas = Image.new("RGBA", (max_width, total_h), (0,0,0,0))
     y = 0
     for img in rendered:
-        canvas.paste(img, ((max_width - img.width) // 2, y), img)
+        canvas.paste(img, ((max_width - img.width)//2, y), img)
         y += img.height + 10
     return canvas
+
 def download_to_tmp(key: str) -> str|None:
     local = os.path.join(tempfile.gettempdir(), os.path.basename(key))
     try:
