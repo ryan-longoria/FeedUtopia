@@ -540,6 +540,33 @@ resource "aws_iam_role_policy_attachment" "attach_sfn_logs" {
   policy_arn = aws_iam_policy.step_functions_logs_policy.arn
 }
 
+resource "aws_iam_service_linked_role" "step_functions" {
+  aws_service_name = "states.amazonaws.com"
+}
+
+resource "aws_iam_role_policy" "step_functions_eventbridge" {
+  name = "StepFunctionsEventBridgeIntegration"
+  role = aws_iam_role.step_functions_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "events:PutRule",
+        "events:DescribeRule",
+        "events:DeleteRule",
+        "events:PutTargets",
+        "events:RemoveTargets",
+        "events:TagResource",
+        "events:EnableRule",
+        "events:DisableRule"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
 #############################
 # IAM Policy for SQS
 #############################
