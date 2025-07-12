@@ -248,10 +248,10 @@ def multi_coloured_clip(
             w_w = measure_pillow(w, font_path, font_size)
             txt_clip = (
                 TextClip(
-                    text=w,                     # ←──  FIXED ▸ text= not txt=
+                    text=w,
                     font=font_path,
                     color=colour,
-                    fontsize=font_size,
+                    font_size=font_size,
                     method="label",
                 )
                 .with_duration(duration)
