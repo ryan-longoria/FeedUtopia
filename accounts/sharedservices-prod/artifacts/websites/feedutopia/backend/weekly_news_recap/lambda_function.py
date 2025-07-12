@@ -5,14 +5,18 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 
-# ─── Optional: MoviePy only needed for video backgrounds ─────────────────────
 try:
     from moviepy.video.io.VideoFileClip import VideoFileClip
 except ImportError:
-    VideoFileClip = None  # Lambda layer without MoviePy → will skip videos
+    VideoFileClip = None
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+logging.basicConfig(
+    format="%(asctime)s %(levelname)s %(message)s",
+    level=logging.INFO,
+)
 
 # ── Visual constants ─────────────────────────────────────────────────────────
 WIDTH, HEIGHT = 1080, 1350                      # final canvas size
