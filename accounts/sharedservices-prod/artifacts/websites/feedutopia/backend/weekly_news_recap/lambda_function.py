@@ -1,167 +1,163 @@
-import os
-import io
-import json
-import tempfile
-import datetime
-import logging
-from typing import Any, Dict, List, Set
+# weekly_news_recap/lambda_function.py
+# ─────────────────────────────────────────────────────────────
+import datetime, io, json, logging, os, sys, tempfile
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import boto3
+import moviepy.video.fx as vfx
+import requests
 from boto3.dynamodb.conditions import Key
-from PIL import Image, ImageDraw, ImageFont, ImageColor
+from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
+from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
+from moviepy.video.io.VideoFileClip import VideoFileClip
+from PIL import Image, ImageColor, ImageDraw, ImageFont
 
-# MoviePy imports
-from moviepy.editor import VideoFileClip, ImageClip, CompositeVideoClip
-
+# ─── Logging ─────────────────────────────────────────────────────────────
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO)
 
-# Constants
-WIDTH, HEIGHT = 1080, 1350
+# ─── Constants ───────────────────────────────────────────────────────────
+WIDTH, HEIGHT = 1080, 1350                   # PNG output size (photos)
+VID_W, VID_H  = 1080, 1920                   # MP4 output size   (videos)
+DEFAULT_VID_DURATION = 10                    # seconds
 TITLE_MAX, TITLE_MIN = 90, 60
-DESC_MAX, DESC_MIN = 60, 30
+DESC_MAX,  DESC_MIN  = 60, 30
 HIGHLIGHT_COLOR = "#ec008c"
-BASE_COLOR = "white"
-GRADIENT_KEY = "artifacts/Black Gradient.png"
-
+BASE_COLOR      = "white"
+GRADIENT_KEY    = "artifacts/Black Gradient.png"
+LOGO_KEY        = "artifacts/Logo.png"
 ROOT = os.path.dirname(__file__)
-FONT_PATH_TITLE = os.path.join(ROOT, "ariblk.ttf")
-FONT_PATH_DESC  = os.path.join(ROOT, "Montserrat-Medium.ttf")
+FONT_TITLE = os.path.join(ROOT, "ariblk.ttf")
+FONT_DESC  = os.path.join(ROOT, "Montserrat-Medium.ttf")
 
 TARGET_BUCKET   = os.environ["TARGET_BUCKET"]
 NEWS_TABLE      = os.environ["NEWS_TABLE"]
 NOTIFY_POST_ARN = os.environ["NOTIFY_POST_FUNCTION_ARN"]
 
+# ─── AWS clients ─────────────────────────────────────────────────────────
 dynamodb  = boto3.resource("dynamodb")
 table     = dynamodb.Table(NEWS_TABLE)
 s3        = boto3.client("s3")
 lambda_cl = boto3.client("lambda")
 
-
-def download_to_tmp(key: str) -> str | None:
-    local = os.path.join(tempfile.gettempdir(), os.path.basename(key))
+# ─── Utility helpers (shared by PNG & MP4 paths) ─────────────────────────
+def download_s3_file(bucket: str, key: str, local: str) -> bool:
     try:
-        s3.download_file(TARGET_BUCKET, key, local)
-        return local
-    except Exception as e:
-        logger.warning("download_to_tmp failed for %s: %s", key, e)
-        return None
+        s3.download_file(bucket, key, local)
+        return True
+    except Exception as exc:                   # noqa: BLE001
+        logger.warning("download %s failed: %s", key, exc)
+        return False
 
 
-def autosize(text: str, max_size: int, min_size: int, ideal: int) -> int:
-    size = max_size if len(text) <= ideal else max_size - (len(text)-ideal)*(max_size-min_size)/ideal
-    return max(int(size), min_size)
+def autosize(text: str, max_sz: int, min_sz: int, ideal: int) -> int:
+    if not text:
+        return min_sz
+    if len(text) <= ideal:
+        return max_sz
+    factor = (max_sz - min_sz) / ideal
+    size = max_sz - (len(text) - ideal) * factor
+    return max(int(size), min_sz)
 
 
-def multiline_colored(text: str, highlights: Set[str],
-                      font_path: str, font_size: int,
-                      max_width: int, space: int = 15
-                     ) -> Image.Image:
-    font = ImageFont.truetype(font_path, font_size)
+def Pillow_text_img(
+    text: str,
+    font_path: str,
+    font_size: int,
+    highlights: Set[str],
+    max_width: int,
+    space: int = 15,
+) -> Image.Image:
+    """Generate a RGBA image (no background) with colour‑highlighted words."""
+    font  = ImageFont.truetype(font_path, font_size)
     words = text.split()
-    lines, cur_line, cur_w = [], [], 0
-
+    lines, cur, w_cur = [], [], 0
     for w in words:
-        bbox = font.getbbox(w)
-        w_w = bbox[2] - bbox[0]
-        advance = w_w if not cur_line else w_w + space
-        if cur_w + advance <= max_width:
-            cur_line.append((w, bbox))
-            cur_w += advance
+        bb = font.getbbox(w)
+        w_w = bb[2] - bb[0]
+        adv = w_w if not cur else w_w + space
+        if w_cur + adv <= max_width:
+            cur.append((w, bb))
+            w_cur += adv
         else:
-            lines.append(cur_line)
-            cur_line, cur_w = [(w, bbox)], w_w
-    if cur_line:
-        lines.append(cur_line)
+            lines.append(cur); cur, w_cur = [(w, bb)], w_w
+    if cur:
+        lines.append(cur)
 
-    rendered = []
-    for line in lines:
-        x_offset, line_h = 0, 0
-        pieces = []
-        for w, bbox in line:
-            x0,y0,x1,y1 = bbox
-            w_w, w_h = x1-x0, y1-y0
-            color = HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else BASE_COLOR
-            img = Image.new("RGBA", (w_w, w_h), (0,0,0,0))
-            ImageDraw.Draw(img).text((-x0,-y0), w, font=font, fill=color)
-            pieces.append((img, x_offset))
-            x_offset += w_w + space
+    rendered: List[Image.Image] = []
+    for ln in lines:
+        x_off, line_h, pieces = 0, 0, []
+        for w, bb in ln:
+            w_w, w_h = bb[2] - bb[0], bb[3] - bb[1]
+            colour = HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else BASE_COLOR
+            img = Image.new("RGBA", (w_w, w_h), (0, 0, 0, 0))
+            ImageDraw.Draw(img).text((-bb[0], -bb[1]), w, font=font, fill=colour)
+            pieces.append((img, x_off))
+            x_off += w_w + space
             line_h = max(line_h, w_h)
-        line_img = Image.new("RGBA", (x_offset-space, line_h), (0,0,0,0))
-        for img_piece, xo in pieces:
-            line_img.paste(img_piece, (xo,0), img_piece)
-        rendered.append(line_img)
+        ln_img = Image.new("RGBA", (x_off - space, line_h), (0, 0, 0, 0))
+        for img, xo in pieces:
+            ln_img.paste(img, (xo, 0), img)
+        rendered.append(ln_img)
 
-    total_h = sum(i.height for i in rendered) + 10*(len(rendered)-1)
-    canvas = Image.new("RGBA", (max_width, total_h), (0,0,0,0))
+    tot_h = sum(i.height for i in rendered) + 10 * (len(rendered) - 1)
+    canvas = Image.new("RGBA", (max_width, tot_h), (0, 0, 0, 0))
     y = 0
-    for im in rendered:
-        canvas.paste(im, ((max_width-im.width)//2, y), im)
-        y += im.height + 10
-
+    for img in rendered:
+        canvas.paste(img, ((max_width - img.width) // 2, y), img)
+        y += img.height + 10
     return canvas
 
 
-def fetch_gradient() -> Image.Image | None:
-    p = download_to_tmp(GRADIENT_KEY)
-    if not p: return None
-    return Image.open(p).convert("RGBA").resize((WIDTH, HEIGHT))
+def measure_pillow(word: str, font_path: str, size: int) -> int:
+    return ImageFont.truetype(font_path, size).getbbox(word)[2]
 
 
-def fetch_logo(account: str) -> Image.Image | None:
-    key = f"artifacts/{account.lower()}/logo.png"
-    p = download_to_tmp(key)
-    if not p: return None
-    logo = Image.open(p).convert("RGBA")
-    scale = 200/logo.width
-    return logo.resize((int(logo.width*scale), int(logo.height*scale)))
+# ─── PNG renderer (photos) ───────────────────────────────────────────────
+def render_photo(item: Dict[str, Any], account: str) -> Tuple[bytes, str]:
+    """Return PNG bytes & S3 key."""
+    bg_key   = item.get("s3Key", "")
+    local_bg = os.path.join(tempfile.gettempdir(), os.path.basename(bg_key))
+    has_bg   = download_s3_file(TARGET_BUCKET, bg_key, local_bg)
+    canvas   = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
 
+    if has_bg:
+        with Image.open(local_bg).convert("RGBA") as im:
+            scale = WIDTH / im.width
+            nh    = int(im.height * scale)
+            im    = im.resize((WIDTH, nh), Image.LANCZOS)
+            if nh > HEIGHT:
+                y0 = (nh - HEIGHT) // 2
+                im = im.crop((0, y0, WIDTH, y0 + HEIGHT))
+            canvas.paste(im, (0, 0))
 
-def fetch_background_photo(key: str) -> Image.Image | None:
-    if not key:
-        return None
-    local = download_to_tmp(key)
-    if not local:
-        return None
-    img = Image.open(local).convert("RGBA")
-    scale = WIDTH / img.width
-    new_h = int(img.height * scale)
-    img = img.resize((WIDTH, new_h), Image.LANCZOS)
-    if new_h >= HEIGHT:
-        return img.crop((0, 0, WIDTH, HEIGHT))
-    else:
-        bg = Image.new("RGBA", (WIDTH, HEIGHT), (0,0,0,255))
-        bg.paste(img, (0,0))
-        return bg
+    # gradient
+    grad_local = os.path.join(tempfile.gettempdir(), "grad.png")
+    if download_s3_file(TARGET_BUCKET, GRADIENT_KEY, grad_local):
+        with Image.open(grad_local).convert("RGBA").resize((WIDTH, HEIGHT)) as g:
+            canvas.alpha_composite(g)
 
-
-def render_item(item: Dict[str,Any], account: str) -> Image.Image:
-    """
-    Render photo item (PNG) with gradient, text, logo, stripe.
-    """
-    canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0,0,0,255))
-
-    bg = fetch_background_photo(item.get("s3Key",""))
-    if bg:
-        canvas.paste(bg, (0,0))
-
-    grad = fetch_gradient()
-    if grad:
-        canvas.alpha_composite(grad)
-
+    # text
     title    = (item.get("title") or "").upper()
     subtitle = (item.get("subtitle") or "").upper()
-    hl_title = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
-    hl_sub   = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
+    hl_t     = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
+    hl_s     = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
 
-    t_font = autosize(title, TITLE_MAX, TITLE_MIN, 30)
-    s_font = autosize(subtitle, DESC_MAX, DESC_MIN, 45)
+    t_img = Pillow_text_img(title, FONT_TITLE,
+                            autosize(title, TITLE_MAX, TITLE_MIN, 30),
+                            hl_t, 1000)
+    sub_img = Pillow_text_img(subtitle, FONT_DESC,
+                              autosize(subtitle, DESC_MAX, DESC_MIN, 45),
+                              hl_s, 900) if subtitle else None
 
-    t_img   = multiline_colored(title,    hl_title, FONT_PATH_TITLE, t_font, 1000)
-    sub_img = multiline_colored(subtitle, hl_sub,   FONT_PATH_DESC,  s_font,  900) if subtitle else None
+    # logo
+    logo_local = os.path.join(tempfile.gettempdir(), "logo.png")
+    logo = None
+    if download_s3_file(TARGET_BUCKET, LOGO_KEY, logo_local):
+        logo = Image.open(logo_local).convert("RGBA")
+        scale = 200 / logo.width
+        logo = logo.resize((int(logo.width * scale), int(logo.height * scale)))
 
-    logo = fetch_logo(account)
     if logo:
         lx = WIDTH - logo.width - 50
         ly = HEIGHT - logo.height - 50
@@ -174,169 +170,240 @@ def render_item(item: Dict[str,Any], account: str) -> Image.Image:
     else:
         y_title = HEIGHT - 300 - t_img.height
 
-    canvas.alpha_composite(t_img, ((WIDTH-t_img.width)//2, y_title))
+    canvas.alpha_composite(t_img, ((WIDTH - t_img.width) // 2, y_title))
     if sub_img:
-        canvas.alpha_composite(sub_img, ((WIDTH-sub_img.width)//2, y_sub))
-
+        canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width) // 2, y_sub))
     if logo:
-        stripe = Image.new("RGBA", (700,4), ImageColor.getrgb(HIGHLIGHT_COLOR)+(255,))
-        canvas.alpha_composite(stripe, (lx-720, ly + logo.height//2 -2))
+        stripe = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
+        canvas.alpha_composite(stripe, (lx - 720, ly + logo.height // 2 - 2))
         canvas.alpha_composite(logo, (lx, ly))
 
-    return canvas.convert("RGB")
+    out = io.BytesIO()
+    canvas.convert("RGB").save(out, "PNG", compress_level=3)
+    out.seek(0)
+
+    ts  = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    key = f"weekly_recap/{account}/img_{ts}_{item['createdAt']}.png"
+    s3.upload_fileobj(out, TARGET_BUCKET, key,
+                      ExtraArgs={"ContentType": "image/png"})
+    return key, "photo"
 
 
-def render_item_overlay(item: Dict[str,Any], account: str) -> Image.Image:
-    """
-    Build the same overlay (gradient/text/logo) on transparent RGBA.
-    """
-    overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0,0,0,0))
-
-    grad = fetch_gradient()
-    if grad:
-        overlay.alpha_composite(grad)
-
-    title    = (item.get("title") or "").upper()
-    subtitle = (item.get("subtitle") or "").upper()
-    hl_title = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
-    hl_sub   = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
-
-    t_font = autosize(title, TITLE_MAX, TITLE_MIN, 30)
-    s_font = autosize(subtitle, DESC_MAX, DESC_MIN, 45)
-
-    t_img = multiline_colored(title, hl_title, FONT_PATH_TITLE, t_font, 1000)
-    sub_img = multiline_colored(subtitle, hl_sub, FONT_PATH_DESC, s_font, 900) if subtitle else None
-
-    overlay.alpha_composite(t_img, ((WIDTH-t_img.width)//2, 25))
-
-    if sub_img:
-        logo = fetch_logo(account)
-        ly = HEIGHT - (logo.height + 50) if logo else HEIGHT - 100
-        y_sub = ly - sub_img.height
-        overlay.alpha_composite(sub_img, ((WIDTH-sub_img.width)//2, y_sub))
-
-    logo = fetch_logo(account)
-    if logo:
-        lx = WIDTH - logo.width - 50
-        ly = HEIGHT - logo.height - 50
-        stripe = Image.new("RGBA", (700,4), ImageColor.getrgb(HIGHLIGHT_COLOR)+(255,))
-        overlay.alpha_composite(stripe, (lx-720, ly + logo.height//2 -2))
-        overlay.alpha_composite(logo, (lx, ly))
-
-    return overlay
+# ─── MoviePy helpers (videos) ────────────────────────────────────────────
+def dyn_font(text: str, max_s: int, min_s: int, ideal: int) -> int:
+    size = autosize(text, max_s, min_s, ideal)
+    return max(size, min_s)
 
 
-def render_video_item(item: Dict[str,Any], account: str) -> str | None:
-    """
-    Load MP4, resize/crop to 1080×1350, composite overlay on every frame,
-    write new MP4 locally, return its path.
-    """
-    src_key = item.get("s3Key","")
-    local_in = download_to_tmp(src_key)
-    if not local_in:
-        return None
+def multi_coloured_clip(text: str,
+                        highlights: Set[str],
+                        font_path: str,
+                        font_size: int,
+                        max_width: int,
+                        duration: float) -> CompositeVideoClip:
+    """MoviePy version of Pillow_text_img."""
+    words = text.split()
+    lines, cur, cur_w = [], [], 0
+    for w in words:
+        w_w = measure_pillow(w, font_path, font_size)
+        adv = w_w if not cur else w_w + 15
+        if cur_w + adv <= max_width:
+            cur.append(w); cur_w += adv
+        else:
+            lines.append(cur); cur, cur_w = [w], w_w
+    if cur:
+        lines.append(cur)
 
-    clip = VideoFileClip(local_in).resize(width=WIDTH)
+    line_clips = []
+    for ln in lines:
+        x_off, parts = 0, []
+        for w in ln:
+            colour = HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else "white"
+            w_w = measure_pillow(w, font_path, font_size)
+            txt = (
+                TextClip(
+                    txt=w,
+                    font=font_path,
+                    color=colour,
+                    fontsize=font_size,
+                    method="label",
+                )
+                .with_duration(duration)
+                .with_position((x_off, 0))
+            )
+            x_off += w_w + 15
+            parts.append(txt)
+        line_w = max(x_off - 15, 1)
+        line_h = parts[0].h if parts else 1
+        line_composite = (
+            CompositeVideoClip(parts, size=(line_w, line_h))
+            .with_duration(duration)
+        )
+        line_clips.append(line_composite)
 
-    if clip.h < HEIGHT:
-        pad_t = (HEIGHT - clip.h)//2
-        clip = clip.margin(top=pad_t, bottom=HEIGHT-clip.h-pad_t, color=(0,0,0))
-    else:
-        cy = (clip.h - HEIGHT)//2 - 150
-        cy = max(0, min(cy, clip.h-HEIGHT))
-        clip = clip.crop(y1=cy, height=HEIGHT)
-
-    overlay_img = render_item_overlay(item, account)
-    overlay_clip = (
-        ImageClip(overlay_img)
-        .set_duration(clip.duration)
-        .set_fps(clip.fps)
+    max_w = max((c.w for c in line_clips), default=1)
+    y_cur, stacked = 0, []
+    for lc in line_clips:
+        stacked.append(lc.with_position(((max_w - lc.w) // 2, y_cur)))
+        y_cur += lc.h + 10
+    total_h = max(y_cur - 10, 1)
+    return (
+        CompositeVideoClip(stacked, size=(max_w, total_h))
+        .with_duration(duration)
     )
 
-    final = CompositeVideoClip([clip, overlay_clip.set_pos((0,0))])
 
-    out_local = os.path.join(tempfile.gettempdir(),
-                             f"recap_{account}_{datetime.datetime.utcnow().timestamp()}.mp4")
-    final.write_videofile(
-        out_local,
-        codec="libx264",
-        audio_codec="aac",
-        temp_audiofile="temp-aud.m4a",
-        remove_temp=True,
-        verbose=False, logger=None
+def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
+    """Return [MP4‑key, PNG‑thumb‑key], and media type 'video'."""
+    # download background video
+    bg_key   = item.get("s3Key", "")
+    local_bg = "/tmp/video_bg.mp4"
+    if not download_s3_file(TARGET_BUCKET, bg_key, local_bg):
+        logger.warning("video missing, fallback to photo path")
+        return [render_photo(item, account)[0]], "photo"
+
+    raw_bg = VideoFileClip(local_bg, audio=False)
+    dur    = min(raw_bg.duration, DEFAULT_VID_DURATION)
+    scale  = VID_W / raw_bg.w
+    new_h  = int(raw_bg.h * scale)
+    y_off  = (VID_H - new_h) // 2
+    bg_clip = (
+        raw_bg.with_effects([vfx.Resize((VID_W, new_h))])
+        .with_duration(dur)
+        .with_position((0, y_off))
     )
-    return out_local
+    base_black = ColorClip(size=(VID_W, VID_H), color=(0, 0, 0)).with_duration(dur)
+    composite_clips = [base_black, bg_clip]
+
+    # gradient overlay
+    local_grad = "/tmp/grad.png"
+    if download_s3_file(TARGET_BUCKET, GRADIENT_KEY, local_grad):
+        grad_clip = (
+            ImageClip(local_grad)
+            .with_effects([vfx.Resize((VID_W, VID_H))])
+            .with_duration(dur)
+        )
+        composite_clips.append(grad_clip)
+
+    # text
+    title = (item.get("title") or "").upper()
+    sub   = (item.get("subtitle") or "").upper()
+    hl_t  = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
+    hl_s  = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
+
+    title_clip = multi_coloured_clip(
+        title, hl_t, FONT_TITLE, dyn_font(title, 100, 75, 25), 1000, dur
+    )
+    title_clip = title_clip.with_position(((VID_W - title_clip.w) // 2, 275))
+    composite_clips.append(title_clip)
+
+    if sub:
+        sub_clip = multi_coloured_clip(
+            sub, hl_s, FONT_DESC, dyn_font(sub, 70, 30, 45), 800, dur
+        )
+        sub_clip = sub_clip.with_position(
+            ((VID_W - sub_clip.w) // 2, int(VID_H * 0.75))
+        )
+        composite_clips.append(sub_clip)
+
+    # logo
+    local_logo = "/tmp/logo.png"
+    if download_s3_file(TARGET_BUCKET, LOGO_KEY, local_logo):
+        logo_raw = ImageClip(local_logo)
+        l_scale  = 200 / logo_raw.w
+        logo_clip = (
+            logo_raw.with_effects([vfx.Resize(l_scale)])
+            .with_duration(dur)
+        )
+        line_left = ColorClip(size=(700, 4),
+                              color=ImageColor.getrgb(HIGHLIGHT_COLOR)).with_duration(dur)
+        gap, total_w = 20, 700 + gap + logo_clip.w
+        total_h = max(logo_clip.h, 4)
+        overlay = CompositeVideoClip(
+            [
+                line_left.with_position((0, (total_h - 4) // 2)),
+                logo_clip.with_position((700 + gap, (total_h - logo_clip.h) // 2)),
+            ],
+            size=(total_w, total_h),
+        ).with_duration(dur).with_position((VID_W - total_w - 50,
+                                            VID_H - total_h - 100))
+        composite_clips.append(overlay)
+
+    final = CompositeVideoClip(composite_clips, size=(VID_W, VID_H)).with_duration(dur)
+    ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    vid_key = f"weekly_recap/{account}/vid_{ts}_{item['createdAt']}.mp4"
+    tmp_vid = "/tmp/out.mp4"
+    final.write_videofile(tmp_vid, fps=24, codec="libx264",
+                          audio=False, threads=2,
+                          ffmpeg_params=["-preset", "ultrafast"])
+    s3.upload_file(tmp_vid, TARGET_BUCKET, vid_key,
+                   ExtraArgs={"ContentType": "video/mp4",
+                              "ContentDisposition": 'attachment; filename="recap.mp4"'})
+
+    # png thumbnail (first frame)
+    thumb = final.get_frame(0)
+    thumb_img = Image.fromarray(thumb)
+    buf = io.BytesIO()
+    thumb_img.save(buf, "PNG", compress_level=2)
+    buf.seek(0)
+    png_key = vid_key.replace(".mp4", ".png")
+    s3.upload_fileobj(buf, TARGET_BUCKET, png_key,
+                      ExtraArgs={"ContentType": "image/png"})
+
+    return [vid_key, png_key], "video"
 
 
+# ─── Dynamo helpers ──────────────────────────────────────────────────────
 def list_accounts() -> Set[str]:
     seen = set()
-    for page in table.meta.client.get_paginator("scan").paginate(
-        TableName=NEWS_TABLE,
-        ProjectionExpression="accountName"
+    paginator = table.meta.client.get_paginator("scan")
+    for pg in paginator.paginate(
+        TableName=NEWS_TABLE, ProjectionExpression="accountName"
     ):
-        for i in page.get("Items", []):
-            seen.add(i["accountName"])
+        for itm in pg.get("Items", []):
+            seen.add(itm["accountName"])
     return seen
 
 
-def latest_items_for_account(account: str, limit: int = 4) -> List[Dict[str,Any]]:
+def latest_items(account: str, limit: int = 4) -> List[Dict[str, Any]]:
     return table.query(
         KeyConditionExpression=Key("accountName").eq(account),
         ScanIndexForward=False,
-        Limit=limit
+        Limit=limit,
     )["Items"]
 
 
-def lambda_handler(event: Dict[str,Any], _ctx: Any) -> Dict[str,Any]:
-    logger.info("Starting weekly recap")
-    summary: Dict[str,int] = {}
+# ─── Lambda entrypoint ───────────────────────────────────────────────────
+def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
+    logger.info("weekly recap start")
+    summary: Dict[str, int] = {}
+    for acct in list_accounts():
+        keys: List[str] = []
+        for itm in latest_items(acct):
+            if itm.get("backgroundType", "photo").lower() == "video":
+                new_keys, _ = render_video(itm, acct)
+                keys.extend(new_keys)
+            else:
+                k, _ = render_photo(itm, acct)
+                keys.append(k)
 
-    for account in list_accounts():
-        items = latest_items_for_account(account)
-        if not items:
+        if not keys:
             continue
 
-        ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        image_keys: List[str] = []
-        video_keys: List[str] = []
-
-        for idx, item in enumerate(items):
-            if item.get("backgroundType","").lower() == "video":
-                local_mp4 = render_video_item(item, account)
-                if not local_mp4:
-                    continue
-                dst = f"weekly_recap/{account}/recap_{ts}_{idx:03d}.mp4"
-                s3.upload_file(local_mp4, TARGET_BUCKET, dst,
-                               ExtraArgs={"ContentType":"video/mp4"})
-                video_keys.append(dst)
-            else:
-                img = render_item(item, account)
-                dst = f"weekly_recap/{account}/recap_{ts}_{idx:03d}.png"
-                buf = io.BytesIO()
-                img.save(buf, "PNG", compress_level=3)
-                buf.seek(0)
-                s3.upload_fileobj(buf, TARGET_BUCKET, dst,
-                                  ExtraArgs={"ContentType":"image/png"})
-                image_keys.append(dst)
-
-        payload: Dict[str,Any] = {"accountName": account}
-        if image_keys:
-            payload["imageKeys"] = image_keys
-        if video_keys:
-            payload["videoKeys"] = video_keys
-
+        # invoke Teams notifier
         lambda_cl.invoke(
             FunctionName=NOTIFY_POST_ARN,
             InvocationType="Event",
-            Payload=json.dumps(payload).encode()
+            Payload=json.dumps({"accountName": acct, "imageKeys": keys}).encode(),
         )
+        summary[acct] = len(keys)
 
-        summary[account] = len(image_keys) + len(video_keys)
-
-    logger.info("Weekly recap complete: %s", summary)
-    return {"status":"complete", "accounts": summary}
+    logger.info("weekly recap complete: %s", summary)
+    return {"status": "complete", "accounts": summary}
 
 
+# ─── local debug ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    ev = json.loads(os.environ.get("EVENT_JSON","{}") or "{}")
-    print(lambda_handler(ev, None))
+    raw = os.environ.get("EVENT_JSON", "{}")
+    evt = json.loads(raw)
+    lambda_handler(evt, None)
