@@ -13,22 +13,21 @@ dynamodb = boto3.resource("dynamodb")
 news_table = dynamodb.Table(os.environ["NEWS_TABLE"])
 
 def cache_if_news(payload: dict, media_key: str) -> None:
-    """Store NEWS posts for the weekly recap."""
     if payload.get("spinningArtifact") != "NEWS":
         return
 
     now = int(time.time())
     record = {
-        "accountName": payload["accountName"],
-        "createdAt":  now,
-        "expiresAt":  now + 9 * 24 * 3600,
-        "title":      payload["title"],
-        "subtitle":   payload.get("description", ""),
-        "highlightWordsTitle":      payload.get("highlightWordsTitle", ""),
+        "accountName":  payload["accountName"],
+        "createdAt":    now,
+        "expiresAt":    now + 9 * 24 * 3600,
+        "title":        payload["title"],
+        "subtitle":     payload.get("description", ""),
+        "highlightWordsTitle":       payload.get("highlightWordsTitle", ""),
         "highlightWordsDescription": payload.get("highlightWordsDescription", ""),
         "backgroundType": payload.get("backgroundType", "image"),
-        "s3Bucket":    payload["UPLOAD_BUCKET"],
-        "s3Key":       media_key,
+        "s3Bucket": BUCKET,
+        "s3Key":    media_key,
     }
     news_table.put_item(Item=record)
 
@@ -39,6 +38,9 @@ def lambda_handler(event, _ctx):
     missing  = [p for p in required if p not in data]
     if missing:
         return _bad(f"missing {missing}")
+    
+    is_image   = data["backgroundType"] in ("image", "photo")
+    path_field = "image_path" if is_image else "video_path"
 
     meta = s3.head_object(Bucket=BUCKET, Key=data["key"])
     path_field = "image_path" if data["backgroundType"]=="photo" else "video_path"
