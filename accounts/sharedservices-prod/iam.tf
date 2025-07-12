@@ -479,6 +479,38 @@ resource "aws_iam_role_policy" "scheduler_start_exec" {
   })
 }
 
+resource "aws_iam_role_policy" "step_functions_ecs_permissions" {
+  name = "step-functions-ecs-permissions"
+  role = aws_iam_role.step_functions_role.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecs:RunTask",
+          "ecs:DescribeTasks",
+          "ecs:DescribeTaskDefinition",
+          "iam:PassRole"
+        ]
+        Resource = [
+          aws_ecs_task_definition.weekly_news_recap.arn,
+          aws_ecs_cluster.render_cluster.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = "iam:PassRole"
+        Resource = [
+          aws_iam_role.ecs_task_execution_role.arn,
+          aws_iam_role.ecs_task_role.arn
+        ]
+      }
+    ]
+  })
+}
+
 #############################
 # IAM Policy for SQS
 #############################
