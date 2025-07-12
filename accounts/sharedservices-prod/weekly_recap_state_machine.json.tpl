@@ -18,7 +18,7 @@
         },
         "Overrides": {
           "ContainerOverrides": [{
-            "Name": "weekly_news_recap",
+            "Name": "weekly_recap",
             "Environment": [
               { "Name": "EVENT_JSON", "Value.$": "States.JsonToString($)" },
               { "Name": "TASK_TOKEN", "Value.$": "$$.Task.Token" }
