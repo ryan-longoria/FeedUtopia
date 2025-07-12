@@ -12,7 +12,6 @@ TARGET_BUCKET       = os.environ["TARGET_BUCKET"]
 
 s3 = boto3.client("s3")
 
-# ── helpers ────────────────────────────────────────────────────────────────
 def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
     return s3.generate_presigned_url(
         "get_object",
@@ -20,61 +19,51 @@ def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
         ExpiresIn=exp,
     )
 
-def build_adaptive_card(thumbs: List[str], account: str) -> Dict[str, Any]:
-    """
-    Create an Adaptive Card with big, clickable thumbnails.
-    """
-    columns = []
-    for url in thumbs:
-        columns.append(
-            {
-                "type": "Column",
-                "width": "auto",
-                "items": [
-                    {
-                        "type": "Image",
-                        "url": url,
-                        "size": "Medium",        # or "Stretch" for full height
-                        "style": "Person",       # nicer border in dark mode
-                        "selectAction": {
-                            "type": "Action.OpenUrl",
-                            "url": url           # full‑size link
-                        },
-                    }
-                ],
-            }
-        )
+def build_adaptive_card(urls: List[str], account: str) -> Dict[str, Any]:
+    """Adaptive Card with square thumbnails + pink header line."""
+    columns = [
+        {
+            "type": "Column",
+            "width": "auto",
+            "items": [
+                {
+                    "type": "Image",
+                    "url": u,
+                    "size": "Medium",
+                    "selectAction": {"type": "Action.OpenUrl", "url": u},
+                }
+            ],
+        }
+        for u in urls
+    ]
+
+    adaptive = {
+        "$schema":  "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type":     "AdaptiveCard",
+        "version":  "1.5",
+        "body": [
+            {"type": "TextBlock",
+             "text": "Your weekly news post is ready!",
+             "size": "Large",
+             "weight": "Bolder"},
+            {"type": "TextBlock", "text": account, "spacing": "None"},
+            {"type": "ColumnSet", "columns": columns, "spacing": "Medium"},
+        ],
+    }
 
     return {
+        "summary":  "Weekly NEWS recap",
+        "themeColor": "EC008C",
+        "attachments": [{
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": adaptive,
+        }],
         "type": "message",
-        "attachments": [
-            {
-                "contentType": "application/vnd.microsoft.card.adaptive",
-                "contentUrl": None,
-                "content": {
-                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                    "type": "AdaptiveCard",
-                    "version": "1.5",
-                    "body": [
-                        {
-                            "type": "TextBlock",
-                            "size": "Large",
-                            "weight": "Bolder",
-                            "text": "Your weekly NEWS recap is ready!",
-                            "wrap": True,
-                        },
-                        {"type": "TextBlock", "text": account, "spacing": "None"},
-                        {"type": "ColumnSet", "columns": columns},
-                    ],
-                },
-            }
-        ],
     }
 
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
     logger.info("notify_post event: %s", json.dumps(event))
 
-    # 1. env & inputs ----------------------------------------------------------------
     try:
         teams_map = json.loads(TEAMS_WEBHOOKS_JSON)
     except json.JSONDecodeError:
@@ -91,7 +80,6 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("No imageKeys provided")
         return {"error": "no images"}
 
-    # 2. presign thumbnails -----------------------------------------------------------
     thumb_urls: List[str] = []
     for key in image_keys:
         try:
@@ -103,7 +91,6 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("Could not generate any presigned URLs")
         return {"error": "presign failed"}
 
-    # 3. build & send Adaptive Card ---------------------------------------------------
     card = build_adaptive_card(thumb_urls, account)
     webhook_url = teams_map[account]["manual"]
 
