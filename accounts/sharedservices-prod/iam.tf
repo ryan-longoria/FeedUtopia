@@ -473,6 +473,97 @@ resource "aws_iam_role_policy" "step_functions_ecs" {
   })
 }
 
+resource "aws_iam_role_policy" "step_functions_policy" {
+  name = "${var.project_name}_step_functions_policy"
+  role = aws_iam_role.step_functions_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = ["lambda:InvokeFunction"],
+        Resource = [
+          aws_lambda_function.get_logo.arn,
+          aws_lambda_function.delete_logo.arn,
+          aws_lambda_function.notify_post.arn
+        ]
+      },
+      {
+        Effect   = "Allow",
+        Action   = ["ecs:RunTask", "ecs:StopTask", "ecs:DescribeTasks"],
+        Resource = [
+          aws_ecs_task_definition.render_video.arn,
+          aws_ecs_task_definition.weekly_news_recap.arn
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = "iam:PassRole",
+        Resource = [
+          aws_iam_role.ecs_task_execution_role.arn,
+          aws_iam_role.ecs_task_role.arn
+        ],
+        Condition = { "StringEquals": { "iam:PassedToService": "ecs-tasks.amazonaws.com" } }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "recap_task_permissions" {
+  name = "WeeklyRecapTaskPolicy"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = [
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:GetItem"
+        ],
+        Resource = [
+          aws_dynamodb_table.weekly_news_posts.arn,
+          "${aws_dynamodb_table.weekly_news_posts.arn}/*"
+        ]
+      },
+      {
+        Effect   = "Allow",
+        Action   = "lambda:InvokeFunction",
+        Resource = aws_lambda_function.notify_post.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role" "scheduler_invoke_sfn" {
+  name = "scheduler_start_weekly_recap"
+  assume_role_policy = jsonencode({
+    Version : "2012-10-17",
+    Statement : [{
+      Effect = "Allow",
+      Action = "sts:AssumeRole",
+      Principal = { Service = "scheduler.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "scheduler_start_exec" {
+  name = "SchedulerStartSFN"
+  role = aws_iam_role.scheduler_invoke_sfn.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect   = "Allow",
+      Action   = "states:StartExecution",
+      Resource = aws_sfn_state_machine.weekly_recap.arn
+    }]
+  })
+}
+
 #############################
 # IAM Policy for SQS
 #############################

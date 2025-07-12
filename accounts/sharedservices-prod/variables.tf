@@ -97,6 +97,11 @@ variable "render_video_image_uri" {
   type        = string
 }
 
+variable "weekly_recap_image_uri" {
+  type        = string
+  description = "ECR image URI for weekly_news_recap container"
+}
+
 variable "common_tags" {
   description = "A map of common tags to apply to all resources."
   type        = map(string)
@@ -105,6 +110,13 @@ variable "common_tags" {
     Project     = "sharedservices"
     Environment = "prod"
   }
+}
+
+variable "weekly_recap_cpu" { 
+  default = 1024 
+}
+variable "weekly_recap_memory" { 
+  default = 2048 
 }
 
 variable "gpt_model" {
