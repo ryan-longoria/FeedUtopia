@@ -109,7 +109,7 @@ def fetch_logo(account: str) -> Image.Image|None:
     scale = 200/logo.width
     return logo.resize((int(logo.width*scale), int(logo.height*scale)))
 
-def fetch_background(bg_type: str, key: str) -> Image.Image | None:
+def fetch_background(bg_type: str, key: str) -> Image.Image|None:
     if not key:
         return None
     local = download_to_tmp(key)
@@ -130,23 +130,19 @@ def fetch_background(bg_type: str, key: str) -> Image.Image | None:
     new_h = int(img.height * scale)
     img = img.resize((WIDTH, new_h), Image.LANCZOS)
 
-    if bg_type == "video":
+    if bg_type == "video" and new_h > HEIGHT:
         center_y = (new_h - HEIGHT) // 2
-        up_shift = min(150, center_y)
-        y0 = center_y - up_shift
+        y0 = center_y + 150
         y0 = max(0, min(y0, new_h - HEIGHT))
-
         crop = img.crop((0, y0, WIDTH, y0 + HEIGHT))
-        canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
-        canvas.paste(crop, (0, 0))
-        return canvas
+        return crop
 
-    if new_h > HEIGHT:
+    if new_h >= HEIGHT:
         return img.crop((0, 0, WIDTH, HEIGHT))
     else:
-        canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
-        canvas.paste(img, (0, 0))
-        return canvas
+        bg = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
+        bg.paste(img, (0, 0))
+        return bg
 
 def render_item(item: Dict[str, Any], account: str) -> Image.Image:
     """
@@ -184,7 +180,7 @@ def render_item(item: Dict[str, Any], account: str) -> Image.Image:
         ly = HEIGHT - 100
 
     if bg_type == "video":
-        y_title = 0
+        y_title = 25
         if sub_img:
             y_sub = ly - sub_img.height
         else:
