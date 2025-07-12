@@ -108,13 +108,25 @@ def fetch_logo(account: str) -> Image.Image | None:
 def fetch_background(bucket: str, bg_type: str, key: str) -> Image.Image | None:
     if not key or bg_type == "video":
         return None
+
     tmp = "/tmp/bg.jpg"
     try:
         s3.download_file(bucket, key, tmp)
-        return Image.open(tmp).convert("RGBA").resize((WIDTH, HEIGHT))
     except Exception as exc:
         logger.warning("Download %s/%s failed: %s", bucket, key, exc)
         return None
+
+    img = Image.open(tmp).convert("RGBA")
+
+    if img.width == 1080 and img.height >= HEIGHT:
+        top = 0
+        left = 0
+        right = 1080
+        bottom = HEIGHT
+        return img.crop((left, top, right, bottom))
+
+    img = img.resize((1080, int(img.height * (1080 / img.width))))
+    return img.crop((0, 0, 1080, HEIGHT))
 
 def render_item(item: Dict[str, Any], account: str) -> Image.Image:
     canvas = Image.new("RGBA", (WIDTH, HEIGHT), BACKGROUND_COLOR)
@@ -150,7 +162,7 @@ def render_item(item: Dict[str, Any], account: str) -> Image.Image:
             900
         )
 
-    BOTTOM_MARGIN = 300
+    BOTTOM_MARGIN = 250
     GAP           = 30
 
     if sub_img:
