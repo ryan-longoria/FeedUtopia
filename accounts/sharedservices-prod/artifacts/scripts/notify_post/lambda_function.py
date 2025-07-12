@@ -24,19 +24,10 @@ def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
 
 
 def build_adaptive_card(urls: List[str], account: str) -> Dict[str, Any]:
-    """Adaptive‑Card body (v 1.2) with pink header and square thumbnails."""
-    columns = [{
-        "type":  "Column",
-        "width": "auto",
-        "items": [{
-            "type":  "Image",
-            "url":   u,
-            "size":  "Medium",
-            "style": "person",                # square crop
-            "selectAction": {"type": "Action.OpenUrl", "url": u}
-        }]
-    } for u in urls]
-
+    """
+    Adaptive‑Card body (v 1.2) that Teams’ incoming‑webhook connector
+    actually renders: pink heading + square thumbnails that are clickable.
+    """
     return {
         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
         "type":    "AdaptiveCard",
@@ -47,7 +38,7 @@ def build_adaptive_card(urls: List[str], account: str) -> Dict[str, Any]:
                 "text":   "Your weekly news post is ready!",
                 "size":   "Large",
                 "weight": "Bolder",
-                "color":  "Accent"            # Teams accent → pink
+                "color":  "Accent"
             },
             {
                 "type":    "TextBlock",
@@ -55,9 +46,17 @@ def build_adaptive_card(urls: List[str], account: str) -> Dict[str, Any]:
                 "spacing": "None"
             },
             {
-                "type":     "ColumnSet",
-                "spacing":  "Medium",
-                "columns":  columns
+                "type":      "ImageSet",
+                "imageSize": "Medium",
+                "spacing":   "Medium",
+                "images": [
+                    {
+                        "type":       "Image",
+                        "url":        u,
+                        "selectAction": { "type": "Action.OpenUrl", "url": u }
+                    }
+                    for u in urls
+                ]
             }
         ]
     }
@@ -70,7 +69,7 @@ def build_connector_payload(card: Dict[str, Any], account: str) -> Dict[str, Any
     """
     return {
         "summary": f"Weekly news recap – {account}",
-        "text":    f"Weekly news for **{account}**",         # shows in e‑mail et al.
+        "text":    f"Weekly news for **{account}**",
         "themeColor": "EC008C",
         "attachments": [{
             "contentType": "application/vnd.microsoft.card.adaptive",
