@@ -300,6 +300,56 @@ resource "aws_iam_role_policy" "recap_lambda_policy" {
   })
 }
 
+resource "aws_iam_role_policy" "recap_ddb_access" {
+  name = "RecapDdbAccess"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = [
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:DeleteItem"
+        ],
+        Resource = [
+          aws_dynamodb_table.weekly_news_posts.arn,
+          "${aws_dynamodb_table.weekly_news_posts.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "recap_ddb_scan" {
+  name = "RecapDdbScan"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version : "2012-10-17",
+    Statement : [{
+      Effect   : "Allow",
+      Action   : ["dynamodb:Scan"],
+      Resource : aws_dynamodb_table.weekly_news_posts.arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "recap_invoke_notify" {
+  name = "RecapInvokeNotifyPost"
+  role = aws_iam_role.lambda_role.id
+  policy = jsonencode({
+    Version : "2012-10-17",
+    Statement : [{
+      Effect   : "Allow",
+      Action   : "lambda:InvokeFunction",
+      Resource : aws_lambda_function.notify_post.arn
+    }]
+  })
+}
+
 #############################
 # IAM Policy for S3
 #############################
