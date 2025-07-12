@@ -473,7 +473,7 @@ resource "aws_iam_role_policy" "step_functions_ecs" {
   })
 }
 
-resource "aws_iam_role_policy" "step_functions_policy" {
+resource "aws_iam_role_policy" "step_functions_policy_recap" {
   name = "${var.project_name}_step_functions_policy"
   role = aws_iam_role.step_functions_role.id
 
