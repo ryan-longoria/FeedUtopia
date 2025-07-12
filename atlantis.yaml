@@ -1,227 +1,220 @@
 version: 3
 
 workflows:
-  with-extra-args:
+  animeutopia-prod:
     plan:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - init:
-            extra_args: []
+            extra_args:
+              - "--backend-config"
+              - "backends/prod-ue2-animeutopia.backend.tfvars"
+              - "--reconfigure"
         - plan:
-            extra_args: []
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-animeutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
     apply:
       steps:
         - run: /opt/atlantis/bin/fetch-params.sh
         - apply:
-            extra_args: []
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-animeutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+
+  critterutopia-prod:
+    plan:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - init:
+            extra_args:
+              - "--backend-config"
+              - "backends/prod-ue2-critterutopia.backend.tfvars"
+              - "--reconfigure"
+        - plan:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-critterutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    apply:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - apply:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-critterutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+
+  cyberutopia-prod:
+    plan:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - init:
+            extra_args:
+              - "--backend-config"
+              - "backends/prod-ue2-cyberutopia.backend.tfvars"
+              - "--reconfigure"
+        - plan:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-cyberutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    apply:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - apply:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-cyberutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+
+  driftutopia-prod:
+    plan:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - init:
+            extra_args:
+              - "--backend-config"
+              - "backends/prod-ue2-driftutopia.backend.tfvars"
+              - "--reconfigure"
+        - plan:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-driftutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    apply:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - apply:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-driftutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+
+  sharedservices-prod:
+    plan:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - init:
+            extra_args:
+              - "--backend-config"
+              - "backends/prod-ue2-sharedservices.backend.tfvars"
+              - "--reconfigure"
+        - plan:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-sharedservices.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    apply:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - apply:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-sharedservices.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+
+  wrestleutopia-prod:
+    plan:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - init:
+            extra_args:
+              - "--backend-config"
+              - "backends/prod-ue2-wrestleutopia.backend.tfvars"
+              - "--reconfigure"
+        - plan:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-wrestleutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    apply:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - apply:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-wrestleutopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+
+  xputopia-prod:
+    plan:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - init:
+            extra_args:
+              - "--backend-config"
+              - "backends/prod-ue2-xputopia.backend.tfvars"
+              - "--reconfigure"
+        - plan:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-xputopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    apply:
+      steps:
+        - run: /opt/atlantis/bin/fetch-params.sh
+        - apply:
+            extra_args:
+              - "-var-file=tfvars/prod-ue2-xputopia.tfvars"
+              - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
 
 projects:
   - name: animeutopia-prod
     dir: accounts/animeutopia-prod
-    workflow: with-extra-args
-    workflow_override:
-      plan:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - init:
-              extra_args:
-                - "-backend-config=backends/prod-ue2-animeutopia.backend.tfvars"
-                - "-reconfigure"
-          - plan:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-animeutopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
-      apply:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - apply:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-animeutopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    workflow: animeutopia-prod
     autoplan:
       enabled: true
       when_modified:
         - "**/*.tf"
-        - "tfvars/**"
-        - "backends/**"
-        - "atlantis.yaml"
-
-  - name: xputopia-prod
-    dir: accounts/xputopia-prod
-    workflow: with-extra-args
-    workflow_override:
-      plan:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - init:
-              extra_args:
-                - "-backend-config=backends/prod-ue2-xputopia.backend.tfvars"
-                - "-reconfigure"
-          - plan:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-xputopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
-      apply:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - apply:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-xputopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
-    autoplan:
-      enabled: true
-      when_modified:
-        - "**/*.tf"
-        - "tfvars/**"
-        - "backends/**"
-        - "atlantis.yaml"
-
-  - name: wrestleutopia-prod
-    dir: accounts/wrestleutopia-prod
-    workflow: with-extra-args
-    workflow_override:
-      plan:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - init:
-              extra_args:
-                - "-backend-config=backends/prod-ue2-wrestleutopia.backend.tfvars"
-                - "-reconfigure"
-          - plan:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-wrestleutopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
-      apply:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - apply:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-wrestleutopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
-    autoplan:
-      enabled: true
-      when_modified:
-        - "**/*.tf"
-        - "tfvars/**"
-        - "backends/**"
-        - "atlantis.yaml"
-
-  - name: driftutopia-prod
-    dir: accounts/driftutopia-prod
-    workflow: with-extra-args
-    workflow_override:
-      plan:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - init:
-              extra_args:
-                - "-backend-config=backends/prod-ue2-driftutopia.backend.tfvars"
-                - "-reconfigure"
-          - plan:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-driftutopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
-      apply:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - apply:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-driftutopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
-    autoplan:
-      enabled: true
-      when_modified:
-        - "**/*.tf"
-        - "tfvars/**"
-        - "backends/**"
-        - "atlantis.yaml"
+        - "**/*.tfvars"
+    apply_requirements: [mergeable, undiverged]
 
   - name: critterutopia-prod
     dir: accounts/critterutopia-prod
-    workflow: with-extra-args
-    workflow_override:
-      plan:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - init:
-              extra_args:
-                - "-backend-config=backends/prod-ue2-critterutopia.backend.tfvars"
-                - "-reconfigure"
-          - plan:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-critterutopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
-      apply:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - apply:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-critterutopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    workflow: critterutopia-prod
     autoplan:
       enabled: true
       when_modified:
         - "**/*.tf"
-        - "tfvars/**"
-        - "backends/**"
-        - "atlantis.yaml"
+        - "**/*.tfvars"
+    apply_requirements: [mergeable, undiverged]
 
   - name: cyberutopia-prod
     dir: accounts/cyberutopia-prod
-    workflow: with-extra-args
-    workflow_override:
-      plan:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - init:
-              extra_args:
-                - "-backend-config=backends/prod-ue2-cyberutopia.backend.tfvars"
-                - "-reconfigure"
-          - plan:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-cyberutopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
-      apply:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - apply:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-cyberutopia.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    workflow: cyberutopia-prod
     autoplan:
       enabled: true
       when_modified:
         - "**/*.tf"
-        - "tfvars/**"
-        - "backends/**"
-        - "atlantis.yaml"
+        - "**/*.tfvars"
+    apply_requirements: [mergeable, undiverged]
+
+  - name: driftutopia-prod
+    dir: accounts/driftutopia-prod
+    workflow: driftutopia-prod
+    autoplan:
+      enabled: true
+      when_modified:
+        - "**/*.tf"
+        - "**/*.tfvars"
+    apply_requirements: [mergeable, undiverged]
 
   - name: sharedservices-prod
     dir: accounts/sharedservices-prod
-    workflow: with-extra-args
-    workflow_override:
-      plan:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - init:
-              extra_args:
-                - "-backend-config=backends/prod-ue2-sharedservices.backend.tfvars"
-                - "-reconfigure"
-          - plan:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-sharedservices.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
-      apply:
-        steps:
-          - run: /opt/atlantis/bin/fetch-params.sh
-          - apply:
-              extra_args:
-                - "-var-file=tfvars/prod-ue2-sharedservices.tfvars"
-                - "-var-file=/home/atlantis/.atlantis/prod-ue2-multiaccounts.tfvars"
+    workflow: sharedservices-prod
     autoplan:
       enabled: true
       when_modified:
         - "**/*.tf"
-        - "tfvars/**"
-        - "backends/**"
-        - "atlantis.yaml"
+        - "**/*.tfvars"
+    apply_requirements: [mergeable, undiverged]
+
+  - name: wrestleutopia-prod
+    dir: accounts/wrestleutopia-prod
+    workflow: wrestleutopia-prod
+    autoplan:
+      enabled: true
+      when_modified:
+        - "**/*.tf"
+        - "**/*.tfvars"
+    apply_requirements: [mergeable, undiverged]
+
+  - name: xputopia-prod
+    dir: accounts/xputopia-prod
+    workflow: xputopia-prod
+    autoplan:
+      enabled: true
+      when_modified:
+        - "**/*.tf"
+        - "**/*.tfvars"
+    apply_requirements: [mergeable, undiverged]
