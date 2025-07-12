@@ -511,6 +511,35 @@ resource "aws_iam_role_policy" "step_functions_ecs_permissions" {
   })
 }
 
+resource "aws_iam_policy" "step_functions_logs_policy" {
+  name = "step-functions-logs-access"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogDelivery",
+          "logs:GetLogDelivery",
+          "logs:UpdateLogDelivery",
+          "logs:DeleteLogDelivery",
+          "logs:ListLogDeliveries",
+          "logs:PutResourcePolicy",
+          "logs:DescribeResourcePolicies",
+          "logs:DescribeLogGroups"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_sfn_logs" {
+  role       = aws_iam_role.step_functions_role.name
+  policy_arn = aws_iam_policy.step_functions_logs_policy.arn
+}
+
 #############################
 # IAM Policy for SQS
 #############################
