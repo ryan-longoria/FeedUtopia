@@ -1,4 +1,4 @@
-import json, os, boto3, datetime, requests
+import json, os, boto3, time, requests
 
 s3   = boto3.client("s3")
 HEADERS = {
@@ -8,6 +8,29 @@ HEADERS = {
 
 BUCKET  = os.environ["UPLOAD_BUCKET"]
 FEED_API = "https://api.feedutopia.com/start-execution"
+
+dynamodb = boto3.resource("dynamodb")
+news_table = dynamodb.Table(os.environ["NEWS_TABLE"])
+
+def cache_if_news(payload: dict, media_key: str) -> None:
+    """Store NEWS posts for the weekly recap."""
+    if payload.get("spinningArtifact") != "NEWS":
+        return
+
+    now = int(time.time())
+    record = {
+        "accountName": payload["accountName"],
+        "createdAt":  now,
+        "expiresAt":  now + 9 * 24 * 3600,
+        "title":      payload["title"],
+        "subtitle":   payload.get("description", ""),
+        "highlightWordsTitle":      payload.get("highlightWordsTitle", ""),
+        "highlightWordsDescription": payload.get("highlightWordsDescription", ""),
+        "backgroundType": payload.get("backgroundType", "image"),
+        "s3Bucket":    payload["UPLOAD_BUCKET"],
+        "s3Key":       media_key,
+    }
+    news_table.put_item(Item=record)
 
 def lambda_handler(event, _ctx):
     data = json.loads(event.get("body", "{}"))
