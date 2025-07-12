@@ -131,67 +131,96 @@ def fetch_background(bg_type: str, key: str) -> Image.Image|None:
     img = img.resize((WIDTH, new_h), Image.LANCZOS)
 
     if bg_type == "video":
-        bg_canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
-        if new_h >= HEIGHT:
-            top = (new_h - HEIGHT) // 2
-            img = img.crop((0, top, WIDTH, top + HEIGHT))
-            bg_canvas.paste(img, (0, 0))
-        else:
-            y_off = (HEIGHT - new_h) // 2
-            bg_canvas.paste(img, (0, y_off))
-        return bg_canvas
+        canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
+        center_y = (new_h - HEIGHT) // 2
+        y0 = center_y - 150
+        y0 = max(0, min(y0, new_h - HEIGHT))
+        crop = img.crop((0, y0, WIDTH, y0 + HEIGHT))
+        canvas.paste(crop, (0, 0))
+        return canvas
+
+    if new_h > HEIGHT:
+        return img.crop((0, 0, WIDTH, HEIGHT))
     else:
-        if new_h > HEIGHT:
-            return img.crop((0, 0, WIDTH, HEIGHT))
-        else:
-            bg_canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
-            bg_canvas.paste(img, (0, 0))
-            return bg_canvas
+        canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
+        canvas.paste(img, (0, 0))
+        return canvas
 
-def render_item(item: Dict[str,Any], account: str) -> Image.Image:
-    canvas = Image.new("RGBA",(WIDTH,HEIGHT),(0,0,0,255))
-    bg_type = item.get("backgroundType","image").lower()
-    bg = fetch_background(bg_type, item.get("s3Key",""))
-    if bg: canvas.paste(bg,(0,0))
+def render_item(item: Dict[str, Any], account: str) -> Image.Image:
+    """
+    Render a single post image/video thumbnail with title, subtitle, gradient, logo, etc.
+    For video backgrounds, the title is pinned to y=0 and subtitle to y=50.
+    """
+    canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
+
+    bg_type = item.get("backgroundType", "image").lower()
+    bg = fetch_background(bg_type, item.get("s3Key", ""))
+    if bg:
+        canvas.paste(bg, (0, 0))
+
     grad = fetch_gradient()
-    if grad: canvas.alpha_composite(grad)
+    if grad:
+        canvas.alpha_composite(grad)
 
-    title = (item["title"] or "").upper()
+    title = (item.get("title") or "").upper()
     subtitle = (item.get("subtitle") or "").upper()
-    hl_title = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
-    hl_sub   = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
+
+    hl_title = {
+        w.strip().upper()
+        for w in (item.get("highlightWordsTitle") or "").split(",")
+        if w.strip()
+    }
+    hl_sub = {
+        w.strip().upper()
+        for w in (item.get("highlightWordsDescription") or "").split(",")
+        if w.strip()
+    }
 
     t_font = autosize(title, TITLE_MAX, TITLE_MIN, 30)
     s_font = autosize(subtitle, DESC_MAX, DESC_MIN, 45)
 
     t_img = multiline_colored(title, hl_title, FONT_PATH_TITLE, t_font, 1000)
-    sub_img = multiline_colored(subtitle, hl_sub, FONT_PATH_DESC, s_font, 900) if subtitle else None
+    sub_img = (
+        multiline_colored(subtitle, hl_sub, FONT_PATH_DESC, s_font, 900)
+        if subtitle
+        else None
+    )
 
     logo = fetch_logo(account)
     if logo:
-        lx = WIDTH-logo.width-50
-        ly = HEIGHT-logo.height-50
+        lx = WIDTH - logo.width - 50
+        ly = HEIGHT - logo.height - 50
     else:
-        ly = HEIGHT-100
+        ly = HEIGHT - 100
 
-    if sub_img:
-        if bg_type!="video":
-            y_sub = ly-50-sub_img.height
-            y_title = y_sub-50-t_img.height
+    if bg_type == "video":
+        y_title = 0
+        y_sub = 50 if sub_img else None
+    else:
+        if sub_img:
+            y_sub = ly - 50 - sub_img.height
+            y_title = y_sub - 50 - t_img.height
         else:
-            y_sub = HEIGHT-300-sub_img.height
-            y_title = 260
-    else:
-        y_title = HEIGHT-300-t_img.height if bg_type!="video" else 260
+            y_title = HEIGHT - 300 - t_img.height
 
-    canvas.alpha_composite(t_img, ((WIDTH-t_img.width)//2, y_title))
+    canvas.alpha_composite(
+        t_img, ((WIDTH - t_img.width) // 2, y_title)
+    )
     if sub_img:
-        canvas.alpha_composite(sub_img, ((WIDTH-sub_img.width)//2, y_sub))
+        canvas.alpha_composite(
+            sub_img, ((WIDTH - sub_img.width) // 2, y_sub)
+        )
 
     if logo:
-        stripe = Image.new("RGBA",(700,4),ImageColor.getrgb(HIGHLIGHT_COLOR)+(255,))
-        canvas.alpha_composite(stripe,(lx-720,ly+logo.height//2-2))
-        canvas.alpha_composite(logo,(lx,ly))
+        stripe = Image.new(
+            "RGBA",
+            (700, 4),
+            ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,),
+        )
+        canvas.alpha_composite(
+            stripe, (lx - 720, ly + logo.height // 2 - 2)
+        )
+        canvas.alpha_composite(logo, (lx, ly))
 
     return canvas.convert("RGB")
 
