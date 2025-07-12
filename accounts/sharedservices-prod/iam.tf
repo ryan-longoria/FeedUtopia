@@ -787,6 +787,22 @@ resource "aws_iam_role_policy" "ecs_send_task_success" {
   })
 }
 
+resource "aws_iam_role_policy" "ecs_invoke_notify_post" {
+  name = "EcsInvokeNotifyPost"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = "lambda:InvokeFunction",
+        Resource = aws_lambda_function.notify_post.arn
+      }
+    ]
+  })
+}
+
 #############################
 # IAM for DynamoDB
 #############################
