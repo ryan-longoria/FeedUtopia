@@ -154,14 +154,14 @@ def render_item(item: Dict[str,Any], account: str) -> Image.Image:
         lx = WIDTH-logo.width-50
         ly = HEIGHT-logo.height-50
     else:
-        ly = HEIGHT-100  # if no logo, use 100px from bottom
+        ly = HEIGHT-100
 
     if sub_img:
         if bg_type!="video":
             y_sub = ly-50-sub_img.height
             y_title = y_sub-50-t_img.height
         else:
-            y_sub = HEIGHT-335-sub_img.height
+            y_sub = HEIGHT-300-sub_img.height
             y_title = 260
     else:
         y_title = HEIGHT-300-t_img.height if bg_type!="video" else 260
