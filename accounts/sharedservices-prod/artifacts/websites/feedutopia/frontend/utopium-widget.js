@@ -46,7 +46,7 @@ if (document.getElementById('utopium-widget')) {
 
   /* ────────────────── Constants / state ────────────────── */
   const API_ROOT    = 'https://api.feedutopia.com';
-  const ACCOUNTS    = ['animeutopia','wrestleutopia','driftutopia','xputopia','critterutopia','cyberutopia'];
+  const ACCOUNTS    = ['animeutopia','wrestleutopia','driftutopia','xputopia','critterutopia','cyberutopia', 'flixutopia'];
   const ARTIFACTS   = ['NEWS','TRAILER','FACT','THROWBACK','VS','Default'];
   const FIELD_STEPS = {account:0,'post type':1,title:2,subtitle:4,'highlight title':5,'highlight subtitle':6,'background type':7};
   const IMG_STEPS   = { prompt:0, askRef:1, file:2, gen:3 };
