@@ -12,5 +12,6 @@ locals {
     "xputopia"      = var.aws_account_ids.xputopia
     "critterutopia" = var.aws_account_ids.critterutopia
     "cyberutopia"   = var.aws_account_ids.cyberutopia
+    "flixutopia"    = var.aws_account_ids.flixutopia
   }
 }
