@@ -128,10 +128,10 @@ def render_photo(item: Dict[str, Any], account: str) -> Tuple[str, str]:
     t_img   = Pillow_text_img(title, FONT_TITLE, autosize(title, TITLE_MAX, TITLE_MIN, 30), hl_t, 1000)
     sub_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 900) if subtitle else None
 
-    y_title = HEIGHT - 300 - t_img.height if not sub_img else (HEIGHT - 100 - 50 - sub_img.height - 50 - t_img.height)
+    y_title = HEIGHT - 100 - t_img.height if not sub_img else (HEIGHT - 100 - sub_img.height - 50 - t_img.height)
     canvas.alpha_composite(t_img, ((WIDTH - t_img.width) // 2, y_title))
     if sub_img:
-        y_sub = HEIGHT - 100 - 50 - sub_img.height
+        y_sub = HEIGHT - 100 - sub_img.height
         canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width) // 2, y_sub))
 
     buf = io.BytesIO(); canvas.convert("RGB").save(buf, "PNG", compress_level=3); buf.seek(0)
@@ -194,8 +194,8 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
 
     TOPIC = {
         "animeutopia": "ANIME", "wrestleutopia": "WRESTLING", "xputopia": "GAMING",
-        "cyberutopia": "TECH",  "critterutopia": "ANIMAL",    "flicksutopia": "FILM",
-        "driftutopia": "CAR/AUTOMOTIVE",
+        "cyberutopia": "TECH",  "critterutopia": "ANIMAL",    "flixutopia": "FILM",
+        "driftutopia": "AUTOMOTIVE",
     }.get(account.lower(), "")
     headline_words = ["TOP"] + ([TOPIC] if TOPIC else []) + ["NEWS", "OF", "THIS", "WEEK", "THAT", "YOU", "MAY", "HAVE", "MISSED"]
     headline, subtitle = " ".join(headline_words).upper(), "SWIPE"
