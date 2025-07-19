@@ -89,12 +89,12 @@ def Pillow_text_img(
         for img, xo in pieces: ln_img.paste(img, (xo, 0), img)
         rendered.append(ln_img)
 
-    tot_h  = sum(i.height for i in rendered) + 10 * (len(rendered) - 1)
+    tot_h  = sum(i.height for i in rendered) + 12 * (len(rendered) - 1)
     canvas = Image.new("RGBA", (max_width, tot_h), (0, 0, 0, 0))
     y = 0
     for img in rendered:
         canvas.paste(img, ((max_width - img.width) // 2, y), img)
-        y += img.height + 10
+        y += img.height + 12
     return canvas
 
 def measure_pillow(word: str, font_path: str, size: int) -> int:
@@ -155,7 +155,7 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
     new_h  = int(raw_bg.h * scale)
     scaled = raw_bg.with_effects([vfx.Resize((VID_W, new_h))]).with_duration(dur)
 
-    y_offset = (0 if new_h > VID_H else (VID_H - new_h) // 2) + 50
+    y_offset = (0 if new_h > VID_H else (VID_H - new_h) // 2) + 40
     base     = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(dur)
     composite: List = [base, scaled.with_position((0, y_offset))]
 
@@ -195,7 +195,7 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
     TOPIC = {
         "animeutopia": "ANIME", "wrestleutopia": "WRESTLING", "xputopia": "GAMING",
         "cyberutopia": "TECH",  "critterutopia": "ANIMAL",    "flixutopia": "FILM",
-        "driftutopia": "AUTOMOTIVE",
+        "driftutopia": "AUTO",
     }.get(account.lower(), "")
     headline_words = ["TOP"] + ([TOPIC] if TOPIC else []) + ["NEWS", "OF", "THIS", "WEEK", "THAT", "YOU", "MAY", "HAVE", "MISSED"]
     headline, subtitle = " ".join(headline_words).upper(), "SWIPE"
@@ -227,7 +227,7 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
 
     h_img = Pillow_text_img(headline, FONT_TITLE, autosize(headline, 110, 75, 35), hl_head, 1000)
     s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_sub, 600)
-    y_sub, y_head = HEIGHT - 275 - s_img.height, HEIGHT - 275 - s_img.height - 50 - h_img.height
+    y_sub, y_head = HEIGHT - 225 - s_img.height, HEIGHT - 2225 - s_img.height - 50 - h_img.height
     canvas.alpha_composite(h_img, ((WIDTH - h_img.width) // 2, y_head))
     canvas.alpha_composite(s_img, ((WIDTH - s_img.width) // 2, y_sub))
 
