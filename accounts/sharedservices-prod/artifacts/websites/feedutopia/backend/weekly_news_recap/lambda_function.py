@@ -155,7 +155,7 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
     new_h  = int(raw_bg.h * scale)
     scaled = raw_bg.with_effects([vfx.Resize((VID_W, new_h))]).with_duration(dur)
 
-    y_offset = 0 if new_h > VID_H else (VID_H - new_h) // 2  # keep top edge
+    y_offset = (0 if new_h > VID_H else (VID_H - new_h) // 2) + 100
     base     = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(dur)
     composite: List = [base, scaled.with_position((0, y_offset))]
 
