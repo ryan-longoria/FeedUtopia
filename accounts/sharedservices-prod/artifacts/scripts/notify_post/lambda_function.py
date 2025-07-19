@@ -84,8 +84,11 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
 
     webhook_url = teams_map[account]["manual"]
 
-    keys: List[str] = event.get("imageKeys") or []
-    video_key = event.get("video_key") or (event.get("videoResult") or {}).get("video_key")
+    keys = event.get("imageKeys") or []
+    video_key = (
+        event.get("video_key")
+        or (event.get("videoResult") or {}).get("video_key")
+    )
     if video_key:
         keys = [video_key]
 
@@ -93,7 +96,7 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("No imageKeys or video_key provided")
         return {"error": "no images or video"}
 
-    urls: List[str] = []
+    urls = []
     for k in keys:
         try:
             urls.append(presign(k))
@@ -102,24 +105,26 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
 
     if video_key:
         card = build_video_card(urls[0], account)
-        resp = requests.post(
-            webhook_url,
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(card),
-            timeout=20,
-        )
+        logger.info("Posting video card for %s", account)
+        resp = requests.post(webhook_url,
+                             headers={"Content-Type": "application/json"},
+                             data=json.dumps(card),
+                             timeout=20)
         resp.raise_for_status()
+
     else:
         MAX_PER_CARD = 6
-        for i in range(0, len(urls), MAX_PER_CARD):
-            batch = urls[i : i + MAX_PER_CARD]
+        for idx in range(0, len(urls), MAX_PER_CARD):
+            batch = urls[idx : idx + MAX_PER_CARD]
             card = build_image_card(batch, account)
-            resp = requests.post(
-                webhook_url,
-                headers={"Content-Type": "application/json"},
-                data=json.dumps(card),
-                timeout=20,
+            logger.info(
+                "Posting image card %d–%d for %s",
+                idx + 1, min(idx + MAX_PER_CARD, len(urls)), account
             )
+            resp = requests.post(webhook_url,
+                                 headers={"Content-Type": "application/json"},
+                                 data=json.dumps(card),
+                                 timeout=20)
             resp.raise_for_status()
 
     logger.info("Posted %d item(s) to Teams for %s", len(urls), account)
