@@ -1,8 +1,15 @@
-import datetime, io, json, logging, os, sys, tempfile
+import datetime
+import io
+import json
+import logging
+import os
+import sys
+import tempfile
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import boto3
 import moviepy.video.fx as vfx
+import numpy as np                     # ← NEW: for Pillow → ImageClip conversion
 import requests
 from boto3.dynamodb.conditions import Key
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
@@ -13,12 +20,12 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# ─── Sizes ───────────────────────────────────────────────────
+# ─── Sizes ──────────────────────────────────────────────────
 WIDTH, HEIGHT = 1080, 1350
 VID_W, VID_H = WIDTH, HEIGHT
-DEFAULT_VID_DURATION = 10  # seconds
+DEFAULT_VID_DURATION = 10  # seconds
 
-# ─── Fonts, colours, artifacts ──────────────────────────────
+# ─── Fonts, colours, artifacts ─────────────────────────────
 TITLE_MAX, TITLE_MIN = 90, 60
 DESC_MAX, DESC_MIN = 60, 30
 HIGHLIGHT_COLOR = "#ec008c"
@@ -29,7 +36,7 @@ ROOT = os.path.dirname(__file__)
 FONT_TITLE = os.path.join(ROOT, "ariblk.ttf")
 FONT_DESC = os.path.join(ROOT, "Montserrat-Medium.ttf")
 
-# ─── Env / AWS ───────────────────────────────────────────────
+# ─── Env / AWS ──────────────────────────────────────────────
 TARGET_BUCKET = os.environ["TARGET_BUCKET"]
 NEWS_TABLE = os.environ["NEWS_TABLE"]
 NOTIFY_POST_ARN = os.environ["NOTIFY_POST_FUNCTION_ARN"]
@@ -39,14 +46,14 @@ table = dynamodb.Table(NEWS_TABLE)
 s3 = boto3.client("s3")
 lambda_cl = boto3.client("lambda")
 
-# ════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 #                         HELPERS
-# ════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 def download_s3_file(bucket: str, key: str, local: str) -> bool:
     try:
         s3.download_file(bucket, key, local)
         return True
-    except Exception as exc:             # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         logger.warning("download %s failed: %s", key, exc)
         return False
 
@@ -118,12 +125,12 @@ def measure_pillow(word: str, font_path: str, size: int) -> int:
     return ImageFont.truetype(font_path, size).getbbox(word)[2]
 
 
-# ════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 #                     PHOTO   →   PNG
-# ════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 def render_photo(item: Dict[str, Any], account: str) -> Tuple[str, str]:
     """
-    Renders a static post and uploads it.  
+    Renders a static post and uploads it.
     Returns (s3_key, 'photo')
     """
     bg_key = item.get("s3Key", "")
@@ -160,19 +167,11 @@ def render_photo(item: Dict[str, Any], account: str) -> Tuple[str, str]:
     }
 
     t_img = Pillow_text_img(
-        title,
-        FONT_TITLE,
-        autosize(title, TITLE_MAX, TITLE_MIN, 30),
-        hl_t,
-        1000,
+        title, FONT_TITLE, autosize(title, TITLE_MAX, TITLE_MIN, 30), hl_t, 1000
     )
     sub_img = (
         Pillow_text_img(
-            subtitle,
-            FONT_DESC,
-            autosize(subtitle, DESC_MAX, DESC_MIN, 45),
-            hl_s,
-            900,
+            subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 900
         )
         if subtitle
         else None
@@ -215,9 +214,9 @@ def render_photo(item: Dict[str, Any], account: str) -> Tuple[str, str]:
     return key, "photo"
 
 
-# ════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 #                      VIDEO  →  MP4  +  PNG
-# ════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 def multi_coloured_clip(
     text: str,
     highlights: Set[str],
@@ -226,6 +225,9 @@ def multi_coloured_clip(
     max_width: int,
     duration: float,
 ) -> CompositeVideoClip:
+    """
+    (Still available for other uses, but render_video now uses Pillow instead.)
+    """
     words = text.split()
     lines, cur, w_cur = [], [], 0
     for w in words:
@@ -244,7 +246,9 @@ def multi_coloured_clip(
     for ln in lines:
         x_off, parts = 0, []
         for w in ln:
-            colour = HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else "white"
+            colour = (
+                HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else "white"
+            )
             w_w = measure_pillow(w, font_path, font_size)
             txt_clip = (
                 TextClip(
@@ -276,7 +280,7 @@ def multi_coloured_clip(
 
 def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
     """
-    Render video recap for one table item.  
+    Render video recap for one table item.
     Returns ([mp4_key, png_key], 'video') or falls back to photo.
     """
     bg_key = item.get("s3Key", "")
@@ -309,7 +313,7 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
             .with_duration(dur)
         )
 
-    # text clips
+    # ─── HEADLINE & SUBTITLE (now rendered with Pillow) ───────
     title = (item.get("title") or "").upper()
     sub = (item.get("subtitle") or "").upper()
     hl_t = {
@@ -323,18 +327,29 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
         if w.strip()
     }
 
-    t_clip = multi_coloured_clip(
-        title, hl_t, FONT_TITLE, autosize(title, 100, 75, 25), 1000, dur
+    # headline
+    title_img = Pillow_text_img(
+        title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000
     )
-    t_clip = t_clip.with_position(((VID_W - t_clip.w) // 2, 25))
+    t_clip = (
+        ImageClip(np.array(title_img))
+        .with_duration(dur)
+        .with_position(("center", 25))
+    )
     composite.append(t_clip)
 
+    # subtitle (optional)
     if sub:
-        s_clip = multi_coloured_clip(
-            sub, hl_s, FONT_DESC, autosize(sub, 70, 30, 45), 800, dur
+        sub_img = Pillow_text_img(
+            sub, FONT_DESC, autosize(sub, 70, 30, 45), hl_s, 800
         )
-        s_clip = s_clip.with_position(((VID_W - s_clip.w) // 2, VID_H - 150 - s_clip.h))
+        s_clip = (
+            ImageClip(np.array(sub_img))
+            .with_duration(dur)
+            .with_position(("center", VID_H - 150 - sub_img.height))
+        )
         composite.append(s_clip)
+    # ──────────────────────────────────────────────────────────
 
     # logo + stripe (optional)
     local_logo = "/tmp/logo.png"
@@ -342,7 +357,10 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
         logo_raw = ImageClip(local_logo)
         l_scale = 200 / logo_raw.w
         logo_clip = logo_raw.with_effects([vfx.Resize(l_scale)]).with_duration(dur)
-        line = ColorClip((700, 4), color=ImageColor.getrgb(HIGHLIGHT_COLOR)).with_duration(dur)
+        line = (
+            ColorClip((700, 4), color=ImageColor.getrgb(HIGHLIGHT_COLOR))
+            .with_duration(dur)
+        )
 
         gap, tot_w = 20, 700 + gap + logo_clip.w
         tot_h = max(logo_clip.h, 4)
@@ -395,9 +413,9 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
     return [mp4_key, png_key], "video"
 
 
-# ════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 #                DynamoDB  +  Teams notification
-# ════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 def list_accounts() -> Set[str]:
     seen = set()
     paginator = table.meta.client.get_paginator("scan")

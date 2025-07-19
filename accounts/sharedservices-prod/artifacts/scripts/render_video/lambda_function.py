@@ -8,10 +8,11 @@ from typing import Any, Dict, Optional, Set, Tuple
 import boto3
 import moviepy.video.fx as vfx
 import requests
+import numpy as np
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
-from PIL import ImageColor, ImageFont
+from PIL import Image, ImageColor, ImageDraw, ImageFont 
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -99,6 +100,57 @@ def dynamic_font_size(
     new_size = max_size - (length - ideal_length) * factor
     return int(new_size) if new_size > min_size else min_size
 
+def pillow_text_img(
+    text: str,
+    font_path: str,
+    font_size: int,
+    highlights: Set[str],
+    max_width: int,
+    space: int = 15,
+) -> Image.Image:
+    """
+    Render multiline text with per‑word highlights into a transparent RGBA image.
+    """
+    font = ImageFont.truetype(font_path, font_size)
+    words = text.split()
+    lines, cur, cur_w = [], [], 0
+
+    for w in words:
+        w_bb = font.getbbox(w)
+        w_w = w_bb[2] - w_bb[0]
+        need = w_w + (space if cur else 0)
+        if cur_w + need <= max_width:
+            cur.append((w, w_bb))
+            cur_w += need
+        else:
+            lines.append(cur)
+            cur, cur_w = [(w, w_bb)], w_w
+    if cur:
+        lines.append(cur)
+
+    rendered: list[Image.Image] = []
+    for ln in lines:
+        x_off, h_line, pieces = 0, 0, []
+        for w, bb in ln:
+            w_w, w_h = bb[2] - bb[0], bb[3] - bb[1]
+            colour = "#ec008c" if w.strip(",.!?;:").upper() in highlights else "white"
+            img = Image.new("RGBA", (w_w, w_h), (0, 0, 0, 0))
+            ImageDraw.Draw(img).text((-bb[0], -bb[1]), w, font=font, fill=colour)
+            pieces.append((img, x_off))
+            x_off += w_w + space
+            h_line = max(h_line, w_h)
+        line_img = Image.new("RGBA", (x_off - space, h_line), (0, 0, 0, 0))
+        for img, xo in pieces:
+            line_img.paste(img, (xo, 0), img)
+        rendered.append(line_img)
+
+    total_h = sum(i.height for i in rendered) + 10 * (len(rendered) - 1)
+    canvas = Image.new("RGBA", (max_width, total_h), (0, 0, 0, 0))
+    y_cur = 0
+    for img in rendered:
+        canvas.paste(img, ((max_width - img.width) // 2, y_cur), img)
+        y_cur += img.height + 10
+    return canvas
 
 def create_multiline_colored_clip(
     full_text: str,
@@ -113,81 +165,17 @@ def create_multiline_colored_clip(
     duration: int = 10,
 ) -> CompositeVideoClip:
     """
-    Create a multiline TextClip in which certain words are highlighted.
+    NEW IMPLEMENTATION: Use Pillow to render once, then wrap in ImageClip.
     """
-    words = full_text.split()
-    lines: list[list[str]] = []
-    current_line: list[str] = []
-    current_line_width = 0
-
-    for word in words:
-        word_width = measure_text_width_pillow(word, font_path, font_size)
-        extra_needed = word_width + (space if current_line else 0)
-        if current_line_width + extra_needed <= max_width:
-            current_line.append(word)
-            current_line_width += extra_needed
-        else:
-            lines.append(current_line)
-            current_line = [word]
-            current_line_width = word_width
-    if current_line:
-        lines.append(current_line)
-
-    line_clips = []
-    for line_words in lines:
-        x_offset = 0
-        word_clips = []
-        for w in line_words:
-            clean_w = w.strip(",.!?;:").upper()
-            color = color_highlight if clean_w in highlight_words else color_default
-
-            pil_font = ImageFont.truetype(font_path, font_size)
-            left, top, right, bottom = pil_font.getbbox(w)
-            text_w = right - left
-            text_h = (bottom - top) + 10
-
-            txt_clip = (
-                TextClip(
-                    text=w,
-                    font=font_path,
-                    font_size=font_size,
-                    color=color,
-                    size=(text_w, text_h),
-                    method="label",
-                )
-                .with_duration(duration)
-                .with_position((x_offset, 0))
-            )
-            x_offset += text_w + space
-            word_clips.append(txt_clip)
-
-        if word_clips:
-            line_width = max(x_offset - space, 1)
-            line_height = word_clips[0].h
-            line_composite = (
-                CompositeVideoClip(word_clips, size=(line_width, line_height))
-                .with_duration(duration)
-            )
-            line_clips.append(line_composite)
-        else:
-            blank = ColorClip((1, 1), color=(0, 0, 0)).with_duration(duration)
-            line_clips.append(blank)
-
-    max_line_width = max((clip.size[0] for clip in line_clips), default=1)
-
-    stacked_clips = []
-    current_y = 0
-    for lc in line_clips:
-        lw, lh = lc.size
-        line_x = (max_line_width - lw) // 2
-        stacked_clips.append(lc.with_position((line_x, current_y)))
-        current_y += lh + line_spacing
-
-    total_height = max(current_y - line_spacing, 1)
-    return (
-        CompositeVideoClip(stacked_clips, size=(max_line_width, total_height))
-        .with_duration(duration)
+    img = pillow_text_img(
+        full_text,
+        font_path,
+        font_size,
+        highlight_words,
+        max_width,
+        space,
     )
+    return ImageClip(np.array(img)).with_duration(duration)
 
 
 def parse_highlight_words(event: Dict[str, Any]) -> Tuple[Set[str], Set[str]]:
