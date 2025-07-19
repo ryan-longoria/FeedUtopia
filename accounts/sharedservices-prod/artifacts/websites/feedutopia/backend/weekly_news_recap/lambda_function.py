@@ -243,7 +243,8 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
         except Exception as exc: logger.warning("cover logo: %s", exc)
 
     buf = io.BytesIO(); canvas.convert("RGB").save(buf, "PNG", compress_level=3); buf.seek(0)
-    ts, key = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S"), f"weekly_recap/{account}/cover_{ts}.png"
+    ts  = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    key = f"weekly_recap/{account}/cover_{ts}.png"
     s3.upload_fileobj(buf, TARGET_BUCKET, key, ExtraArgs={"ContentType": "image/png"})
     return key
 
