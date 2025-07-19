@@ -82,8 +82,9 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("No Teams webhook for account '%s'", account)
         return {"error": "no webhook"}
 
-    keys: List[str] = event.get("imageKeys") or []
+    webhook_url = teams_map[account]["manual"]
 
+    keys: List[str] = event.get("imageKeys") or []
     video_key = event.get("video_key") or (event.get("videoResult") or {}).get("video_key")
     if video_key:
         keys = [video_key]
@@ -99,28 +100,27 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         except ClientError as exc:
             logger.warning("Presign failed for %s: %s", k, exc)
 
-    if not urls:
-        logger.error("Failed to generate presigned URLs")
-        return {"error": "presign failed"}
-
     if video_key:
         card = build_video_card(urls[0], account)
-    else:
-        card = build_image_card(urls, account)
-
-    webhook_url = teams_map[account]["manual"]
-    try:
         resp = requests.post(
             webhook_url,
             headers={"Content-Type": "application/json"},
             data=json.dumps(card),
             timeout=20,
         )
-        logger.info("Teams webhook → %s %s", resp.status_code, resp.text.strip()[:200])
         resp.raise_for_status()
-    except requests.RequestException as exc:
-        logger.exception("Failed to post to Teams: %s", exc)
-        return {"error": str(exc)}
+    else:
+        MAX_PER_CARD = 6
+        for i in range(0, len(urls), MAX_PER_CARD):
+            batch = urls[i : i + MAX_PER_CARD]
+            card = build_image_card(batch, account)
+            resp = requests.post(
+                webhook_url,
+                headers={"Content-Type": "application/json"},
+                data=json.dumps(card),
+                timeout=20,
+            )
+            resp.raise_for_status()
 
     logger.info("Posted %d item(s) to Teams for %s", len(urls), account)
     return {"status": "posted", "itemCount": len(urls)}
