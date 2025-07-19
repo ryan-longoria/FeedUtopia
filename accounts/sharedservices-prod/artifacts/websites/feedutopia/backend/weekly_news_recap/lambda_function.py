@@ -84,9 +84,12 @@ def Pillow_text_img(
             colour   = HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else BASE_COLOR
             img      = Image.new("RGBA", (w_w, w_h), (0, 0, 0, 0))
             ImageDraw.Draw(img).text((-bb[0], -bb[1]), w, font=font, fill=colour)
-            pieces.append((img, x_off)); x_off += w_w + space; line_h = max(line_h, w_h)
+            pieces.append((img, x_off))
+            x_off += w_w + space
+            line_h = max(line_h, w_h)
         ln_img = Image.new("RGBA", (x_off - space, line_h), (0, 0, 0, 0))
-        for img, xo in pieces: ln_img.paste(img, (xo, 0), img)
+        for img, xo in pieces:
+            ln_img.paste(img, (xo, 0), img)
         rendered.append(ln_img)
 
     tot_h  = sum(i.height for i in rendered) + 12 * (len(rendered) - 1)
@@ -126,7 +129,10 @@ def render_photo(item: Dict[str, Any], account: str) -> Tuple[str, str]:
     hl_s = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
 
     t_img   = Pillow_text_img(title, FONT_TITLE, autosize(title, TITLE_MAX, TITLE_MIN, 30), hl_t, 1000)
-    sub_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 900) if subtitle else None
+    sub_img = (
+        Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 900)
+        if subtitle else None
+    )
 
     y_title = HEIGHT - 100 - t_img.height if not sub_img else (HEIGHT - 100 - sub_img.height - 50 - t_img.height)
     canvas.alpha_composite(t_img, ((WIDTH - t_img.width) // 2, y_title))
@@ -134,7 +140,9 @@ def render_photo(item: Dict[str, Any], account: str) -> Tuple[str, str]:
         y_sub = HEIGHT - 100 - sub_img.height
         canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width) // 2, y_sub))
 
-    buf = io.BytesIO(); canvas.convert("RGB").save(buf, "PNG", compress_level=3); buf.seek(0)
+    buf = io.BytesIO()
+    canvas.convert("RGB").save(buf, "PNG", compress_level=3)
+    buf.seek(0)
     ts  = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     key = f"weekly_recap/{account}/img_{ts}_{item['createdAt']}.png"
     s3.upload_fileobj(buf, TARGET_BUCKET, key, ExtraArgs={"ContentType": "image/png"})
@@ -165,12 +173,18 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
     hl_t = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
     hl_s = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
 
-    t_clip = ImageClip(np.array(Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000))).with_duration(dur).with_position(("center", 25))
+    t_clip = ImageClip(
+        np.array(Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000))
+    ).with_duration(dur).with_position(("center", 25))
     composite.append(t_clip)
 
     if sub:
         sub_img = Pillow_text_img(sub, FONT_DESC, autosize(sub, 70, 30, 45), hl_s, 800)
-        composite.append(ImageClip(np.array(sub_img)).with_duration(dur).with_position(("center", VID_H - 150 - sub_img.height)))
+        composite.append(
+            ImageClip(np.array(sub_img))
+            .with_duration(dur)
+            .with_position(("center", VID_H - 150 - sub_img.height))
+        )
 
     final = CompositeVideoClip(composite, size=(VID_W, VID_H)).with_duration(dur)
 
@@ -179,10 +193,19 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
     mp4_key, png_key = f"{basekey}.mp4", f"{basekey}.png"
 
     tmp_mp4 = "/tmp/out.mp4"
-    final.write_videofile(tmp_mp4, fps=24, codec="libx264", audio=False, threads=2, ffmpeg_params=["-preset", "ultrafast"])
-    s3.upload_file(tmp_mp4, TARGET_BUCKET, mp4_key, ExtraArgs={"ContentType": "video/mp4", "ContentDisposition": 'attachment; filename="recap.mp4"'})
+    final.write_videofile(
+        tmp_mp4, fps=24, codec="libx264", audio=False, threads=2, ffmpeg_params=["-preset", "ultrafast"]
+    )
+    s3.upload_file(
+        tmp_mp4,
+        TARGET_BUCKET,
+        mp4_key,
+        ExtraArgs={"ContentType": "video/mp4", "ContentDisposition": 'attachment; filename="recap.mp4"'},
+    )
 
-    buf = io.BytesIO(); Image.fromarray(final.get_frame(0)).save(buf, "PNG", compress_level=2); buf.seek(0)
+    buf = io.BytesIO()
+    Image.fromarray(final.get_frame(0)).save(buf, "PNG", compress_level=2)
+    buf.seek(0)
     s3.upload_fileobj(buf, TARGET_BUCKET, png_key, ExtraArgs={"ContentType": "image/png"})
     return [mp4_key, png_key], "video"
 
@@ -190,49 +213,65 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
 #                COVER  → PNG (with logo)
 # ═══════════════════════════════════════════
 def render_cover(items: List[Dict[str, Any]], account: str) -> str:
-    if not items: return ""
+    if not items:
+        return ""
 
     TOPIC = {
         "animeutopia": "ANIME", "wrestleutopia": "WRESTLING", "xputopia": "GAMING",
-        "cyberutopia": "TECH",  "critterutopia": "ANIMAL",    "flixutopia": "FILM",
+        "cyberutopia": "TECH",  "critterutopia": "ANIMAL",   "flixutopia": "FILM",
         "driftutopia": "AUTO",
     }.get(account.lower(), "")
-    headline_words = ["TOP"] + ([TOPIC] if TOPIC else []) + ["NEWS", "OF", "THIS", "WEEK", "THAT", "YOU", "MAY", "HAVE", "MISSED"]
+    headline_words = ["TOP"] + ([TOPIC] if TOPIC else []) + [
+        "NEWS", "OF", "THIS", "WEEK", "THAT", "YOU", "MAY", "HAVE", "MISSED"
+    ]
     headline, subtitle = " ".join(headline_words).upper(), "SWIPE"
-    hl_head, hl_sub = {"TOP", "NEWS", *( [TOPIC.upper()] if TOPIC else [] )}, {"SWIPE"}
+    hl_head = {"TOP", "NEWS", *( [TOPIC.upper()] if TOPIC else [] )}
+    hl_sub  = {"SWIPE"}
 
-    bg_item = next((i for i in items if (i.get("backgroundType") or "photo").lower() == "photo"), items[0])
+    bg_item = next(
+        (i for i in items if (i.get("backgroundType") or "photo").lower() == "photo"),
+        items[0]
+    )
     bg_key, bg_type = bg_item["s3Key"], (bg_item.get("backgroundType") or "photo").lower()
 
-    safe = "".join(c if c.isalnum() else "_" for c in account)[:32]
-    tmp_photo, tmp_video = f"/tmp/{safe}_cover_bg.png", f"/tmp/{safe}_cover_bg.mp4"
+    safe      = "".join(c if c.isalnum() else "_" for c in account)[:32]
+    tmp_photo = f"/tmp/{safe}_cover_bg.png"
+    tmp_video = f"/tmp/{safe}_cover_bg.mp4"
 
     if bg_type == "photo":
         download_s3_file(TARGET_BUCKET, bg_key, tmp_photo)
     else:
         if download_s3_file(TARGET_BUCKET, bg_key, tmp_video):
-            try: Image.fromarray(VideoFileClip(tmp_video, audio=False).get_frame(0)).save(tmp_photo)
-            except Exception as exc: logger.warning("cover frame grab: %s", exc)
+            try:
+                Image.fromarray(VideoFileClip(tmp_video, audio=False).get_frame(0)).save(tmp_photo)
+            except Exception as exc:
+                logger.warning("cover frame grab: %s", exc)
 
     canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
     if os.path.exists(tmp_photo):
         with Image.open(tmp_photo).convert("RGBA") as im:
             im = im.resize((WIDTH, int(im.height * WIDTH / im.width)), Image.LANCZOS)
-            if im.height > HEIGHT: im = im.crop((0, 0, WIDTH, HEIGHT))  # top‑kept crop
+            if im.height > HEIGHT:
+                im = im.crop((0, 0, WIDTH, HEIGHT))
             canvas.paste(im, (0, 0))
 
     grad_local = os.path.join(tempfile.gettempdir(), "grad.png")
     if download_s3_file(TARGET_BUCKET, GRADIENT_KEY, grad_local):
-        with Image.open(grad_local).convert("RGBA").resize((WIDTH, HEIGHT)) as g: canvas.alpha_composite(g)
+        with Image.open(grad_local).convert("RGBA").resize((WIDTH, HEIGHT)) as g:
+            canvas.alpha_composite(g)
 
     h_img = Pillow_text_img(headline, FONT_TITLE, autosize(headline, 110, 75, 35), hl_head, 1000)
     s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_sub, 600)
-    y_sub, y_head = HEIGHT - 225 - s_img.height, HEIGHT - 225 - s_img.height - 50 - h_img.height
+
+    y_sub  = HEIGHT - 225 - s_img.height
+    y_head = y_sub - 50 - h_img.height
+
     canvas.alpha_composite(h_img, ((WIDTH - h_img.width) // 2, y_head))
     canvas.alpha_composite(s_img, ((WIDTH - s_img.width) // 2, y_sub))
 
     logo_local = os.path.join(tempfile.gettempdir(), "logo.png")
-    if download_s3_file(TARGET_BUCKET, logo_key_for(account), logo_local) or download_s3_file(TARGET_BUCKET, LOGO_KEY_GLOBAL, logo_local):
+    if download_s3_file(TARGET_BUCKET, logo_key_for(account), logo_local) or \
+       download_s3_file(TARGET_BUCKET, LOGO_KEY_GLOBAL, logo_local):
         try:
             logo = Image.open(logo_local).convert("RGBA")
             logo = logo.resize((200, int(200 * logo.height / logo.width)))
@@ -240,9 +279,12 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
             stripe = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
             canvas.alpha_composite(stripe, (lx - 720, ly + logo.height // 2 - 2))
             canvas.alpha_composite(logo, (lx, ly))
-        except Exception as exc: logger.warning("cover logo: %s", exc)
+        except Exception as exc:
+            logger.warning("cover logo: %s", exc)
 
-    buf = io.BytesIO(); canvas.convert("RGB").save(buf, "PNG", compress_level=3); buf.seek(0)
+    buf = io.BytesIO()
+    canvas.convert("RGB").save(buf, "PNG", compress_level=3)
+    buf.seek(0)
     ts  = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     key = f"weekly_recap/{account}/cover_{ts}.png"
     s3.upload_fileobj(buf, TARGET_BUCKET, key, ExtraArgs={"ContentType": "image/png"})
@@ -253,19 +295,31 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
 # ═══════════════════════════════════════════════════════════
 def list_accounts() -> Set[str]:
     seen, paginator = set(), table.meta.client.get_paginator("scan")
-    for pg in paginator.paginate(TableName=NEWS_TABLE, ProjectionExpression="accountName"):
+    for pg in paginator.paginate(
+        TableName=NEWS_TABLE, ProjectionExpression="accountName"
+    ):
         seen.update(i["accountName"] for i in pg.get("Items", []))
     return seen
 
-def latest_items(account: str, limit: int = 4) -> List[Dict[str, Any]]:
-    return table.query(KeyConditionExpression=Key("accountName").eq(account), ScanIndexForward=False, Limit=limit)["Items"]
+def latest_items(account: str) -> List[Dict[str, Any]]:
+    # ── pull *all* items from the last week, no fixed limit ──
+    one_week_ago = int(datetime.datetime.utcnow().timestamp()) - 7*24*3600
+    return table.query(
+        KeyConditionExpression=Key("accountName").eq(account)
+            & Key("createdAt").gte(one_week_ago),
+        ScanIndexForward=False,
+    )["Items"]
 
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
-    summary: Dict[str, int] = {}; logger.info("weekly recap start")
+    logger.info("weekly recap start")
+    summary: Dict[str, int] = {}
     for acct in list_accounts():
-        items = latest_items(acct);  asset_keys: List[str] = []
-        if not items: continue
+        items = latest_items(acct)
+        logger.info("Found %d posts for account %s", len(items), acct)
+        if not items:
+            continue
 
+        asset_keys: List[str] = []
         asset_keys.append(render_cover(items, acct))
         for itm in items:
             if (itm.get("backgroundType") or "photo").lower() == "video":
@@ -273,7 +327,13 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
             else:
                 asset_keys.append(render_photo(itm, acct)[0])
 
-        lambda_cl.invoke(FunctionName=NOTIFY_POST_ARN, InvocationType="Event", Payload=json.dumps({"accountName": acct, "imageKeys": asset_keys}).encode())
+        lambda_cl.invoke(
+            FunctionName=NOTIFY_POST_ARN,
+            InvocationType="Event",
+            Payload=json.dumps(
+                {"accountName": acct, "imageKeys": asset_keys}
+            ).encode(),
+        )
         summary[acct] = len(asset_keys)
 
     logger.info("weekly recap complete: %s", summary)
