@@ -28,7 +28,7 @@ def lambda_handler(event, _ctx):
     presigned = s3.generate_presigned_url(
         "put_object",
         Params={"Bucket": BUCKET, "Key": key_name},
-        ExpiresIn=900,
+        ExpiresIn=86400,
     )
     return _resp(200, {"url": presigned, "objectKey": key_name})
 
