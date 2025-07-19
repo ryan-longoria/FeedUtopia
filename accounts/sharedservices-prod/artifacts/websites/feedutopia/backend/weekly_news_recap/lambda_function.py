@@ -3,14 +3,12 @@ import io
 import json
 import logging
 import os
-import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import boto3
 import moviepy.video.fx as vfx
 import numpy as np                     # ← NEW: for Pillow → ImageClip conversion
-import requests
 from boto3.dynamodb.conditions import Key
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
@@ -362,7 +360,8 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
             .with_duration(dur)
         )
 
-        gap, tot_w = 20, 700 + gap + logo_clip.w
+        gap = 20 
+        tot_w = 700 + gap + logo_clip.w
         tot_h = max(logo_clip.h, 4)
         overlay = (
             CompositeVideoClip(
@@ -413,6 +412,102 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
     return [mp4_key, png_key], "video"
 
 
+def render_cover(items: List[Dict[str, Any]], account: str) -> str:
+    """
+    Build a branded cover image:
+        "TOP N NEWS OF THIS WEEK THAT YOU MAY HAVE MISSED"
+    Uses the most recent *photo* background if available; otherwise falls back
+    to the most recent item (whatever its backgroundType is). Returns the S3 key.
+    """
+    if not items:
+        return ""
+
+    # Headline text
+    headline = f"TOP {len(items)} NEWS OF THIS WEEK THAT YOU MAY HAVE MISSED".upper()
+
+    # ── Pick background source ─────────────────────────────
+    # Find first photo in recents; else fall back to first item.
+    photo_item = None
+    for itm in items:
+        bgt = (itm.get("backgroundType") or "photo").lower()
+        if bgt == "photo":
+            photo_item = itm
+            break
+    bg_item = photo_item or items[0]
+
+    bg_key = bg_item.get("s3Key", "")
+    bg_type = (bg_item.get("backgroundType") or "photo").lower()
+
+    # tmp paths (account-scoped; safe chars)
+    safe_acct = "".join(c if c.isalnum() else "_" for c in account)[:32]
+    tmp_photo = f"/tmp/{safe_acct}_cover_bg.png"
+    tmp_video = f"/tmp/{safe_acct}_cover_bg.mp4"
+
+    have_bg = False
+    if bg_type == "photo":
+        have_bg = download_s3_file(TARGET_BUCKET, bg_key, tmp_photo)
+        bg_path = tmp_photo if have_bg else None
+    else:
+        # try to grab a frame from the video
+        if download_s3_file(TARGET_BUCKET, bg_key, tmp_video):
+            try:
+                frame = VideoFileClip(tmp_video, audio=False).get_frame(0)
+                Image.fromarray(frame).save(tmp_photo)
+                have_bg = True
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("cover: video frame grab failed: %s", exc)
+            bg_path = tmp_photo if have_bg else None
+        else:
+            bg_path = None
+
+    # ── Compose cover ──────────────────────────────────────
+    canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
+    if have_bg and bg_path:
+        with Image.open(bg_path).convert("RGBA") as im:
+            scale = WIDTH / im.width
+            nh = int(im.height * scale)
+            im = im.resize((WIDTH, nh), Image.LANCZOS)
+            if nh > HEIGHT:
+                y0 = (nh - HEIGHT) // 2
+                im = im.crop((0, y0, WIDTH, y0 + HEIGHT))
+            canvas.paste(im, (0, 0))
+
+    # gradient overlay (same as recaps)
+    grad_local = os.path.join(tempfile.gettempdir(), "grad.png")
+    if download_s3_file(TARGET_BUCKET, GRADIENT_KEY, grad_local):
+        with Image.open(grad_local).convert("RGBA").resize((WIDTH, HEIGHT)) as g:
+            canvas.alpha_composite(g)
+
+    # headline (no subtitle)
+    h_img = Pillow_text_img(headline, FONT_TITLE, autosize(headline, 110, 75, 35), set(), 1000)
+    y_head = HEIGHT - 300 - h_img.height
+    canvas.alpha_composite(h_img, ((WIDTH - h_img.width) // 2, y_head))
+
+    # logo + stripe like render_photo
+    logo_local = os.path.join(tempfile.gettempdir(), "logo.png")
+    if download_s3_file(TARGET_BUCKET, LOGO_KEY, logo_local):
+        try:
+            logo = Image.open(logo_local).convert("RGBA")
+            scale = 200 / logo.width
+            logo = logo.resize((int(logo.width * scale), int(logo.height * scale)))
+            lx = WIDTH - logo.width - 50
+            ly = HEIGHT - logo.height - 50
+            stripe = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
+            canvas.alpha_composite(stripe, (lx - 720, ly + logo.height // 2 - 2))
+            canvas.alpha_composite(logo, (lx, ly))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("cover: logo render failed: %s", exc)
+
+    # upload
+    buf = io.BytesIO()
+    canvas.convert("RGB").save(buf, "PNG", compress_level=3)
+    buf.seek(0)
+    ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    key = f"weekly_recap/{account}/cover_{ts}.png"
+    s3.upload_fileobj(buf, TARGET_BUCKET, key, ExtraArgs={"ContentType": "image/png"})
+    return key
+
+
 # ═══════════════════════════════════════════════════════════
 #                DynamoDB  +  Teams notification
 # ═══════════════════════════════════════════════════════════
@@ -435,13 +530,23 @@ def latest_items(account: str, limit: int = 4) -> List[Dict[str, Any]]:
     )["Items"]
 
 
+
+
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
     logger.info("weekly recap start")
     summary: Dict[str, int] = {}
     for acct in list_accounts():
+        items = latest_items(acct)
+        if not items:
+            continue
+
         asset_keys: List[str] = []
 
-        for itm in latest_items(acct):
+        cover_key = render_cover(items, acct)
+        if cover_key:
+            asset_keys.append(cover_key)
+
+        for itm in items:
             if itm.get("backgroundType", "photo").lower() == "video":
                 keys, _ = render_video(itm, acct)
                 asset_keys.extend(keys)
