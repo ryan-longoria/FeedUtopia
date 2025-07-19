@@ -414,16 +414,15 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
 
 def render_cover(items: List[Dict[str, Any]], account: str) -> str:
     """
-    Creates a branded cover PNG for the weekly recap:
-        "TOP N <TOPIC> NEWS OF THIS WEEK THAT YOU MAY HAVE MISSED"
-    • Tries the most‑recent photo background; if none, grabs frame‑0 of the most‑recent video.
-    • Adds a fixed subtitle "SWIPE".
-    • Returns the S3 key for the uploaded image, or "" if generation fails.
+    Creates a branded cover PNG:
+        "TOP <TOPIC> NEWS OF THIS WEEK THAT YOU MAY HAVE MISSED"
+    – Falls back to "TOP NEWS ..." if the account isn’t mapped to a topic.
+    – Prefers a photo background; otherwise grabs frame‑0 from the most‑recent video.
     """
     if not items:
         return ""
 
-    # ── Headline text pieces ────────────────────────────────────────────────
+    # ── Topic word mapping ────────────────────────────────────────────────
     TOPIC_BY_ACCOUNT = {
         "animeutopia":   "ANIME",
         "wrestleutopia": "WRESTLING",
@@ -434,15 +433,15 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
         "driftutopia":   "CAR/AUTOMOTIVE",
     }
     topic = TOPIC_BY_ACCOUNT.get(account.lower(), "")
-    headline_words = ["TOP", str(len(items))]
+    headline_words = ["TOP"]
     if topic:
         headline_words.append(topic)
     headline_words += ["NEWS", "OF", "THIS", "WEEK", "THAT", "YOU", "MAY", "HAVE", "MISSED"]
     headline = " ".join(headline_words).upper()
+
     subtitle = "SWIPE"
 
-    # ── Choose the background source ────────────────────────────────────────
-    # Prefer the first photo; else fall back to the first (most‑recent) item.
+    # ── Background selection (photo preferred) ────────────────────────────
     photo_item = next(
         (itm for itm in items if (itm.get("backgroundType") or "photo").lower() == "photo"),
         None,
@@ -451,7 +450,6 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
     bg_key = bg_item.get("s3Key", "")
     bg_type = (bg_item.get("backgroundType") or "photo").lower()
 
-    # Account‑scoped /tmp filenames (avoid collision across parallel runs)
     safe_acct = "".join(c if c.isalnum() else "_" for c in account)[:32]
     tmp_photo = f"/tmp/{safe_acct}_cover_bg.png"
     tmp_video = f"/tmp/{safe_acct}_cover_bg.mp4"
@@ -460,7 +458,7 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
     if bg_type == "photo":
         bg_ready = download_s3_file(TARGET_BUCKET, bg_key, tmp_photo)
         bg_path = tmp_photo if bg_ready else None
-    else:  # video
+    else:
         if download_s3_file(TARGET_BUCKET, bg_key, tmp_video):
             try:
                 frame = VideoFileClip(tmp_video, audio=False).get_frame(0)
@@ -470,7 +468,7 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
                 logger.warning("cover: failed to grab video frame: %s", exc)
         bg_path = tmp_photo if bg_ready else None
 
-    # ── Compose the cover image ─────────────────────────────────────────────
+    # ── Compose cover image ───────────────────────────────────────────────
     canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
     if bg_ready and bg_path:
         with Image.open(bg_path).convert("RGBA") as im:
@@ -497,7 +495,7 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
     canvas.alpha_composite(h_img, ((WIDTH - h_img.width) // 2, y_head))
     canvas.alpha_composite(s_img, ((WIDTH - s_img.width) // 2, y_sub))
 
-    # logo + stripe (same logic as render_photo)
+    # logo + stripe (same as render_photo)
     logo_local = os.path.join(tempfile.gettempdir(), "logo.png")
     if download_s3_file(TARGET_BUCKET, LOGO_KEY, logo_local):
         try:
@@ -512,7 +510,7 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
         except Exception as exc:  # noqa: BLE001
             logger.warning("cover: logo render failed: %s", exc)
 
-    # ── Upload to S3 ────────────────────────────────────────────────────────
+    # ── Upload to S3 ──────────────────────────────────────────────────────
     buf = io.BytesIO()
     canvas.convert("RGB").save(buf, "PNG", compress_level=3)
     buf.seek(0)
