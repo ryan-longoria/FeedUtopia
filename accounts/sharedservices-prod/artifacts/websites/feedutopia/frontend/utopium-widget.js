@@ -19,16 +19,16 @@ if (document.getElementById('utopium-widget')) {
 @media (max-width:420px){
 #ut-window{width:92vw;height:78vh}
 #ut-launcher{width:56px;height:56px;font-size:1.5rem}
-.ut-msg{font-size:.9rem}
-}`;
-  document.head.appendChild(
-    Object.assign(document.createElement('style'), { textContent: css })
-  );
+.ut-msg{font-size:.9rem}}
+`;
+    document.head.appendChild(
+      Object.assign(document.createElement('style'), { textContent: css })
+    );
 
-  /* ─────────────────── Mark-up ─────────────────── */
-  document.body.insertAdjacentHTML(
-    'beforeend',
-    `<div id="utopium-widget">
+    /* ─────────────────── Mark‑up ─────────────────── */
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div id="utopium-widget">
 <button id="ut-launcher" aria-label="Open chat">
   <img src="/img/utopium.png" alt="Chat icon"
        style="width:66%;height:66%;object-fit:contain;pointer-events:none">
@@ -42,313 +42,307 @@ if (document.getElementById('utopium-widget')) {
   </div>
 </div>
 </div>`
-  );
+    );
 
-  /* ────────────────── Constants / state ────────────────── */
-  const API_ROOT    = 'https://api.feedutopia.com';
-  const ACCOUNTS    = ['animeutopia','wrestleutopia','driftutopia','xputopia','critterutopia','cyberutopia', 'flixutopia'];
-  const ARTIFACTS   = ['NEWS','TRAILER','FACT','THROWBACK','VS','Default'];
-  const FIELD_STEPS = {account:0,'post type':1,title:2,subtitle:4,'highlight title':5,'highlight subtitle':6,'background type':7};
-  const IMG_STEPS   = { prompt:0, askRef:1, file:2, gen:3 };
+    /* ────────────────── Constants / state ────────────────── */
+    const API_ROOT    = 'https://api.feedutopia.com';
+    const ACCOUNTS    = ['animeutopia','wrestleutopia','driftutopia','xputopia','critterutopia','cyberutopia','flixutopia'];
+    const ARTIFACTS   = ['NEWS','TRAILER','FACT','THROWBACK','VS','Default'];
+    const FIELD_STEPS = {account:0,'post type':1,title:2,subtitle:4,'highlight title':5,'highlight subtitle':6,'background type':7};
+    const IMG_STEPS   = { prompt:0, askRef:1, file:2, gen:3 };
 
-  let state = {
-    /* post flow */
-    step:-1,data:{},file:null,
-    hasGreeted:false,restartPending:false,awaitYes:false,
-    changePending:false,editing:null,skipHLSub:false,
-    /* caption flow */
-    gptMode:false,gptStep:-1,
-    /* image flow */
-    imgMode:false,imgStep:-1,imgPrompt:'',refFile:null
-  };
+    let state = {
+      /* post flow */
+      step:-1,data:{},file:null,
+      hasGreeted:false,restartPending:false,awaitYes:false,
+      changePending:false,editing:null,skipHLSub:false,
+      /* caption flow */
+      gptMode:false,gptStep:-1,
+      /* image flow */
+      imgMode:false,imgStep:-1,imgPrompt:'',refFile:null
+    };
 
-  /* ───────── DOM refs ───────── */
-  const $widget   = document.getElementById('utopium-widget');
-  const $window   = $widget.querySelector('#ut-window');
-  const $messages = $widget.querySelector('#ut-messages');
-  const $launch   = $widget.querySelector('#ut-launcher');
-  const $input    = $widget.querySelector('#ut-text');
-  const $send     = $widget.querySelector('#ut-send');
+    /* ───────── DOM refs ───────── */
+    const $widget   = document.getElementById('utopium-widget');
+    const $window   = $widget.querySelector('#ut-window');
+    const $messages = $widget.querySelector('#ut-messages');
+    const $launch   = $widget.querySelector('#ut-launcher');
+    const $input    = $widget.querySelector('#ut-text');
+    const $send     = $widget.querySelector('#ut-send');
 
-  /* ───────── Persistence ───────── */
-  const savedState   = localStorage.getItem('utopium-state');
-  const savedHistory = localStorage.getItem('utopium-history');
-  if (savedState && savedHistory) {
-    try { state = JSON.parse(savedState); } catch {}
-    $messages.innerHTML = savedHistory;
-  }
-  const persist = () => {
-    localStorage.setItem('utopium-state', JSON.stringify(state));
-    localStorage.setItem('utopium-history', $messages.innerHTML);
-  };
-
-  /* ───────── Helpers ───────── */
-  const bubble = (html, cls) => {
-    const el = Object.assign(document.createElement('div'), {
-      className: `ut-msg ${cls}`,
-      innerHTML: html
-    });
-    $messages.appendChild(el);
-    $messages.scrollTop = $messages.scrollHeight;
-    persist();
-    return el;
-  };
-  const bot  = msg => bubble(msg, 'ut-bot');
-  const user = msg => bubble(msg, 'ut-user');
-  const quickReplies = opts => {
-    const frag = document.createDocumentFragment();
-    opts.forEach(o => {
-      const span = document.createElement('span');
-      span.textContent = o;
-      span.className = 'ut-qr';
-      span.onclick = () => acceptInput(o);
-      frag.appendChild(span);
-    });
-    bubble('').appendChild(frag);
-  };
-
-  /* ─────── Prompts (post flow) ─────── */
-  const askAccount   = ()=>{ bot('What account are we posting to?'); quickReplies(ACCOUNTS); };
-  const askArtifact  = ()=>{ bot('What type of post is this?'); quickReplies(ARTIFACTS.map(a=>a.toLowerCase())); };
-  const askTitle     = ()=> bot('What’s the <em>main title</em>?');
-  const askSubtitleYN= ()=>{ bot('Add a subtitle?'); quickReplies(['yes','no']); };
-  const askSubtitle  = ()=> bot('What subtitle?');
-  const askHLTitle   = ()=> bot('Comma-separated <em>highlight</em> words for title.');
-  const askHLSub     = ()=> bot('Highlight words for subtitle');
-  const askBgType    = ()=>{ bot('Background: <strong>photo</strong> or <strong>video</strong>?'); quickReplies(['photo','video']); };
-
-  /* ─────── Prompts (image flow) ─────── */
-  const askImgPrompt = ()=> bot('What should the image depict?');
-  const askRefYN     = ()=>{ bot('Attach a reference image?'); quickReplies(['yes','no']); };
-  const askRefFile   = ()=> chooseFile(f=>{ state.refFile = f; afterImgStep(); });
-
-  /* ─────── Drag-&-drop helper ─────── */
-  function chooseFile(cb){
-    const drop = document.createElement('div');
-    Object.assign(drop.style, {
-      border:'2px dashed #999', padding:'1.5rem', borderRadius:'12px',
-      textAlign:'center', marginTop:'.5rem', cursor:'pointer'
-    });
-    drop.textContent = 'Drop file here or click to browse';
-    const inp = Object.assign(document.createElement('input'), { type:'file', style:'display:none' });
-    inp.onchange = ()=>{ if(inp.files.length) cb(inp.files[0]); };
-    drop.onclick       = ()=> inp.click();
-    drop.ondragover    = e => { e.preventDefault(); drop.style.borderColor='#ec008c'; drop.style.background='#333'; };
-    drop.ondragleave   = ()=> { drop.style.borderColor='#999'; drop.style.background=''; };
-    drop.ondrop        = e => { e.preventDefault(); if(e.dataTransfer.files.length) cb(e.dataTransfer.files[0]); };
-    const wrap = bubble('');
-    wrap.appendChild(drop);
-    wrap.appendChild(inp);
-  }
-
-  /* ─────── GPT caption call ─────── */
-  const askContext = ()=> bot('Paste your news here for an IG caption');
-  async function callGptCaption(){
-    bot('Generating caption…');
-    try {
-      const res = await fetch(`${API_ROOT}/gpt/ig-caption`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({context: state.data.context})
-      });
-      if(!res.ok) throw new Error(`backend ${res.status}`);
-      const {text} = await res.json();
-      bot(text.replace(/\n/g,'<br>'));
-    } catch(err){
-      bot(`<i>Error:</i> ${err.message}`);
-    } finally {
-      state.gptMode = false;
-      bot('Anything else?');
-      quickReplies(['create post','create instagram post title & description','create image']);
-      persist();
+    /* ───────── Persistence ───────── */
+    const savedState   = localStorage.getItem('utopium-state');
+    const savedHistory = localStorage.getItem('utopium-history');
+    if (savedState && savedHistory) {
+      try {
+        const tmp = JSON.parse(savedState);
+        state = { ...state, ...tmp, file:null, refFile:null }; // blobs cannot be restored
+      } catch {}
+      $messages.innerHTML = savedHistory;
     }
-  }
 
-  /* ─────── Image generation call ─────── */
-  async function callImageGen(){
-    bot('Generating image…');
-    try {
-      let refId;
-      if(state.refFile) {
-        // 1) get pre-signed URL
-        const presign = await fetch(`${API_ROOT}/upload-url`, {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ filename: state.refFile.name, purpose:'img-ref' })
+    /** Persist state **without** blob fields */
+    const persist = () => {
+      const { file, refFile, ...serializable } = state;
+      localStorage.setItem('utopium-state', JSON.stringify(serializable));
+      localStorage.setItem('utopium-history', $messages.innerHTML);
+    };
+
+    /* ───────── Helpers ───────── */
+    const bubble = (html, cls) => {
+      const el = Object.assign(document.createElement('div'), {
+        className: `ut-msg ${cls}`,
+        innerHTML: html
+      });
+      $messages.appendChild(el);
+      $messages.scrollTop = $messages.scrollHeight;
+      persist();
+      return el;
+    };
+    const bot  = msg => bubble(msg, 'ut-bot');
+    const user = msg => bubble(msg, 'ut-user');
+    const quickReplies = opts => {
+      const frag = document.createDocumentFragment();
+      opts.forEach(o => {
+        const span = document.createElement('span');
+        span.textContent = o;
+        span.className = 'ut-qr';
+        span.onclick = () => acceptInput(o);
+        frag.appendChild(span);
+      });
+      bubble('').appendChild(frag);
+    };
+
+    /* ─────── Prompts (post flow) ─────── */
+    const askAccount   = ()=>{ bot('What account are we posting to?'); quickReplies(ACCOUNTS); };
+    const askArtifact  = ()=>{ bot('What type of post is this?'); quickReplies(ARTIFACTS.map(a=>a.toLowerCase())); };
+    const askTitle     = ()=> bot('What’s the <em>main title</em>?');
+    const askSubtitleYN= ()=>{ bot('Add a subtitle?'); quickReplies(['yes','no']); };
+    const askSubtitle  = ()=> bot('What subtitle?');
+    const askHLTitle   = ()=> bot('Comma-separated <em>highlight</em> words for title.');
+    const askHLSub     = ()=> bot('Highlight words for subtitle');
+    const askBgType    = ()=>{ bot('Background: <strong>photo</strong> or <strong>video</strong>?'); quickReplies(['photo','video']); };
+
+    /* ─────── Prompts (image flow) ─────── */
+    const askImgPrompt = ()=> bot('What should the image depict?');
+    const askRefYN     = ()=>{ bot('Attach a reference image?'); quickReplies(['yes','no']); };
+    const askRefFile   = ()=> chooseFile(f=>{ state.refFile = f; afterImgStep(); });
+
+    /* ─────── Drag‑&‑drop helper ─────── */
+    function chooseFile(cb){
+      const drop = document.createElement('div');
+      Object.assign(drop.style, {
+        border:'2px dashed #999', padding:'1.5rem', borderRadius:'12px',
+        textAlign:'center', marginTop:'.5rem', cursor:'pointer'
+      });
+      drop.textContent = 'Drop file here or click to browse';
+      const inp = Object.assign(document.createElement('input'), { type:'file', style:'display:none' });
+      inp.onchange = ()=>{ if(inp.files.length) cb(inp.files[0]); };
+      drop.onclick       = ()=> inp.click();
+      drop.ondragover    = e => { e.preventDefault(); drop.style.borderColor='#ec008c'; drop.style.background='#333'; };
+      drop.ondragleave   = ()=> { drop.style.borderColor='#999'; drop.style.background=''; };
+      drop.ondrop        = e => { e.preventDefault(); if(e.dataTransfer.files.length) cb(e.dataTransfer.files[0]); };
+      const wrap = bubble('');
+      wrap.appendChild(drop);
+      wrap.appendChild(inp);
+    }
+
+    /* ─────── GPT caption call ─────── */
+    const askContext = ()=> bot('Paste your news here for an IG caption');
+    async function callGptCaption(){
+      bot('Generating caption…');
+      try {
+        const res = await fetch(`${API_ROOT}/gpt/ig-caption`, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({context: state.data.context})
         });
-        if(!presign.ok) throw new Error(`upload URL ${presign.status}`);
-        const { url: uploadUrl, objectKey } = await presign.json();
-        // 2) upload file
-        await fetch(uploadUrl, { method:'PUT', body: state.refFile });
-        refId = objectKey;
-      }
-
-      // always DALL·E-3 at 1024×1024
-      const model = 'dall-e-3';
-      const size  = '1024x1024';
-
-      const payload = { prompt: state.imgPrompt, model, size };
-      if (refId) payload.refImageId = refId;
-
-      const res = await fetch(`${API_ROOT}/gpt/image-gen`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      });
-      if(!res.ok) throw new Error(`backend ${res.status}`);
-      const {url} = await res.json();
-      bot(`<img src="${url}" style="width:100%;border-radius:12px" alt="Generated image">`);
-    } catch(err){
-      bot(`<i>Error:</i> ${err.message}`);
-    } finally {
-      Object.assign(state, {
-        imgMode:false, imgStep:-1, imgPrompt:'', refFile:null
-      });
-      bot('Anything else?');
-      quickReplies(['create post','create instagram post title & description','create image']);
-      persist();
-    }
-  }
-
-  /* ─────── File chooser (post background) ─────── */
-  const askFile = ()=>{
-    bot('Choose or drag your media file.');
-    chooseFile(f=>{ state.file = f; afterSingleEdit(); });
-  };
-
-  /* ─────── Flow control ─────── */
-  const steps   = [askAccount,askArtifact,askTitle,askSubtitleYN,askSubtitle,askHLTitle,askHLSub,askBgType,askFile,confirmAndSend];
-  const gptFlow = [askContext,callGptCaption];
-
-  const next           = ()=>{ steps[state.step++](); persist(); };
-  const afterSingleEdit= ()=>{ state.editing = null; confirmAndSend(); };
-  const startImageFlow = ()=>{ state.imgMode = true; state.imgStep = IMG_STEPS.prompt; askImgPrompt(); };
-  const afterImgStep   = ()=>{ state.imgStep = IMG_STEPS.gen; callImageGen(); };
-
-  /* ─────── Input dispatcher ─────── */
-  function acceptInput(text){
-    const tl = text.toLowerCase();
-
-    // Handle “Ready to publish?” confirmation
-    if (state.awaitYes) {
-      user(text);
-      state.awaitYes = false;
-      persist();
-  
-      if (tl.startsWith('y')) {
-        // they said “yes” → actually publish
-        publish();
-      } else {
-        // they said “no” → let them choose what to edit
-        state.changePending = true;
-        bot('Okay—what would you like to change?');
-        quickReplies([
-          'title',
-          'subtitle',
-          'highlight title',
-          'highlight subtitle',
-          'background',
-          'media file'
-        ]);
-      }
-      return;  // don’t fall through into the normal post flow
-    }
-
-    if (state.imgMode) {
-      user(text);
-  
-      switch (state.imgStep) {
-        case IMG_STEPS.prompt:
-          state.imgPrompt = text;
-          state.imgStep   = IMG_STEPS.askRef;
-          askRefYN();
-          return;                // ← must bail out here
-  
-        case IMG_STEPS.askRef:
-          if (tl.startsWith('y')) {
-            state.imgStep = IMG_STEPS.file;
-            askRefFile();
-          } else {
-            state.refFile = null;
-            afterImgStep();
-          }
-          return;                // ← and here
-      }
-    }
-
-    // caption flow
-    if(state.gptMode){
-      user(text);
-      if(state.gptStep === 0){
-        state.data.context = text;
-        state.gptStep      = 1;
-        gptFlow[1]();
-      }
-      return;
-    }
-
-    // edit fields, changePending, confirmations, restart… (same as your existing code)
-
-    // initial prompt
-    if(state.step === -1){
-      user(text);
-      if(['create image','make image','generate image'].includes(tl)){
-        bot('Sure! Let’s create an image.');
-        startImageFlow();
-      } else if(['create post','make a post','create a post'].includes(tl)){
-        bot('Great! Let’s get started.');
-        state.step = 0;
-        next();
-      } else if(['create instagram post title & description','ig content'].includes(tl)){
-        bot('Awesome! Let’s craft a killer caption.');
-        state.gptMode  = true;
-        state.gptStep  = 0;
-        gptFlow[0]();
-      } else {
-        bot('What can I help you with?');
+        if(!res.ok) throw new Error(`backend ${res.status}`);
+        const {text} = await res.json();
+        bot(text.replace(/\n/g,'<br>'));
+      } catch(err){
+        bot(`<i>Error:</i> ${err.message}`);
+      } finally {
+        state.gptMode = false;
+        bot('Anything else?');
         quickReplies(['create post','create instagram post title & description','create image']);
+        persist();
       }
-      return;
     }
 
-    // main post flow
-    user(text);
-    switch(state.step - 1){
-      case 0: state.data.account   = text; break;
-      case 1: state.data.artifact  = text; break;
-      case 2: state.data.title     = text; break;
-      case 3:
-        if(!tl.startsWith('y')){
-          state.data.subtitle = 'skip';
-          state.skipHLSub     = true;
-          state.step++;
+    /* ─────── Image generation call ─────── */
+    async function callImageGen(){
+      bot('Generating image…');
+      try {
+        let refId;
+        if(state.refFile) {
+          // 1) get pre-signed URL
+          const presign = await fetch(`${API_ROOT}/upload-url`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ filename: state.refFile.name, purpose:'img-ref' })
+          });
+          if(!presign.ok) throw new Error(`upload URL ${presign.status}`);
+          const { url: uploadUrl, objectKey } = await presign.json();
+          // 2) upload file
+          await fetch(uploadUrl, { method:'PUT', body: state.refFile });
+          refId = objectKey;
         }
-        break;
-      case 4:
-        state.data.subtitle = tl==='skip' ? 'skip' : text;
-        if(tl === 'skip') state.skipHLSub = true;
-        break;
-      case 5:
-        state.data.hlTitle = text;
-        if(state.skipHLSub){
-          state.skipHLSub = false;
-          state.step++;
-        }
-        break;
-      case 6:
-        state.data.hlSub = text;
-        break;
-      case 7:
-        state.data.bgType = text;
-        break;
-    }
-    next();
-  }
 
-  /* ─────── Summary, Publish, Utilities ─────── */
-  function confirmAndSend(){
-    const subtitle = state.data.subtitle==='skip'||!state.data.subtitle ? '(none)' : state.data.subtitle;
-    const hlSub    = state.data.hlSub || '(none)';
-    const summary  = `
+        // always DALL·E‑3 at 1024×1024
+        const model = 'dall-e-3';
+        const size  = '1024x1024';
+
+        const payload = { prompt: state.imgPrompt, model, size };
+        if (refId) payload.refImageId = refId;
+
+        const res = await fetch(`${API_ROOT}/gpt/image-gen`, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if(!res.ok) throw new Error(`backend ${res.status}`);
+        const {url} = await res.json();
+        bot(`<img src="${url}" style="width:100%;border-radius:12px" alt="Generated image">`);
+      } catch(err){
+        bot(`<i>Error:</i> ${err.message}`);
+      } finally {
+        Object.assign(state, {
+          imgMode:false, imgStep:-1, imgPrompt:'', refFile:null
+        });
+        bot('Anything else?');
+        quickReplies(['create post','create instagram post title & description','create image']);
+        persist();
+      }
+    }
+
+    /* ─────── File chooser (post background) ─────── */
+    const askFile = ()=>{
+      bot('Choose or drag your media file.');
+      chooseFile(f=>{ state.file = f; afterSingleEdit(); });
+    };
+
+    /* ─────── Flow control ─────── */
+    const steps   = [askAccount,askArtifact,askTitle,askSubtitleYN,askSubtitle,askHLTitle,askHLSub,askBgType,askFile,confirmAndSend];
+    const gptFlow = [askContext,callGptCaption];
+
+    const next           = ()=>{ steps[state.step++](); persist(); };
+    const afterSingleEdit= ()=>{ state.editing = null; confirmAndSend(); };
+    const startImageFlow = ()=>{ state.imgMode = true; state.imgStep = IMG_STEPS.prompt; askImgPrompt(); };
+    const afterImgStep   = ()=>{ state.imgStep = IMG_STEPS.gen; callImageGen(); };
+
+    /* ─────── Input dispatcher ─────── */
+    function acceptInput(text){
+      const tl = text.toLowerCase();
+
+      // Handle “Ready to publish?” confirmation
+      if (state.awaitYes) {
+        user(text);
+        state.awaitYes = false;
+        persist();
+
+        if (tl.startsWith('y')) {
+          publish();
+        } else {
+          state.changePending = true;
+          bot('Okay—what would you like to change?');
+          quickReplies([
+            'title','subtitle','highlight title','highlight subtitle','background','media file'
+          ]);
+        }
+        return;
+      }
+
+      if (state.imgMode) {
+        user(text);
+        switch (state.imgStep) {
+          case IMG_STEPS.prompt:
+            state.imgPrompt = text;
+            state.imgStep   = IMG_STEPS.askRef;
+            askRefYN();
+            return;
+          case IMG_STEPS.askRef:
+            if (tl.startsWith('y')) {
+              state.imgStep = IMG_STEPS.file;
+              askRefFile();
+            } else {
+              state.refFile = null;
+              afterImgStep();
+            }
+            return;
+        }
+      }
+
+      // caption flow
+      if(state.gptMode){
+        user(text);
+        if(state.gptStep === 0){
+          state.data.context = text;
+          state.gptStep      = 1;
+          gptFlow[1]();
+        }
+        return;
+      }
+
+      // initial prompt
+      if(state.step === -1){
+        user(text);
+        if(['create image','make image','generate image'].includes(tl)){
+          bot('Sure! Let’s create an image.');
+          startImageFlow();
+        } else if(['create post','make a post','create a post'].includes(tl)){
+          bot('Great! Let’s get started.');
+          state.step = 0;
+          next();
+        } else if(['create instagram post title & description','ig content'].includes(tl)){
+          bot('Awesome! Let’s craft a killer caption.');
+          state.gptMode  = true;
+          state.gptStep  = 0;
+          gptFlow[0]();
+        } else {
+          bot('What can I help you with?');
+          quickReplies(['create post','create instagram post title & description','create image']);
+        }
+        return;
+      }
+
+      user(text);
+      switch(state.step - 1){
+        case 0: state.data.account   = text; break;
+        case 1: state.data.artifact  = text; break;
+        case 2: state.data.title     = text; break;
+        case 3:
+          if(!tl.startsWith('y')){
+            state.data.subtitle = 'skip';
+            state.skipHLSub     = true;
+            state.step++;
+          }
+          break;
+        case 4:
+          state.data.subtitle = tl==='skip' ? 'skip' : text;
+          if(tl === 'skip') state.skipHLSub = true;
+          break;
+        case 5:
+          state.data.hlTitle = text;
+          if(state.skipHLSub){
+            state.skipHLSub = false;
+            state.step++;
+          }
+          break;
+        case 6:
+          state.data.hlSub = text;
+          break;
+        case 7:
+          state.data.bgType = text;
+          break;
+      }
+      next();
+    }
+
+    /* ─────── Summary, Publish, Utilities ─────── */
+    function confirmAndSend(){
+      const subtitle = state.data.subtitle==='skip'||!state.data.subtitle ? '(none)' : state.data.subtitle;
+      const hlSub    = state.data.hlSub || '(none)';
+      const summary  = `
 <strong>Account:</strong> ${state.data.account}<br>
 <strong>Post type:</strong> ${state.data.artifact}<br>
 <strong>Title:</strong> ${state.data.title}<br>
@@ -357,14 +351,21 @@ if (document.getElementById('utopium-widget')) {
 <strong>Highlight words (title):</strong> ${state.data.hlTitle}<br>
 <strong>Highlight words (subtitle):</strong> ${hlSub}<br><br>
 Ready to publish?`;
-    bot(summary);
-    quickReplies(['yes','no']);
-    state.awaitYes = true;
-    persist();
-  }
+      bot(summary);
+      quickReplies(['yes','no']);
+      state.awaitYes = true;
+      persist();
+    }
 
     /** Publishes the post data to FeedUtopia API. */
     async function publish() {
+      // ►►► Guard: ensure we still have a genuine File ◄◄◄
+      if (!(state.file instanceof File) || state.file.size < 100_000) {
+        bot('<i>The previously chosen media file is missing or too small. Please choose it again.</i>');
+        askFile();
+        return;
+      }
+
       try {
         bot('Getting upload URL…');
         let res = await fetch(`${API_ROOT}/upload-url`, {
@@ -377,7 +378,11 @@ Ready to publish?`;
         const key = objectKey;
 
         bot('Uploading to S3…');
-        res = await fetch(url, { method: 'PUT', body: state.file });
+        res = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': state.file.type || 'application/octet-stream' }, // optional header ✔
+          body: state.file
+        });
         if (!res.ok) throw new Error('S3 upload failed');
 
         bot('Calling FeedUtopia backend…');
@@ -420,6 +425,7 @@ Ready to publish?`;
         gptMode:false,gptStep:-1,
         imgMode:false,imgStep:-1,imgPrompt:'',refFile:null
       };
+      persist();
     }
 
     /* ───────── UI wiring ───────── */

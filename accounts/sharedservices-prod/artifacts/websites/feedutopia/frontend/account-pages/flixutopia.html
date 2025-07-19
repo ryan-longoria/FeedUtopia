@@ -291,6 +291,10 @@
     cancelBtn.onclick = () => exitEdit(false);
   })();
   </script>
+  <script>
+    localStorage.removeItem('utopium-state');
+    localStorage.removeItem('utopium-history');
+  </script>
   <script defer src="/utopium-widget.js"></script>
 </body>
 </html>
