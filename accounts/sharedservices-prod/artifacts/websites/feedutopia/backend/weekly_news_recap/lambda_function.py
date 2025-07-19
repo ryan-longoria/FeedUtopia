@@ -4,11 +4,11 @@ import json
 import logging
 import os
 import tempfile
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 import boto3
 import moviepy.video.fx as vfx
-import numpy as np                     # ← NEW: for Pillow → ImageClip conversion
+import numpy as np
 from boto3.dynamodb.conditions import Key
 from moviepy.video.VideoClip import ColorClip, ImageClip, TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
@@ -18,23 +18,23 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# ─── Sizes ──────────────────────────────────────────────────
+# ─── Sizes ───────────────────────────────────────────────────
 WIDTH, HEIGHT = 1080, 1350
 VID_W, VID_H = WIDTH, HEIGHT
 DEFAULT_VID_DURATION = 10  # seconds
 
-# ─── Fonts, colours, artifacts ─────────────────────────────
+# ─── Fonts, colours, artifacts ──────────────────────────────
 TITLE_MAX, TITLE_MIN = 90, 60
 DESC_MAX, DESC_MIN = 60, 30
 HIGHLIGHT_COLOR = "#ec008c"
 BASE_COLOR = "white"
 GRADIENT_KEY = "artifacts/Black Gradient.png"
-LOGO_KEY = "artifacts/Logo.png"
+LOGO_KEY_GLOBAL = "artifacts/Logo.png"
 ROOT = os.path.dirname(__file__)
 FONT_TITLE = os.path.join(ROOT, "ariblk.ttf")
 FONT_DESC = os.path.join(ROOT, "Montserrat-Medium.ttf")
 
-# ─── Env / AWS ──────────────────────────────────────────────
+# ─── Env / AWS ───────────────────────────────────────────────
 TARGET_BUCKET = os.environ["TARGET_BUCKET"]
 NEWS_TABLE = os.environ["NEWS_TABLE"]
 NOTIFY_POST_ARN = os.environ["NOTIFY_POST_FUNCTION_ARN"]
@@ -44,9 +44,14 @@ table = dynamodb.Table(NEWS_TABLE)
 s3 = boto3.client("s3")
 lambda_cl = boto3.client("lambda")
 
-# ═══════════════════════════════════════════════════════════
-#                         HELPERS
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
+#                           HELPERS
+# ════════════════════════════════════════════════════════════
+def logo_key_for(account: str) -> str:
+    """Return account‑specific logo path, e.g. artifacts/animeutopia/logo.png"""
+    return f"artifacts/{account.lower()}/logo.png"
+
+
 def download_s3_file(bucket: str, key: str, local: str) -> bool:
     try:
         s3.download_file(bucket, key, local)
@@ -123,14 +128,10 @@ def measure_pillow(word: str, font_path: str, size: int) -> int:
     return ImageFont.truetype(font_path, size).getbbox(word)[2]
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 #                     PHOTO   →   PNG
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 def render_photo(item: Dict[str, Any], account: str) -> Tuple[str, str]:
-    """
-    Renders a static post and uploads it.
-    Returns (s3_key, 'photo')
-    """
     bg_key = item.get("s3Key", "")
     local_bg = os.path.join(tempfile.gettempdir(), os.path.basename(bg_key))
     has_bg = download_s3_file(TARGET_BUCKET, bg_key, local_bg)
@@ -153,38 +154,27 @@ def render_photo(item: Dict[str, Any], account: str) -> Tuple[str, str]:
 
     title = (item.get("title") or "").upper()
     subtitle = (item.get("subtitle") or "").upper()
-    hl_t = {
-        w.strip().upper()
-        for w in (item.get("highlightWordsTitle") or "").split(",")
-        if w.strip()
-    }
-    hl_s = {
-        w.strip().upper()
-        for w in (item.get("highlightWordsDescription") or "").split(",")
-        if w.strip()
-    }
+    hl_t = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
+    hl_s = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
 
-    t_img = Pillow_text_img(
-        title, FONT_TITLE, autosize(title, TITLE_MAX, TITLE_MIN, 30), hl_t, 1000
-    )
+    t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, TITLE_MAX, TITLE_MIN, 30), hl_t, 1000)
     sub_img = (
-        Pillow_text_img(
-            subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 900
-        )
-        if subtitle
-        else None
+        Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 900)
+        if subtitle else None
     )
 
     logo_local = os.path.join(tempfile.gettempdir(), "logo.png")
+    logo_ok = download_s3_file(TARGET_BUCKET, logo_key_for(account), logo_local) or \
+              download_s3_file(TARGET_BUCKET, LOGO_KEY_GLOBAL, logo_local)
+
     logo = None
-    if download_s3_file(TARGET_BUCKET, LOGO_KEY, logo_local):
+    if logo_ok and os.path.exists(logo_local):
         logo = Image.open(logo_local).convert("RGBA")
         scale = 200 / logo.width
         logo = logo.resize((int(logo.width * scale), int(logo.height * scale)))
 
     if logo:
-        lx = WIDTH - logo.width - 50
-        ly = HEIGHT - logo.height - 50
+        lx, ly = WIDTH - logo.width - 50, HEIGHT - logo.height - 50
     else:
         ly = HEIGHT - 100
 
@@ -212,9 +202,9 @@ def render_photo(item: Dict[str, Any], account: str) -> Tuple[str, str]:
     return key, "photo"
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 #                      VIDEO  →  MP4  +  PNG
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 def multi_coloured_clip(
     text: str,
     highlights: Set[str],
@@ -223,9 +213,6 @@ def multi_coloured_clip(
     max_width: int,
     duration: float,
 ) -> CompositeVideoClip:
-    """
-    (Still available for other uses, but render_video now uses Pillow instead.)
-    """
     words = text.split()
     lines, cur, w_cur = [], [], 0
     for w in words:
@@ -244,18 +231,10 @@ def multi_coloured_clip(
     for ln in lines:
         x_off, parts = 0, []
         for w in ln:
-            colour = (
-                HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else "white"
-            )
+            colour = HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else "white"
             w_w = measure_pillow(w, font_path, font_size)
             txt_clip = (
-                TextClip(
-                    text=w,
-                    font=font_path,
-                    color=colour,
-                    font_size=font_size,
-                    method="label",
-                )
+                TextClip(text=w, font=font_path, color=colour, font_size=font_size, method="label")
                 .with_duration(duration)
                 .with_position((x_off, 0))
             )
@@ -263,9 +242,7 @@ def multi_coloured_clip(
             parts.append(txt_clip)
         lw = max(x_off - 15, 1)
         lh = parts[0].h if parts else 1
-        line_comps.append(
-            CompositeVideoClip(parts, size=(lw, lh)).with_duration(duration)
-        )
+        line_comps.append(CompositeVideoClip(parts, size=(lw, lh)).with_duration(duration))
 
     max_w = max((lc.w for lc in line_comps), default=1)
     y_cur, stacked = 0, []
@@ -277,10 +254,6 @@ def multi_coloured_clip(
 
 
 def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
-    """
-    Render video recap for one table item.
-    Returns ([mp4_key, png_key], 'video') or falls back to photo.
-    """
     bg_key = item.get("s3Key", "")
     local_bg = "/tmp/bg.mp4"
     if not download_s3_file(TARGET_BUCKET, bg_key, local_bg):
@@ -294,7 +267,6 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
     new_h = int(raw_bg.h * scale)
     scaled = raw_bg.with_effects([vfx.Resize((VID_W, new_h))]).with_duration(dur)
 
-    # 150 px higher than centre
     centre_offset = (VID_H - new_h) // 2
     y_offset = centre_offset - 150
 
@@ -302,65 +274,42 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
     bg_clip = scaled.with_position((0, y_offset))
     composite: List = [base, bg_clip]
 
-    # gradient
     grad_local = "/tmp/grad.png"
     if download_s3_file(TARGET_BUCKET, GRADIENT_KEY, grad_local):
         composite.append(
-            ImageClip(grad_local)
-            .with_effects([vfx.Resize((VID_W, VID_H))])
-            .with_duration(dur)
+            ImageClip(grad_local).with_effects([vfx.Resize((VID_W, VID_H))]).with_duration(dur)
         )
 
-    # ─── HEADLINE & SUBTITLE (now rendered with Pillow) ───────
     title = (item.get("title") or "").upper()
     sub = (item.get("subtitle") or "").upper()
-    hl_t = {
-        w.strip().upper()
-        for w in (item.get("highlightWordsTitle") or "").split(",")
-        if w.strip()
-    }
-    hl_s = {
-        w.strip().upper()
-        for w in (item.get("highlightWordsDescription") or "").split(",")
-        if w.strip()
-    }
+    hl_t = {w.strip().upper() for w in (item.get("highlightWordsTitle") or "").split(",") if w.strip()}
+    hl_s = {w.strip().upper() for w in (item.get("highlightWordsDescription") or "").split(",") if w.strip()}
 
-    # headline
-    title_img = Pillow_text_img(
-        title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000
-    )
-    t_clip = (
-        ImageClip(np.array(title_img))
-        .with_duration(dur)
-        .with_position(("center", 25))
-    )
+    title_img = Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000)
+    t_clip = ImageClip(np.array(title_img)).with_duration(dur).with_position(("center", 25))
     composite.append(t_clip)
 
-    # subtitle (optional)
     if sub:
-        sub_img = Pillow_text_img(
-            sub, FONT_DESC, autosize(sub, 70, 30, 45), hl_s, 800
-        )
+        sub_img = Pillow_text_img(sub, FONT_DESC, autosize(sub, 70, 30, 45), hl_s, 800)
         s_clip = (
             ImageClip(np.array(sub_img))
             .with_duration(dur)
             .with_position(("center", VID_H - 150 - sub_img.height))
         )
         composite.append(s_clip)
-    # ──────────────────────────────────────────────────────────
 
-    # logo + stripe (optional)
+    # logo + stripe (account‑specific first, global fallback)
     local_logo = "/tmp/logo.png"
-    if download_s3_file(TARGET_BUCKET, LOGO_KEY, local_logo):
+    logo_ok = download_s3_file(TARGET_BUCKET, logo_key_for(account), local_logo) or \
+              download_s3_file(TARGET_BUCKET, LOGO_KEY_GLOBAL, local_logo)
+
+    if logo_ok and os.path.exists(local_logo):
         logo_raw = ImageClip(local_logo)
         l_scale = 200 / logo_raw.w
         logo_clip = logo_raw.with_effects([vfx.Resize(l_scale)]).with_duration(dur)
-        line = (
-            ColorClip((700, 4), color=ImageColor.getrgb(HIGHLIGHT_COLOR))
-            .with_duration(dur)
-        )
+        line = ColorClip((700, 4), color=ImageColor.getrgb(HIGHLIGHT_COLOR)).with_duration(dur)
 
-        gap = 20 
+        gap = 20
         tot_w = 700 + gap + logo_clip.w
         tot_h = max(logo_clip.h, 4)
         overlay = (
@@ -380,8 +329,7 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
 
     ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     basekey = f"weekly_recap/{account}/vid_{ts}_{item['createdAt']}"
-    mp4_key = f"{basekey}.mp4"
-    png_key = f"{basekey}.png"
+    mp4_key, png_key = f"{basekey}.mp4", f"{basekey}.png"
 
     tmp_mp4 = "/tmp/out.mp4"
     final.write_videofile(
@@ -402,7 +350,6 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
         },
     )
 
-    # thumbnail
     thumb = final.get_frame(0)
     buf = io.BytesIO()
     Image.fromarray(thumb).save(buf, "PNG", compress_level=2)
@@ -412,17 +359,13 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
     return [mp4_key, png_key], "video"
 
 
+# ════════════════════════════════════════════════════════════
+#                      COVER  →  PNG
+# ════════════════════════════════════════════════════════════
 def render_cover(items: List[Dict[str, Any]], account: str) -> str:
-    """
-    Builds a cover PNG:
-        • Headline:  TOP <TOPIC> NEWS OF THIS WEEK THAT YOU MAY HAVE MISSED
-          – “TOP”, <TOPIC>, and “NEWS” appear in highlight colour.
-        • Subtitle:  SWIPE  (fully highlighted)
-    """
     if not items:
         return ""
 
-    # ── Topic map ───────────────────────────────────────────
     TOPIC_BY_ACCOUNT = {
         "animeutopia":   "ANIME",
         "wrestleutopia": "WRESTLING",
@@ -438,27 +381,18 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
         headline_words.append(topic)
     headline_words += ["NEWS", "OF", "THIS", "WEEK", "THAT", "YOU", "MAY", "HAVE", "MISSED"]
     headline = " ".join(headline_words).upper()
-
-    subtitle = "SWIPE"
-
-    # ── Highlight sets ─────────────────────────────────────
-    hl_head = {"TOP", "NEWS"}
+    subtitle, hl_head, hl_sub = "SWIPE", {"TOP", "NEWS"}, {"SWIPE"}
     if topic:
-        hl_head.add(topic.upper())            # e.g. "ANIME", "CAR/AUTOMOTIVE"
-    hl_sub  = {"SWIPE"}
+        hl_head.add(topic.upper())
 
-    # ── Choose background (photo preferred) ────────────────
     photo_item = next(
-        (itm for itm in items if (itm.get("backgroundType") or "photo").lower() == "photo"),
-        None,
+        (itm for itm in items if (itm.get("backgroundType") or "photo").lower() == "photo"), None
     )
     bg_item = photo_item or items[0]
-    bg_key  = bg_item.get("s3Key", "")
-    bg_type = (bg_item.get("backgroundType") or "photo").lower()
+    bg_key, bg_type = bg_item.get("s3Key", ""), (bg_item.get("backgroundType") or "photo").lower()
 
     safe = "".join(c if c.isalnum() else "_" for c in account)[:32]
-    tmp_photo = f"/tmp/{safe}_cover_bg.png"
-    tmp_video = f"/tmp/{safe}_cover_bg.mp4"
+    tmp_photo, tmp_video = f"/tmp/{safe}_cover_bg.png", f"/tmp/{safe}_cover_bg.mp4"
 
     bg_ok = False
     if bg_type == "photo":
@@ -471,75 +405,63 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
                 Image.fromarray(frame).save(tmp_photo)
                 bg_ok = True
             except Exception as exc:  # noqa: BLE001
-                logger.warning("cover: video frame grab failed: %s", exc)
+                logger.warning("cover: failed video frame grab: %s", exc)
         bg_path = tmp_photo if bg_ok else None
 
-    # ── Compose canvas ─────────────────────────────────────
     canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
     if bg_ok and bg_path:
         with Image.open(bg_path).convert("RGBA") as im:
-            scale = WIDTH / im.width
-            nh    = int(im.height * scale)
-            im    = im.resize((WIDTH, nh), Image.LANCZOS)
+            scale, nh = WIDTH / im.width, int(im.height * (WIDTH / im.width))
+            im = im.resize((WIDTH, nh), Image.LANCZOS)
             if nh > HEIGHT:
                 y0 = (nh - HEIGHT) // 2
                 im = im.crop((0, y0, WIDTH, y0 + HEIGHT))
             canvas.paste(im, (0, 0))
 
-    # gradient overlay
     grad_local = os.path.join(tempfile.gettempdir(), "grad.png")
     if download_s3_file(TARGET_BUCKET, GRADIENT_KEY, grad_local):
         with Image.open(grad_local).convert("RGBA").resize((WIDTH, HEIGHT)) as g:
             canvas.alpha_composite(g)
 
-    # headline + subtitle images with highlights
-    h_img = Pillow_text_img(headline, FONT_TITLE,
-                            autosize(headline, 110, 75, 35),
-                            hl_head, 1000)
-    s_img = Pillow_text_img(subtitle, FONT_DESC,
-                            autosize(subtitle, 70, 30, 45),
-                            hl_sub, 600)
-
-    y_sub  = HEIGHT - 300 - s_img.height
-    y_head = y_sub - 50 - h_img.height
+    h_img = Pillow_text_img(headline, FONT_TITLE, autosize(headline, 110, 75, 35), hl_head, 1000)
+    s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_sub, 600)
+    y_sub, y_head = HEIGHT - 300 - s_img.height, HEIGHT - 300 - s_img.height - 50 - h_img.height
     canvas.alpha_composite(h_img, ((WIDTH - h_img.width) // 2, y_head))
-    canvas.alpha_composite(s_img,  ((WIDTH - s_img.width)  // 2, y_sub))
+    canvas.alpha_composite(s_img, ((WIDTH - s_img.width) // 2, y_sub))
 
-    # logo + stripe
     logo_local = os.path.join(tempfile.gettempdir(), "logo.png")
-    if download_s3_file(TARGET_BUCKET, LOGO_KEY, logo_local):
+    logo_ok = download_s3_file(TARGET_BUCKET, logo_key_for(account), logo_local) or \
+              download_s3_file(TARGET_BUCKET, LOGO_KEY_GLOBAL, logo_local)
+
+    if logo_ok and os.path.exists(logo_local):
         try:
-            logo  = Image.open(logo_local).convert("RGBA")
+            logo = Image.open(logo_local).convert("RGBA")
             scale = 200 / logo.width
-            logo  = logo.resize((int(logo.width * scale), int(logo.height * scale)))
-            lx    = WIDTH - logo.width - 50
-            ly    = HEIGHT - logo.height - 50
+            logo = logo.resize((int(logo.width * scale), int(logo.height * scale)))
+            lx, ly = WIDTH - logo.width - 50, HEIGHT - logo.height - 50
             stripe = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
             canvas.alpha_composite(stripe, (lx - 720, ly + logo.height // 2 - 2))
-            canvas.alpha_composite(logo,  (lx, ly))
+            canvas.alpha_composite(logo, (lx, ly))
         except Exception as exc:  # noqa: BLE001
             logger.warning("cover: logo render failed: %s", exc)
 
-    # ── Upload ─────────────────────────────────────────────
     buf = io.BytesIO()
     canvas.convert("RGB").save(buf, "PNG", compress_level=3)
     buf.seek(0)
-    ts  = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     key = f"weekly_recap/{account}/cover_{ts}.png"
     s3.upload_fileobj(buf, TARGET_BUCKET, key, ExtraArgs={"ContentType": "image/png"})
     return key
 
-# ═══════════════════════════════════════════════════════════
-#                DynamoDB  +  Teams notification
-# ═══════════════════════════════════════════════════════════
+
+# ════════════════════════════════════════════════════════════
+#               DynamoDB  +  Teams notification
+# ════════════════════════════════════════════════════════════
 def list_accounts() -> Set[str]:
     seen = set()
     paginator = table.meta.client.get_paginator("scan")
-    for pg in paginator.paginate(
-        TableName=NEWS_TABLE, ProjectionExpression="accountName"
-    ):
-        for itm in pg.get("Items", []):
-            seen.add(itm["accountName"])
+    for pg in paginator.paginate(TableName=NEWS_TABLE, ProjectionExpression="accountName"):
+        seen.update(itm["accountName"] for itm in pg.get("Items", []))
     return seen
 
 
@@ -549,8 +471,6 @@ def latest_items(account: str, limit: int = 4) -> List[Dict[str, Any]]:
         ScanIndexForward=False,
         Limit=limit,
     )["Items"]
-
-
 
 
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
@@ -568,7 +488,7 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
             asset_keys.append(cover_key)
 
         for itm in items:
-            if itm.get("backgroundType", "photo").lower() == "video":
+            if (itm.get("backgroundType") or "photo").lower() == "video":
                 keys, _ = render_video(itm, acct)
                 asset_keys.extend(keys)
             else:
