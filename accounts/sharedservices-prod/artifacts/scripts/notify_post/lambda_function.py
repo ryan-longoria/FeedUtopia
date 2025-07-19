@@ -22,17 +22,20 @@ def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
 
 
 def build_image_card(urls: List[str], account: str) -> Dict[str, Any]:
+    MAX_EMBED = 6
+    embedded = urls[:MAX_EMBED]
     return {
-        "@type":    "MessageCard",
-        "@context": "http://schema.org/extensions",
-        "summary":  f"Weekly NEWS recap for {account}",
-        "themeColor": "EC008C",
-        "title":    "Your weekly recap post is ready!",
-        "text":     f"**{account}**",
+        "@type":       "MessageCard",
+        "@context":    "http://schema.org/extensions",
+        "summary":     f"Weekly NEWS recap for {account}",
+        "themeColor":  "EC008C",
+        "title":       "Your weekly recap post is ready!",
+        "text":        f"**{account}**",
         "sections": [
             {
                 "images": [
-                    {"image": u, "title": f"Recap {i+1}"} for i, u in enumerate(urls)
+                    {"image": u, "title": f"Recap {i+1}"}
+                    for i, u in enumerate(embedded)
                 ]
             }
         ],
@@ -40,7 +43,7 @@ def build_image_card(urls: List[str], account: str) -> Dict[str, Any]:
             {
                 "@type":  "OpenUri",
                 "name":   f"Download Recap {i+1}",
-                "targets": [{"os": "default", "uri": u}],
+                "targets":[{"os":"default","uri":u}],
             }
             for i, u in enumerate(urls)
         ],
