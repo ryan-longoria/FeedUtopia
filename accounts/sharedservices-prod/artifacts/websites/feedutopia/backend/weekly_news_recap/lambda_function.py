@@ -414,55 +414,65 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
 
 def render_cover(items: List[Dict[str, Any]], account: str) -> str:
     """
-    Build a branded cover image:
-        "TOP N NEWS OF THIS WEEK THAT YOU MAY HAVE MISSED"
-    Uses the most recent *photo* background if available; otherwise falls back
-    to the most recent item (whatever its backgroundType is). Returns the S3 key.
+    Creates a branded cover PNG for the weekly recap:
+        "TOP N <TOPIC> NEWS OF THIS WEEK THAT YOU MAY HAVE MISSED"
+    • Tries the most‑recent photo background; if none, grabs frame‑0 of the most‑recent video.
+    • Adds a fixed subtitle "SWIPE".
+    • Returns the S3 key for the uploaded image, or "" if generation fails.
     """
     if not items:
         return ""
 
-    # Headline text
-    headline = f"TOP {len(items)} NEWS OF THIS WEEK THAT YOU MAY HAVE MISSED".upper()
+    # ── Headline text pieces ────────────────────────────────────────────────
+    TOPIC_BY_ACCOUNT = {
+        "animeutopia":   "ANIME",
+        "wrestleutopia": "WRESTLING",
+        "xputopia":      "GAMING",
+        "cyberutopia":   "TECH",
+        "critterutopia": "ANIMAL",
+        "flicksutopia":  "FILM",
+        "driftutopia":   "CAR/AUTOMOTIVE",
+    }
+    topic = TOPIC_BY_ACCOUNT.get(account.lower(), "")
+    headline_words = ["TOP", str(len(items))]
+    if topic:
+        headline_words.append(topic)
+    headline_words += ["NEWS", "OF", "THIS", "WEEK", "THAT", "YOU", "MAY", "HAVE", "MISSED"]
+    headline = " ".join(headline_words).upper()
+    subtitle = "SWIPE"
 
-    # ── Pick background source ─────────────────────────────
-    # Find first photo in recents; else fall back to first item.
-    photo_item = None
-    for itm in items:
-        bgt = (itm.get("backgroundType") or "photo").lower()
-        if bgt == "photo":
-            photo_item = itm
-            break
+    # ── Choose the background source ────────────────────────────────────────
+    # Prefer the first photo; else fall back to the first (most‑recent) item.
+    photo_item = next(
+        (itm for itm in items if (itm.get("backgroundType") or "photo").lower() == "photo"),
+        None,
+    )
     bg_item = photo_item or items[0]
-
     bg_key = bg_item.get("s3Key", "")
     bg_type = (bg_item.get("backgroundType") or "photo").lower()
 
-    # tmp paths (account-scoped; safe chars)
+    # Account‑scoped /tmp filenames (avoid collision across parallel runs)
     safe_acct = "".join(c if c.isalnum() else "_" for c in account)[:32]
     tmp_photo = f"/tmp/{safe_acct}_cover_bg.png"
     tmp_video = f"/tmp/{safe_acct}_cover_bg.mp4"
 
-    have_bg = False
+    bg_ready = False
     if bg_type == "photo":
-        have_bg = download_s3_file(TARGET_BUCKET, bg_key, tmp_photo)
-        bg_path = tmp_photo if have_bg else None
-    else:
-        # try to grab a frame from the video
+        bg_ready = download_s3_file(TARGET_BUCKET, bg_key, tmp_photo)
+        bg_path = tmp_photo if bg_ready else None
+    else:  # video
         if download_s3_file(TARGET_BUCKET, bg_key, tmp_video):
             try:
                 frame = VideoFileClip(tmp_video, audio=False).get_frame(0)
                 Image.fromarray(frame).save(tmp_photo)
-                have_bg = True
+                bg_ready = True
             except Exception as exc:  # noqa: BLE001
-                logger.warning("cover: video frame grab failed: %s", exc)
-            bg_path = tmp_photo if have_bg else None
-        else:
-            bg_path = None
+                logger.warning("cover: failed to grab video frame: %s", exc)
+        bg_path = tmp_photo if bg_ready else None
 
-    # ── Compose cover ──────────────────────────────────────
+    # ── Compose the cover image ─────────────────────────────────────────────
     canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
-    if have_bg and bg_path:
+    if bg_ready and bg_path:
         with Image.open(bg_path).convert("RGBA") as im:
             scale = WIDTH / im.width
             nh = int(im.height * scale)
@@ -472,18 +482,22 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
                 im = im.crop((0, y0, WIDTH, y0 + HEIGHT))
             canvas.paste(im, (0, 0))
 
-    # gradient overlay (same as recaps)
+    # gradient overlay
     grad_local = os.path.join(tempfile.gettempdir(), "grad.png")
     if download_s3_file(TARGET_BUCKET, GRADIENT_KEY, grad_local):
         with Image.open(grad_local).convert("RGBA").resize((WIDTH, HEIGHT)) as g:
             canvas.alpha_composite(g)
 
-    # headline (no subtitle)
+    # headline + subtitle
     h_img = Pillow_text_img(headline, FONT_TITLE, autosize(headline, 110, 75, 35), set(), 1000)
-    y_head = HEIGHT - 300 - h_img.height
-    canvas.alpha_composite(h_img, ((WIDTH - h_img.width) // 2, y_head))
+    s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), set(), 600)
 
-    # logo + stripe like render_photo
+    y_sub = HEIGHT - 300 - s_img.height
+    y_head = y_sub - 50 - h_img.height
+    canvas.alpha_composite(h_img, ((WIDTH - h_img.width) // 2, y_head))
+    canvas.alpha_composite(s_img, ((WIDTH - s_img.width) // 2, y_sub))
+
+    # logo + stripe (same logic as render_photo)
     logo_local = os.path.join(tempfile.gettempdir(), "logo.png")
     if download_s3_file(TARGET_BUCKET, LOGO_KEY, logo_local):
         try:
@@ -498,7 +512,7 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
         except Exception as exc:  # noqa: BLE001
             logger.warning("cover: logo render failed: %s", exc)
 
-    # upload
+    # ── Upload to S3 ────────────────────────────────────────────────────────
     buf = io.BytesIO()
     canvas.convert("RGB").save(buf, "PNG", compress_level=3)
     buf.seek(0)
@@ -506,7 +520,6 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
     key = f"weekly_recap/{account}/cover_{ts}.png"
     s3.upload_fileobj(buf, TARGET_BUCKET, key, ExtraArgs={"ContentType": "image/png"})
     return key
-
 
 # ═══════════════════════════════════════════════════════════
 #                DynamoDB  +  Teams notification
