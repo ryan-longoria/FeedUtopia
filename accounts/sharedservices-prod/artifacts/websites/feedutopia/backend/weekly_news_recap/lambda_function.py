@@ -414,15 +414,15 @@ def render_video(item: Dict[str, Any], account: str) -> Tuple[List[str], str]:
 
 def render_cover(items: List[Dict[str, Any]], account: str) -> str:
     """
-    Creates a branded cover PNG:
-        "TOP <TOPIC> NEWS OF THIS WEEK THAT YOU MAY HAVE MISSED"
-    – Falls back to "TOP NEWS ..." if the account isn’t mapped to a topic.
-    – Prefers a photo background; otherwise grabs frame‑0 from the most‑recent video.
+    Builds a cover PNG:
+        • Headline:  TOP <TOPIC> NEWS OF THIS WEEK THAT YOU MAY HAVE MISSED
+          – “TOP”, <TOPIC>, and “NEWS” appear in highlight colour.
+        • Subtitle:  SWIPE  (fully highlighted)
     """
     if not items:
         return ""
 
-    # ── Topic word mapping ────────────────────────────────────────────────
+    # ── Topic map ───────────────────────────────────────────
     TOPIC_BY_ACCOUNT = {
         "animeutopia":   "ANIME",
         "wrestleutopia": "WRESTLING",
@@ -441,40 +441,46 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
 
     subtitle = "SWIPE"
 
-    # ── Background selection (photo preferred) ────────────────────────────
+    # ── Highlight sets ─────────────────────────────────────
+    hl_head = {"TOP", "NEWS"}
+    if topic:
+        hl_head.add(topic.upper())            # e.g. "ANIME", "CAR/AUTOMOTIVE"
+    hl_sub  = {"SWIPE"}
+
+    # ── Choose background (photo preferred) ────────────────
     photo_item = next(
         (itm for itm in items if (itm.get("backgroundType") or "photo").lower() == "photo"),
         None,
     )
     bg_item = photo_item or items[0]
-    bg_key = bg_item.get("s3Key", "")
+    bg_key  = bg_item.get("s3Key", "")
     bg_type = (bg_item.get("backgroundType") or "photo").lower()
 
-    safe_acct = "".join(c if c.isalnum() else "_" for c in account)[:32]
-    tmp_photo = f"/tmp/{safe_acct}_cover_bg.png"
-    tmp_video = f"/tmp/{safe_acct}_cover_bg.mp4"
+    safe = "".join(c if c.isalnum() else "_" for c in account)[:32]
+    tmp_photo = f"/tmp/{safe}_cover_bg.png"
+    tmp_video = f"/tmp/{safe}_cover_bg.mp4"
 
-    bg_ready = False
+    bg_ok = False
     if bg_type == "photo":
-        bg_ready = download_s3_file(TARGET_BUCKET, bg_key, tmp_photo)
-        bg_path = tmp_photo if bg_ready else None
+        bg_ok = download_s3_file(TARGET_BUCKET, bg_key, tmp_photo)
+        bg_path = tmp_photo if bg_ok else None
     else:
         if download_s3_file(TARGET_BUCKET, bg_key, tmp_video):
             try:
                 frame = VideoFileClip(tmp_video, audio=False).get_frame(0)
                 Image.fromarray(frame).save(tmp_photo)
-                bg_ready = True
+                bg_ok = True
             except Exception as exc:  # noqa: BLE001
-                logger.warning("cover: failed to grab video frame: %s", exc)
-        bg_path = tmp_photo if bg_ready else None
+                logger.warning("cover: video frame grab failed: %s", exc)
+        bg_path = tmp_photo if bg_ok else None
 
-    # ── Compose cover image ───────────────────────────────────────────────
+    # ── Compose canvas ─────────────────────────────────────
     canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
-    if bg_ready and bg_path:
+    if bg_ok and bg_path:
         with Image.open(bg_path).convert("RGBA") as im:
             scale = WIDTH / im.width
-            nh = int(im.height * scale)
-            im = im.resize((WIDTH, nh), Image.LANCZOS)
+            nh    = int(im.height * scale)
+            im    = im.resize((WIDTH, nh), Image.LANCZOS)
             if nh > HEIGHT:
                 y0 = (nh - HEIGHT) // 2
                 im = im.crop((0, y0, WIDTH, y0 + HEIGHT))
@@ -486,35 +492,39 @@ def render_cover(items: List[Dict[str, Any]], account: str) -> str:
         with Image.open(grad_local).convert("RGBA").resize((WIDTH, HEIGHT)) as g:
             canvas.alpha_composite(g)
 
-    # headline + subtitle
-    h_img = Pillow_text_img(headline, FONT_TITLE, autosize(headline, 110, 75, 35), set(), 1000)
-    s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), set(), 600)
+    # headline + subtitle images with highlights
+    h_img = Pillow_text_img(headline, FONT_TITLE,
+                            autosize(headline, 110, 75, 35),
+                            hl_head, 1000)
+    s_img = Pillow_text_img(subtitle, FONT_DESC,
+                            autosize(subtitle, 70, 30, 45),
+                            hl_sub, 600)
 
-    y_sub = HEIGHT - 300 - s_img.height
+    y_sub  = HEIGHT - 300 - s_img.height
     y_head = y_sub - 50 - h_img.height
     canvas.alpha_composite(h_img, ((WIDTH - h_img.width) // 2, y_head))
-    canvas.alpha_composite(s_img, ((WIDTH - s_img.width) // 2, y_sub))
+    canvas.alpha_composite(s_img,  ((WIDTH - s_img.width)  // 2, y_sub))
 
-    # logo + stripe (same as render_photo)
+    # logo + stripe
     logo_local = os.path.join(tempfile.gettempdir(), "logo.png")
     if download_s3_file(TARGET_BUCKET, LOGO_KEY, logo_local):
         try:
-            logo = Image.open(logo_local).convert("RGBA")
+            logo  = Image.open(logo_local).convert("RGBA")
             scale = 200 / logo.width
-            logo = logo.resize((int(logo.width * scale), int(logo.height * scale)))
-            lx = WIDTH - logo.width - 50
-            ly = HEIGHT - logo.height - 50
+            logo  = logo.resize((int(logo.width * scale), int(logo.height * scale)))
+            lx    = WIDTH - logo.width - 50
+            ly    = HEIGHT - logo.height - 50
             stripe = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
             canvas.alpha_composite(stripe, (lx - 720, ly + logo.height // 2 - 2))
-            canvas.alpha_composite(logo, (lx, ly))
+            canvas.alpha_composite(logo,  (lx, ly))
         except Exception as exc:  # noqa: BLE001
             logger.warning("cover: logo render failed: %s", exc)
 
-    # ── Upload to S3 ──────────────────────────────────────────────────────
+    # ── Upload ─────────────────────────────────────────────
     buf = io.BytesIO()
     canvas.convert("RGB").save(buf, "PNG", compress_level=3)
     buf.seek(0)
-    ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts  = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     key = f"weekly_recap/{account}/cover_{ts}.png"
     s3.upload_fileobj(buf, TARGET_BUCKET, key, ExtraArgs={"ContentType": "image/png"})
     return key
