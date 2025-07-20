@@ -22,17 +22,20 @@ def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
 
 
 def build_image_card(urls: List[str], account: str) -> Dict[str, Any]:
+    MAX_EMBED = 6
+    embedded = urls[:MAX_EMBED]
     return {
-        "@type":    "MessageCard",
-        "@context": "http://schema.org/extensions",
-        "summary":  f"Weekly NEWS recap for {account}",
-        "themeColor": "EC008C",
-        "title":    "Your weekly recap post is ready!",
-        "text":     f"**{account}**",
+        "@type":       "MessageCard",
+        "@context":    "http://schema.org/extensions",
+        "summary":     f"Weekly NEWS recap for {account}",
+        "themeColor":  "EC008C",
+        "title":       "Your weekly recap post is ready!",
+        "text":        f"**{account}**",
         "sections": [
             {
                 "images": [
-                    {"image": u, "title": f"Recap {i+1}"} for i, u in enumerate(urls)
+                    {"image": u, "title": f"Recap {i+1}"}
+                    for i, u in enumerate(embedded)
                 ]
             }
         ],
@@ -40,7 +43,7 @@ def build_image_card(urls: List[str], account: str) -> Dict[str, Any]:
             {
                 "@type":  "OpenUri",
                 "name":   f"Download Recap {i+1}",
-                "targets": [{"os": "default", "uri": u}],
+                "targets":[{"os":"default","uri":u}],
             }
             for i, u in enumerate(urls)
         ],
@@ -79,9 +82,13 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("No Teams webhook for account '%s'", account)
         return {"error": "no webhook"}
 
-    keys: List[str] = event.get("imageKeys") or []
+    webhook_url = teams_map[account]["manual"]
 
-    video_key = event.get("video_key") or (event.get("videoResult") or {}).get("video_key")
+    keys = event.get("imageKeys") or []
+    video_key = (
+        event.get("video_key")
+        or (event.get("videoResult") or {}).get("video_key")
+    )
     if video_key:
         keys = [video_key]
 
@@ -89,35 +96,36 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
         logger.error("No imageKeys or video_key provided")
         return {"error": "no images or video"}
 
-    urls: List[str] = []
+    urls = []
     for k in keys:
         try:
             urls.append(presign(k))
         except ClientError as exc:
             logger.warning("Presign failed for %s: %s", k, exc)
 
-    if not urls:
-        logger.error("Failed to generate presigned URLs")
-        return {"error": "presign failed"}
-
     if video_key:
         card = build_video_card(urls[0], account)
-    else:
-        card = build_image_card(urls, account)
-
-    webhook_url = teams_map[account]["manual"]
-    try:
-        resp = requests.post(
-            webhook_url,
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(card),
-            timeout=20,
-        )
-        logger.info("Teams webhook → %s %s", resp.status_code, resp.text.strip()[:200])
+        logger.info("Posting video card for %s", account)
+        resp = requests.post(webhook_url,
+                             headers={"Content-Type": "application/json"},
+                             data=json.dumps(card),
+                             timeout=20)
         resp.raise_for_status()
-    except requests.RequestException as exc:
-        logger.exception("Failed to post to Teams: %s", exc)
-        return {"error": str(exc)}
+
+    else:
+        MAX_PER_CARD = 6
+        for idx in range(0, len(urls), MAX_PER_CARD):
+            batch = urls[idx : idx + MAX_PER_CARD]
+            card = build_image_card(batch, account)
+            logger.info(
+                "Posting image card %d–%d for %s",
+                idx + 1, min(idx + MAX_PER_CARD, len(urls)), account
+            )
+            resp = requests.post(webhook_url,
+                                 headers={"Content-Type": "application/json"},
+                                 data=json.dumps(card),
+                                 timeout=20)
+            resp.raise_for_status()
 
     logger.info("Posted %d item(s) to Teams for %s", len(urls), account)
     return {"status": "posted", "itemCount": len(urls)}
