@@ -22,16 +22,18 @@ HEADERS = {
 }
 
 def cache_if_news(payload: dict, media_key: str) -> None:
-    if payload.get("spinningArtifact", "").upper() != "NEWS":
-        logger.debug("Not a NEWS post — skipping DynamoDB cache")
+    artifact = payload.get("spinningArtifact", "").upper()
+    if artifact not in ("NEWS", "TRAILER"):
+        logger.debug("Not a NEWS or TRAILER post — skipping DynamoDB cache")
         return
 
     record = {
-        "accountName":  payload["accountName"],
-        "createdAt":    int(time.time()),
-        "expiresAt":    int(time.time()) + 9 * 24 * 3600,
-        "title":        payload["title"],
-        "subtitle":     payload.get("description", ""),
+        "spinningArtifact": artifact,
+        "accountName":     payload["accountName"],
+        "createdAt":       int(time.time()),
+        "expiresAt":       int(time.time()) + 9 * 24 * 3600,
+        "title":           payload["title"],
+        "subtitle":        payload.get("description", ""),
         "highlightWordsTitle":       payload.get("highlightWordsTitle", ""),
         "highlightWordsDescription": payload.get("highlightWordsDescription", ""),
         "backgroundType":            payload.get("backgroundType", "image"),
@@ -41,12 +43,11 @@ def cache_if_news(payload: dict, media_key: str) -> None:
 
     try:
         news_table.put_item(Item=record)
-        logger.info("Cached NEWS post in DynamoDB (%s)", NEWS_TBL)
+        logger.info("Cached %s post in DynamoDB (%s)", artifact, NEWS_TBL)
     except ClientError as err:
         logger.error("PutItem denied -- %s", err, exc_info=True)
     except Exception as err:
         logger.error("Unexpected PutItem error -- %s", err, exc_info=True)
-
 def lambda_handler(event, _ctx):
     logger.info("Received event: %s", event)
 
