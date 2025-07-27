@@ -251,7 +251,7 @@ def compose_photo_slide_first(
     if sub_img:
         canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width) // 2, y_sub))
 
-    # Artifact (static frame)
+    # Artifact (static frame) – top-left for parity
     key = artifact_key_for(artifact_name)
     if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
         try:
@@ -262,8 +262,7 @@ def compose_photo_slide_first(
             target_w = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
             scale = target_w / art.width
             art = art.resize((target_w, int(art.height * scale)), Image.LANCZOS)
-            pos_y = 100 if artifact_name.upper() == "TRAILER" else 250
-            canvas.alpha_composite(art, (50, pos_y))
+            canvas.alpha_composite(art, (50, 50))
         except Exception as exc:
             logger.warning("artifact overlay failed: %s", exc)
 
@@ -302,7 +301,9 @@ def compose_photo_slide_with_text(
         with Image.open(LOCAL_GRADIENT).convert("RGBA").resize((WIDTH, HEIGHT)) as g:
             canvas.alpha_composite(g)
 
-    # Title/subtitle placed like photo-first
+    title = (title or "").upper()
+    subtitle = (subtitle or "").upper()
+
     t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, TITLE_MAX, TITLE_MIN, 35), hl_t, 1000) if title else None
     s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 600) if subtitle else None
 
@@ -520,6 +521,11 @@ def compose_still_video_slide_first(
 # Main handler
 # ──────────────────────────────────────────────────────────────────────────────
 def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Expects optional per-slide fields:
+      slide.title, slide.description, slide.highlightWordsTitle, slide.highlightWordsDescription
+    If absent, falls back to global title/description/highlights.
+    """
     account = (event.get("accountName") or "").strip()
     title = (event.get("title") or "").upper()
     subtitle = (event.get("description") or "").upper()
@@ -553,7 +559,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
 
         is_first = (idx == 1)
 
-        # ──────── First slide ───────────────────────────────────────────────────
+        # First slide ALWAYS outputs video (10s for photo)
         if is_first:
             if bg_type == "video":
                 final, dur = compose_video_slide_first(local_bg, title, subtitle, hl_t, hl_s, artifact, account)
@@ -575,7 +581,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
             if upload_file(mp4_local, mp4_key, "video/mp4"):
                 out_keys.append(mp4_key)
 
-            # Thumbnail
+            # Thumbnail PNG
             try:
                 tmp_clip = VideoFileClip(mp4_local, audio=False)
                 frame = tmp_clip.get_frame(0)
@@ -590,7 +596,6 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as exc:
                 logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
-        # ──────── Subsequent slides ─────────────────────────────────────────────
         else:
             if bg_type == "video":
                 final, dur = compose_video_slide_plain(local_bg)
@@ -625,22 +630,26 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                     logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
             else:
-                # **Pull per-slide title/description** (was subtitle before)
-                slide_title = (slide.get("title") or "").upper()
-                slide_sub = (slide.get("description") or "").upper()
-                slide_hl_t = parse_highlights(slide.get("highlightWordsTitle"))
-                slide_hl_s = parse_highlights(slide.get("highlightWordsDescription"))
+                # ALWAYS show text on non-first photo slides.
+                # Prefer slide-specific fields; fallback to global.
+                slide_title = (slide.get("title") or title).upper()
+                slide_sub = (slide.get("description") or subtitle).upper()
 
-                if slide_title or slide_sub:
-                    canvas = compose_photo_slide_with_text(
-                        local_bg,
-                        slide_title or title,
-                        slide_sub or "",
-                        slide_hl_t or hl_t,
-                        slide_hl_s or hl_s,
-                    )
-                else:
-                    canvas = compose_photo_slide_plain(local_bg)
+                slide_hl_t = parse_highlights(slide.get("highlightWordsTitle")) or hl_t
+                slide_hl_s = parse_highlights(slide.get("highlightWordsDescription")) or hl_s
+
+                logger.info(
+                    "Slide %d text -> title='%s' sub='%s' (len=%d/%d)",
+                    idx, slide_title, slide_sub, len(slide_title), len(slide_sub)
+                )
+
+                canvas = compose_photo_slide_with_text(
+                    local_bg,
+                    slide_title,
+                    slide_sub,
+                    slide_hl_t,
+                    slide_hl_s,
+                )
 
                 buf = io.BytesIO()
                 canvas.convert("RGB").save(buf, "PNG", compress_level=3)
