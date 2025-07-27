@@ -251,7 +251,7 @@ def compose_photo_slide_first(
     if sub_img:
         canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width) // 2, y_sub))
 
-    # Artifact (static frame)
+    # Artifact (static frame) – legacy placement (not used for first slide anymore)
     key = artifact_key_for(artifact_name)
     if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
         try:
@@ -262,8 +262,6 @@ def compose_photo_slide_first(
             target_w = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
             scale = target_w / art.width
             art = art.resize((target_w, int(art.height * scale)), Image.LANCZOS)
-            # Historical placement; first slide is now forced to video, so this function
-            # is no longer used for slide #1. Leaving as-is for any future non-first use.
             pos_y = 100 if artifact_name.upper() == "TRAILER" else 250
             canvas.alpha_composite(art, (50, pos_y))
         except Exception as exc:
@@ -337,7 +335,7 @@ def compose_video_slide_first(
         )
         clips.append(s_clip)
 
-    # Artifact video overlay – place in TOP-LEFT with padding (50, 50)
+    # Artifact video overlay – TOP-LEFT
     key = artifact_key_for(artifact_name)
     if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
         try:
@@ -354,7 +352,6 @@ def compose_video_slide_first(
             # Build logo+stripe composite as a clip
             logo_img = Image.open(LOCAL_LOGO)
             scale_logo = 200 / logo_img.width
-            logo_h = int(logo_img.height * scale_logo)
             logo_clip = ImageClip(np.array(logo_img)).with_effects([vfx.Resize(scale_logo)]).with_duration(dur)
 
             line_w = 700
@@ -403,8 +400,8 @@ def compose_still_video_slide_first(
     account: str,
 ) -> Tuple[CompositeVideoClip, float]:
     """
-    Make a 10-second video for a still background with the spinner in the top-left,
-    matching the placement used in video-first slides.
+    Make a 10-second VIDEO from a PHOTO background, but KEEP the same text placement
+    as the photo first slide (title/subtitle near the bottom). Spinner goes top-left.
     """
     dur = float(DEFAULT_DUR)
 
@@ -427,19 +424,23 @@ def compose_still_video_slide_first(
         except Exception as exc:
             logger.warning("gradient overlay failed: %s", exc)
 
-    # Title and subtitle
-    t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000)
-    t_clip = ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 25))
-    clips.append(t_clip)
+    # Title/subtitle with PHOTO-style vertical placement
+    t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, TITLE_MAX, TITLE_MIN, 35), hl_t, 1000)
+    t_w, t_h = t_img.width, t_img.height
 
     if subtitle:
-        s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_s, 800)
-        s_clip = (
-            ImageClip(np.array(s_img))
-            .with_duration(dur)
-            .with_position(("center", VID_H - 150 - s_img.height))
-        )
+        s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 600)
+        s_w, s_h = s_img.width, s_img.height
+        y_sub = HEIGHT - 225 - s_h
+        y_title = y_sub - 50 - t_h
+
+        s_clip = ImageClip(np.array(s_img)).with_duration(dur).with_position(((VID_W - s_w) // 2, y_sub))
         clips.append(s_clip)
+    else:
+        y_title = HEIGHT - 150 - t_h
+
+    t_clip = ImageClip(np.array(t_img)).with_duration(dur).with_position(((VID_W - t_w) // 2, y_title))
+    clips.append(t_clip)
 
     # Spinner artifact – TOP-LEFT
     key = artifact_key_for(artifact_name)
@@ -453,7 +454,7 @@ def compose_still_video_slide_first(
         except Exception as exc:
             logger.warning("artifact video overlay (still) failed: %s", exc)
 
-    # Logo block bottom-right
+    # Logo block bottom-right (same as other first-slide logic)
     if ensure_logo(account):
         try:
             logo_img = Image.open(LOCAL_LOGO)
@@ -537,7 +538,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
             logger.warning("Slide %d download failed; skipping", idx)
             continue
 
-        # First slide MUST be a video with spinner in the top-left.
+        # First slide MUST be a video. If photo, convert to 10s video but keep photo text layout.
         is_first = (idx == 1)
 
         if is_first:
@@ -596,7 +597,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                 if upload_file(mp4_local, mp4_key, "video/mp4"):
                     out_keys.append(mp4_key)
 
-                # PNG thumb for non-first videos too
+                # PNG thumb
                 try:
                     tmp_clip = VideoFileClip(mp4_local, audio=False)
                     frame = tmp_clip.get_frame(0)
