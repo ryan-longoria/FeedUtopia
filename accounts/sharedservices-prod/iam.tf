@@ -622,6 +622,29 @@ resource "aws_iam_role_policy" "stepfunctions_run_render_carousel" {
   })
 }
 
+resource "aws_iam_role_policy" "sfn_runs_ecs" {
+  name = "sfn-run-ecs"
+  role = aws_iam_role.sharedservices_step_functions_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = ["ecs:RunTask"],
+        Resource = aws_ecs_task_definition.render_carousel.arn
+      },
+      {
+        Effect   = "Allow",
+        Action   = ["iam:PassRole"],
+        Resource = [
+          aws_iam_role.ecs_task_execution_role.arn,
+          aws_iam_role.ecs_task_role.arn
+        ]
+      }
+    ]
+  })
+}
+
 #############################
 # IAM Policy for SQS
 #############################
@@ -906,6 +929,25 @@ resource "aws_iam_role_policy" "ecs_task_sendtask_carousel" {
           "arn:aws:s3:::prod-sharedservices-artifacts-bucket",
           "arn:aws:s3:::prod-sharedservices-artifacts-bucket/*"
         ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "ecs_task_sfn_callbacks" {
+  name = "ecs-task-sfn-callbacks"
+  role = aws_iam_role.ecs_task_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "states:SendTaskSuccess",
+          "states:SendTaskFailure",
+          "states:SendTaskHeartbeat"
+        ]
+        Resource = "*"
       }
     ]
   })
