@@ -106,7 +106,7 @@ resource "aws_iam_role_policy_attachment" "ecs_exec_cloudwatch" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
 }
 
-resource "aws_cloudwatch_log_group" "render_carousel_logs" {
+resource "aws_cloudwatch_log_group" "render_carousel" {
   name              = "/ecs/render_carousel"
   retention_in_days = 14
 }
