@@ -18,7 +18,13 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont
 # ──────────────────────────────────────────────────────────────────────────────
 # Logging
 # ──────────────────────────────────────────────────────────────────────────────
-logger = logging.getLogger()
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s"
+)
+
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # ──────────────────────────────────────────────────────────────────────────────
