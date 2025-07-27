@@ -251,7 +251,7 @@ def compose_photo_slide_first(
     if sub_img:
         canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width) // 2, y_sub))
 
-    # Artifact (static frame) – top-left for parity
+    # Artifact (static frame) – top-left
     key = artifact_key_for(artifact_name)
     if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
         try:
@@ -415,6 +415,43 @@ def compose_video_slide_first(
             clips.append(logo_block)
         except Exception as exc:
             logger.warning("logo video overlay failed: %s", exc)
+
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
+    return final, dur
+
+
+def compose_video_slide_with_text(
+    bg_local: str,
+    title: str,
+    subtitle: str,
+    hl_t: Set[str],
+    hl_s: Set[str],
+) -> Tuple[CompositeVideoClip, float]:
+    """
+    Non-first VIDEO slide with text, placed like weekly_news_recap:
+      - Title top center (y ~ 25)
+      - Subtitle near bottom center (VID_H - 150 - subtitle_height)
+    No gradient, no logo, no artifact.
+    """
+    raw = VideoFileClip(bg_local, audio=False)
+    dur = min(raw.duration, DEFAULT_DUR)
+    raw.close()
+
+    bg_clip = compose_video_background(bg_local, dur)
+    clips: List = [bg_clip]
+
+    t = (title or "").upper()
+    s = (subtitle or "").upper()
+    if t:
+        t_img = Pillow_text_img(t, FONT_TITLE, autosize(t, 100, 75, 25), hl_t, 1000)
+        clips.append(ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 25)))
+    if s:
+        s_img = Pillow_text_img(s, FONT_DESC, autosize(s, 70, 30, 45), hl_s, 800)
+        clips.append(
+            ImageClip(np.array(s_img))
+            .with_duration(dur)
+            .with_position(("center", VID_H - 150 - s_img.height))
+        )
 
     final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
     return final, dur
@@ -597,8 +634,17 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                 logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
         else:
+            # Prefer slide-specific text; fallback to global
+            slide_title = (slide.get("title") or title).upper()
+            slide_sub = (slide.get("description") or subtitle).upper()
+            slide_hl_t = parse_highlights(slide.get("highlightWordsTitle")) or hl_t
+            slide_hl_s = parse_highlights(slide.get("highlightWordsDescription")) or hl_s
+
             if bg_type == "video":
-                final, dur = compose_video_slide_plain(local_bg)
+                # Text placement like weekly_news_recap, no logo/artifact
+                final, dur = compose_video_slide_with_text(
+                    local_bg, slide_title, slide_sub, slide_hl_t, slide_hl_s
+                )
 
                 mp4_local = f"/tmp/slide_{idx}.mp4"
                 final.write_videofile(
@@ -630,25 +676,9 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                     logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
             else:
-                # ALWAYS show text on non-first photo slides.
-                # Prefer slide-specific fields; fallback to global.
-                slide_title = (slide.get("title") or title).upper()
-                slide_sub = (slide.get("description") or subtitle).upper()
-
-                slide_hl_t = parse_highlights(slide.get("highlightWordsTitle")) or hl_t
-                slide_hl_s = parse_highlights(slide.get("highlightWordsDescription")) or hl_s
-
-                logger.info(
-                    "Slide %d text -> title='%s' sub='%s' (len=%d/%d)",
-                    idx, slide_title, slide_sub, len(slide_title), len(slide_sub)
-                )
-
+                # PHOTO slides after first: show text with photo placement, no logo/artifact
                 canvas = compose_photo_slide_with_text(
-                    local_bg,
-                    slide_title,
-                    slide_sub,
-                    slide_hl_t,
-                    slide_hl_s,
+                    local_bg, slide_title, slide_sub, slide_hl_t, slide_hl_s
                 )
 
                 buf = io.BytesIO()
