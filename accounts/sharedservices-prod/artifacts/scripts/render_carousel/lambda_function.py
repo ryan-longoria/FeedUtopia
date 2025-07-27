@@ -623,6 +623,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
       slide.highlightWordsDescription / slide.highlightWordsSubtitle / slide.hlSubtitle / slide.subtitleHighlights
     Falls back to global event.title / event.description / event.highlightWordsTitle / event.highlightWordsDescription.
     """
+    logger.info("Slides payload:\n%s", json.dumps(event.get("slides", []), indent=2))
     account = (event.get("accountName") or "").strip()
 
     # global fallbacks
