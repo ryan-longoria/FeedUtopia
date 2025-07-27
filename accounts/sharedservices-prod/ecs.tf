@@ -114,45 +114,45 @@ resource "aws_ecs_task_definition" "render_carousel" {
 
   container_definitions = jsonencode([
     {
-      name    = "render_carousel",
-      image   = var.render_carousel_image_uri,
-      command = ["python", "lambda_function.py"],
+      name    = "render_carousel"
+      # your entrypoint should read EVENT_JSON & TASK_TOKEN from env and kick off moviepy,
+      command = ["python", "lambda_function.py"]
+
       environment = [
-        { name = "TARGET_BUCKET", value = "prod-sharedservices-artifacts-bucket" },
-        { name = "FFMPEG_PATH",   value = "/opt/bin/ffmpeg" },
-        { name = "EVENT_JSON",    value = "" }
-      ],
-      mountPoints = [{
-        sourceVolume  = "efs",
-        containerPath = "/mnt/efs",
-        readOnly      = false
-      }],
+        { name = "EVENT_JSON",   value = "" },
+        { name = "TASK_TOKEN",   value = "" },
+        { name = "FFMPEG_PATH",  value = "/opt/bin/ffmpeg" },
+        { name = "TARGET_BUCKET",value = "prod-sharedservices-artifacts-bucket" },
+      ]
+
+      mountPoints = [
+        {
+          sourceVolume  = "efs"
+          containerPath = "/mnt/efs"
+          readOnly      = false
+        }
+      ]
+
       logConfiguration = {
-        logDriver = "awslogs",
+        logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.render_carousel.name,
-          awslogs-region        = var.aws_region,
+          awslogs-group         = "/ecs/render_carousel"
+          awslogs-region        = var.aws_region
           awslogs-stream-prefix = "ecs"
         }
-      },
-      linuxParameters = {
-        initProcessEnabled = true
-      },
-      ulimits = [
-        { name = "nofile", softLimit = 65536, hardLimit = 65536 }
-      ]
+      }
     }
   ])
 
   volume {
     name = "efs"
     efs_volume_configuration {
-      file_system_id     = aws_efs_file_system.lambda_efs.id
-      transit_encryption = "ENABLED"
+      file_system_id = aws_efs_file_system.lambda_efs.id
       authorization_config {
         access_point_id = aws_efs_access_point.lambda_ap.id
         iam             = "ENABLED"
       }
+      transit_encryption = "ENABLED"
     }
   }
 }
