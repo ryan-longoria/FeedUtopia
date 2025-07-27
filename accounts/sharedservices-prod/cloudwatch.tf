@@ -111,6 +111,11 @@ resource "aws_cloudwatch_log_group" "render_carousel_logs" {
   retention_in_days = 14
 }
 
+resource "aws_cloudwatch_log_group" "manual_carousel_step_function_log_group" {
+  name              = "/aws/states/manual_carousel_workflow"
+  retention_in_days = 14
+}
+
 #############################
 # Lambda Error Alarms
 #############################

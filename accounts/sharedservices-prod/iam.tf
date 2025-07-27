@@ -853,22 +853,15 @@ resource "aws_iam_role_policy" "ecs_task_sendtask_carousel" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid      = "AllowStepFunctionsCallbacks",
-        Effect   = "Allow",
-        Action   = [
-          "states:SendTaskSuccess",
-          "states:SendTaskFailure"
-        ],
+        Sid    = "AllowStepFunctionsCallbacks",
+        Effect = "Allow",
+        Action = ["states:SendTaskSuccess", "states:SendTaskFailure"],
         Resource = "*"
       },
       {
-        Sid      = "AllowS3ReadWriteCarousel",
-        Effect   = "Allow",
-        Action   = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:ListBucket"
-        ],
+        Sid    = "AllowS3ReadWriteCarousel",
+        Effect = "Allow",
+        Action = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
         Resource = [
           "arn:aws:s3:::prod-sharedservices-artifacts-bucket",
           "arn:aws:s3:::prod-sharedservices-artifacts-bucket/*"
