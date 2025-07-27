@@ -251,7 +251,7 @@ def compose_photo_slide_first(
     if sub_img:
         canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width) // 2, y_sub))
 
-    # Artifact (static frame) – legacy placement (kept for parity with photo layout)
+    # Artifact (static frame)
     key = artifact_key_for(artifact_name)
     if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
         try:
@@ -437,23 +437,15 @@ def compose_still_video_slide_first(
     artifact_name: str,
     account: str,
 ) -> Tuple[CompositeVideoClip, float]:
-    """
-    Make a 10-second VIDEO from a PHOTO background, but KEEP the same text placement
-    as the photo first slide (title/subtitle near the bottom). Spinner goes top-left.
-    """
     dur = float(DEFAULT_DUR)
-
-    # Background from still
     with Image.open(bg_local).convert("RGBA") as im:
         im = resize_and_crop_to_canvas(im)
         bg_arr = np.array(im)
 
     base = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(dur)
     bg_clip = ImageClip(bg_arr).with_duration(dur).with_position((0, 0))
-
     clips: List = [base, bg_clip]
 
-    # Gradient overlay if available
     if os.path.exists(LOCAL_GRADIENT):
         try:
             g_img = Image.open(LOCAL_GRADIENT).convert("RGBA").resize((VID_W, VID_H))
@@ -462,7 +454,7 @@ def compose_still_video_slide_first(
         except Exception as exc:
             logger.warning("gradient overlay failed: %s", exc)
 
-    # Title/subtitle with PHOTO-style vertical placement
+    # PHOTO-style text placement on a still-turned-video
     t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, TITLE_MAX, TITLE_MIN, 35), hl_t, 1000)
     t_w, t_h = t_img.width, t_img.height
 
@@ -471,13 +463,12 @@ def compose_still_video_slide_first(
         s_w, s_h = s_img.width, s_img.height
         y_sub = HEIGHT - 225 - s_h
         y_title = y_sub - 50 - t_h
-
-        s_clip = ImageClip(np.array(s_img)).with_duration(dur).with_position(((VID_W - s_w) // 2, y_sub))
+        s_clip = ImageClip(np.array(s_img)).with_duration(dur).with_position(((VID_W - s_w)//2, y_sub))
         clips.append(s_clip)
     else:
         y_title = HEIGHT - 150 - t_h
 
-    t_clip = ImageClip(np.array(t_img)).with_duration(dur).with_position(((VID_W - t_w) // 2, y_title))
+    t_clip = ImageClip(np.array(t_img)).with_duration(dur).with_position(((VID_W - t_w)//2, y_title))
     clips.append(t_clip)
 
     # Spinner artifact – TOP-LEFT
@@ -492,7 +483,6 @@ def compose_still_video_slide_first(
         except Exception as exc:
             logger.warning("artifact video overlay (still) failed: %s", exc)
 
-    # Logo block bottom-right
     if ensure_logo(account):
         try:
             logo_img = Image.open(LOCAL_LOGO)
@@ -530,21 +520,6 @@ def compose_still_video_slide_first(
 # Main handler
 # ──────────────────────────────────────────────────────────────────────────────
 def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Input event (from /submit):
-    {
-      "accountName": "...",
-      "title": "...",
-      "description": "...",
-      "highlightWordsTitle": "A,B",
-      "highlightWordsDescription": "C,D",
-      "spinningArtifact": "NEWS|TRAILER|FACT|THROWBACK|VS|",
-      "slides": [
-        {"backgroundType": "photo"|"video", "key": "posts/..."},
-        ...
-      ]
-    }
-    """
     account = (event.get("accountName") or "").strip()
     title = (event.get("title") or "").upper()
     subtitle = (event.get("description") or "").upper()
@@ -576,9 +551,9 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
             logger.warning("Slide %d download failed; skipping", idx)
             continue
 
-        # First slide MUST be a video. If photo, convert to 10s video but keep photo text layout.
         is_first = (idx == 1)
 
+        # ──────── First slide ───────────────────────────────────────────────────
         if is_first:
             if bg_type == "video":
                 final, dur = compose_video_slide_first(local_bg, title, subtitle, hl_t, hl_s, artifact, account)
@@ -600,7 +575,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
             if upload_file(mp4_local, mp4_key, "video/mp4"):
                 out_keys.append(mp4_key)
 
-            # Thumbnail PNG
+            # Thumbnail
             try:
                 tmp_clip = VideoFileClip(mp4_local, audio=False)
                 frame = tmp_clip.get_frame(0)
@@ -615,8 +590,8 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as exc:
                 logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
+        # ──────── Subsequent slides ─────────────────────────────────────────────
         else:
-            # Subsequent slides
             if bg_type == "video":
                 final, dur = compose_video_slide_plain(local_bg)
 
@@ -635,7 +610,6 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                 if upload_file(mp4_local, mp4_key, "video/mp4"):
                     out_keys.append(mp4_key)
 
-                # PNG thumb
                 try:
                     tmp_clip = VideoFileClip(mp4_local, audio=False)
                     frame = tmp_clip.get_frame(0)
@@ -651,11 +625,11 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                     logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
             else:
-                # If there is any text for this slide, render it with the same photo layout.
+                # **Pull per-slide title/description** (was subtitle before)
                 slide_title = (slide.get("title") or "").upper()
-                slide_sub = (slide.get("subtitle") or "").upper()
+                slide_sub = (slide.get("description") or "").upper()
                 slide_hl_t = parse_highlights(slide.get("highlightWordsTitle"))
-                slide_hl_s = parse_highlights(slide.get("highlightWordsSubtitle"))
+                slide_hl_s = parse_highlights(slide.get("highlightWordsDescription"))
 
                 if slide_title or slide_sub:
                     canvas = compose_photo_slide_with_text(
