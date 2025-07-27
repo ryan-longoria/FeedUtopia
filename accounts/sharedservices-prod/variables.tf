@@ -108,6 +108,11 @@ variable "weekly_recap_image_uri" {
   description = "ECR image URI for weekly_news_recap container"
 }
 
+variable "render_carousel_image_uri" {
+  description = "ECR image URI for the carousel renderer"
+  type        = string
+}
+
 variable "common_tags" {
   description = "A map of common tags to apply to all resources."
   type        = map(string)

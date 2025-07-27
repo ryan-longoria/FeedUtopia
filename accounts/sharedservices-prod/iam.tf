@@ -264,6 +264,25 @@ resource "aws_iam_role_policy" "lambda_news_put" {
   policy = data.aws_iam_policy_document.ddb_put.json
 }
 
+resource "aws_iam_role_policy" "create_feed_post_start_carousel" {
+  name = "create-feed-post-start-carousel"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid:    "AllowStartCarouselSFN",
+        Effect: "Allow",
+        Action: [
+          "states:StartExecution"
+        ],
+        Resource: aws_sfn_state_machine.manual_carousel_workflow.arn
+      }
+    ]
+  })
+}
+
 
 #############################
 # IAM Policy for S3
@@ -825,6 +844,40 @@ resource "aws_iam_role_policy" "ecs_invoke_notify_post" {
     ]
   })
 }
+
+resource "aws_iam_role_policy" "ecs_task_sendtask_carousel" {
+  name = "ecs-task-sendtask-carousel"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid      = "AllowStepFunctionsCallbacks",
+        Effect   = "Allow",
+        Action   = [
+          "states:SendTaskSuccess",
+          "states:SendTaskFailure"
+        ],
+        Resource = "*"
+      },
+      {
+        Sid      = "AllowS3ReadWriteCarousel",
+        Effect   = "Allow",
+        Action   = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket"
+        ],
+        Resource = [
+          "arn:aws:s3:::prod-sharedservices-artifacts-bucket",
+          "arn:aws:s3:::prod-sharedservices-artifacts-bucket/*"
+        ]
+      }
+    ]
+  })
+}
+
 
 #############################
 # IAM for DynamoDB
