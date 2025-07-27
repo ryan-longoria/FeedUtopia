@@ -262,6 +262,8 @@ def compose_photo_slide_first(
             target_w = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
             scale = target_w / art.width
             art = art.resize((target_w, int(art.height * scale)), Image.LANCZOS)
+            # Historical placement; first slide is now forced to video, so this function
+            # is no longer used for slide #1. Leaving as-is for any future non-first use.
             pos_y = 100 if artifact_name.upper() == "TRAILER" else 250
             canvas.alpha_composite(art, (50, pos_y))
         except Exception as exc:
@@ -335,6 +337,7 @@ def compose_video_slide_first(
         )
         clips.append(s_clip)
 
+    # Artifact video overlay – place in TOP-LEFT with padding (50, 50)
     key = artifact_key_for(artifact_name)
     if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
         try:
@@ -342,8 +345,7 @@ def compose_video_slide_first(
             scale_target = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
             scale_factor = scale_target / art_raw.w
             art_clip = art_raw.with_effects([vfx.Resize(scale_factor)]).with_duration(dur)
-            pos_y = 100 if artifact_name.upper() == "TRAILER" else (250 - 150)
-            clips.append(art_clip.with_position((50, pos_y)))
+            clips.append(art_clip.with_position((50, 50)))
         except Exception as exc:
             logger.warning("artifact video overlay failed: %s", exc)
 
@@ -388,6 +390,100 @@ def compose_video_slide_plain(bg_local: str) -> Tuple[CompositeVideoClip, float]
     raw.close()
     bg_clip = compose_video_background(bg_local, dur)
     final = CompositeVideoClip([bg_clip], size=(VID_W, VID_H)).with_duration(dur)
+    return final, dur
+
+
+def compose_still_video_slide_first(
+    bg_local: str,
+    title: str,
+    subtitle: str,
+    hl_t: Set[str],
+    hl_s: Set[str],
+    artifact_name: str,
+    account: str,
+) -> Tuple[CompositeVideoClip, float]:
+    """
+    Make a 10-second video for a still background with the spinner in the top-left,
+    matching the placement used in video-first slides.
+    """
+    dur = float(DEFAULT_DUR)
+
+    # Background from still
+    with Image.open(bg_local).convert("RGBA") as im:
+        im = resize_and_crop_to_canvas(im)
+        bg_arr = np.array(im)
+
+    base = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(dur)
+    bg_clip = ImageClip(bg_arr).with_duration(dur).with_position((0, 0))
+
+    clips: List = [base, bg_clip]
+
+    # Gradient overlay if available
+    if os.path.exists(LOCAL_GRADIENT):
+        try:
+            g_img = Image.open(LOCAL_GRADIENT).convert("RGBA").resize((VID_W, VID_H))
+            g_clip = ImageClip(np.array(g_img)).with_duration(dur).with_position((0, 0))
+            clips.append(g_clip)
+        except Exception as exc:
+            logger.warning("gradient overlay failed: %s", exc)
+
+    # Title and subtitle
+    t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000)
+    t_clip = ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 25))
+    clips.append(t_clip)
+
+    if subtitle:
+        s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_s, 800)
+        s_clip = (
+            ImageClip(np.array(s_img))
+            .with_duration(dur)
+            .with_position(("center", VID_H - 150 - s_img.height))
+        )
+        clips.append(s_clip)
+
+    # Spinner artifact – TOP-LEFT
+    key = artifact_key_for(artifact_name)
+    if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
+        try:
+            art_raw = VideoFileClip(LOCAL_ARTIFACT, has_mask=True)
+            scale_target = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
+            scale_factor = scale_target / art_raw.w
+            art_clip = art_raw.with_effects([vfx.Resize(scale_factor)]).with_duration(dur)
+            clips.append(art_clip.with_position((50, 50)))
+        except Exception as exc:
+            logger.warning("artifact video overlay (still) failed: %s", exc)
+
+    # Logo block bottom-right
+    if ensure_logo(account):
+        try:
+            logo_img = Image.open(LOCAL_LOGO)
+            scale_logo = 200 / logo_img.width
+            logo_clip = ImageClip(np.array(logo_img)).with_effects([vfx.Resize(scale_logo)]).with_duration(dur)
+
+            line_w = 700
+            line_h = 4
+            line_color = ImageColor.getrgb(HIGHLIGHT_COLOR)
+            line_clip = ColorClip((line_w, line_h), color=line_color).with_duration(dur)
+
+            total_w = line_w + 20 + logo_clip.w
+            total_h = max(line_h, logo_clip.h)
+
+            logo_block = (
+                CompositeVideoClip(
+                    [
+                        line_clip.with_position((0, (total_h - line_h) // 2)),
+                        logo_clip.with_position((line_w + 20, (total_h - logo_clip.h) // 2)),
+                    ],
+                    size=(total_w, total_h),
+                )
+                .with_duration(dur)
+                .with_position((VID_W - total_w - 50, VID_H - total_h - 100))
+            )
+            clips.append(logo_block)
+        except Exception as exc:
+            logger.warning("logo block (still) failed: %s", exc)
+
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
     return final, dur
 
 
@@ -441,14 +537,14 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
             logger.warning("Slide %d download failed; skipping", idx)
             continue
 
-        # First slide gets text + artifact + logo
+        # First slide MUST be a video with spinner in the top-left.
         is_first = (idx == 1)
 
-        if bg_type == "video":
-            if is_first:
+        if is_first:
+            if bg_type == "video":
                 final, dur = compose_video_slide_first(local_bg, title, subtitle, hl_t, hl_s, artifact, account)
             else:
-                final, dur = compose_video_slide_plain(local_bg)
+                final, dur = compose_still_video_slide_first(local_bg, title, subtitle, hl_t, hl_s, artifact, account)
 
             mp4_local = f"/tmp/slide_{idx}.mp4"
             final.write_videofile(
@@ -467,38 +563,62 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
 
             # Thumbnail PNG
             try:
-                thumb = Image.fromarray(final.get_frame(0))  # may raise if final is closed; fallback below
-            except Exception:
-                # Re-open a single frame
-                try:
-                    tmp_clip = VideoFileClip(mp4_local, audio=False)
-                    frame = tmp_clip.get_frame(0)
-                    tmp_clip.close()
-                    thumb = Image.fromarray(frame)
-                except Exception as exc:
-                    logger.warning("thumb generation failed for slide %d: %s", idx, exc)
-                    thumb = None
-
-            if thumb is not None:
+                tmp_clip = VideoFileClip(mp4_local, audio=False)
+                frame = tmp_clip.get_frame(0)
+                tmp_clip.close()
+                thumb = Image.fromarray(frame)
                 buf = io.BytesIO()
                 thumb.save(buf, "PNG", compress_level=2)
                 buf.seek(0)
                 png_key = f"{base_folder}/slide_{idx:02d}.png"
                 if presign_upload(png_key, buf.getvalue(), "image/png"):
                     out_keys.append(png_key)
+            except Exception as exc:
+                logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
         else:
-            if is_first:
-                canvas = compose_photo_slide_first(local_bg, title, subtitle, hl_t, hl_s, account, artifact)
+            # Subsequent slides keep original behavior.
+            if bg_type == "video":
+                final, dur = compose_video_slide_plain(local_bg)
+
+                mp4_local = f"/tmp/slide_{idx}.mp4"
+                final.write_videofile(
+                    mp4_local,
+                    fps=FPS,
+                    codec="libx264",
+                    audio=False,
+                    threads=2,
+                    ffmpeg_params=["-preset", "ultrafast"],
+                )
+                final.close()
+
+                mp4_key = f"{base_folder}/slide_{idx:02d}.mp4"
+                if upload_file(mp4_local, mp4_key, "video/mp4"):
+                    out_keys.append(mp4_key)
+
+                # PNG thumb for non-first videos too
+                try:
+                    tmp_clip = VideoFileClip(mp4_local, audio=False)
+                    frame = tmp_clip.get_frame(0)
+                    tmp_clip.close()
+                    thumb = Image.fromarray(frame)
+                    buf = io.BytesIO()
+                    thumb.save(buf, "PNG", compress_level=2)
+                    buf.seek(0)
+                    png_key = f"{base_folder}/slide_{idx:02d}.png"
+                    if presign_upload(png_key, buf.getvalue(), "image/png"):
+                        out_keys.append(png_key)
+                except Exception as exc:
+                    logger.warning("thumb generation failed for slide %d: %s", idx, exc)
+
             else:
                 canvas = compose_photo_slide_plain(local_bg)
-
-            buf = io.BytesIO()
-            canvas.convert("RGB").save(buf, "PNG", compress_level=3)
-            buf.seek(0)
-            png_key = f"{base_folder}/slide_{idx:02d}.png"
-            if presign_upload(png_key, buf.getvalue(), "image/png"):
-                out_keys.append(png_key)
+                buf = io.BytesIO()
+                canvas.convert("RGB").save(buf, "PNG", compress_level=3)
+                buf.seek(0)
+                png_key = f"{base_folder}/slide_{idx:02d}.png"
+                if presign_upload(png_key, buf.getvalue(), "image/png"):
+                    out_keys.append(png_key)
 
     return {"status": "rendered", "imageKeys": out_keys, "folder": base_folder}
 
