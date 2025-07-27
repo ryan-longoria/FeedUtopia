@@ -94,6 +94,10 @@ if (document.getElementById('utopium-widget')) {
     const $input    = $widget.querySelector('#ut-text');
     const $send     = $widget.querySelector('#ut-send');
 
+    const askImgPrompt = () => bot('What should the image depict?');
+    const askRefYN     = () => { bot('Attach a reference image?'); quickReplies(['yes','no']); };
+    const askRefFile   = () => chooseFile(f => { state.refFile = f; afterImgStep(); });
+
     /* ───────── Persistence ───────── */
     const savedState   = localStorage.getItem('utopium-state');
     const savedHistory = localStorage.getItem('utopium-history');
@@ -549,7 +553,7 @@ Ready to publish?`;
           // Validate slides
           if (!state.slides.length) {
             bot('<i>No slides provided. Please add at least one slide.</i>');
-            beginFirstSlide();
+            beginSlide(1);
             return;
           }
           for (let i = 0; i < state.slides.length; i++) {
@@ -568,26 +572,38 @@ Ready to publish?`;
           }
     
           bot('Calling FeedUtopia backend…');
+          const first = state.slides[0] || {};
+          const topTitle = state.data.title || first.title || '';
+          const topSubtitle = state.data.subtitle === 'skip' ? '' : (state.data.subtitle || first.subtitle || '');
+          const topHLTitle = state.data.hlTitle || first.hlTitle || '';
+          const topHLSub = state.data.hlSub || first.hlSub || '';
+
           const payload = {
             accountName: state.data.account,
-            title: state.data.title,
-            description: state.data.subtitle === 'skip' ? '' : state.data.subtitle,
-            highlightWordsTitle: state.data.hlTitle,
-            highlightWordsDescription: state.data.hlSub,
+            title: topTitle,
+            description: topSubtitle,
+            highlightWordsTitle: topHLTitle,
+            highlightWordsDescription: topHLSub,
             backgroundType: 'carousel',
             spinningArtifact: state.data.artifact,
+            // include rich per‑slide metadata; backend only requires key/bgType,
+            // renderer can choose to use these.
             slides: state.slides.map(s => ({
               backgroundType: s.bgType,
-              key: s.s3Key
+              key: s.s3Key,
+              title: s.title || '',
+              subtitle: s.subtitle || '',
+              highlightWordsTitle: s.hlTitle || '',
+              highlightWordsDescription: s.hlSub || ''
             }))
           };
-    
+
           const res = await fetch(`${API_ROOT}/submit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-    
+              
           const text = await res.text();
           bot(`<code>${text}</code>`);
     

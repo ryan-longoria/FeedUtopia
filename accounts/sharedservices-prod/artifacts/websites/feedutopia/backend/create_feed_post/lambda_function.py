@@ -1,4 +1,10 @@
-import json, os, time, logging, boto3, requests
+import json
+import os
+import time
+import logging
+
+import boto3
+import requests
 from botocore.exceptions import ClientError, BotoCoreError
 
 logging.basicConfig(
@@ -7,36 +13,38 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-s3        = boto3.client("s3")
-dynamodb  = boto3.resource("dynamodb")
-sfn       = boto3.client("stepfunctions")
+s3  = boto3.client("s3")
+sfn = boto3.client("stepfunctions")
+dynamodb = boto3.resource("dynamodb")
 
-BUCKET    = os.environ["UPLOAD_BUCKET"]
-API_KEY   = os.environ["FEEDUTOPIA_API_KEY"]
-NEWS_TBL  = os.environ["NEWS_TABLE"]
+BUCKET   = os.environ["UPLOAD_BUCKET"]
+API_KEY  = os.environ["FEEDUTOPIA_API_KEY"]
+NEWS_TBL = os.environ["NEWS_TABLE"]
 CAROUSEL_SFN_ARN = os.environ.get("CAROUSEL_STATE_MACHINE_ARN", "")
 
 news_table = dynamodb.Table(NEWS_TBL)
-FEED_API   = "https://api.feedutopia.com/start-execution"
 
+FEED_API = "https://api.feedutopia.com/start-execution"
 HEADERS = {
     "User-Agent": "Utopium/1.0",
     "x-api-key":  API_KEY,
 }
 
+
 def cache_if_news(payload: dict, media_key: str) -> None:
-    artifact = payload.get("spinningArtifact", "").upper()
+    """Cache NEWS/TRAILER posts for weekly recap."""
+    artifact = (payload.get("spinningArtifact") or "").upper()
     if artifact not in ("NEWS", "TRAILER"):
-        logger.debug("Not a NEWS or TRAILER post — skipping DynamoDB cache")
         return
 
+    now = int(time.time())
     record = {
         "spinningArtifact": artifact,
-        "accountName":     payload["accountName"],
-        "createdAt":       int(time.time()),
-        "expiresAt":       int(time.time()) + 9 * 24 * 3600,
-        "title":           payload["title"],
-        "subtitle":        payload.get("description", ""),
+        "accountName":      payload["accountName"],
+        "createdAt":        now,
+        "expiresAt":        now + 9 * 24 * 3600,
+        "title":            payload.get("title", ""),
+        "subtitle":         payload.get("description", ""),
         "highlightWordsTitle":       payload.get("highlightWordsTitle", ""),
         "highlightWordsDescription": payload.get("highlightWordsDescription", ""),
         "backgroundType":            payload.get("backgroundType", "image"),
@@ -52,32 +60,74 @@ def cache_if_news(payload: dict, media_key: str) -> None:
     except Exception as err:
         logger.error("Unexpected PutItem error -- %s", err, exc_info=True)
 
+
 def _is_carousel(data: dict) -> bool:
     if (data.get("backgroundType") or "").lower() == "carousel":
         return True
-    if isinstance(data.get("slides"), list) and data["slides"]:
-        return True
-    return False
+    slides = data.get("slides")
+    return isinstance(slides, list) and len(slides) > 0
+
 
 def lambda_handler(event, _ctx):
-    logger.info("Received event: %s", event)
+    logger.info("Received event keys: %s", list(event.keys()) if isinstance(event, dict) else type(event))
 
+    body_raw = event.get("body", "{}")
     try:
-        data = json.loads(event.get("body", "{}"))
+        data = json.loads(body_raw)
     except json.JSONDecodeError as err:
         logger.error("Body is not valid JSON: %s", err)
         return _bad("invalid JSON body")
 
+    # Debug snapshot of incoming payload
+    logger.info(
+        "Incoming keys=%s bgType=%r hasSlides=%s",
+        list(data.keys()),
+        data.get("backgroundType"),
+        isinstance(data.get("slides"), list)
+    )
+
+    # ── Normalise slides and coerce carousel if slides exist ──
+    slides_in = data.get("slides")
+    if isinstance(slides_in, list):
+        fixed_slides = []
+        for i, s in enumerate(slides_in):
+            key = s.get("key") or s.get("s3Key")
+            bgt = (s.get("backgroundType") or s.get("bgType") or "").lower()
+            if bgt not in ("photo", "image", "video"):
+                bgt = "photo"
+            fixed_slides.append({
+                **s,
+                "key": key,
+                "backgroundType": bgt,
+            })
+        data["slides"] = fixed_slides
+        if not (data.get("backgroundType") or ""):
+            data["backgroundType"] = "carousel"
+    else:
+        data["slides"] = []
+
+    logger.info(
+        "Post-normalise bgType=%r slides=%d",
+        data.get("backgroundType"),
+        len(data["slides"])
+    )
+
+    # ─────────────────────────────────────────────
+    #               CAROUSEL PATH
+    # ─────────────────────────────────────────────
     if _is_carousel(data):
         if not CAROUSEL_SFN_ARN:
+            logger.error("CAROUSEL_STATE_MACHINE_ARN not configured")
             return _bad("carousel not configured")
 
         missing = []
-        for f in ("accountName", "title", "slides"):
-            if not data.get(f):
-                missing.append(f)
-        slides = data.get("slides") or []
-        if not isinstance(slides, list) or not slides:
+        if not (data.get("accountName") or "").strip():
+            missing.append("accountName")
+        if not (data.get("title") or "").strip():
+            missing.append("title")
+
+        slides = data["slides"]
+        if not slides:
             missing.append("slides")
         else:
             for i, s in enumerate(slides):
@@ -85,15 +135,17 @@ def lambda_handler(event, _ctx):
                     missing.append(f"slides[{i}].key")
                 if not s.get("backgroundType"):
                     missing.append(f"slides[{i}].backgroundType")
+
         if missing:
             logger.warning("Missing fields (carousel): %s", missing)
             return _bad(f"missing {missing}")
 
+        # Validate uploaded media exists
         for i, s in enumerate(slides):
             try:
                 s3.head_object(Bucket=BUCKET, Key=s["key"])
             except Exception as err:
-                logger.error("head_object failed for slide %d (%s): %s", i+1, s["key"], err, exc_info=True)
+                logger.error("head_object failed for slide %d (%s): %s", i + 1, s["key"], err, exc_info=True)
                 return _bad(f"could not stat S3 object for slide {i+1}")
 
         payload = {
@@ -111,16 +163,18 @@ def lambda_handler(event, _ctx):
             "requestedAt": int(time.time()),
         }
 
+        logger.info("Starting carousel Step Function")
         try:
             res = sfn.start_execution(
                 stateMachineArn=CAROUSEL_SFN_ARN,
                 input=json.dumps(payload),
             )
-            logger.info("Started carousel SFN: %s", res.get("executionArn"))
+            logger.info("Carousel SFN executionArn=%s", res.get("executionArn"))
         except Exception as err:
             logger.error("StartExecution failed: %s", err, exc_info=True)
             return _bad("failed to start carousel workflow")
 
+        # Cache first slide in NEWS/TRAILER flow for weekly recap
         if slides:
             first_key = slides[0]["key"]
             first_type = slides[0]["backgroundType"]
@@ -130,15 +184,17 @@ def lambda_handler(event, _ctx):
 
         return _ok({"status": "started", "mode": "carousel"})
 
-    required = ("accountName","title","backgroundType","spinningArtifact","key")
-    missing  = [f for f in required if f not in data]
+    # ─────────────────────────────────────────────
+    #                 REEL PATH
+    # ─────────────────────────────────────────────
+    required = ("accountName", "title", "backgroundType", "spinningArtifact", "key")
+    missing = [f for f in required if f not in data]
     if missing:
         logger.warning("Missing fields: %s", missing)
         return _bad(f"missing {missing}")
 
-    is_image   = data["backgroundType"] in ("image", "photo")
+    is_image = data["backgroundType"] in ("image", "photo")
     path_field = "image_path" if is_image else "video_path"
-    logger.debug("Path field resolved to %s", path_field)
 
     try:
         meta = s3.head_object(Bucket=BUCKET, Key=data["key"])
@@ -151,24 +207,24 @@ def lambda_handler(event, _ctx):
         return _bad("internal S3 error")
 
     payload = {
-        "accountName"      : data["accountName"],
-        "title"            : data["title"],
-        "spinningArtifact" : data["spinningArtifact"],
-        "backgroundType"   : data["backgroundType"],
-        path_field         : {
+        "accountName":      data["accountName"],
+        "title":            data["title"],
+        "spinningArtifact": data["spinningArtifact"],
+        "backgroundType":   data["backgroundType"],
+        path_field: {
             "bucket": BUCKET,
             "key":    data["key"],
-            "contentType": meta["ContentType"],
-            "eTag":        meta["ETag"],
-            "size":        meta["ContentLength"],
-            "lastChangedTime": meta["LastModified"].isoformat(),
+            "contentType":     meta.get("ContentType"),
+            "eTag":            meta.get("ETag"),
+            "size":            meta.get("ContentLength"),
+            "lastChangedTime": meta.get("LastModified").isoformat() if meta.get("LastModified") else "",
         },
     }
-    for f in ("description","highlightWordsTitle","highlightWordsDescription"):
+    for f in ("description", "highlightWordsTitle", "highlightWordsDescription"):
         if data.get(f):
             payload[f] = data[f]
 
-    logger.info("Calling FeedUtopia /start-execution")
+    logger.info("Calling FeedUtopia /start-execution (reel)")
     try:
         res = requests.post(FEED_API, json=payload, headers=HEADERS, timeout=10)
         res.raise_for_status()
@@ -183,8 +239,9 @@ def lambda_handler(event, _ctx):
 
     cache_if_news(payload, media_key=data["key"])
 
-    logger.info("create_feed_post completed successfully")
-    return _ok({"status":"success","feedutopiaResponse": res.json()})
+    logger.info("create_feed_post completed successfully (reel)")
+    return _ok({"status": "success", "feedutopiaResponse": res.json()})
+
 
 def _ok(body):
     return {
@@ -192,6 +249,7 @@ def _ok(body):
         "headers": {"Access-Control-Allow-Origin": "*"},
         "body": json.dumps(body)
     }
+
 
 def _bad(msg):
     return {
