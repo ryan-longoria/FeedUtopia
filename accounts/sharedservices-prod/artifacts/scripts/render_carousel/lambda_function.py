@@ -251,7 +251,7 @@ def compose_photo_slide_first(
     if sub_img:
         canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width) // 2, y_sub))
 
-    # Artifact (static frame) – legacy placement (not used for first slide anymore)
+    # Artifact (static frame) – legacy placement (kept for parity with photo layout)
     key = artifact_key_for(artifact_name)
     if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
         try:
@@ -278,6 +278,45 @@ def compose_photo_slide_first(
             canvas.alpha_composite(logo, (lx, ly))
         except Exception as exc:
             logger.warning("logo overlay failed: %s", exc)
+
+    return canvas
+
+
+def compose_photo_slide_with_text(
+    bg_local: str,
+    title: str,
+    subtitle: str,
+    hl_t: Set[str],
+    hl_s: Set[str],
+) -> Image.Image:
+    """
+    Non-first PHOTO slide with text. Keeps the same photo text placement
+    (bottom-aligned blocks). No logo or spinning artifact.
+    """
+    canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
+    with Image.open(bg_local).convert("RGBA") as im:
+        im = resize_and_crop_to_canvas(im)
+        canvas.paste(im, (0, 0))
+
+    if os.path.exists(LOCAL_GRADIENT):
+        with Image.open(LOCAL_GRADIENT).convert("RGBA").resize((WIDTH, HEIGHT)) as g:
+            canvas.alpha_composite(g)
+
+    # Title/subtitle placed like photo-first
+    t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, TITLE_MAX, TITLE_MIN, 35), hl_t, 1000) if title else None
+    s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 600) if subtitle else None
+
+    if t_img and s_img:
+        y_sub = HEIGHT - 225 - s_img.height
+        y_title = y_sub - 50 - t_img.height
+        canvas.alpha_composite(t_img, ((WIDTH - t_img.width) // 2, y_title))
+        canvas.alpha_composite(s_img, ((WIDTH - s_img.width) // 2, y_sub))
+    elif t_img:
+        y_title = HEIGHT - 150 - t_img.height
+        canvas.alpha_composite(t_img, ((WIDTH - t_img.width) // 2, y_title))
+    elif s_img:
+        y_sub = HEIGHT - 225 - s_img.height
+        canvas.alpha_composite(s_img, ((WIDTH - s_img.width) // 2, y_sub))
 
     return canvas
 
@@ -349,7 +388,6 @@ def compose_video_slide_first(
 
     if ensure_logo(account):
         try:
-            # Build logo+stripe composite as a clip
             logo_img = Image.open(LOCAL_LOGO)
             scale_logo = 200 / logo_img.width
             logo_clip = ImageClip(np.array(logo_img)).with_effects([vfx.Resize(scale_logo)]).with_duration(dur)
@@ -454,7 +492,7 @@ def compose_still_video_slide_first(
         except Exception as exc:
             logger.warning("artifact video overlay (still) failed: %s", exc)
 
-    # Logo block bottom-right (same as other first-slide logic)
+    # Logo block bottom-right
     if ensure_logo(account):
         try:
             logo_img = Image.open(LOCAL_LOGO)
@@ -578,7 +616,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                 logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
         else:
-            # Subsequent slides keep original behavior.
+            # Subsequent slides
             if bg_type == "video":
                 final, dur = compose_video_slide_plain(local_bg)
 
@@ -613,7 +651,23 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                     logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
             else:
-                canvas = compose_photo_slide_plain(local_bg)
+                # If there is any text for this slide, render it with the same photo layout.
+                slide_title = (slide.get("title") or "").upper()
+                slide_sub = (slide.get("subtitle") or "").upper()
+                slide_hl_t = parse_highlights(slide.get("highlightWordsTitle"))
+                slide_hl_s = parse_highlights(slide.get("highlightWordsSubtitle"))
+
+                if slide_title or slide_sub:
+                    canvas = compose_photo_slide_with_text(
+                        local_bg,
+                        slide_title or title,
+                        slide_sub or "",
+                        slide_hl_t or hl_t,
+                        slide_hl_s or hl_s,
+                    )
+                else:
+                    canvas = compose_photo_slide_plain(local_bg)
+
                 buf = io.BytesIO()
                 canvas.convert("RGB").save(buf, "PNG", compress_level=3)
                 buf.seek(0)
