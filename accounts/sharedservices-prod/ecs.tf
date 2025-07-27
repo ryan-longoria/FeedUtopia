@@ -115,7 +115,7 @@ resource "aws_ecs_task_definition" "render_carousel" {
   container_definitions = jsonencode([
     {
       name    = "render_carousel"
-      # your entrypoint should read EVENT_JSON & TASK_TOKEN from env and kick off moviepy,
+      image     = var.render_carousel_image_uri
       command = ["python", "lambda_function.py"]
 
       environment = [
