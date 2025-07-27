@@ -4,8 +4,7 @@
   "States": {
     "GetLogo": {
       "Type": "Task",
-      "Resource": "${get_logo_lambda_arn}",
-      "InputPath": "$",
+      "Resource": "${get_logo_arn}",
       "ResultPath": "$.logoResult",
       "Next": "RenderCarousel"
     },
@@ -29,14 +28,15 @@
             {
               "Name": "render_carousel",
               "Environment": [
-                { "Name": "TASK_TOKEN", "Value.$": "$$.Task.Token" },
-                { "Name": "EVENT_JSON", "Value.$": "States.JsonToString($)" }
+                { "Name": "EVENT_JSON", "Value.$": "States.JsonToString($)" },
+                { "Name": "TASK_TOKEN", "Value.$": "$$.Task.Token" }
               ]
             }
           ]
         }
       },
       "TimeoutSeconds": 7200,
+      "ResultPath": "$.renderResult",
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
@@ -49,18 +49,31 @@
 
     "NotifySuccess": {
       "Type": "Task",
-      "Resource": "${notify_post_lambda_arn}",
-      "InputPath": "$",
+      "Resource": "${notify_post_arn}",
+      "Parameters": {
+        "accountName.$": "$.accountName",
+        "spinningArtifact.$": "$.spinningArtifact",
+        "backgroundType": "carousel",
+        "title.$": "$.title",
+        "description.$": "$.description",
+        "highlightWordsTitle.$": "$.highlightWordsTitle",
+        "highlightWordsDescription.$": "$.highlightWordsDescription",
+        "folder.$": "$.renderResult.folder",
+        "imageKeys.$": "$.renderResult.imageKeys"
+      },
       "ResultPath": "$.notifyResult",
       "Next": "DeleteLogo"
     },
 
     "NotifyFailure": {
       "Type": "Task",
-      "Resource": "${notify_post_lambda_arn}",
+      "Resource": "${notify_post_arn}",
       "Parameters": {
-        "error.$": "$.renderError",
-        "accountName.$": "$.accountName"
+        "status": "failed",
+        "reason": "carousel_render_failed",
+        "accountName.$": "$.accountName",
+        "spinningArtifact.$": "$.spinningArtifact",
+        "error.$": "$.renderError"
       },
       "ResultPath": "$.notifyResult",
       "Next": "DeleteLogo"
@@ -68,7 +81,7 @@
 
     "DeleteLogo": {
       "Type": "Task",
-      "Resource": "${delete_logo_lambda_arn}",
+      "Resource": "${delete_logo_arn}",
       "InputPath": "$",
       "ResultPath": "$.deleteResult",
       "End": true
