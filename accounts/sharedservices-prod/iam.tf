@@ -624,7 +624,8 @@ resource "aws_iam_role_policy" "stepfunctions_run_render_carousel" {
 
 resource "aws_iam_role_policy" "sfn_runs_ecs" {
   name = "sfn-run-ecs"
-  role = aws_iam_role.sharedservices_step_functions_role.id
+  role = aws_iam_role.step_functions_role.id
+
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
@@ -635,15 +636,31 @@ resource "aws_iam_role_policy" "sfn_runs_ecs" {
       },
       {
         Effect   = "Allow",
-        Action   = ["iam:PassRole"],
+        Action   = ["ecs:DescribeTasks", "ecs:StopTask"],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = ["events:PutTargets", "events:PutRule", "events:DescribeRule", "events:RemoveTargets", "events:DeleteRule"],
+        Resource = "arn:aws:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:rule/StepFunctionsGetEventsForECSTaskRule*"
+      },
+      {
+        Effect = "Allow",
+        Action = "iam:PassRole",
         Resource = [
           aws_iam_role.ecs_task_execution_role.arn,
           aws_iam_role.ecs_task_role.arn
-        ]
+        ],
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "ecs-tasks.amazonaws.com"
+          }
+        }
       }
     ]
   })
 }
+
 
 #############################
 # IAM Policy for SQS

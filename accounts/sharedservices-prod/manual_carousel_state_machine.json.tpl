@@ -1,36 +1,11 @@
 {
-  "Comment": "Manual carousel workflow: copy logo, render on ECS (waitForTaskToken), then notify Teams.",
+  "Comment": "Manual carousel workflow",
   "StartAt": "GetLogo",
   "States": {
     "GetLogo": {
       "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "TimeoutSeconds": 30,
-      "Parameters": {
-        "FunctionName": "${get_logo_lambda_arn}",
-        "Payload.$": "$"
-      },
-      "ResultSelector": {
-        "status.$": "$.Payload.status",
-        "logoKey.$": "$.Payload.logoKey",
-        "sharedBucket.$": "$.Payload.sharedBucket",
-        "targetAccountId.$": "$.Payload.targetAccountId"
-      },
-      "ResultPath": "$.logoResult",
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "Next": "LogoFallback"
-        }
-      ],
-      "Next": "RenderCarousel"
-    },
-
-    "LogoFallback": {
-      "Type": "Pass",
-      "Result": {
-        "status": "failed"
-      },
+      "Resource": "${get_logo_lambda_arn}",
+      "InputPath": "$",
       "ResultPath": "$.logoResult",
       "Next": "RenderCarousel"
     },
@@ -38,16 +13,14 @@
     "RenderCarousel": {
       "Type": "Task",
       "Resource": "arn:aws:states:::ecs:runTask.waitForTaskToken",
-      "TimeoutSeconds": 1800,
-      "HeartbeatSeconds": 300,
       "Parameters": {
         "Cluster": "${ecs_cluster_arn}",
-        "TaskDefinition": "${ecs_task_definition_arn}",
         "LaunchType": "FARGATE",
+        "TaskDefinition": "${render_carousel_task_def_arn}",
         "NetworkConfiguration": {
           "AwsvpcConfiguration": {
-            "Subnets": ${subnet_id_list_json},
-            "SecurityGroups": ${security_group_id_list_json},
+            "Subnets": ${subnet_ids},
+            "SecurityGroups": ${sg_ids},
             "AssignPublicIp": "ENABLED"
           }
         },
@@ -56,96 +29,49 @@
             {
               "Name": "render_carousel",
               "Environment": [
-                {
-                  "Name": "EVENT_JSON",
-                  "Value.$": "States.JsonToString($)"
-                },
-                {
-                  "Name": "TASK_TOKEN",
-                  "Value.$": "$$.Task.Token"
-                }
+                { "Name": "TASK_TOKEN", "Value.$": "$$.Task.Token" },
+                { "Name": "EVENT_JSON", "Value.$": "States.JsonToString($)" }
               ]
             }
           ]
         }
       },
-      "ResultPath": "$.renderResult",
-      "Catch": [
-        {
-          "ErrorEquals": ["States.Timeout", "States.TaskFailed", "States.ALL"],
-          "Next": "RenderFailed"
-        }
-      ],
-      "Next": "HasOutputs?"
-    },
-
-    "RenderFailed": {
-      "Type": "Pass",
-      "Result": {
-        "status": "failed"
-      },
-      "ResultPath": "$.renderResult",
-      "Next": "HasOutputs?"
-    },
-
-    "HasOutputs?": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Or": [
-            { "Variable": "$.renderResult.imageKeys", "IsPresent": true },
-            { "Variable": "$.renderResult.video_key", "IsPresent": true }
-          ],
-          "Next": "NotifyTeams"
-        }
-      ],
-      "Default": "FailNoOutputs"
-    },
-
-    "NotifyTeams": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "TimeoutSeconds": 20,
-      "Parameters": {
-        "FunctionName": "${notify_post_lambda_arn}",
-        "Payload": {
-          "accountName.$": "$.accountName",
-          "imageKeys.$": "$.renderResult.imageKeys",
-          "video_key.$": "$.renderResult.video_key",
-          "videoResult.$": "$.renderResult.videoResult"
-        }
-      },
-      "ResultSelector": {
-        "status.$": "$.Payload.status",
-        "itemCount.$": "$.Payload.itemCount"
-      },
-      "ResultPath": "$.notifyResult",
+      "TimeoutSeconds": 7200,
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
-          "Next": "NotifyFailed"
+          "ResultPath": "$.renderError",
+          "Next": "NotifyFailure"
         }
       ],
-      "Next": "Success"
+      "Next": "NotifySuccess"
     },
 
-    "NotifyFailed": {
-      "Type": "Pass",
-      "Result": {
-        "status": "notify_failed"
+    "NotifySuccess": {
+      "Type": "Task",
+      "Resource": "${notify_post_lambda_arn}",
+      "InputPath": "$",
+      "ResultPath": "$.notifyResult",
+      "Next": "DeleteLogo"
+    },
+
+    "NotifyFailure": {
+      "Type": "Task",
+      "Resource": "${notify_post_lambda_arn}",
+      "Parameters": {
+        "error.$": "$.renderError",
+        "accountName.$": "$.accountName"
       },
       "ResultPath": "$.notifyResult",
-      "Next": "Success"
+      "Next": "DeleteLogo"
     },
 
-    "FailNoOutputs": {
-      "Type": "Fail",
-      "Error": "NoOutputs",
-      "Cause": "Renderer did not produce any imageKeys or video_key."
-    },
-
-    "Success": {
-      "Type": "Succeed"
+    "DeleteLogo": {
+      "Type": "Task",
+      "Resource": "${delete_logo_lambda_arn}",
+      "InputPath": "$",
+      "ResultPath": "$.deleteResult",
+      "End": true
     }
   }
 }
