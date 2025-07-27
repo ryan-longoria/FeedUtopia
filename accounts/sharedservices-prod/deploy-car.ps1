@@ -8,8 +8,8 @@ docker buildx build --platform=linux/amd64 --provenance=false --load `
     -t render_carousel:latest .
 
 docker tag render_carousel:latest `
-    825765422855.dkr.ecr.us-east-2.amazonaws.com/weekly_news_recap_repository:latest
+    825765422855.dkr.ecr.us-east-2.amazonaws.com/render_carousel:latest
 
-docker push 825765422855.dkr.ecr.us-east-2.amazonaws.com/weekly_news_recap_repository:latest
+docker push 825765422855.dkr.ecr.us-east-2.amazonaws.com/render_carousel:latest
 
 Set-Location -Path "..\..\.."
