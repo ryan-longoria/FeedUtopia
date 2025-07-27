@@ -148,6 +148,7 @@ def lambda_handler(event, _ctx):
                 logger.error("head_object failed for slide %d (%s): %s", i + 1, s["key"], err, exc_info=True)
                 return _bad(f"could not stat S3 object for slide {i+1}")
 
+        # <<< CHANGE: include per-slide fields so renderer can use them >>>
         payload = {
             "accountName": data["accountName"],
             "title":       data["title"],
@@ -157,11 +158,26 @@ def lambda_handler(event, _ctx):
             "spinningArtifact":          data.get("spinningArtifact", "") or "",
             "backgroundType":            "carousel",
             "slides": [
-                {"backgroundType": s["backgroundType"], "key": s["key"]}
+                {
+                    "backgroundType": s["backgroundType"],
+                    "key": s["key"],
+                    # pass through optional per‑slide metadata (renderer supports these aliases)
+                    "title":  s.get("title") or s.get("slideTitle") or s.get("titleText") or "",
+                    "subtitle": s.get("subtitle") or s.get("description") or s.get("slideSubtitle") or "",
+                    "highlightWordsTitle":
+                        s.get("highlightWordsTitle") or s.get("hlTitle") or s.get("titleHighlights") or "",
+                    "highlightWordsDescription":
+                        s.get("highlightWordsDescription")
+                        or s.get("highlightWordsSubtitle")
+                        or s.get("hlSubtitle")
+                        or s.get("subtitleHighlights")
+                        or "",
+                }
                 for s in slides
             ],
             "requestedAt": int(time.time()),
         }
+        # >>> END CHANGE
 
         logger.info("Starting carousel Step Function")
         try:
