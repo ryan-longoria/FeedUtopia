@@ -518,114 +518,136 @@ Ready to publish?`;
     }
 
     async function uploadSlideFile(slide) {
+      // Request upload URL
       const res1 = await fetch(`${API_ROOT}/upload-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mediaType: slide.bgType })
       });
-      if (!res1.ok) throw new Error(`upload-url failed ${res1.status}`);
+      if (!res1.ok) {
+        const txt = await res1.text().catch(()=> '');
+        throw new Error(`upload-url failed ${res1.status} ${txt}`);
+      }
       const { url, objectKey } = await res1.json();
-
+    
       const res2 = await fetch(url, {
         method: 'PUT',
-        headers: { 'Content-Type': slide.file.type || 'application/octet-stream' },
+        headers: { 'Content-Type': slide.file?.type || 'application/octet-stream' },
         body: slide.file
       });
-      if (!res2.ok) throw new Error(`S3 upload failed ${res2.status}`);
+      if (!res2.ok) {
+        const txt = await res2.text().catch(()=> '');
+        throw new Error(`S3 upload failed ${res2.status} ${txt}`);
+      }
+    
       slide.s3Key = objectKey;
     }
-
+    
     async function publish() {
       try {
         if (state.multiMode) {
+          // Validate slides
           if (!state.slides.length) {
             bot('<i>No slides provided. Please add at least one slide.</i>');
-            beginSlide(1);
+            beginFirstSlide();
             return;
           }
-          for (const [idx, slide] of state.slides.entries()) {
+          for (let i = 0; i < state.slides.length; i++) {
+            const slide = state.slides[i];
             if (!(slide.file instanceof File) || slide.file.size < 100_000) {
-              bot(`<i>Slide ${idx+1} file is missing or too small. Please re-add it.</i>`);
-              state.slideIndex = idx;
-              state.slideDraft = { ...slide };
-              state.slidePhase = SLIDE_PHASE.file;
-              askSlideFile(idx + 1);
+              bot(`<i>Slide ${i + 1} file is missing or too small. Please re-add it.</i>`);
+              state.slideIndex = i;
+              askSlideFile(i + 1);
               return;
             }
           }
-
+    
           bot('Uploading slide media to S3…');
-          for (const slide of state.slides) await uploadSlideFile(slide);
-
-          const s1 = state.slides[0];
+          for (const slide of state.slides) {
+            await uploadSlideFile(slide);
+          }
+    
           bot('Calling FeedUtopia backend…');
           const payload = {
             accountName: state.data.account,
-            title: s1.title,
-            description: s1.subtitle || '',
-            highlightWordsTitle: s1.hlTitle || '',
-            highlightWordsDescription: s1.hlSub || '',
+            title: state.data.title,
+            description: state.data.subtitle === 'skip' ? '' : state.data.subtitle,
+            highlightWordsTitle: state.data.hlTitle,
+            highlightWordsDescription: state.data.hlSub,
             backgroundType: 'carousel',
             spinningArtifact: state.data.artifact,
             slides: state.slides.map(s => ({
               backgroundType: s.bgType,
-              key: s.s3Key,
-              title: s.title,
-              description: s.subtitle || '',
-              highlightWordsTitle: s.hlTitle || '',
-              highlightWordsDescription: s.hlSub || ''
+              key: s.s3Key
             }))
           };
-
+    
           const res = await fetch(`${API_ROOT}/submit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          bot(`<code>${await res.text()}</code>`);
-
-          state = {
-            ...state,
-            step:-1, data:{}, file:null,
-            multiMode:false, slides:[], slideIndex:0, slidePhase:null, slideDraft:null,
-            awaitYes:false
-          };
+    
+          const text = await res.text();
+          bot(`<code>${text}</code>`);
+    
+          if (!res.ok) {
+            bot('<b>❌ Failed to create carousel.</b>');
+            return;
+          }
+    
+          // success
+          state.step = -1;
+          state.data = {};
+          state.file = null;
+          state.slides = [];
+          state.multiMode = false;
           persist();
-
+    
           bot('✅ Carousel created! What else may I help you with?');
           quickReplies(['create post']);
           return;
         }
-
-        // Reel
+    
+        // Single reel flow
         if (!(state.file instanceof File) || state.file.size < 100_000) {
-          bot('<i>The selected media file is missing or too small. Please reselect it.</i>');
+          bot('<i>The previously chosen media file is missing or too small. Please choose it again.</i>');
           askFile();
           return;
         }
-
+    
         bot('Getting upload URL…');
         let res = await fetch(`${API_ROOT}/upload-url`, {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({mediaType:state.data.bgType})
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mediaType: state.data.bgType })
         });
-        if (!res.ok) throw new Error('upload-url failed');
+        if (!res.ok) {
+          const txt = await res.text();
+          bot(`<code>${txt}</code>`);
+          bot('<b>❌ Failed to get upload URL.</b>');
+          return;
+        }
         const { url, objectKey } = await res.json();
-
+    
         bot('Uploading to S3…');
         res = await fetch(url, {
-          method:'PUT',
-          headers:{'Content-Type': state.file.type || 'application/octet-stream'},
+          method: 'PUT',
+          headers: { 'Content-Type': state.file.type || 'application/octet-stream' },
           body: state.file
         });
-        if (!res.ok) throw new Error('S3 upload failed');
-
+        if (!res.ok) {
+          const txt = await res.text();
+          bot(`<code>${txt}</code>`);
+          bot('<b>❌ Upload to S3 failed.</b>');
+          return;
+        }
+    
         bot('Calling FeedUtopia backend…');
         const payload = {
           accountName: state.data.account,
           title: state.data.title,
-          description: state.data.subtitle==='skip' ? '' : state.data.subtitle,
+          description: state.data.subtitle === 'skip' ? '' : state.data.subtitle,
           highlightWordsTitle: state.data.hlTitle,
           highlightWordsDescription: state.data.hlSub,
           backgroundType: state.data.bgType,
@@ -633,15 +655,23 @@ Ready to publish?`;
           key: objectKey
         };
         res = await fetch(`${API_ROOT}/submit`, {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify(payload)
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
-        bot(`<code>${await res.text()}</code>`);
-
-        state = { ...state, step:-1, data:{}, file:null, awaitYes:false };
+    
+        const txt = await res.text();
+        bot(`<code>${txt}</code>`);
+        if (!res.ok) {
+          bot('<b>❌ Failed to create post.</b>');
+          return;
+        }
+    
+        state.step = -1;
+        state.data = {};
+        state.file = null;
         persist();
-
+    
         bot('✅ Post created! What else may I help you with?');
         quickReplies(['create post']);
       } catch (err) {
