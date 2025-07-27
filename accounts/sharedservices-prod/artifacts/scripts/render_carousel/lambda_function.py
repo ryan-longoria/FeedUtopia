@@ -289,8 +289,10 @@ def compose_photo_slide_with_text(
     hl_s: Set[str],
 ) -> Image.Image:
     """
-    Non-first PHOTO slide with text. Keeps the same photo text placement
-    (bottom-aligned blocks). No logo or spinning artifact.
+    Non-first PHOTO slide with text. Lowered placement (no logo present):
+      - subtitle: HEIGHT - 100 - h
+      - title: 50px above subtitle block
+      - if no subtitle: title at HEIGHT - 100 - h
     """
     canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
     with Image.open(bg_local).convert("RGBA") as im:
@@ -308,15 +310,15 @@ def compose_photo_slide_with_text(
     s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 600) if subtitle else None
 
     if t_img and s_img:
-        y_sub = HEIGHT - 225 - s_img.height
+        y_sub = HEIGHT - 100 - s_img.height
         y_title = y_sub - 50 - t_img.height
         canvas.alpha_composite(t_img, ((WIDTH - t_img.width) // 2, y_title))
         canvas.alpha_composite(s_img, ((WIDTH - s_img.width) // 2, y_sub))
     elif t_img:
-        y_title = HEIGHT - 150 - t_img.height
+        y_title = HEIGHT - 100 - t_img.height
         canvas.alpha_composite(t_img, ((WIDTH - t_img.width) // 2, y_title))
     elif s_img:
-        y_sub = HEIGHT - 225 - s_img.height
+        y_sub = HEIGHT - 100 - s_img.height
         canvas.alpha_composite(s_img, ((WIDTH - s_img.width) // 2, y_sub))
 
     return canvas
@@ -428,9 +430,9 @@ def compose_video_slide_with_text(
     hl_s: Set[str],
 ) -> Tuple[CompositeVideoClip, float]:
     """
-    Non-first VIDEO slide with text, placed like weekly_news_recap:
-      - Title top center (y ~ 25)
-      - Subtitle near bottom center (VID_H - 150 - subtitle_height)
+    Non-first VIDEO slide with text, lowered positions (no logo):
+      - title y = 100
+      - subtitle y = VID_H - 100 - subtitle_height
     No gradient, no logo, no artifact.
     """
     raw = VideoFileClip(bg_local, audio=False)
@@ -444,13 +446,13 @@ def compose_video_slide_with_text(
     s = (subtitle or "").upper()
     if t:
         t_img = Pillow_text_img(t, FONT_TITLE, autosize(t, 100, 75, 25), hl_t, 1000)
-        clips.append(ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 25)))
+        clips.append(ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 100)))
     if s:
         s_img = Pillow_text_img(s, FONT_DESC, autosize(s, 70, 30, 45), hl_s, 800)
         clips.append(
             ImageClip(np.array(s_img))
             .with_duration(dur)
-            .with_position(("center", VID_H - 150 - s_img.height))
+            .with_position(("center", VID_H - 100 - s_img.height))
         )
 
     final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
@@ -641,7 +643,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
             slide_hl_s = parse_highlights(slide.get("highlightWordsDescription")) or hl_s
 
             if bg_type == "video":
-                # Text placement like weekly_news_recap, no logo/artifact
+                # Lower text, no logo/artifact
                 final, dur = compose_video_slide_with_text(
                     local_bg, slide_title, slide_sub, slide_hl_t, slide_hl_s
                 )
@@ -676,7 +678,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                     logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
             else:
-                # PHOTO slides after first: show text with photo placement, no logo/artifact
+                # PHOTO slides after first: lowered text, no logo/artifact
                 canvas = compose_photo_slide_with_text(
                     local_bg, slide_title, slide_sub, slide_hl_t, slide_hl_s
                 )
