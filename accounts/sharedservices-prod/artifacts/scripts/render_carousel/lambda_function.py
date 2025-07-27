@@ -206,6 +206,61 @@ def send_task_failure(msg: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Selection helpers for per‑slide fields
+# ──────────────────────────────────────────────────────────────────────────────
+def first_nonempty(*vals: Optional[str]) -> str:
+    for v in vals:
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s:
+            return s
+    return ""
+
+
+def slide_texts_and_highlights(
+    slide: Dict[str, Any],
+    global_title: str,
+    global_subtitle: str,
+    global_hl_t: Set[str],
+    global_hl_s: Set[str],
+) -> Tuple[str, str, Set[str], Set[str]]:
+    # title / subtitle (support several aliases)
+    t_raw = first_nonempty(
+        slide.get("title"),
+        slide.get("slideTitle"),
+        slide.get("titleText"),
+        global_title,
+    )
+    s_raw = first_nonempty(
+        slide.get("subtitle"),
+        slide.get("description"),
+        slide.get("slideSubtitle"),
+        global_subtitle,
+    )
+
+    # highlights (support several aliases)
+    ht_raw = first_nonempty(
+        slide.get("highlightWordsTitle"),
+        slide.get("hlTitle"),
+        slide.get("titleHighlights"),
+    )
+    hs_raw = first_nonempty(
+        slide.get("highlightWordsDescription"),
+        slide.get("highlightWordsSubtitle"),
+        slide.get("hlSubtitle"),
+        slide.get("subtitleHighlights"),
+    )
+
+    # uppercase text; highlights already uppercased by parse_highlights
+    title = (t_raw or "").upper()
+    subtitle = (s_raw or "").upper()
+    hl_t = parse_highlights(ht_raw) or set(global_hl_t)
+    hl_s = parse_highlights(hs_raw) or set(global_hl_s)
+    return title, subtitle, hl_t, hl_s
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Rendering primitives
 # ──────────────────────────────────────────────────────────────────────────────
 def resize_and_crop_to_canvas(img: Image.Image) -> Image.Image:
@@ -562,17 +617,22 @@ def compose_still_video_slide_first(
 def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     Expects optional per-slide fields:
-      slide.title, slide.description, slide.highlightWordsTitle, slide.highlightWordsDescription
-    If absent, falls back to global title/description/highlights.
+      slide.title / slide.slideTitle / slide.titleText
+      slide.subtitle / slide.description / slide.slideSubtitle
+      slide.highlightWordsTitle / slide.hlTitle / slide.titleHighlights
+      slide.highlightWordsDescription / slide.highlightWordsSubtitle / slide.hlSubtitle / slide.subtitleHighlights
+    Falls back to global event.title / event.description / event.highlightWordsTitle / event.highlightWordsDescription.
     """
     account = (event.get("accountName") or "").strip()
-    title = (event.get("title") or "").upper()
-    subtitle = (event.get("description") or "").upper()
+
+    # global fallbacks
+    global_title = (event.get("title") or "").strip()
+    global_subtitle = (event.get("description") or "").strip()
+    global_hl_t = parse_highlights(event.get("highlightWordsTitle"))
+    global_hl_s = parse_highlights(event.get("highlightWordsDescription"))
+
     artifact = (event.get("spinningArtifact") or "").upper()
     slides = event.get("slides") or []
-
-    hl_t = parse_highlights(event.get("highlightWordsTitle"))
-    hl_s = parse_highlights(event.get("highlightWordsDescription"))
 
     if not slides:
         raise ValueError("No slides provided")
@@ -591,6 +651,11 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
             logger.warning("Slide %d missing key; skipping", idx)
             continue
 
+        # ►► get per-slide text & highlights (with global fallbacks)
+        slide_title, slide_sub, slide_hl_t, slide_hl_s = slide_texts_and_highlights(
+            slide, global_title, global_subtitle, global_hl_t, global_hl_s
+        )
+
         local_bg = os.path.join(tempfile.gettempdir(), f"slide_{idx}.{'mp4' if bg_type == 'video' else 'img'}")
         if not download_s3_file(TARGET_BUCKET, s3_key, local_bg):
             logger.warning("Slide %d download failed; skipping", idx)
@@ -601,9 +666,11 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
         # First slide ALWAYS outputs video (10s for photo)
         if is_first:
             if bg_type == "video":
-                final, dur = compose_video_slide_first(local_bg, title, subtitle, hl_t, hl_s, artifact, account)
+                final, dur = compose_video_slide_first(local_bg, slide_title.upper(), slide_sub.upper(),
+                                                       slide_hl_t, slide_hl_s, artifact, account)
             else:
-                final, dur = compose_still_video_slide_first(local_bg, title, subtitle, hl_t, hl_s, artifact, account)
+                final, dur = compose_still_video_slide_first(local_bg, slide_title.upper(), slide_sub.upper(),
+                                                             slide_hl_t, slide_hl_s, artifact, account)
 
             mp4_local = f"/tmp/slide_{idx}.mp4"
             final.write_videofile(
@@ -636,14 +703,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                 logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
         else:
-            # Prefer slide-specific text; fallback to global
-            slide_title = (slide.get("title") or title).upper()
-            slide_sub = (slide.get("description") or subtitle).upper()
-            slide_hl_t = parse_highlights(slide.get("highlightWordsTitle")) or hl_t
-            slide_hl_s = parse_highlights(slide.get("highlightWordsDescription")) or hl_s
-
             if bg_type == "video":
-                # Lower text, no logo/artifact
                 final, dur = compose_video_slide_with_text(
                     local_bg, slide_title, slide_sub, slide_hl_t, slide_hl_s
                 )
@@ -678,7 +738,6 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                     logger.warning("thumb generation failed for slide %d: %s", idx, exc)
 
             else:
-                # PHOTO slides after first: lowered text, no logo/artifact
                 canvas = compose_photo_slide_with_text(
                     local_bg, slide_title, slide_sub, slide_hl_t, slide_hl_s
                 )
