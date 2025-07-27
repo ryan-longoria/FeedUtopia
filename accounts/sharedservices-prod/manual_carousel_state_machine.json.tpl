@@ -4,7 +4,7 @@
   "States": {
     "GetLogo": {
       "Type": "Task",
-      "Resource": "${get_logo_arn}",
+      "Resource": "${get_logo_lambda_arn}",
       "ResultPath": "$.logoResult",
       "Next": "RenderCarousel"
     },
@@ -49,7 +49,7 @@
 
     "NotifySuccess": {
       "Type": "Task",
-      "Resource": "${notify_post_arn}",
+      "Resource": "${notify_post_lambda_arn}",
       "Parameters": {
         "accountName.$": "$.accountName",
         "spinningArtifact.$": "$.spinningArtifact",
@@ -67,7 +67,7 @@
 
     "NotifyFailure": {
       "Type": "Task",
-      "Resource": "${notify_post_arn}",
+      "Resource": "${notify_post_lambda_arn}",
       "Parameters": {
         "status": "failed",
         "reason": "carousel_render_failed",
@@ -81,7 +81,7 @@
 
     "DeleteLogo": {
       "Type": "Task",
-      "Resource": "${delete_logo_arn}",
+      "Resource": "${delete_logo_lambda_arn}",
       "InputPath": "$",
       "ResultPath": "$.deleteResult",
       "End": true
