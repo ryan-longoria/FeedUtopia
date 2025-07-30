@@ -52,11 +52,6 @@ variable "incidents_teams_webhook" {
   type        = string
 }
 
-variable "schedule_expression" {
-  description = "Describes how often step functions will be invoked."
-  type        = string
-}
-
 variable "common_tags" {
   description = "A map of common tags to apply to all resources."
   type        = map(string)
