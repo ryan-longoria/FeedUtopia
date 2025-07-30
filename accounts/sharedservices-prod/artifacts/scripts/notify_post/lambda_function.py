@@ -1,14 +1,17 @@
-import json, logging, os
+import json
+import logging
+import os
 from typing import Any, Dict, List
 
-import boto3, requests
+import boto3
+import requests
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 TEAMS_WEBHOOKS_JSON = os.environ["TEAMS_WEBHOOKS_JSON"]
-TARGET_BUCKET       = os.environ["TARGET_BUCKET"]
+TARGET_BUCKET = os.environ["TARGET_BUCKET"]
 
 s3 = boto3.client("s3")
 
@@ -25,26 +28,19 @@ def build_image_card(urls: List[str], account: str) -> Dict[str, Any]:
     MAX_EMBED = 6
     embedded = urls[:MAX_EMBED]
     return {
-        "@type":       "MessageCard",
-        "@context":    "http://schema.org/extensions",
-        "summary":     f"Weekly NEWS recap for {account}",
-        "themeColor":  "EC008C",
-        "title":       "Your weekly recap post is ready!",
-        "text":        f"**{account}**",
+        "@type": "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "summary": f"Carousel assets for {account}",
+        "themeColor": "EC008C",
+        "title": "Your carousel is ready!",
+        "text": f"**{account}**",
         "sections": [
             {
-                "images": [
-                    {"image": u, "title": f"Recap {i+1}"}
-                    for i, u in enumerate(embedded)
-                ]
+                "images": [{"image": u, "title": f"Asset {i+1}"} for i, u in enumerate(embedded)]
             }
         ],
         "potentialAction": [
-            {
-                "@type":  "OpenUri",
-                "name":   f"Download Recap {i+1}",
-                "targets":[{"os":"default","uri":u}],
-            }
+            {"@type": "OpenUri", "name": f"Download {i+1}", "targets": [{"os": "default", "uri": u}]}
             for i, u in enumerate(urls)
         ],
     }
@@ -52,20 +48,37 @@ def build_image_card(urls: List[str], account: str) -> Dict[str, Any]:
 
 def build_video_card(url: str, account: str) -> Dict[str, Any]:
     return {
-        "@type":    "MessageCard",
+        "@type": "MessageCard",
         "@context": "http://schema.org/extensions",
-        "summary":  f"Your video for {account} is ready!",
+        "summary": f"Your video for {account} is ready!",
         "themeColor": "EC008C",
-        "title":    "Your video is ready!",
-        "text":     f"**{account}**",
-        "potentialAction": [
-            {
-                "@type":  "OpenUri",
-                "name":   "Download Video",
-                "targets": [{"os": "default", "uri": url}],
-            }
-        ],
+        "title": "Your video is ready!",
+        "text": f"**{account}**",
+        "potentialAction": [{"@type": "OpenUri", "name": "Download Video", "targets": [{"os": "default", "uri": url}]}],
     }
+
+
+def flatten_keys(evt: Dict[str, Any]) -> List[str]:
+    keys: List[str] = []
+
+    if isinstance(evt.get("imageKeys"), list):
+        keys.extend([k for k in evt["imageKeys"] if isinstance(k, str)])
+
+    video_key = evt.get("video_key") or (evt.get("videoResult") or {}).get("video_key")
+    if isinstance(video_key, str) and video_key:
+        keys.append(video_key)
+
+    cr = evt.get("carouselResult") or {}
+    if isinstance(cr.get("imageKeys"), list):
+        keys.extend([k for k in cr["imageKeys"] if isinstance(k, str)])
+
+    seen = set()
+    out = []
+    for k in keys:
+        if k not in seen:
+            out.append(k)
+            seen.add(k)
+    return out
 
 
 def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
@@ -84,48 +97,33 @@ def lambda_handler(event: Dict[str, Any], _ctx: Any) -> Dict[str, Any]:
 
     webhook_url = teams_map[account]["manual"]
 
-    keys = event.get("imageKeys") or []
-    video_key = (
-        event.get("video_key")
-        or (event.get("videoResult") or {}).get("video_key")
-    )
-    if video_key:
-        keys = [video_key]
-
+    keys = flatten_keys(event)
     if not keys:
-        logger.error("No imageKeys or video_key provided")
+        logger.error("No media keys provided")
         return {"error": "no images or video"}
 
-    urls = []
+    urls: List[str] = []
     for k in keys:
         try:
             urls.append(presign(k))
         except ClientError as exc:
             logger.warning("Presign failed for %s: %s", k, exc)
 
-    if video_key:
+    if len(urls) == 1 and keys[0].lower().endswith(".mp4"):
         card = build_video_card(urls[0], account)
-        logger.info("Posting video card for %s", account)
-        resp = requests.post(webhook_url,
-                             headers={"Content-Type": "application/json"},
-                             data=json.dumps(card),
-                             timeout=20)
+        resp = requests.post(webhook_url, headers={"Content-Type": "application/json"}, data=json.dumps(card), timeout=20)
         resp.raise_for_status()
+        logger.info("Posted 1 video card to Teams for %s", account)
+        return {"status": "posted", "itemCount": 1}
 
-    else:
-        MAX_PER_CARD = 6
-        for idx in range(0, len(urls), MAX_PER_CARD):
-            batch = urls[idx : idx + MAX_PER_CARD]
-            card = build_image_card(batch, account)
-            logger.info(
-                "Posting image card %d–%d for %s",
-                idx + 1, min(idx + MAX_PER_CARD, len(urls)), account
-            )
-            resp = requests.post(webhook_url,
-                                 headers={"Content-Type": "application/json"},
-                                 data=json.dumps(card),
-                                 timeout=20)
-            resp.raise_for_status()
+    MAX_PER_CARD = 6
+    total = 0
+    for idx in range(0, len(urls), MAX_PER_CARD):
+        batch = urls[idx : idx + MAX_PER_CARD]
+        card = build_image_card(batch, account)
+        resp = requests.post(webhook_url, headers={"Content-Type": "application/json"}, data=json.dumps(card), timeout=20)
+        resp.raise_for_status()
+        total += len(batch)
 
-    logger.info("Posted %d item(s) to Teams for %s", len(urls), account)
-    return {"status": "posted", "itemCount": len(urls)}
+    logger.info("Posted %d item(s) to Teams for %s", total, account)
+    return {"status": "posted", "itemCount": total}

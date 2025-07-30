@@ -106,6 +106,16 @@ resource "aws_iam_role_policy_attachment" "ecs_exec_cloudwatch" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
 }
 
+resource "aws_cloudwatch_log_group" "render_carousel" {
+  name              = "/ecs/render_carousel"
+  retention_in_days = 14
+}
+
+resource "aws_cloudwatch_log_group" "manual_carousel_step_function_log_group" {
+  name              = "/aws/states/manual_carousel_workflow"
+  retention_in_days = 14
+}
+
 #############################
 # Lambda Error Alarms
 #############################

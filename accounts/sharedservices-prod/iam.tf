@@ -264,6 +264,25 @@ resource "aws_iam_role_policy" "lambda_news_put" {
   policy = data.aws_iam_policy_document.ddb_put.json
 }
 
+resource "aws_iam_role_policy" "create_feed_post_start_carousel" {
+  name = "create-feed-post-start-carousel"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid:    "AllowStartCarouselSFN",
+        Effect: "Allow",
+        Action: [
+          "states:StartExecution"
+        ],
+        Resource: aws_sfn_state_machine.manual_carousel_workflow.arn
+      }
+    ]
+  })
+}
+
 
 #############################
 # IAM Policy for S3
@@ -563,6 +582,86 @@ resource "aws_iam_role_policy" "step_functions_eventbridge" {
   })
 }
 
+resource "aws_iam_role_policy" "stepfunctions_run_render_carousel" {
+  name = "stepfunctions-run-render-carousel"
+  role = aws_iam_role.step_functions_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "EcsRunAndDescribe"
+        Effect   = "Allow"
+        Action   = [
+          "ecs:RunTask",
+          "ecs:DescribeTasks",
+          "ecs:DescribeTaskDefinition",
+          "ecs:StopTask"
+        ]
+        Resource = [
+          aws_ecs_task_definition.render_carousel.arn,
+          aws_ecs_cluster.render_cluster.arn,
+          "arn:aws:ecs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:task/*"
+        ]
+      },
+      {
+        Sid    = "PassRolesToECSTasks"
+        Effect = "Allow"
+        Action = "iam:PassRole"
+        Resource = [
+          aws_iam_role.ecs_task_execution_role.arn,
+          aws_iam_role.ecs_task_role.arn
+        ]
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "ecs-tasks.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "sfn_runs_ecs" {
+  name = "sfn-run-ecs"
+  role = aws_iam_role.step_functions_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = ["ecs:RunTask"],
+        Resource = aws_ecs_task_definition.render_carousel.arn
+      },
+      {
+        Effect   = "Allow",
+        Action   = ["ecs:DescribeTasks", "ecs:StopTask"],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = ["events:PutTargets", "events:PutRule", "events:DescribeRule", "events:RemoveTargets", "events:DeleteRule"],
+        Resource = "arn:aws:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:rule/StepFunctionsGetEventsForECSTaskRule*"
+      },
+      {
+        Effect = "Allow",
+        Action = "iam:PassRole",
+        Resource = [
+          aws_iam_role.ecs_task_execution_role.arn,
+          aws_iam_role.ecs_task_role.arn
+        ],
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "ecs-tasks.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
+
 #############################
 # IAM Policy for SQS
 #############################
@@ -825,6 +924,52 @@ resource "aws_iam_role_policy" "ecs_invoke_notify_post" {
     ]
   })
 }
+
+resource "aws_iam_role_policy" "ecs_task_sendtask_carousel" {
+  name = "ecs-task-sendtask-carousel"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "AllowStepFunctionsCallbacks",
+        Effect = "Allow",
+        Action = ["states:SendTaskSuccess", "states:SendTaskFailure"],
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowS3ReadWriteCarousel",
+        Effect = "Allow",
+        Action = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+        Resource = [
+          "arn:aws:s3:::prod-sharedservices-artifacts-bucket",
+          "arn:aws:s3:::prod-sharedservices-artifacts-bucket/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "ecs_task_sfn_callbacks" {
+  name = "ecs-task-sfn-callbacks"
+  role = aws_iam_role.ecs_task_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "states:SendTaskSuccess",
+          "states:SendTaskFailure",
+          "states:SendTaskHeartbeat"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 
 #############################
 # IAM for DynamoDB

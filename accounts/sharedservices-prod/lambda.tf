@@ -252,6 +252,7 @@ resource "aws_lambda_function" "create_feed_post" {
       UPLOAD_BUCKET      = "prod-sharedservices-artifacts-bucket"
       FEEDUTOPIA_API_KEY = aws_api_gateway_api_key.api_key.value
       NEWS_TABLE         = aws_dynamodb_table.weekly_news_posts.name
+      CAROUSEL_STATE_MACHINE_ARN  = aws_sfn_state_machine.manual_carousel_workflow.arn
     }
   }
 
