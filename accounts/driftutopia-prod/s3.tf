@@ -2,7 +2,6 @@
 ## Simple Storage Service (S3)
 ################################################################################
 
-
 resource "aws_s3_bucket" "media_bucket" {
   bucket = var.s3_bucket_name
 }
