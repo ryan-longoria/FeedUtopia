@@ -291,55 +291,63 @@ def compose_photo_slide_first(
     account: str,
     artifact_name: str,
 ) -> Image.Image:
-    canvas = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255))
-    with Image.open(bg_local).convert("RGBA") as im:
-        im = resize_and_crop_to_canvas(im)
-        canvas.paste(im, (0, 0))
-    if os.path.exists(LOCAL_GRADIENT):
-        with Image.open(LOCAL_GRADIENT).convert("RGBA").resize((WIDTH, HEIGHT)) as g:
-            canvas.alpha_composite(g)
+    bg_clip = compose_video_background(bg_local)  # no extra with_duration
 
-    t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, TITLE_MAX, TITLE_MIN, 35), hl_t, 1000)
-    sub_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, DESC_MAX, DESC_MIN, 45), hl_s, 600) if subtitle else None
+    dur = bg_clip.duration  # drive everything from the background
+    clips = [bg_clip]
 
-    if sub_img:
-        y_sub = HEIGHT - 225 - sub_img.height
-        y_title = y_sub - 50 - t_img.height
-    else:
-        y_title = HEIGHT - 150 - t_img.height
+    # static overlays get explicit durations
+    t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000)
+    clips.append(ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 25)))
 
-    canvas.alpha_composite(t_img, ((WIDTH - t_img.width) // 2, y_title))
-    if sub_img:
-        canvas.alpha_composite(sub_img, ((WIDTH - sub_img.width) // 2, y_sub))
+    if subtitle:
+        s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_s, 800)
+        clips.append(
+            ImageClip(np.array(s_img)).with_duration(dur)
+            .with_position(("center", VID_H - 150 - s_img.height))
+        )
 
-    # Artifact (static frame) – top-left
+    # spinner/overlay: make sure it can't be the shortest stream
     key = artifact_key_for(artifact_name)
     if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
         try:
-            clip = VideoFileClip(LOCAL_ARTIFACT, has_mask=True)
-            frame = clip.get_frame(0)
-            clip.close()
-            art = Image.fromarray(frame).convert("RGBA")
-            target_w = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
-            scale = target_w / art.width
-            art = art.resize((target_w, int(art.height * scale)), Image.LANCZOS)
-            canvas.alpha_composite(art, (50, 50))
+            art_raw = VideoFileClip(LOCAL_ARTIFACT, has_mask=True, audio=False)
+            scale_target = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
+            scale_factor = scale_target / art_raw.w
+            art_clip = art_raw.with_effects([vfx.Resize(scale_factor)])\
+                              .loop(duration=dur)  # 👈 important
+            clips.append(art_clip.with_position((50, 50)))
         except Exception as exc:
-            logger.warning("artifact overlay failed: %s", exc)
+            logger.warning("artifact video overlay failed: %s", exc)
 
-    # Logo + stripe
+    # logo + stripe: static overlays with explicit duration
     if ensure_logo(account):
         try:
-            logo = Image.open(LOCAL_LOGO).convert("RGBA")
-            logo = logo.resize((200, int(200 * logo.height / logo.width)), Image.LANCZOS)
-            lx, ly = WIDTH - logo.width - 50, HEIGHT - logo.height - 50
-            stripe = Image.new("RGBA", (700, 4), ImageColor.getrgb(HIGHLIGHT_COLOR) + (255,))
-            canvas.alpha_composite(stripe, (lx - 720, ly + logo.height // 2 - 2))
-            canvas.alpha_composite(logo, (lx, ly))
-        except Exception as exc:
-            logger.warning("logo overlay failed: %s", exc)
+            logo_img = Image.open(LOCAL_LOGO)
+            scale_logo = 200 / logo_img.width
+            logo_clip = ImageClip(np.array(logo_img)).with_effects([vfx.Resize(scale_logo)]).with_duration(dur)
 
-    return canvas
+            line_w, line_h = 700, 4
+            line_color = ImageColor.getrgb(HIGHLIGHT_COLOR)
+            line_clip = ColorClip((line_w, line_h), color=line_color).with_duration(dur)
+
+            total_w = line_w + 20 + logo_clip.w
+            total_h = max(line_h, logo_clip.h)
+
+            logo_block = CompositeVideoClip(
+                [
+                    line_clip.with_position((0, (total_h - line_h) // 2)),
+                    logo_clip.with_position((line_w + 20, (total_h - logo_clip.h) // 2)),
+                ],
+                size=(total_w, total_h),
+            ).with_duration(dur).with_position((VID_W - total_w - 50, VID_H - total_h - 100))
+
+            clips.append(logo_block)
+        except Exception as exc:
+            logger.warning("logo video overlay failed: %s", exc)
+
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H))  # <- no with_duration
+    return final, dur
 
 
 def compose_photo_slide_with_text(
@@ -397,26 +405,28 @@ def compose_photo_slide_plain(bg_local: str) -> Image.Image:
 
 
 def compose_video_background(local_mp4: str) -> CompositeVideoClip:
+    # keep audio; don't set duration here
     raw_bg = VideoFileClip(local_mp4)
+
+    # scale to width; keep aspect
     scale = VID_W / raw_bg.w
     new_h = int(raw_bg.h * scale)
+    scaled = raw_bg.with_effects([vfx.Resize((VID_W, new_h))])
 
-    scaled = raw_bg.with_effects([vfx.Resize((VID_W, new_h))]).with_duration(raw_bg.duration)
-
+    # pad vertically (centered, +40 shift if desired)
     y_offset = (0 if new_h > VID_H else (VID_H - new_h) // 2) + 40
-
     base = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(raw_bg.duration)
 
     bg = CompositeVideoClip(
         [base, scaled.with_position((0, y_offset))],
         size=(VID_W, VID_H)
-    ).with_duration(raw_bg.duration)
+    )
 
+    # carry over the background audio verbatim
     if raw_bg.audio is not None:
         bg = bg.with_audio(raw_bg.audio)
 
-    return bg
-
+    return bg  # <- no with_duration here
 
 def compose_video_slide_first(
     bg_local: str,
