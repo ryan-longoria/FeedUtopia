@@ -224,6 +224,15 @@ def first_nonempty(*vals: Optional[str]) -> str:
     return ""
 
 
+def _pick_presence_aware(slide: Dict[str, Any], keys: List[str]) -> Optional[str]:
+    """Return the first present key's value (even if empty string). 
+    Return None only if none of the keys are present."""
+    for k in keys:
+        if k in slide:
+            return slide.get(k) or ""
+    return None
+
+
 def slide_texts_and_highlights(
     slide: Dict[str, Any],
     global_title: str,
@@ -231,39 +240,30 @@ def slide_texts_and_highlights(
     global_hl_t: Set[str],
     global_hl_s: Set[str],
 ) -> Tuple[str, str, Set[str], Set[str]]:
-    # title / subtitle (support several aliases)
-    t_raw = first_nonempty(
-        slide.get("title"),
-        slide.get("slideTitle"),
-        slide.get("titleText"),
-        global_title,
-    )
-    s_raw = first_nonempty(
-        slide.get("subtitle"),
-        slide.get("description"),
-        slide.get("slideSubtitle"),
-        global_subtitle,
-    )
+    # Title (presence-aware; if no title keys present, fall back to global)
+    t_local = _pick_presence_aware(slide, ["title", "slideTitle", "titleText"])
+    t_raw = t_local if t_local is not None else (global_title or "")
 
-    # highlights (support several aliases)
-    ht_raw = first_nonempty(
-        slide.get("highlightWordsTitle"),
-        slide.get("hlTitle"),
-        slide.get("titleHighlights"),
-    )
-    hs_raw = first_nonempty(
-        slide.get("highlightWordsDescription"),
-        slide.get("highlightWordsSubtitle"),
-        slide.get("hlSubtitle"),
-        slide.get("subtitleHighlights"),
-    )
+    # Subtitle (presence-aware to allow intentional blank)
+    s_local = _pick_presence_aware(slide, ["subtitle", "description", "slideSubtitle"])
+    s_raw = s_local if s_local is not None else (global_subtitle or "")
 
-    # uppercase text; highlights already uppercased by parse_highlights
+    # Highlights (presence-aware so slides can clear them)
+    ht_local = _pick_presence_aware(slide, ["highlightWordsTitle", "hlTitle", "titleHighlights"])
+    hs_local = _pick_presence_aware(
+        slide, ["highlightWordsDescription", "highlightWordsSubtitle", "hlSubtitle", "subtitleHighlights"]
+    )
+    ht_raw = ht_local if ht_local is not None else None
+    hs_raw = hs_local if hs_local is not None else None
+
     title = (t_raw or "").upper()
     subtitle = (s_raw or "").upper()
-    hl_t = parse_highlights(ht_raw) or set(global_hl_t)
-    hl_s = parse_highlights(hs_raw) or set(global_hl_s)
+
+    hl_t = parse_highlights(ht_raw) if ht_raw is not None else set(global_hl_t)
+    hl_s = parse_highlights(hs_raw) if hs_raw is not None else set(global_hl_s)
+
     return title, subtitle, hl_t, hl_s
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────
