@@ -480,7 +480,7 @@ def compose_video_slide_first(
         except Exception as exc:
             logger.warning("logo video overlay failed: %s", exc)
 
-    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).set_duration(dur)
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
     return final, dur
 
 
@@ -503,7 +503,7 @@ def compose_video_slide_with_text(bg_local, title, subtitle, hl_t, hl_s):
         s_clip = ImageClip(np.array(s_img)).with_duration(dur).with_position(("center", VID_H - 100 - s_img.height))
         clips.append(s_clip)
 
-    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).set_duration(dur)
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
     return final, dur
 
 def compose_video_slide_plain(bg_local: str) -> Tuple[CompositeVideoClip, float]:
@@ -512,7 +512,7 @@ def compose_video_slide_plain(bg_local: str) -> Tuple[CompositeVideoClip, float]
     raw.close()
 
     bg_clip = compose_video_background(bg_local)
-    final = CompositeVideoClip([bg_clip], size=(VID_W, VID_H)).set_duration(dur)
+    final = CompositeVideoClip([bg_clip], size=(VID_W, VID_H)).with_duration(dur)
     return final, dur
 
 
