@@ -396,16 +396,17 @@ def compose_photo_slide_plain(bg_local: str) -> Image.Image:
     return canvas
 
 
-def compose_video_background(local_mp4: str, dur: float) -> CompositeVideoClip:
+def compose_video_background(local_mp4: str) -> CompositeVideoClip:
     raw_bg = VideoFileClip(local_mp4, audio=False)
     scale = VID_W / raw_bg.w
     new_h = int(raw_bg.h * scale)
-    scaled = raw_bg.with_effects([vfx.Resize((VID_W, new_h))]).with_duration(dur)
+
+    # keep the source duration; do NOT extend
+    scaled = raw_bg.with_effects([vfx.Resize((VID_W, new_h))])
 
     y_offset = (0 if new_h > VID_H else (VID_H - new_h) // 2) + 40
-    base = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(dur)
-    composite: List = [base, scaled.with_position((0, y_offset))]
-    return CompositeVideoClip(composite, size=(VID_W, VID_H)).with_duration(dur)
+    base = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(scaled.duration)
+    return CompositeVideoClip([base, scaled.with_position((0, y_offset))], size=(VID_W, VID_H))
 
 
 def compose_video_slide_first(
@@ -418,16 +419,15 @@ def compose_video_slide_first(
     account: str,
 ) -> Tuple[CompositeVideoClip, float]:
     raw = VideoFileClip(bg_local, audio=False)
-    dur = min(raw.duration, DEFAULT_DUR)
+    dur = raw.duration  # use full source duration
     raw.close()
 
-    bg_clip = compose_video_background(bg_local, dur)
+    bg_clip = compose_video_background(bg_local)  # ← no dur argument
 
-    clips: List = [bg_clip]
+    clips = [bg_clip]
 
     t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000)
-    t_clip = ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 25))
-    clips.append(t_clip)
+    clips.append(ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 25)))
 
     if subtitle:
         s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_s, 800)
@@ -447,6 +447,7 @@ def compose_video_slide_first(
             scale_factor = scale_target / art_raw.w
             art_clip = art_raw.with_effects([vfx.Resize(scale_factor)]).with_duration(dur)
             clips.append(art_clip.with_position((50, 50)))
+            art_raw.close()
         except Exception as exc:
             logger.warning("artifact video overlay failed: %s", exc)
 
@@ -479,53 +480,39 @@ def compose_video_slide_first(
         except Exception as exc:
             logger.warning("logo video overlay failed: %s", exc)
 
-    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).set_duration(dur)
     return final, dur
 
 
-def compose_video_slide_with_text(
-    bg_local: str,
-    title: str,
-    subtitle: str,
-    hl_t: Set[str],
-    hl_s: Set[str],
-) -> Tuple[CompositeVideoClip, float]:
-    """
-    Non-first VIDEO slide with text, lowered positions (no logo):
-      - title y = 100
-      - subtitle y = VID_H - 100 - subtitle_height
-    No gradient, no logo, no artifact.
-    """
+def compose_video_slide_with_text(bg_local, title, subtitle, hl_t, hl_s):
     raw = VideoFileClip(bg_local, audio=False)
-    dur = min(raw.duration, DEFAULT_DUR)
+    dur = raw.duration
     raw.close()
 
-    bg_clip = compose_video_background(bg_local, dur)
-    clips: List = [bg_clip]
+    bg_clip = compose_video_background(bg_local)
+    clips = [bg_clip]
 
     t = (title or "").upper()
     s = (subtitle or "").upper()
     if t:
-        t_img = Pillow_text_img(t, FONT_TITLE, autosize(t, 100, 75, 25), hl_t, 1000)
-        clips.append(ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 100)))
+        t_img  = Pillow_text_img(t, FONT_TITLE, autosize(t, 100, 75, 25), hl_t, 1000)
+        t_clip = ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 100))
+        clips.append(t_clip)
     if s:
-        s_img = Pillow_text_img(s, FONT_DESC, autosize(s, 70, 30, 45), hl_s, 800)
-        clips.append(
-            ImageClip(np.array(s_img))
-            .with_duration(dur)
-            .with_position(("center", VID_H - 100 - s_img.height))
-        )
+        s_img  = Pillow_text_img(s, FONT_DESC, autosize(s, 70, 30, 45), hl_s, 800)
+        s_clip = ImageClip(np.array(s_img)).with_duration(dur).with_position(("center", VID_H - 100 - s_img.height))
+        clips.append(s_clip)
 
-    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).set_duration(dur)
     return final, dur
-
 
 def compose_video_slide_plain(bg_local: str) -> Tuple[CompositeVideoClip, float]:
     raw = VideoFileClip(bg_local, audio=False)
-    dur = min(raw.duration, DEFAULT_DUR)
+    dur = raw.duration
     raw.close()
-    bg_clip = compose_video_background(bg_local, dur)
-    final = CompositeVideoClip([bg_clip], size=(VID_W, VID_H)).with_duration(dur)
+
+    bg_clip = compose_video_background(bg_local)
+    final = CompositeVideoClip([bg_clip], size=(VID_W, VID_H)).set_duration(dur)
     return final, dur
 
 
