@@ -212,7 +212,7 @@ def send_task_failure(msg: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Selection helpers for per‑slide fields
+# Selection helpers for per-slide fields
 # ──────────────────────────────────────────────────────────────────────────────
 def first_nonempty(*vals: Optional[str]) -> str:
     for v in vals:
@@ -225,7 +225,7 @@ def first_nonempty(*vals: Optional[str]) -> str:
 
 
 def _pick_presence_aware(slide: Dict[str, Any], keys: List[str]) -> Optional[str]:
-    """Return the first present key's value (even if empty string). 
+    """Return the first present key's value (even if empty string).
     Return None only if none of the keys are present."""
     for k in keys:
         if k in slide:
@@ -265,7 +265,6 @@ def slide_texts_and_highlights(
     return title, subtitle, hl_t, hl_s
 
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Rendering primitives
 # ──────────────────────────────────────────────────────────────────────────────
@@ -298,13 +297,13 @@ def compose_photo_slide_first(
 
     # static overlays get explicit durations
     t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000)
-    clips.append(ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 25)))
+    clips.append(ImageClip(np.array(t_img)).set_duration(dur).set_position(("center", 25)))
 
     if subtitle:
         s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_s, 800)
         clips.append(
-            ImageClip(np.array(s_img)).with_duration(dur)
-            .with_position(("center", VID_H - 150 - s_img.height))
+            ImageClip(np.array(s_img)).set_duration(dur)
+            .set_position(("center", VID_H - 150 - s_img.height))
         )
 
     # spinner/overlay: make sure it can't be the shortest stream
@@ -314,9 +313,9 @@ def compose_photo_slide_first(
             art_raw = VideoFileClip(LOCAL_ARTIFACT, has_mask=True, audio=False)
             scale_target = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
             scale_factor = scale_target / art_raw.w
-            art_clip = art_raw.with_effects([vfx.Resize(scale_factor)])\
-                              .loop(duration=dur)  # 👈 important
-            clips.append(art_clip.with_position((50, 50)))
+            art_clip = (art_raw.with_effects([vfx.Resize(scale_factor)])
+                                .loop(duration=dur))
+            clips.append(art_clip.set_position((50, 50)))
         except Exception as exc:
             logger.warning("artifact video overlay failed: %s", exc)
 
@@ -325,22 +324,22 @@ def compose_photo_slide_first(
         try:
             logo_img = Image.open(LOCAL_LOGO)
             scale_logo = 200 / logo_img.width
-            logo_clip = ImageClip(np.array(logo_img)).with_effects([vfx.Resize(scale_logo)]).with_duration(dur)
+            logo_clip = ImageClip(np.array(logo_img)).with_effects([vfx.Resize(scale_logo)]).set_duration(dur)
 
             line_w, line_h = 700, 4
             line_color = ImageColor.getrgb(HIGHLIGHT_COLOR)
-            line_clip = ColorClip((line_w, line_h), color=line_color).with_duration(dur)
+            line_clip = ColorClip((line_w, line_h), color=line_color).set_duration(dur)
 
             total_w = line_w + 20 + logo_clip.w
             total_h = max(line_h, logo_clip.h)
 
             logo_block = CompositeVideoClip(
                 [
-                    line_clip.with_position((0, (total_h - line_h) // 2)),
-                    logo_clip.with_position((line_w + 20, (total_h - logo_clip.h) // 2)),
+                    line_clip.set_position((0, (total_h - line_h) // 2)),
+                    logo_clip.set_position((line_w + 20, (total_h - logo_clip.h) // 2)),
                 ],
                 size=(total_w, total_h),
-            ).with_duration(dur).with_position((VID_W - total_w - 50, VID_H - total_h - 100))
+            ).set_duration(dur).set_position((VID_W - total_w - 50, VID_H - total_h - 100))
 
             clips.append(logo_block)
         except Exception as exc:
@@ -424,9 +423,10 @@ def compose_video_background(local_mp4: str) -> CompositeVideoClip:
 
     # carry over the background audio verbatim
     if raw_bg.audio is not None:
-        bg = bg.with_audio(raw_bg.audio)
+        bg = bg.set_audio(raw_bg.audio)
 
     return bg  # <- no with_duration here
+
 
 def compose_video_slide_first(
     bg_local: str,
@@ -437,35 +437,32 @@ def compose_video_slide_first(
     artifact_name: str,
     account: str,
 ) -> Tuple[CompositeVideoClip, float]:
-    raw = VideoFileClip(bg_local)
-    dur = raw.duration  # use full source duration
-    raw.close()
-
-    bg_clip = compose_video_background(bg_local).with_duration(dur)
+    bg_clip = compose_video_background(bg_local)
+    dur = bg_clip.duration  # drive everything from background
 
     clips = [bg_clip]
 
     t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000)
-    clips.append(ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 25)))
+    clips.append(ImageClip(np.array(t_img)).set_duration(dur).set_position(("center", 25)))
 
     if subtitle:
         s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_s, 800)
         s_clip = (
             ImageClip(np.array(s_img))
-            .with_duration(dur)
-            .with_position(("center", VID_H - 150 - s_img.height))
+            .set_duration(dur)
+            .set_position(("center", VID_H - 150 - s_img.height))
         )
         clips.append(s_clip)
 
-    # Artifact video overlay – TOP-LEFT
+    # Artifact video overlay – TOP-LEFT (loop to match duration)
     key = artifact_key_for(artifact_name)
     if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
         try:
-            art_raw = VideoFileClip(LOCAL_ARTIFACT, has_mask=True)
+            art_raw = VideoFileClip(LOCAL_ARTIFACT, has_mask=True, audio=False)
             scale_target = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
             scale_factor = scale_target / art_raw.w
-            art_clip = art_raw.with_effects([vfx.Resize(scale_factor)]).with_duration(dur)
-            clips.append(art_clip.with_position((50, 50)))
+            art_clip = art_raw.with_effects([vfx.Resize(scale_factor)]).loop(duration=dur)
+            clips.append(art_clip.set_position((50, 50)))
         except Exception as exc:
             logger.warning("artifact video overlay failed: %s", exc)
 
@@ -473,12 +470,12 @@ def compose_video_slide_first(
         try:
             logo_img = Image.open(LOCAL_LOGO)
             scale_logo = 200 / logo_img.width
-            logo_clip = ImageClip(np.array(logo_img)).with_effects([vfx.Resize(scale_logo)]).with_duration(dur)
+            logo_clip = ImageClip(np.array(logo_img)).with_effects([vfx.Resize(scale_logo)]).set_duration(dur)
 
             line_w = 700
             line_h = 4
             line_color = ImageColor.getrgb(HIGHLIGHT_COLOR)
-            line_clip = ColorClip((line_w, line_h), color=line_color).with_duration(dur)
+            line_clip = ColorClip((line_w, line_h), color=line_color).set_duration(dur)
 
             total_w = line_w + 20 + logo_clip.w
             total_h = max(line_h, logo_clip.h)
@@ -486,43 +483,42 @@ def compose_video_slide_first(
             logo_block = (
                 CompositeVideoClip(
                     [
-                        line_clip.with_position((0, (total_h - line_h) // 2)),
-                        logo_clip.with_position((line_w + 20, (total_h - logo_clip.h) // 2)),
+                        line_clip.set_position((0, (total_h - line_h) // 2)),
+                        logo_clip.set_position((line_w + 20, (total_h - logo_clip.h) // 2)),
                     ],
                     size=(total_w, total_h),
                 )
-                .with_duration(dur)
-                .with_position((VID_W - total_w - 50, VID_H - total_h - 100))
+                .set_duration(dur)
+                .set_position((VID_W - total_w - 50, VID_H - total_h - 100))
             )
             clips.append(logo_block)
         except Exception as exc:
             logger.warning("logo video overlay failed: %s", exc)
 
-    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H))
     return final, dur
 
 
 def compose_video_slide_with_text(bg_local, title, subtitle, hl_t, hl_s):
-    raw = VideoFileClip(bg_local, audio=False)
-    dur = raw.duration
-    raw.close()
+    bg_clip = compose_video_background(bg_local)
+    dur = bg_clip.duration
 
-    bg_clip = compose_video_background(bg_local).with_duration(dur)
     clips = [bg_clip]
 
     t = (title or "").upper()
     s = (subtitle or "").upper()
     if t:
-        t_img  = Pillow_text_img(t, FONT_TITLE, autosize(t, 100, 75, 25), hl_t, 1000)
-        t_clip = ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 100))
+        t_img = Pillow_text_img(t, FONT_TITLE, autosize(t, 100, 75, 25), hl_t, 1000)
+        t_clip = ImageClip(np.array(t_img)).set_duration(dur).set_position(("center", 100))
         clips.append(t_clip)
     if s:
-        s_img  = Pillow_text_img(s, FONT_DESC, autosize(s, 70, 30, 45), hl_s, 800)
-        s_clip = ImageClip(np.array(s_img)).with_duration(dur).with_position(("center", VID_H - 100 - s_img.height))
+        s_img = Pillow_text_img(s, FONT_DESC, autosize(s, 70, 30, 45), hl_s, 800)
+        s_clip = ImageClip(np.array(s_img)).set_duration(dur).set_position(("center", VID_H - 100 - s_img.height))
         clips.append(s_clip)
 
-    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H))
     return final, dur
+
 
 def compose_video_slide_plain(bg_local: str) -> Tuple[CompositeVideoClip, float]:
     raw = VideoFileClip(bg_local, audio=False)
@@ -530,7 +526,7 @@ def compose_video_slide_plain(bg_local: str) -> Tuple[CompositeVideoClip, float]
     raw.close()
 
     bg_clip = compose_video_background(bg_local)
-    final = CompositeVideoClip([bg_clip], size=(VID_W, VID_H)).with_duration(dur)
+    final = CompositeVideoClip([bg_clip], size=(VID_W, VID_H))
     return final, dur
 
 
@@ -549,13 +545,13 @@ def compose_still_video_slide_first(
         bg_arr = np.array(im)
 
     base = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(dur)
-    bg_clip = ImageClip(bg_arr).with_duration(dur).with_position((0, 0))
+    bg_clip = ImageClip(bg_arr).set_duration(dur).set_position((0, 0))
     clips: List = [base, bg_clip]
 
     if os.path.exists(LOCAL_GRADIENT):
         try:
             g_img = Image.open(LOCAL_GRADIENT).convert("RGBA").resize((VID_W, VID_H))
-            g_clip = ImageClip(np.array(g_img)).with_duration(dur).with_position((0, 0))
+            g_clip = ImageClip(np.array(g_img)).set_duration(dur).set_position((0, 0))
             clips.append(g_clip)
         except Exception as exc:
             logger.warning("gradient overlay failed: %s", exc)
@@ -569,12 +565,12 @@ def compose_still_video_slide_first(
         s_w, s_h = s_img.width, s_img.height
         y_sub = HEIGHT - 225 - s_h
         y_title = y_sub - 50 - t_h
-        s_clip = ImageClip(np.array(s_img)).with_duration(dur).with_position(((VID_W - s_w)//2, y_sub))
+        s_clip = ImageClip(np.array(s_img)).set_duration(dur).set_position(((VID_W - s_w)//2, y_sub))
         clips.append(s_clip)
     else:
         y_title = HEIGHT - 150 - t_h
 
-    t_clip = ImageClip(np.array(t_img)).with_duration(dur).with_position(((VID_W - t_w)//2, y_title))
+    t_clip = ImageClip(np.array(t_img)).set_duration(dur).set_position(((VID_W - t_w)//2, y_title))
     clips.append(t_clip)
 
     # Spinner artifact – TOP-LEFT
@@ -584,8 +580,8 @@ def compose_still_video_slide_first(
             art_raw = VideoFileClip(LOCAL_ARTIFACT, has_mask=True)
             scale_target = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
             scale_factor = scale_target / art_raw.w
-            art_clip = art_raw.with_effects([vfx.Resize(scale_factor)]).with_duration(dur)
-            clips.append(art_clip.with_position((50, 50)))
+            art_clip = art_raw.with_effects([vfx.Resize(scale_factor)]).set_duration(dur)
+            clips.append(art_clip.set_position((50, 50)))
         except Exception as exc:
             logger.warning("artifact video overlay (still) failed: %s", exc)
 
@@ -593,12 +589,12 @@ def compose_still_video_slide_first(
         try:
             logo_img = Image.open(LOCAL_LOGO)
             scale_logo = 200 / logo_img.width
-            logo_clip = ImageClip(np.array(logo_img)).with_effects([vfx.Resize(scale_logo)]).with_duration(dur)
+            logo_clip = ImageClip(np.array(logo_img)).with_effects([vfx.Resize(scale_logo)]).set_duration(dur)
 
             line_w = 700
             line_h = 4
             line_color = ImageColor.getrgb(HIGHLIGHT_COLOR)
-            line_clip = ColorClip((line_w, line_h), color=line_color).with_duration(dur)
+            line_clip = ColorClip((line_w, line_h), color=line_color).set_duration(dur)
 
             total_w = line_w + 20 + logo_clip.w
             total_h = max(line_h, logo_clip.h)
@@ -606,19 +602,19 @@ def compose_still_video_slide_first(
             logo_block = (
                 CompositeVideoClip(
                     [
-                        line_clip.with_position((0, (total_h - line_h) // 2)),
-                        logo_clip.with_position((line_w + 20, (total_h - logo_clip.h) // 2)),
+                        line_clip.set_position((0, (total_h - line_h) // 2)),
+                        logo_clip.set_position((line_w + 20, (total_h - logo_clip.h) // 2)),
                     ],
                     size=(total_w, total_h),
                 )
-                .with_duration(dur)
-                .with_position((VID_W - total_w - 50, VID_H - total_h - 100))
+                .set_duration(dur)
+                .set_position((VID_W - total_w - 50, VID_H - total_h - 100))
             )
             clips.append(logo_block)
         except Exception as exc:
             logger.warning("logo block (still) failed: %s", exc)
 
-    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_duration(dur)
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).set_duration(dur)
     return final, dur
 
 
@@ -690,8 +686,14 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                 fps=FPS,
                 codec="libx264",
                 audio=True,
+                audio_codec="aac",
                 threads=2,
-                ffmpeg_params=["-preset", "ultrafast"],
+                ffmpeg_params=[
+                    "-preset", "ultrafast",
+                    "-vsync", "cfr",
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                ],
             )
             final.close()
 
@@ -727,7 +729,12 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                     codec="libx264",
                     audio=False,
                     threads=2,
-                    ffmpeg_params=["-preset", "ultrafast"],
+                    ffmpeg_params=[
+                        "-preset", "ultrafast",
+                        "-vsync", "cfr",
+                        "-pix_fmt", "yuv420p",
+                        "-movflags", "+faststart",
+                    ],
                 )
                 final.close()
 
