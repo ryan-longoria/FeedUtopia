@@ -453,7 +453,6 @@ def compose_video_slide_first(
             scale_factor = scale_target / art_raw.w
             art_clip = art_raw.with_effects([vfx.Resize(scale_factor)]).with_duration(dur)
             clips.append(art_clip.with_position((50, 50)))
-            art_raw.close()
         except Exception as exc:
             logger.warning("artifact video overlay failed: %s", exc)
 
