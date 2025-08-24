@@ -397,16 +397,22 @@ def compose_photo_slide_plain(bg_local: str) -> Image.Image:
 
 
 def compose_video_background(local_mp4: str) -> CompositeVideoClip:
-    raw_bg = VideoFileClip(local_mp4, audio=False)
+    raw_bg = VideoFileClip(local_mp4)
     scale = VID_W / raw_bg.w
     new_h = int(raw_bg.h * scale)
 
-    # keep the source duration; do NOT extend
-    scaled = raw_bg.with_effects([vfx.Resize((VID_W, new_h))])
+    scaled = raw_bg.with_effects([vfx.Resize((VID_W, new_h))]).with_duration(raw_bg.duration)
 
     y_offset = (0 if new_h > VID_H else (VID_H - new_h) // 2) + 40
-    base = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(scaled.duration)
-    return CompositeVideoClip([base, scaled.with_position((0, y_offset))], size=(VID_W, VID_H))
+
+    base = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(raw_bg.duration)
+
+    bg = CompositeVideoClip(
+        [base, scaled.with_position((0, y_offset))],
+        size=(VID_W, VID_H)
+    ).with_duration(raw_bg.duration)
+
+    return bg
 
 
 def compose_video_slide_first(
@@ -418,11 +424,11 @@ def compose_video_slide_first(
     artifact_name: str,
     account: str,
 ) -> Tuple[CompositeVideoClip, float]:
-    raw = VideoFileClip(bg_local, audio=False)
+    raw = VideoFileClip(bg_local)
     dur = raw.duration  # use full source duration
     raw.close()
 
-    bg_clip = compose_video_background(bg_local)  # ← no dur argument
+    bg_clip = compose_video_background(bg_local).with_duration(dur)
 
     clips = [bg_clip]
 
@@ -489,7 +495,7 @@ def compose_video_slide_with_text(bg_local, title, subtitle, hl_t, hl_s):
     dur = raw.duration
     raw.close()
 
-    bg_clip = compose_video_background(bg_local)
+    bg_clip = compose_video_background(bg_local).with_duration(dur)
     clips = [bg_clip]
 
     t = (title or "").upper()
@@ -671,7 +677,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                 mp4_local,
                 fps=FPS,
                 codec="libx264",
-                audio=False,
+                audio=True,
                 threads=2,
                 ffmpeg_params=["-preset", "ultrafast"],
             )
