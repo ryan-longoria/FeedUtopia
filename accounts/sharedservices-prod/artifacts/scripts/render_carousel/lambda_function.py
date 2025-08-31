@@ -2,6 +2,7 @@ import datetime
 import io
 import json
 import logging
+import warnings
 import os
 import sys
 import tempfile
@@ -664,7 +665,8 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
             slide, global_title, global_subtitle, global_hl_t, global_hl_s
         )
 
-        local_bg = os.path.join(tempfile.gettempdir(), f"slide_{idx}.{'mp4' if bg_type == 'video' else 'img'}")
+        bg_ext = "mp4" if bg_type == "video" else "img"
+        local_bg = os.path.join(tempfile.gettempdir(), f"bg_slide_{idx}.{bg_ext}")
         if not download_s3_file(TARGET_BUCKET, s3_key, local_bg):
             logger.warning("Slide %d download failed; skipping", idx)
             continue
@@ -680,7 +682,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                 final, dur = compose_still_video_slide_first(local_bg, slide_title.upper(), slide_sub.upper(),
                                                              slide_hl_t, slide_hl_s, artifact, account)
 
-            mp4_local = f"/tmp/slide_{idx}.mp4"
+            mp4_local = os.path.join(tempfile.gettempdir(), f"out_slide_{idx}.mp4")
             logger.info("Writing first slide video: %s dur=%.3f", mp4_local, dur)
             final.write_videofile(
                 mp4_local,
@@ -724,7 +726,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                     local_bg, slide_title, slide_sub, slide_hl_t, slide_hl_s
                 )
 
-                mp4_local = f"/tmp/slide_{idx}.mp4"
+                mp4_local = os.path.join(tempfile.gettempdir(), f"out_slide_{idx}.mp4")
                 logger.info("Writing slide %d video (no audio): %s dur=%.3f", idx, mp4_local, dur)
                 final.write_videofile(
                     mp4_local,
