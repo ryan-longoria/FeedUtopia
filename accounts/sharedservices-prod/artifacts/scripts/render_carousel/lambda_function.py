@@ -404,28 +404,26 @@ def compose_photo_slide_plain(bg_local: str) -> Image.Image:
 
 
 def compose_video_background(local_mp4: str) -> CompositeVideoClip:
-    # keep audio; don't set duration here
     raw_bg = VideoFileClip(local_mp4)
+    logger.info("BG clip %s: size=%sx%s fps=%s dur=%.3f audio=%s",
+                local_mp4, raw_bg.w, raw_bg.h,
+                getattr(raw_bg, "fps", None), raw_bg.duration,
+                "yes" if raw_bg.audio else "no")
 
-    # scale to width; keep aspect
     scale = VID_W / raw_bg.w
     new_h = int(raw_bg.h * scale)
     scaled = raw_bg.with_effects([vfx.Resize((VID_W, new_h))])
 
-    # pad vertically (centered, +40 shift if desired)
     y_offset = (0 if new_h > VID_H else (VID_H - new_h) // 2) + 40
     base = ColorClip((VID_W, VID_H), color=(0, 0, 0)).with_duration(raw_bg.duration)
 
-    bg = CompositeVideoClip(
-        [base, scaled.with_position((0, y_offset))],
-        size=(VID_W, VID_H)
-    )
+    bg = CompositeVideoClip([base, scaled.with_position((0, y_offset))],
+                            size=(VID_W, VID_H))
 
-    # carry over the background audio verbatim
     if raw_bg.audio is not None:
         bg = bg.set_audio(raw_bg.audio)
 
-    return bg  # <- no with_duration here
+    return bg
 
 
 def compose_video_slide_first(
@@ -438,27 +436,28 @@ def compose_video_slide_first(
     account: str,
 ) -> Tuple[CompositeVideoClip, float]:
     bg_clip = compose_video_background(bg_local)
-    dur = bg_clip.duration  # drive everything from background
+    dur = bg_clip.duration
+    logger.info("Slide1 base duration = %.3f", dur)
 
     clips = [bg_clip]
 
-    t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000)
-    clips.append(ImageClip(np.array(t_img)).set_duration(dur).set_position(("center", 25)))
+    t_img = Pillow_text_img(...)
+    t_clip = ImageClip(np.array(t_img)).set_duration(dur).set_position(("center", 25))
+    logger.info("Title overlay duration=%.3f natural_h=%s", dur, t_img.height)
+    clips.append(t_clip)
 
     if subtitle:
-        s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_s, 800)
-        s_clip = (
-            ImageClip(np.array(s_img))
-            .set_duration(dur)
-            .set_position(("center", VID_H - 150 - s_img.height))
-        )
+        s_img = Pillow_text_img(...)
+        s_clip = ImageClip(np.array(s_img)).set_duration(dur).set_position(("center", VID_H - 150 - s_img.height))
+        logger.info("Subtitle overlay duration=%.3f natural_h=%s", dur, s_img.height)
         clips.append(s_clip)
 
-    # Artifact video overlay – TOP-LEFT (loop to match duration)
     key = artifact_key_for(artifact_name)
     if key and download_s3_file(TARGET_BUCKET, key, LOCAL_ARTIFACT):
         try:
             art_raw = VideoFileClip(LOCAL_ARTIFACT, has_mask=True, audio=False)
+            logger.info("Artifact clip dur=%.3f fps=%s size=%sx%s",
+                        art_raw.duration, getattr(art_raw, "fps", None), art_raw.w, art_raw.h)
             scale_target = 400 if artifact_name.upper() in {"TRAILER", "THROWBACK"} else 250
             scale_factor = scale_target / art_raw.w
             art_clip = art_raw.with_effects([vfx.Resize(scale_factor)]).loop(duration=dur)
@@ -496,6 +495,7 @@ def compose_video_slide_first(
             logger.warning("logo video overlay failed: %s", exc)
 
     final = CompositeVideoClip(clips, size=(VID_W, VID_H))
+    logger.info("Final slide1 Composite duration=%.3f", final.duration)
     return final, dur
 
 
@@ -681,6 +681,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                                                              slide_hl_t, slide_hl_s, artifact, account)
 
             mp4_local = f"/tmp/slide_{idx}.mp4"
+            logger.info("Writing first slide video: %s dur=%.3f", mp4_local, dur)
             final.write_videofile(
                 mp4_local,
                 fps=FPS,
@@ -695,6 +696,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                     "-movflags", "+faststart",
                 ],
             )
+            logger.info("Write complete for %s", mp4_local)
             final.close()
 
             mp4_key = f"{base_folder}/slide_{idx:02d}.mp4"
@@ -723,6 +725,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                 )
 
                 mp4_local = f"/tmp/slide_{idx}.mp4"
+                logger.info("Writing slide %d video (no audio): %s dur=%.3f", idx, mp4_local, dur)
                 final.write_videofile(
                     mp4_local,
                     fps=FPS,
@@ -736,6 +739,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                         "-movflags", "+faststart",
                     ],
                 )
+                logger.info("Write complete for slide %d", idx)
                 final.close()
 
                 mp4_key = f"{base_folder}/slide_{idx:02d}.mp4"
@@ -792,7 +796,7 @@ if __name__ == "__main__":
         evt = json.loads(raw)
     except json.JSONDecodeError as exc:
         logger.error("Invalid EVENT_JSON: %s", exc)
-        sys.exit(1)
+        sys.exit(1) 
 
     res = lambda_handler(evt, None)
     logger.info("Result: %s", json.dumps(res))
