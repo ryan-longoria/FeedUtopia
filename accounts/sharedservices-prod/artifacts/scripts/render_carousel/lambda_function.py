@@ -346,7 +346,7 @@ def compose_photo_slide_first(
         except Exception as exc:
             logger.warning("logo video overlay failed: %s", exc)
 
-    final = CompositeVideoClip(clips, size=(VID_W, VID_H))  # <- no with_duration
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H))
     return final, dur
 
 
@@ -495,7 +495,7 @@ def compose_video_slide_first(
         except Exception as exc:
             logger.warning("logo video overlay failed: %s", exc)
 
-    final = CompositeVideoClip(clips, size=(VID_W, VID_H))
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_audio(bg_clip.audio)
     logger.info("Final slide1 Composite duration=%.3f", final.duration)
     return final, dur
 
@@ -517,7 +517,7 @@ def compose_video_slide_with_text(bg_local, title, subtitle, hl_t, hl_s):
         s_clip = ImageClip(np.array(s_img)).with_duration(dur).with_position(("center", VID_H - 100 - s_img.height))
         clips.append(s_clip)
 
-    final = CompositeVideoClip(clips, size=(VID_W, VID_H))
+    final = CompositeVideoClip(clips, size=(VID_W, VID_H)).with_audio(bg_clip.audio)
     return final, dur
 
 
@@ -527,7 +527,7 @@ def compose_video_slide_plain(bg_local: str) -> Tuple[CompositeVideoClip, float]
     raw.close()
 
     bg_clip = compose_video_background(bg_local)
-    final = CompositeVideoClip([bg_clip], size=(VID_W, VID_H))
+    final = CompositeVideoClip([bg_clip], size=(VID_W, VID_H)).with_audio(bg_clip.audio)
     return final, dur
 
 
@@ -732,7 +732,7 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
                     mp4_local,
                     fps=FPS,
                     codec="libx264",
-                    audio=False,
+                    audio=True,
                     threads=2,
                     ffmpeg_params=[
                         "-preset", "ultrafast",
