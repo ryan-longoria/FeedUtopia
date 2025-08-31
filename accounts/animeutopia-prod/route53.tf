@@ -7,7 +7,7 @@ data "aws_route53_zone" "accountstore" {
   name         = "animeutopiastore.com"
   private_zone = false
 }
-
+/*
 resource "aws_route53_record" "account_domain_a" {
   provider = aws.dns
   zone_id  = data.aws_route53_zone.accountstore.zone_id
@@ -16,3 +16,4 @@ resource "aws_route53_record" "account_domain_a" {
   ttl      = 300
   records  = [aws_lightsail_static_ip.ecommerce_ip.ip_address]
 }
+*/
