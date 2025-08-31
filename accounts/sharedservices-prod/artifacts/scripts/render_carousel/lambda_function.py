@@ -421,7 +421,7 @@ def compose_video_background(local_mp4: str) -> CompositeVideoClip:
                             size=(VID_W, VID_H))
 
     if raw_bg.audio is not None:
-        bg = bg.set_audio(raw_bg.audio)
+        bg = bg.with_audio(raw_bg.audio)
 
     return bg
 
