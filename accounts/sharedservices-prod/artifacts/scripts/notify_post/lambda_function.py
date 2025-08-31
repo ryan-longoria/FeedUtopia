@@ -17,11 +17,14 @@ s3 = boto3.client("s3")
 
 
 def presign(key: str, exp: int = 7 * 24 * 3600) -> str:
-    return s3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": TARGET_BUCKET, "Key": key},
-        ExpiresIn=exp,
-    )
+    params = {"Bucket": TARGET_BUCKET, "Key": key}
+    basename = os.path.basename(key)
+
+    if key.lower().endswith(".mp4"):
+        params["ResponseContentDisposition"] = f'attachment; filename="{basename}"'
+        params["ResponseContentType"] = "video/mp4"
+
+    return s3.generate_presigned_url("get_object", Params=params, ExpiresIn=exp)
 
 
 def build_image_card(urls: List[str], account: str) -> Dict[str, Any]:
