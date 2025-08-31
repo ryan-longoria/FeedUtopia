@@ -722,17 +722,17 @@ def render_carousel(event: Dict[str, Any]) -> Dict[str, Any]:
 
         else:
             if bg_type == "video":
-                final, dur = compose_video_slide_with_text(
-                    local_bg, slide_title, slide_sub, slide_hl_t, slide_hl_s
-                )
+                final, dur = compose_video_slide_with_text(local_bg, slide_title, slide_sub, slide_hl_t, slide_hl_s)
 
                 mp4_local = os.path.join(tempfile.gettempdir(), f"out_slide_{idx}.mp4")
-                logger.info("Writing slide %d video (no audio): %s dur=%.3f", idx, mp4_local, dur)
+                logger.info("Writing slide %d video: %s dur=%.3f", idx, mp4_local, dur)
+
                 final.write_videofile(
                     mp4_local,
                     fps=FPS,
                     codec="libx264",
                     audio=True,
+                    audio_codec="aac",
                     threads=2,
                     ffmpeg_params=[
                         "-preset", "ultrafast",
