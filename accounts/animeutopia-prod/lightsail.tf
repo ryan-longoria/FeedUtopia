@@ -1,7 +1,7 @@
 ################################################################################
 ## Lightsail
 ################################################################################
-
+/*
 resource "aws_lightsail_instance" "ecommerce" {
   name              = "${var.project_name}-lamp"
   availability_zone = "us-east-2a"
@@ -45,3 +45,4 @@ resource "aws_lightsail_lb_certificate" "prestashop_cert" {
   domain_name               = "animeutopiastore.com"
   subject_alternative_names = ["www.animeutopiastore.com"]
 }
+*/
