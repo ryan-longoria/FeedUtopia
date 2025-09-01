@@ -188,7 +188,12 @@ label{display:block;margin:10px 0 6px;font-weight:600}
   display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0;
 }
 .wu-brand{display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none}
-.wu-brand-name{font-weight:800; letter-spacing:.2px; display:none}
+.wu-brand-name {
+  font-weight: 800;
+  letter-spacing: .2px;
+  display: inline;   /* always visible */
+  color: #fff;       /* or var(--text) if you want to use theme text */
+}
 @media (min-width:640px){ .wu-brand-name{display:inline} }
 
 .wu-actions{display:flex; align-items:center; gap:12px; margin-left:auto}
