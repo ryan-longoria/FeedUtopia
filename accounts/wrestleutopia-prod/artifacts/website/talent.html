@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="theme-color" content="#0b0b12"/>
   <title>WrestleUtopia – Indie Wrestling Talent & Tryouts</title>
   <meta name="description" content="WrestleUtopia is a recruiting portal connecting indie wrestling talent with promotions and schools. Create a profile, find tryouts, and get booked."/>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml"/>
@@ -11,180 +12,141 @@
   <meta property="og:description" content="Profiles • Tryouts • Bookings for indie wrestling"/>
   <meta property="og:image" content="assets/logo.svg"/>
   <link rel="stylesheet" href="styles/styles.css"/>
+
   <script defer src="js/fake_db.js"></script>
   <script defer src="js/main.js"></script>
-
+  <script defer src="js/include.js"></script>
 </head>
 <body>
 
-<nav>
-  <div class="container nav-inner">
-    <a class="brand" href="index.html">
-      <img src="assets/logo.svg" alt="WrestleUtopia logo"/>
-      <span class="name">WrestleUtopia</span>
-    </a>
-    <div class="nav-links">
-      <a href="index.html">Home</a>
-      <a href="talent.html">Talent</a>
-      <a href="promoters.html">Promoters</a>
-      <a href="tryouts.html">Tryouts</a>
-      <a href="terms.html">Terms</a>
-    </div>
-  </div>
-</nav>
+  <div data-include="partials/nav.html"></div>
 
-<main class="section container">
-  <h1>For Talent</h1>
-  <p class="muted">Create your profile and get seen by promoters. Add your reel and styles to help the right people find you.</p>
+  <main class="section container">
+    <h1>For Talent</h1>
+    <p class="muted">Create your profile and get seen by promoters. Add your reel and styles to help the right people find you.</p>
 
-  <section id="search" class="card mt-4">
-    <h2>Search Talent</h2>
-    <form id="talent-search" class="mt-2">
-      <div class="form-row">
-        <div>
-          <label for="q">Search</label>
-          <input class="input" id="q" name="q" placeholder="Name, ring name, style..."/>
-        </div>
-        <div>
-          <label for="style">Style</label>
-          <select class="input" id="style" name="style">
-            <option value="any">Any</option>
-            <option>Technical</option>
-            <option>High-flyer</option>
-            <option>Power</option>
-            <option>Brawler</option>
-            <option>Striker</option>
-            <option>Lucha</option>
-            <option>Strong Style</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row mt-2">
-        <div>
-          <label for="city">City contains</label>
-          <input class="input" id="city" name="city" placeholder="e.g., San Antonio"/>
-        </div>
-        <div>
-          <label for="verified">Verified School</label>
-          <select class="input" id="verified" name="verified">
-            <option value="any">Any</option>
-            <option value="true">Only verified</option>
-          </select>
-        </div>
-      </div>
-    </form>
-    <div id="talent-list" class="grid cols-2 mt-3"></div>
-  </section>
-
-  <section id="join" class="card mt-6">
-    <h2>Create Your Profile</h2>
-    <form id="talent-form" class="mt-2">
-      <div class="form-row">
-        <div>
-          <label for="name">Your Name</label>
-          <input class="input" id="name" name="name" required />
-        </div>
-        <div>
-          <label for="ring">Ring Name</label>
-          <input class="input" id="ring" name="ring" required />
-        </div>
-      </div>
-      <div class="form-row">
-        <div>
-          <label for="city">City, State</label>
-          <input class="input" id="city" name="city" placeholder="San Antonio, TX" required />
-        </div>
-        <div>
-          <label for="travel">Travel Radius (miles)</label>
-          <input class="input" id="travel" name="travel" type="number" value="150" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div>
-          <label for="height_cm">Height (cm)</label>
-          <input class="input" id="height_cm" name="height_cm" type="number" />
-        </div>
-        <div>
-          <label for="weight_kg">Weight (kg)</label>
-          <input class="input" id="weight_kg" name="weight_kg" type="number" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div>
-          <label for="years">Years Experience</label>
-          <input class="input" id="years" name="years" type="number" min="0" />
-        </div>
-        <div>
-          <label for="school">School</label>
-          <input class="input" id="school" name="school" placeholder="e.g., Reality of Wrestling" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div>
-          <label>Styles</label>
+    <section id="search" class="card mt-4">
+      <h2>Search Talent</h2>
+      <form id="talent-search" class="mt-2">
+        <div class="form-row">
           <div>
-            <label><input type="checkbox" name="styles" value="Technical" /> Technical</label>
-            <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="High-flyer" /> High-flyer</label>
-            <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Power" /> Power</label>
+            <label for="q">Search</label>
+            <input class="input" id="q" name="q" placeholder="Name, ring name, style..." autocomplete="off" inputmode="search"/>
+          </div>
+          <div>
+            <label for="style">Style</label>
+            <select class="input" id="style" name="style">
+              <option value="any">Any</option>
+              <option>Technical</option>
+              <option>High-flyer</option>
+              <option>Power</option>
+              <option>Brawler</option>
+              <option>Striker</option>
+              <option>Lucha</option>
+              <option>Strong Style</option>
+            </select>
           </div>
         </div>
-        <div style="margin-top:28px">
-          <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Brawler" /> Brawler</label>
-          <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Striker" /> Striker</label>
-          <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Lucha" /> Lucha</label>
-          <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Strong Style" /> Strong Style</label>
+        <div class="form-row mt-2">
+          <div>
+            <label for="city">City contains</label>
+            <input class="input" id="city" name="city" placeholder="e.g., San Antonio" autocomplete="address-level2"/>
+          </div>
+          <div>
+            <label for="verified">Verified School</label>
+            <select class="input" id="verified" name="verified">
+              <option value="any">Any</option>
+              <option value="true">Only verified</option>
+            </select>
+          </div>
         </div>
-      </div>
-      <div class="form-row">
-        <div>
-          <label for="reel">Highlight Reel URL</label>
-          <input class="input" id="reel" name="reel" type="url" placeholder="https://..." />
+      </form>
+      <div id="talent-list" class="grid cols-2 mt-3"></div>
+    </section>
+
+    <section id="join" class="card mt-6">
+      <h2>Create Your Profile</h2>
+      <form id="talent-form" class="mt-2">
+        <div class="form-row">
+          <div>
+            <label for="name">Your Name</label>
+            <input class="input" id="name" name="name" required autocomplete="name"/>
+          </div>
+          <div>
+            <label for="ring">Ring Name</label>
+            <input class="input" id="ring" name="ring" required autocomplete="nickname"/>
+          </div>
         </div>
         <div class="form-row">
           <div>
-            <label for="rate_min">Min Rate ($)</label>
-            <input class="input" id="rate_min" name="rate_min" type="number" />
+            <label for="city">City, State</label>
+            <input class="input" id="city" name="city" placeholder="San Antonio, TX" required autocomplete="address-level2"/>
           </div>
           <div>
-            <label for="rate_max">Max Rate ($)</label>
-            <input class="input" id="rate_max" name="rate_max" type="number" />
+            <label for="travel">Travel Radius (miles)</label>
+            <input class="input" id="travel" name="travel" type="number" value="150" inputmode="numeric" min="0"/>
           </div>
         </div>
-      </div>
-      <button class="btn mt-4" type="submit">Create Profile</button>
-      <p class="muted mt-2" style="font-size:12px">By creating a profile you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
-    </form>
-  </section>
-</main>
+        <div class="form-row">
+          <div>
+            <label for="height_cm">Height (cm)</label>
+            <input class="input" id="height_cm" name="height_cm" type="number" inputmode="numeric" min="0"/>
+          </div>
+          <div>
+            <label for="weight_kg">Weight (kg)</label>
+            <input class="input" id="weight_kg" name="weight_kg" type="number" inputmode="numeric" min="0"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="years">Years Experience</label>
+            <input class="input" id="years" name="years" type="number" inputmode="numeric" min="0"/>
+          </div>
+          <div>
+            <label for="school">School</label>
+            <input class="input" id="school" name="school" placeholder="e.g., Reality of Wrestling" autocomplete="organization"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label>Styles</label>
+            <div>
+              <label><input type="checkbox" name="styles" value="Technical" /> Technical</label>
+              <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="High-flyer" /> High-flyer</label>
+              <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Power" /> Power</label>
+            </div>
+          </div>
+          <div style="margin-top:28px">
+            <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Brawler" /> Brawler</label>
+            <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Striker" /> Striker</label>
+            <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Lucha" /> Lucha</label>
+            <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Strong Style" /> Strong Style</label>
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="reel">Highlight Reel URL</label>
+            <input class="input" id="reel" name="reel" type="url" placeholder="https://..." inputmode="url" autocomplete="url"/>
+          </div>
+          <div class="form-row">
+            <div>
+              <label for="rate_min">Min Rate ($)</label>
+              <input class="input" id="rate_min" name="rate_min" type="number" inputmode="numeric" min="0"/>
+            </div>
+            <div>
+              <label for="rate_max">Max Rate ($)</label>
+              <input class="input" id="rate_max" name="rate_max" type="number" inputmode="numeric" min="0"/>
+            </div>
+          </div>
+        </div>
+        <button class="btn mt-4" type="submit">Create Profile</button>
+        <p class="muted mt-2" style="font-size:12px">By creating a profile you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
+      </form>
+    </section>
+  </main>
 
-<footer class="footer">
-  <div class="container">
-    <div class="grid cols-4">
-      <div>
-        <img src="assets/logo.svg" alt="logo" style="width:160px;height:auto"/>
-        <p class="muted mt-3">The recruiting portal for indie wrestling talent and promotions.</p>
-      </div>
-      <div>
-        <strong>Product</strong>
-        <div class="mt-2"><a href="talent.html">For Talent</a></div>
-        <div class="mt-2"><a href="promoters.html">For Promoters</a></div>
-        <div class="mt-2"><a href="tryouts.html">Tryouts</a></div>
-      </div>
-      <div>
-        <strong>Company</strong>
-        <div class="mt-2"><a href="terms.html">Terms</a></div>
-        <div class="mt-2"><a href="privacy.html">Privacy</a></div>
-      </div>
-      <div>
-        <strong>Contact</strong>
-        <div class="mt-2 muted">Email: team@wrestleutopia.example</div>
-        <div class="mt-2 muted">© 2025 WrestleUtopia</div>
-      </div>
-    </div>
-  </div>
-</footer>
-<div id="toast" class="toast"></div>
-<script src="js/forms.js" defer></script>
+  <div data-include="partials/footer.html"></div>
 
+  <script defer src="js/forms.js"></script>
 </body>
 </html>
