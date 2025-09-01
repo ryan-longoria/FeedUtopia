@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import re
 from typing import Any, Dict, Optional, Set, Tuple
 
 import boto3
@@ -55,6 +56,22 @@ def download_s3_file(bucket_name: str, key: str, local_path: str) -> bool:
         )
         return False
 
+PUNCT_GLUE = re.compile(
+    r"""
+    \s+(?=                # one or more spaces followed by …
+        [!?,;:\.…%]       # common trailing punctuation (incl. ellipsis char)
+      | \)\]|\}           # or a closing bracket/brace/paren
+      | ["”'»]            # or a closing quote
+    )
+    """,
+    re.VERBOSE
+)
+
+ELLIPSIS_GLUE = re.compile(r"\s+(\.\.\.)")
+def normalize_punctuation(text: str) -> str:
+    text = PUNCT_GLUE.sub("", text)
+    text = ELLIPSIS_GLUE.sub(r"\1", text)
+    return text
 
 def download_http_file(url: str, local_path: str, timeout: int = 10) -> bool:
     """
@@ -111,6 +128,7 @@ def pillow_text_img(
     """
     Render multiline text with per‑word highlights into a transparent RGBA image.
     """
+    text = normalize_punctuation(text)
     font = ImageFont.truetype(font_path, font_size)
     words = text.split()
     lines, cur, cur_w = [], [], 0

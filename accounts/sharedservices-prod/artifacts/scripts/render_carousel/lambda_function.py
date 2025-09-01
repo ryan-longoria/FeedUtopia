@@ -2,9 +2,9 @@ import datetime
 import io
 import json
 import logging
-import warnings
 import os
 import sys
+import re
 import tempfile
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -44,6 +44,17 @@ BASE_COLOR = "white"
 
 GRADIENT_KEY = "artifacts/Black Gradient.png"
 LOGO_KEY_GLOBAL = "artifacts/Logo.png"
+
+PUNCT_GLUE = re.compile(
+    r"""
+    \s+(?=                # one or more spaces followed by …
+        [!?,;:\.…%°‰]     # common trailing punctuation (incl. ellipsis/units)
+      | \)\]|\}           # closing paren/bracket/brace
+      | ["”'»]            # closing quotes
+    )
+    """,
+    re.VERBOSE
+)
 
 # Fonts – packaged next to this script (fallback to system paths if missing)
 ROOT = os.path.dirname(__file__)
@@ -92,6 +103,16 @@ def download_s3_file(bucket: str, key: str, local: str) -> bool:
         return False
 
 
+ELLIPSIS_GLUE = re.compile(r"\s+(\.\.\.)")
+
+def normalize_punctuation(text: str) -> str:
+    text = PUNCT_GLUE.sub("", text)
+    text = ELLIPSIS_GLUE.sub(r"\1", text)
+    return text
+
+PUNCT_TO_STRIP = ',.!?;:"”’»…)]}'
+
+
 def autosize(text: str, max_sz: int, min_sz: int, ideal: int) -> int:
     if not text:
         return min_sz
@@ -111,6 +132,7 @@ def Pillow_text_img(
     space: int = 15,
     line_gap: int = 12,
 ) -> Image.Image:
+    text = normalize_punctuation(text)
     font = ImageFont.truetype(font_path, font_size)
     words = text.split()
     lines: List[List[Tuple[str, Tuple[int, int, int, int]]]] = []
@@ -119,7 +141,7 @@ def Pillow_text_img(
 
     for w in words:
         bb = font.getbbox(w)
-        w_w = bb[2]
+        w_w = bb[2] - bb[0]
         adv = w_w if not cur else w_w + space
         if w_cur + adv <= max_width:
             cur.append((w, bb))
@@ -139,7 +161,7 @@ def Pillow_text_img(
         for w, bb in ln:
             w_w = bb[2] - bb[0]
             w_h = bb[3] - bb[1]
-            colour = HIGHLIGHT_COLOR if w.strip(",.!?;:").upper() in highlights else BASE_COLOR
+            colour = HIGHLIGHT_COLOR if w.strip(PUNCT_TO_STRIP).upper() in highlights else BASE_COLOR
             img = Image.new("RGBA", (w_w, w_h), (0, 0, 0, 0))
             ImageDraw.Draw(img).text((-bb[0], -bb[1]), w, font=font, fill=colour)
             pieces.append((img, x_off))
@@ -442,13 +464,13 @@ def compose_video_slide_first(
 
     clips = [bg_clip]
 
-    t_img = Pillow_text_img(...)
+    t_img = Pillow_text_img(title, FONT_TITLE, autosize(title, 100, 75, 25), hl_t, 1000)
     t_clip = ImageClip(np.array(t_img)).with_duration(dur).with_position(("center", 25))
     logger.info("Title overlay duration=%.3f natural_h=%s", dur, t_img.height)
     clips.append(t_clip)
 
     if subtitle:
-        s_img = Pillow_text_img(...)
+        s_img = Pillow_text_img(subtitle, FONT_DESC, autosize(subtitle, 70, 30, 45), hl_s, 800)
         s_clip = ImageClip(np.array(s_img)).with_duration(dur).with_position(("center", VID_H - 150 - s_img.height))
         logger.info("Subtitle overlay duration=%.3f natural_h=%s", dur, s_img.height)
         clips.append(s_clip)
