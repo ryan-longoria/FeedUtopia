@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>WrestleUtopia – Indie Wrestling Talent & Tryouts</title>
+  <meta name="description" content="WrestleUtopia is a recruiting portal connecting indie wrestling talent with promotions and schools. Create a profile, find tryouts, and get booked."/>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml"/>
+  <link rel="manifest" href="manifest.webmanifest"/>
+  <meta property="og:title" content="WrestleUtopia"/>
+  <meta property="og:description" content="Profiles • Tryouts • Bookings for indie wrestling"/>
+  <meta property="og:image" content="assets/logo.svg"/>
+  <link rel="stylesheet" href="styles/styles.css"/>
+  <script defer src="js/fake_db.js"></script>
+  <script defer src="js/main.js"></script>
+
+</head>
+<body>
+
+<nav>
+  <div class="container nav-inner">
+    <a class="brand" href="index.html">
+      <img src="assets/logo.svg" alt="WrestleUtopia logo"/>
+      <span class="name">WrestleUtopia</span>
+    </a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="talent.html">Talent</a>
+      <a href="promoters.html">Promoters</a>
+      <a href="tryouts.html">Tryouts</a>
+      <a href="terms.html">Terms</a>
+    </div>
+  </div>
+</nav>
+
+<main class="section container">
+  <h1>Tryouts</h1>
+  <p class="muted">Browse upcoming tryouts and apply with your WrestleUtopia profile details.</p>
+  <div id="tryout-list" class="grid cols-3 mt-3"></div>
+
+  <dialog id="apply-modal" class="card" style="max-width:640px">
+    <h2 id="apply-title">Apply</h2>
+    <form id="apply-form" method="dialog" class="mt-2">
+      <input type="hidden" name="tryout_id" />
+      <div class="form-row">
+        <div>
+          <label for="ring">Ring Name</label>
+          <input class="input" id="ring" name="ring" required/>
+        </div>
+        <div>
+          <label for="name">Your Name</label>
+          <input class="input" id="name" name="name" required/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label for="reel">Reel URL</label>
+          <input class="input" id="reel" name="reel" type="url" placeholder="https://..." />
+        </div>
+        <div>
+          <label for="notes">Notes</label>
+          <input class="input" id="notes" name="notes" placeholder="Short intro, availability..."/>
+        </div>
+      </div>
+      <div class="mt-4">
+        <button class="btn" type="submit">Send Application</button>
+        <button class="btn secondary" type="button" onclick="document.querySelector('#apply-modal').close()">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="grid cols-4">
+      <div>
+        <img src="assets/logo.svg" alt="logo" style="width:160px;height:auto"/>
+        <p class="muted mt-3">The recruiting portal for indie wrestling talent and promotions.</p>
+      </div>
+      <div>
+        <strong>Product</strong>
+        <div class="mt-2"><a href="talent.html">For Talent</a></div>
+        <div class="mt-2"><a href="promoters.html">For Promoters</a></div>
+        <div class="mt-2"><a href="tryouts.html">Tryouts</a></div>
+      </div>
+      <div>
+        <strong>Company</strong>
+        <div class="mt-2"><a href="terms.html">Terms</a></div>
+        <div class="mt-2"><a href="privacy.html">Privacy</a></div>
+      </div>
+      <div>
+        <strong>Contact</strong>
+        <div class="mt-2 muted">Email: team@wrestleutopia.example</div>
+        <div class="mt-2 muted">© 2025 WrestleUtopia</div>
+      </div>
+    </div>
+  </div>
+</footer>
+<div id="toast" class="toast"></div>
+<script src="js/forms.js" defer></script>
+
+</body>
+</html>
