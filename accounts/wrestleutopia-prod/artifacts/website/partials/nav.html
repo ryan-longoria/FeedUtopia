@@ -1,18 +1,31 @@
-<nav>
-  <div class="container nav-inner">
-    <a class="brand" href="index.html">
-      <img src="assets/logo.svg" alt="WrestleUtopia logo" width="160" height="40" />
-      <span class="name">WrestleUtopia</span>
-    </a>
+<nav class="wu-nav">
+  <div class="wu-topbar">
+    <div class="container wu-topbar-inner">
+      <a class="wu-brand" href="index.html" aria-label="WrestleUtopia home">
+        <img src="assets/logo.svg" alt="WrestleUtopia logo" width="132" height="32" loading="eager"/>
+        <span class="wu-brand-name">WrestleUtopia</span>
+      </a>
 
-    <button class="btn small" id="nav-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-links">☰</button>
+      <form class="wu-search" role="search">
+        <input class="wu-search-input" type="search" placeholder="Search" aria-label="Search"/>
+      </form>
 
-    <div class="nav-links" id="nav-links">
-      <a href="index.html">Home</a>
-      <a href="talent.html">Talent</a>
-      <a href="promoters.html">Promoters</a>
-      <a href="tryouts.html">Tryouts</a>
-      <a href="terms.html">Terms</a>
+      <div class="wu-actions">
+        <a class="wu-login" href="talent.html#join">Log In</a>
+        <button class="wu-menu-btn" id="nav-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-links">☰</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wu-links-wrap">
+    <div class="container">
+      <div class="wu-links" id="nav-links">
+        <a href="index.html">Home</a>
+        <a href="talent.html">Talent</a>
+        <a href="promoters.html">Promoters</a>
+        <a href="tryouts.html">Tryouts</a>
+        <a href="terms.html">Terms</a>
+      </div>
     </div>
   </div>
 </nav>
