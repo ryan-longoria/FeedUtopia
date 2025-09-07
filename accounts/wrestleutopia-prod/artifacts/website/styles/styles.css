@@ -2,12 +2,12 @@
   color-scheme: dark light; /* better native controls on mobile */
 
   /* Base colors */
-  --bg:       #0b0b12;
-  --panel:    #191422;  /* clearer contrast vs bg */
-  --panel-2:  #0f1424;
+  --bg:       #110b12;
+  --panel:    #221422;  /* clearer contrast vs bg */
+  --panel-2:  #381d3a;
   --text:     #e7e9f3;  /* higher contrast text */
   --muted:    #a18fa5;  /* more legible subtext */
-  --ring:     #252a48;
+  --ring:     #472548;
 
   /* Brand accents */
   --accent1:  #f5b400;  /* amber */
@@ -95,7 +95,7 @@ nav{
 /* Hero */
 .hero {
   position: relative;
-  background: #491d48; /* exact match */
+  background: #200820;
   padding:80px 0 60px;
   border-bottom:1px solid var(--border);
 }
@@ -166,7 +166,7 @@ label{display:block;margin:10px 0 6px;font-weight:600}
 }
 @media (max-width:640px){
   :root{
-    --panel:#0f1424;
+    --panel:#191422;
     --muted:#cbd2e6;
   }
   body{ font-size:17px; }
