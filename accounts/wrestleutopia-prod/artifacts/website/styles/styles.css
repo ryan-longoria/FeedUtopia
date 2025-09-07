@@ -246,3 +246,28 @@ label{display:block;margin:10px 0 6px;font-weight:600}
 @media (max-width:640px){
   .wu-links a.active{ background:#1b2142; box-shadow:0 0 0 1px rgba(255,255,255,0.06) inset; }
 }
+
+/* Talent Spotlight: keep "View Profile" anchored */
+#home-talent .card{
+  display:flex;               /* allow equal height + inner flex */
+  height:100%;
+}
+#home-talent .profile{
+  display:flex;
+  align-items:stretch;        /* make the info column fill */
+}
+#home-talent .profile .info{
+  display:flex;
+  flex-direction:column;      /* stack name, meta, badge, button */
+  flex:1;                     /* fill remaining card height */
+}
+#home-talent .profile .info .btn{
+  margin-top:auto;            /* pushes the button to the bottom */
+  width: 100%;
+  text-align: center;
+}
+
+/* (optional) ensure avatars are consistent size */
+#home-talent .profile img{
+  width:88px;height:88px;object-fit:cover;border-radius:10px;
+}
