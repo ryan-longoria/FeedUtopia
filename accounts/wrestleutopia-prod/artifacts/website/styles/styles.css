@@ -207,8 +207,18 @@ label{display:block;margin:10px 0 6px;font-weight:600}
 /* Links row (unchanged, still collapses on mobile) */
 .wu-links-wrap { background: #120b12; }
 .wu-links{display:flex; gap:16px; align-items:center; padding:10px 0; flex-wrap:wrap}
-.wu-links a{color:var(--text); padding:8px 10px; border-radius:10px; text-decoration:none}
-.wu-links a.active, .wu-links a:hover{background:#131a33}
+.wu-links a {
+  color: var(--accent2); /* or just #ec008c */
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+}
+
+.wu-links a.active,
+.wu-links a:hover {
+  background: #131a33;
+  color: var(--accent2); /* keep the same color on hover/active */
+}
 @media (max-width:640px){
   .wu-links{display:none; flex-direction:column; gap:8px; padding:8px 0}
   .wu-links.open{display:flex}
