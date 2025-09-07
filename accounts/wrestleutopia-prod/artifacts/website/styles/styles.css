@@ -26,7 +26,6 @@
   --tap:      48px;     /* min tap target height */
 }
 
-
 #nav-toggle{ display:none; }
 @media (max-width:640px){
   #nav-toggle{ display:inline-block; margin-left:auto; }
@@ -166,7 +165,7 @@ label{display:block;margin:10px 0 6px;font-weight:600}
 }
 @media (max-width:640px){
   :root{
-    --panel:#191422;
+    --panel:#221422;
     --muted:#cbd2e6;
   }
   body{ font-size:17px; }
