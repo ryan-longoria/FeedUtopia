@@ -17,12 +17,4 @@ resource "aws_lambda_function" "add_to_group" {
       PROMOTER_NAME = "Promoters"
     }
   }
-
-  dead_letter_config {
-    target_arn = aws_sqs_queue.lambda_dlq.arn
-  }
-
-  tracing_config {
-    mode = "Active"
-  }
 }
