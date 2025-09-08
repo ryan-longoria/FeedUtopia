@@ -101,12 +101,17 @@ resource "aws_iam_policy" "lambda_logs" {
 
 resource "aws_iam_policy" "lambda_cognito_admin" {
   name        = "${var.project_name}-lambda-cognito-admin"
-  description = "Allow Lambda to add users to Cognito groups"
+  description = "Allow Lambda to manage Cognito user groups and attributes"
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
       Effect = "Allow",
-      Action = ["cognito-idp:AdminAddUserToGroup"],
+      Action = [
+        "cognito-idp:AdminAddUserToGroup",
+        "cognito-idp:AdminRemoveUserFromGroup",
+        "cognito-idp:AdminGetUser",
+        "cognito-idp:AdminUpdateUserAttributes"
+      ],
       Resource = aws_cognito_user_pool.this.arn
     }]
   })
@@ -120,48 +125,6 @@ resource "aws_iam_role_policy_attachment" "logs_attach" {
 resource "aws_iam_role_policy_attachment" "cog_attach" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_cognito_admin.arn
-}
-
-resource "aws_iam_role_policy" "add_to_group_cognito_admin" {
-  name = "cognito-admin-add-to-group"
-  role = aws_iam_role.add_to_group_role.name
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Sid    = "CognitoAdminOps",
-        Effect = "Allow",
-        Action = [
-          "cognito-idp:AdminAddUserToGroup",
-          "cognito-idp:AdminRemoveUserFromGroup",
-          "cognito-idp:AdminGetUser",
-          "cognito-idp:AdminUpdateUserAttributes"
-        ],
-        Resource = "arn:aws:cognito-idp:${var.aws_region}:${data.aws_caller_identity.current.account_id}:userpool/${aws_cognito_user_pool.this.id}"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "add_to_group_logs" {
-  name = "lambda-logs"
-  role = aws_iam_role.add_to_group_role.name
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        Resource = "*"
-      }
-    ]
-  })
 }
 
 resource "aws_lambda_permission" "allow_cognito_invoke" {
