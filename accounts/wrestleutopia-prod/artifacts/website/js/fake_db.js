@@ -1,5 +1,9 @@
-
 // In-memory seed data + localStorage persistence for MVP demo
+if (window.__wu_db_loaded__) {
+  console.debug('fake_db.js already loaded; skipping re-init');
+} else {
+  window.__wu_db_loaded__ = true;
+}
 const SEED_TALENT = [
   { id: 't1', name:'Jade Rivera', ring:'Jade Riot', city:'San Antonio, TX', travel:200, height_cm:168, weight_kg:65, styles:['High-flyer','Striker'], reel:'https://example.com/reel/jade', school:'Reality of Wrestling', years:3, verified_school:true, rate_min:150, rate_max:300, avatar:'https://picsum.photos/seed/jade/200/200' },
   { id: 't2', name:'Marcus Hill', ring:'Iron Hill', city:'Houston, TX', travel:150, height_cm:183, weight_kg:92, styles:['Power','Technical'], reel:'https://example.com/reel/marcus', school:'Nightmare Factory', years:4, verified_school:true, rate_min:200, rate_max:400, avatar:'https://picsum.photos/seed/marcus/200/200' },
