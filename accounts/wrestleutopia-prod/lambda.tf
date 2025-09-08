@@ -13,8 +13,8 @@ resource "aws_lambda_function" "add_to_group" {
 
   environment {
     variables = {
-      DEFAULT_GROUP = aws_cognito_user_group.wrestlers.name
-      PROMOTER_NAME = aws_cognito_user_group.promoters.name
+      DEFAULT_GROUP = "Wrestlers"
+      PROMOTER_NAME = "Promoters"
     }
   }
 
