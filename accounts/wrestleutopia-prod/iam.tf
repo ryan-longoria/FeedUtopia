@@ -69,3 +69,55 @@ resource "aws_iam_role_policy" "crossaccount_s3_read_policy" {
   role   = aws_iam_role.crossaccount_s3_read_role.id
   policy = data.aws_iam_policy_document.crossaccount_s3_read_policy_doc.json
 }
+
+#############################
+## Lambda IAM
+#############################
+
+resource "aws_iam_role" "lambda_role" {
+  name = "${var.project_name}-postconfirm-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_policy" "lambda_logs" {
+  name        = "${var.project_name}-lambda-logs"
+  description = "Allow Lambda to write CloudWatch logs"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_policy" "lambda_cognito_admin" {
+  name        = "${var.project_name}-lambda-cognito-admin"
+  description = "Allow Lambda to add users to Cognito groups"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = ["cognito-idp:AdminAddUserToGroup"],
+      Resource = aws_cognito_user_pool.this.arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "logs_attach" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.lambda_logs.arn
+}
+
+resource "aws_iam_role_policy_attachment" "cog_attach" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.lambda_cognito_admin.arn
+}
