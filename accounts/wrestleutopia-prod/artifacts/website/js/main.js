@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="info">
           <div><strong>${p.ring}</strong> <span class="muted">(${p.name})</span></div>
           <div class="mt-2">${p.city} • ${p.years} yrs • ${p.styles.join(', ')}</div>
-          <div class="mt-2">${p.verified_school?'<span class="badge">Verified school</span>':''}</div>
+          <div class="mt-2"></div>
           <a class="btn small mt-3" href="talent.html#search">View profile</a>
         </div>
       </div>`;
