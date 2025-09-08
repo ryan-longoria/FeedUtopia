@@ -61,3 +61,21 @@ variable "common_tags" {
     Environment = "prod"
   }
 }
+
+variable "cognito_domain_prefix" { 
+  type = string 
+  default = "wrestleutopia-auth" 
+}
+
+variable "callback_urls" { 
+  type = list(string) 
+}
+
+variable "logout_urls" { 
+  type = list(string) 
+}
+
+variable "enable_hosted_ui" { 
+  type = bool 
+  default = true 
+}
