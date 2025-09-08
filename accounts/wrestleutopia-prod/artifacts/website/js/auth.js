@@ -1,12 +1,15 @@
 (function(){
-  const { Amplify, Auth } = window.aws_amplify || {};
+  const amplifyGlobal = window.aws_amplify || {};
+  const Amplify = amplifyGlobal.Amplify;
+  const Auth = amplifyGlobal.Auth;
+
   if (!Amplify || !Auth) {
-    console.error('Amplify/Auth not available. Check the <script> to aws-amplify@5.');
+    console.error('Amplify/Auth not available. Check the loader script and CDN.');
     return;
   }
 
   // ==== CONFIG: paste values from `terraform output` ====
-  const AWS_REGION = 'us-east-1';
+  const AWS_REGION = 'us-east-2';
   const USER_POOL_ID = 'YOUR_USER_POOL_ID';
   const USER_POOL_CLIENT_ID = 'YOUR_USER_POOL_WEB_CLIENT_ID';
   // ======================================================
@@ -15,8 +18,8 @@
     Auth: {
       region: AWS_REGION,
       userPoolId: USER_POOL_ID,
-      userPoolWebClientId: USER_POOL_CLIENT_ID, // v5 name
-      authenticationFlowType: 'USER_SRP_AUTH',   // or 'USER_PASSWORD_AUTH'
+      userPoolWebClientId: USER_POOL_CLIENT_ID, // v5 UMD name
+      authenticationFlowType: 'USER_SRP_AUTH'
     }
   });
 
