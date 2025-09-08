@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   root: '.',                 // project root
   build: {
-    outDir: 'dist', // emit built files where your site can serve them
+    outDir: 'public/dist', // emit built files where your site can serve them
     emptyOutDir: false,      // don't wipe the rest of public/
     rollupOptions: {
       input: {
