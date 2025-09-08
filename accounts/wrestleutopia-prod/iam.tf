@@ -101,12 +101,17 @@ resource "aws_iam_policy" "lambda_logs" {
 
 resource "aws_iam_policy" "lambda_cognito_admin" {
   name        = "${var.project_name}-lambda-cognito-admin"
-  description = "Allow Lambda to add users to Cognito groups"
+  description = "Allow Lambda to manage Cognito user groups and attributes"
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
       Effect = "Allow",
-      Action = ["cognito-idp:AdminAddUserToGroup"],
+      Action = [
+        "cognito-idp:AdminAddUserToGroup",
+        "cognito-idp:AdminRemoveUserFromGroup",
+        "cognito-idp:AdminGetUser",
+        "cognito-idp:AdminUpdateUserAttributes"
+      ],
       Resource = aws_cognito_user_pool.this.arn
     }]
   })
@@ -120,4 +125,12 @@ resource "aws_iam_role_policy_attachment" "logs_attach" {
 resource "aws_iam_role_policy_attachment" "cog_attach" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_cognito_admin.arn
+}
+
+resource "aws_lambda_permission" "allow_cognito_invoke" {
+  statement_id  = "AllowExecutionFromCognito"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.add_to_group.function_name
+  principal     = "cognito-idp.amazonaws.com"
+  source_arn    = aws_cognito_user_pool.this.arn
 }
