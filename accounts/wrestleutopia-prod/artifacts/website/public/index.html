@@ -13,9 +13,9 @@
   <meta property="og:image" content="assets/logo.svg"/>
   <link rel="stylesheet" href="styles/styles.css"/>
 
-  <script defer src="js/fake_db.js"></script>
-  <script defer src="js/main.js"></script>
-  <script defer src="js/include.js"></script>
+  <script defer src="/js/fake_db.js"></script>
+  <script defer src="/js/main.js"></script>
+  <script defer src="/js/include.js"></script>
 </head>
 
 <body>
@@ -70,39 +70,8 @@
 
   <div data-include="partials/footer.html"></div>
 
-  <script defer src="js/forms.js"></script>
-  <script defer src="js/include.js"></script>
-  <script>
-    (function loadAmplifyAndBoot(){
-      var urls = [
-        "https://unpkg.com/aws-amplify@5.3.11/dist/aws-amplify.min.js",
-        "https://cdn.jsdelivr.net/npm/aws-amplify@5.3.11/dist/aws-amplify.min.js"
-      ];
-      function tryNext(i){
-        if(i >= urls.length){
-          console.error("Amplify failed to load from all CDNs");
-          return;
-        }
-        var s = document.createElement("script");
-        s.defer = true;
-        s.src = urls[i];
-        s.onload = function(){ 
-          var a = window.aws_amplify;
-          if (!a || !a.Amplify || !a.Auth) { 
-            s.remove();
-            tryNext(i+1);
-            return;
-          }
-          var ajs = document.createElement("script");
-          ajs.defer = true;
-          ajs.src = "js/auth.js";
-          document.body.appendChild(ajs);
-        };
-        s.onerror = function(){ s.remove(); tryNext(i+1); };
-        document.head.appendChild(s);
-      }
-      tryNext(0);
-    })();
-  </script>
+  <script defer src="/js/forms.js"></script>
+  <script defer src="/js/include.js"></script>
+  <script type="module" src="/src/auth-esm.js"></script>
 </body>
 </html>
