@@ -161,7 +161,7 @@ async function wireAuth() {
     }
   });
 
-  // Log In (v6 nextStep logic)
+  // Log In (v6 nextStep logic) — FORCE EMAIL OTP EVERY TIME
   fLogin?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const d = new FormData(fLogin);
@@ -169,39 +169,67 @@ async function wireAuth() {
     const password = String(d.get('password') || '');
 
     try {
-      const { nextStep } = await signIn({ username: email, password });
+      const { nextStep } = await signIn({
+        username: email,
+        password,
+        options: {
+          // These two lines are the key:
+          authFlowType: 'USER_AUTH',
+          preferredChallenge: 'EMAIL_OTP',
+        },
+      });
 
       switch (nextStep.signInStep) {
-        case 'DONE':
+        case 'DONE': {
+          // If Cognito still let them in without a challenge (e.g., config mismatch),
+          // we just finish normally.
           await updateRoleGatedUI();
           modal.close();
           toast('Logged in!');
           break;
+        }
 
-        case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
         case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
-        case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
+        case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
+        case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE': {
           hide(fLogin); hide(fSignup); show(fConfirm);
           fConfirm.dataset.mfa = 'true';
           toast('Enter the verification code');
           break;
+        }
 
-        case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED':
+        case 'CONTINUE_SIGN_IN_WITH_MFA_SELECTION': {
+          // Pick EMAIL if available, otherwise whatever is offered first
+          const choice = nextStep.allowedMFATypes?.includes('EMAIL')
+            ? 'EMAIL'
+            : nextStep.allowedMFATypes?.[0];
+          await confirmSignIn({ challengeResponse: choice });
+          hide(fLogin); hide(fSignup); show(fConfirm);
+          fConfirm.dataset.mfa = 'true';
+          toast('Enter the verification code');
+          break;
+        }
+
+        case 'CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION': {
+          // Older/alt path where Cognito asks the first factor;
+          // select PASSWORD_SRP (since we already collected password).
+          await confirmSignIn({ challengeResponse: 'PASSWORD_SRP' });
+          // Cognito will likely follow with an EMAIL_OTP challenge.
+          hide(fLogin); hide(fSignup); show(fConfirm);
+          fConfirm.dataset.mfa = 'true';
+          toast('Enter the verification code');
+          break;
+        }
+
+        case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED': {
           toast('New password required (UI not implemented yet).', 'error');
           break;
+        }
 
-        case 'CONTINUE_SIGN_IN_WITH_MFA_SELECTION':
-          // nextStep.allowedMFATypes: ['EMAIL','SMS','TOTP']
-          // For simplicity, choose EMAIL if available:
-          await confirmSignIn({ challengeResponse: (nextStep.allowedMFATypes.includes('EMAIL') ? 'EMAIL' : nextStep.allowedMFATypes[0]) });
-          hide(fLogin); hide(fSignup); show(fConfirm);
-          fConfirm.dataset.mfa = 'true';
-          toast('Enter the verification code');
-          break;
-
-        default:
+        default: {
           console.warn('Unhandled next step:', nextStep);
           toast('Additional step required; not implemented in UI.', 'error');
+        }
       }
     } catch (err) {
       console.error(err);
