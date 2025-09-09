@@ -1,12 +1,6 @@
-// forms.js — REST-backed (DynamoDB via API Gateway + Lambda)
-// REQUIREMENTS:
-// 1) A valid Cognito session (Amplify Auth v6 on the page).
-// 2) window.WU_API set to your API base URL.
-// 3) This script loaded with type="module".
-// 4) /dist/auth.js must export fetchAuthSession (from your auth-esm build).
-
 import { fetchAuthSession } from '/dist/auth.js';
 import { apiFetch } from '/js/api.js';
+import { fetchAuthSession } from '/js/auth-bridge.js';
 
 // ------------------------
 // Small utilities
