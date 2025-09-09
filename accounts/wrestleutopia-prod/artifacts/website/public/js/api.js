@@ -1,5 +1,4 @@
 // /js/api.js
-import { fetchAuthSession } from '/dist/auth.js';
 import { fetchAuthSession } from '/js/auth-bridge.js';
 
 async function idToken() {
