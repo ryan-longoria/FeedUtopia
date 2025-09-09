@@ -7,6 +7,18 @@ def resp(status, body):
     return {"statusCode": status, "headers": {"content-type":"application/json"}, "body": json.dumps(body)}
 
 def lambda_handler(event, _ctx):
+    method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
+
+    # --- Allow CORS preflight without auth ---
+    if method == "OPTIONS":
+        return {
+            "statusCode": 204,
+            "headers": {
+                "content-type": "application/json"
+            },
+            "body": ""
+        }
+    
     # Claims available from authorizer
     claims = (event.get("requestContext",{}).get("authorizer",{}).get("jwt",{}) or {}).get("claims",{})
     sub = claims.get("sub")

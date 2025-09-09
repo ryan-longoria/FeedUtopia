@@ -61,3 +61,17 @@ resource "aws_apigatewayv2_stage" "prod" {
   name        = "$default"
   auto_deploy = true
 }
+
+resource "aws_apigatewayv2_route" "options_root" {
+  api_id              = aws_apigatewayv2_api.http.id
+  route_key           = "OPTIONS /"
+  target              = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type  = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "options_proxy" {
+  api_id              = aws_apigatewayv2_api.http.id
+  route_key           = "OPTIONS /{proxy+}"
+  target              = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type  = "NONE"
+}
