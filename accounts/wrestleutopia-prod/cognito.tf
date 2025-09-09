@@ -4,6 +4,7 @@
 
 resource "aws_cognito_user_pool" "this" {
   name = local.user_pool_name
+
   auto_verified_attributes = ["email"]
 
   schema {
@@ -19,9 +20,9 @@ resource "aws_cognito_user_pool" "this" {
   }
 
   account_recovery_setting {
-    recovery_mechanism { 
-        name = "verified_email" 
-        priority = 1 
+    recovery_mechanism {
+      name     = "verified_email"
+      priority = 1
     }
   }
 
@@ -35,6 +36,14 @@ resource "aws_cognito_user_pool" "this" {
 
   lambda_config {
     post_confirmation = aws_lambda_function.add_to_group.arn
+  }
+
+  lifecycle {
+    ignore_changes = [
+      mfa_configuration,
+      sms_configuration,
+      software_token_mfa_configuration,
+    ]
   }
 }
 
