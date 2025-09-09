@@ -13,7 +13,8 @@
   <meta property="og:image" content="/assets/logo.svg"/>
   <link rel="stylesheet" href="styles/styles.css"/>
 
-  <script defer src="/js/fake_db.js"></script>
+  <script>window.WU_API = "https://xxxxxxxx.execute-api.us-east-2.amazonaws.com";</script>
+  <script type="module" src="/js/api.js"></script>
   <script defer src="/js/main.js"></script>
   <script defer src="/js/include.js"></script>
 </head>
@@ -39,6 +40,6 @@
 
   <div data-include="partials/footer.html"></div>
 
-  <script defer src="/js/forms.js"></script>
+  <script type="module" src="/js/forms.js"></script>
 </body>
 </html>

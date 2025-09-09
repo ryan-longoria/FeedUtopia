@@ -79,3 +79,15 @@ variable "enable_hosted_ui" {
   type = bool 
   default = true 
 }
+
+variable "allowed_origins" {
+  type = list(string)
+}
+
+variable "cognito_user_pool_id" {
+  type = string
+}
+
+variable "cognito_user_pool_client_id" {
+  type = string
+}

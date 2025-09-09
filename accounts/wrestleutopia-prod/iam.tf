@@ -186,3 +186,149 @@ resource "aws_lambda_permission" "allow_events_cleanup" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.cognito_cleanup_rule.arn
 }
+
+#############################
+## Lambda IAM — API (CRUD)
+#############################
+
+resource "aws_iam_role" "api_lambda_role" {
+  name = "${var.project_name}-api-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_policy" "api_dynamo_policy" {
+  name        = "${var.project_name}-api-dynamo"
+  description = "CRUD on WrestlerProfiles, PromoterProfiles, Tryouts (+GSIs), Applications (+GSIs)"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "CrudOnTables"
+        Effect = "Allow",
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ],
+        Resource = [
+          aws_dynamodb_table.wrestlers.arn,
+          aws_dynamodb_table.promoters.arn,
+          aws_dynamodb_table.tryouts.arn,
+          "${aws_dynamodb_table.tryouts.arn}/index/*",
+          aws_dynamodb_table.applications.arn,
+          "${aws_dynamodb_table.applications.arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "api_s3_media_policy" {
+  name        = "${var.project_name}-api-s3-media"
+  description = "Allow API Lambda limited S3 access under user/* prefix"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "UserPrefixRW"
+        Effect = "Allow",
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ],
+        Resource = "arn:aws:s3:::${var.s3_bucket_name}/user/*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "api_logs_attach" {
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.lambda_logs.arn
+}
+
+resource "aws_iam_role_policy_attachment" "api_dynamo_attach" {
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.api_dynamo_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "api_s3_media_attach" {
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.api_s3_media_policy.arn
+}
+
+resource "aws_lambda_permission" "api_invoke" {
+  statement_id  = "AllowAPIGwInvokeApi"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "presign_invoke" {
+  statement_id  = "AllowAPIGwInvokePresign"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.presign.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
+}
+
+#############################
+## Lambda IAM — Presign (S3 PUT)
+#############################
+
+resource "aws_iam_role" "presign_lambda_role" {
+  name = "${var.project_name}-presign-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_policy" "presign_s3_policy" {
+  name        = "${var.project_name}-presign-s3"
+  description = "Allow presign Lambda to sign S3 PUTs under user/* prefix"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "AllowPutOnUserPrefix",
+        Effect = "Allow",
+        Action = [
+          "s3:PutObject"
+        ],
+        Resource = "arn:aws:s3:::${var.s3_bucket_name}/user/*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "presign_logs_attach" {
+  role       = aws_iam_role.presign_lambda_role.name
+  policy_arn = aws_iam_policy.lambda_logs.arn
+}
+
+resource "aws_iam_role_policy_attachment" "presign_s3_attach" {
+  role       = aws_iam_role.presign_lambda_role.name
+  policy_arn = aws_iam_policy.presign_s3_policy.arn
+}
+
+#############################
+## API IAM
+#############################
+
