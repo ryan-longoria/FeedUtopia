@@ -20,9 +20,13 @@ resource "aws_cognito_user_pool" "this" {
   }
 
   account_recovery_setting {
-    recovery_mechanism { 
-        name = "verified_email" 
-        priority = 1 
+    recovery_mechanism {
+      name     = "verified_email"
+      priority = 1
+    }
+    recovery_mechanism {
+      name     = "verified_phone_number"
+      priority = 2
     }
   }
 
@@ -36,6 +40,20 @@ resource "aws_cognito_user_pool" "this" {
 
   lambda_config {
     post_confirmation = aws_lambda_function.add_to_group.arn
+  }
+
+  email_configuration {
+    email_sending_account   = "DEVELOPER"
+    from_email_address      = "noreply@feedutopia.com"
+    source_arn              = "arn:aws:ses:us-east-2:390402544450:identity/noreply@feedutopia.com"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      mfa_configuration,
+      sms_configuration,
+      software_token_mfa_configuration,
+    ]
   }
 }
 
