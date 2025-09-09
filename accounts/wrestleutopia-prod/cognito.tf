@@ -38,6 +38,12 @@ resource "aws_cognito_user_pool" "this" {
     post_confirmation = aws_lambda_function.add_to_group.arn
   }
 
+  email_configuration {
+    email_sending_account   = "DEVELOPER"
+    from_email_address      = "Wrestle Utopia <no-reply@feedutopia.com>"
+    source_arn              = "arn:aws:ses:us-east-2:${var.aws_account_ids.wrestleutopia}:identity/noreply@feedutopia.com"
+  }
+
   lifecycle {
     ignore_changes = [
       mfa_configuration,
