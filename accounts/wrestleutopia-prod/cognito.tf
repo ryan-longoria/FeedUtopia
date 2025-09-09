@@ -44,8 +44,8 @@ resource "aws_cognito_user_pool" "this" {
 
   email_configuration {
     email_sending_account   = "DEVELOPER"
-    from_email_address      = "noreply@feedutopia.com"
-    source_arn              = "arn:aws:ses:us-east-2:390402544450:identity/noreply@feedutopia.com"
+    from_email_address      = "noreply@wrestleutopia.com"
+    source_arn              = "arn:aws:ses:us-east-2:390402544450:identity/noreply@wrestleutopia.com"
   }
 
   lifecycle {
