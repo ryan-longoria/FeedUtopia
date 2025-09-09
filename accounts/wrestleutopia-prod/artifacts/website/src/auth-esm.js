@@ -4,6 +4,7 @@ import { Amplify } from 'aws-amplify';
 import {
   signUp,
   confirmSignUp,
+  resendSignUpCode,
   signIn,
   confirmSignIn,
   signOut,
@@ -23,7 +24,8 @@ Amplify.configure({
       userPoolId: USER_POOL_ID,
       userPoolClientId: USER_POOL_CLIENT_ID,
       loginWith: { username: false, email: true, phone: false },
-      // optional: signUpVerificationMethod: 'code' | 'link'
+      // ensure code-based verification for sign-up emails
+      signUpVerificationMethod: 'code',
     }
   }
 });
@@ -84,6 +86,7 @@ async function wireAuth() {
   const tabLogin  = modal.querySelector('#tab-login');
   const tabSignup = modal.querySelector('#tab-signup');
   const btnClose  = modal.querySelector('#auth-close');
+  const btnResend = modal.querySelector('#resend-code'); // optional button in auth.html
 
   // Open modal from nav
   document.addEventListener('click', (e) => {
@@ -127,10 +130,26 @@ async function wireAuth() {
       });
       hide(fSignup); hide(fLogin); show(fConfirm);
       fConfirm.dataset.email = email;
+      delete fConfirm.dataset.mfa;
+      fConfirm.dataset.mode = 'signup';
       toast('We emailed you a confirmation code');
     } catch (err) {
       console.error(err);
       toast('Sign-up failed', 'error');
+    }
+  });
+
+  // (Optional) Resend sign-up code button
+  btnResend?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const email = fConfirm.dataset.email;
+    if (!email) return;
+    try {
+      await resendSignUpCode({ username: email });
+      toast('Verification code resent');
+    } catch (err) {
+      console.error(err);
+      toast('Could not resend code', 'error');
     }
   });
 
@@ -144,6 +163,7 @@ async function wireAuth() {
       if (fConfirm.dataset.mfa === 'true') {
         await confirmSignIn({ challengeResponse: code });
         delete fConfirm.dataset.mfa;
+        delete fConfirm.dataset.mode;
         await updateRoleGatedUI();
         modal.close();
         toast('MFA confirmed, you are in!');
@@ -153,6 +173,7 @@ async function wireAuth() {
       // Normal sign-up confirmation path
       const email = fConfirm.dataset.email;
       await confirmSignUp({ username: email, confirmationCode: code });
+      delete fConfirm.dataset.mode;
       toast('Confirmed! You can log in now.');
       hide(fConfirm); show(fLogin);
     } catch (err) {
@@ -161,7 +182,7 @@ async function wireAuth() {
     }
   });
 
-  // Log In (v6 nextStep logic) — FORCE EMAIL OTP EVERY TIME
+  // Log In (v6 nextStep logic) — prefer EMAIL OTP every time
   fLogin?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const d = new FormData(fLogin);
@@ -173,7 +194,7 @@ async function wireAuth() {
         username: email,
         password,
         options: {
-          // These two lines are the key:
+          // Hint Cognito to use password + email OTP as the flow
           authFlowType: 'USER_AUTH',
           preferredChallenge: 'EMAIL_OTP',
         },
@@ -181,11 +202,21 @@ async function wireAuth() {
 
       switch (nextStep.signInStep) {
         case 'DONE': {
-          // If Cognito still let them in without a challenge (e.g., config mismatch),
-          // we just finish normally.
+          // If pool is configured to require email OTP, this normally won't happen;
+          // but if it does, just proceed.
           await updateRoleGatedUI();
           modal.close();
           toast('Logged in!');
+          break;
+        }
+
+        case 'CONFIRM_SIGN_UP': {
+          // User exists but hasn’t verified their email yet
+          hide(fLogin); hide(fSignup); show(fConfirm);
+          fConfirm.dataset.email = email;
+          delete fConfirm.dataset.mfa;
+          fConfirm.dataset.mode = 'signup';
+          toast('Please enter the verification code we emailed you');
           break;
         }
 
@@ -193,29 +224,30 @@ async function wireAuth() {
         case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
         case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE': {
           hide(fLogin); hide(fSignup); show(fConfirm);
+          delete fConfirm.dataset.mode;
           fConfirm.dataset.mfa = 'true';
           toast('Enter the verification code');
           break;
         }
 
         case 'CONTINUE_SIGN_IN_WITH_MFA_SELECTION': {
-          // Pick EMAIL if available, otherwise whatever is offered first
+          // Choose EMAIL if available
           const choice = nextStep.allowedMFATypes?.includes('EMAIL')
             ? 'EMAIL'
             : nextStep.allowedMFATypes?.[0];
           await confirmSignIn({ challengeResponse: choice });
           hide(fLogin); hide(fSignup); show(fConfirm);
+          delete fConfirm.dataset.mode;
           fConfirm.dataset.mfa = 'true';
           toast('Enter the verification code');
           break;
         }
 
         case 'CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION': {
-          // Older/alt path where Cognito asks the first factor;
-          // select PASSWORD_SRP (since we already collected password).
+          // Select password as the first factor; Cognito will then challenge with EMAIL_OTP
           await confirmSignIn({ challengeResponse: 'PASSWORD_SRP' });
-          // Cognito will likely follow with an EMAIL_OTP challenge.
           hide(fLogin); hide(fSignup); show(fConfirm);
+          delete fConfirm.dataset.mode;
           fConfirm.dataset.mfa = 'true';
           toast('Enter the verification code');
           break;

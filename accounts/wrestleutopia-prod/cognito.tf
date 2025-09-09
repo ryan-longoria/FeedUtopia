@@ -4,7 +4,6 @@
 
 resource "aws_cognito_user_pool" "this" {
   name = local.user_pool_name
-  mfa_configuration = "ON"
   auto_verified_attributes = ["email"]
 
   schema {
