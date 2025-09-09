@@ -22,7 +22,7 @@ resource "aws_lambda_function" "add_to_group" {
 resource "aws_lambda_function" "cognito_cleanup" {
   function_name = "${var.project_name}-cognito-cleanup"
   filename         = "${path.module}/artifacts/scripts/cognito_cleanup/cognito_cleanup.zip"
-  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/ognito_cleanup/cognito_cleanup.zip")
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/cognito_cleanup/cognito_cleanup.zip")
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
   role             = aws_iam_role.lambda_role.arn
