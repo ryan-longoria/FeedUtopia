@@ -134,3 +134,55 @@ resource "aws_lambda_permission" "allow_cognito_invoke" {
   principal     = "cognito-idp.amazonaws.com"
   source_arn    = aws_cognito_user_pool.this.arn
 }
+
+resource "aws_iam_role" "cognito_cleanup_role" {
+  name = "${var.project_name}-cognito-cleanup-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "sts:AssumeRole"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_policy" "cognito_cleanup_policy" {
+  name        = "${var.project_name}-cognito-cleanup-policy"
+  description = "List and delete UNCONFIRMED Cognito users"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect: "Allow",
+        Action: [
+          "cognito-idp:ListUsers",
+          "cognito-idp:AdminDeleteUser"
+        ],
+        Resource: aws_cognito_user_pool.this.arn
+      },
+      {
+        Effect: "Allow",
+        Action: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource: "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "cognito_cleanup_attach" {
+  role       = aws_iam_role.cognito_cleanup_role.name
+  policy_arn = aws_iam_policy.cognito_cleanup_policy.arn
+}
+
+resource "aws_lambda_permission" "allow_events_cleanup" {
+  statement_id  = "AllowEventInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.cognito_cleanup.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.cognito_cleanup_rule.arn
+}

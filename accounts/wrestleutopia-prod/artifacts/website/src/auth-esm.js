@@ -123,7 +123,6 @@ async function wireAuth() {
         password,
         options: {
           userAttributes: { email, 'custom:role': role },
-          autoSignIn: true // optional: auto sign-in after confirm
         }
       });
       hide(fSignup); hide(fLogin); show(fConfirm);
