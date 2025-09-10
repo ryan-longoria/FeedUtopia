@@ -1,201 +1,299 @@
-import json, os, uuid, datetime
+# lambda_function.py
+import json
+import os
+import uuid
+import datetime
+from typing import Any, Dict, Tuple, Set, Optional
+
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 
-ddb  = boto3.resource("dynamodb")
-T_WREST = ddb.Table(os.environ["TABLE_WRESTLERS"])
-T_PROMO = ddb.Table(os.environ["TABLE_PROMOTERS"])
-T_TRY   = ddb.Table(os.environ["TABLE_TRYOUTS"])
-T_APP   = ddb.Table(os.environ["TABLE_APPS"])
+# ---------- Cold-start init ----------
+ddb = boto3.resource("dynamodb")
+# Env checks (fail fast if missing)
+TABLE_WRESTLERS = os.environ["TABLE_WRESTLERS"]
+TABLE_PROMOTERS = os.environ["TABLE_PROMOTERS"]
+TABLE_TRYOUTS   = os.environ["TABLE_TRYOUTS"]
+TABLE_APPS      = os.environ["TABLE_APPS"]
 
-def resp(status, body=None):
-    return {
-        "statusCode": status,
-        "headers": {"content-type": "application/json"},
-        "body": json.dumps(body or {})
-    }
+T_WREST = ddb.Table(TABLE_WRESTLERS)
+T_PROMO = ddb.Table(TABLE_PROMOTERS)
+T_TRY   = ddb.Table(TABLE_TRYOUTS)
+T_APP   = ddb.Table(TABLE_APPS)
 
-def _claims(event):
-    # HTTP API v2 JWT claims
-    jwt = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {})
-    claims = jwt.get("claims", {}) if isinstance(jwt.get("claims"), dict) else {}
-    sub  = claims.get("sub")
-    groups = claims.get("cognito:groups", "")
-    if isinstance(groups, str):
-        groups = groups.split(",") if groups else []
-    return sub, set(groups)
-
-def _json(event):
+# ---------- Small helpers ----------
+def _json(event: Dict[str, Any]) -> Dict[str, Any]:
     try:
         return json.loads(event.get("body") or "{}")
     except Exception:
         return {}
 
-def _path(event):
-    # e.g. "/tryouts/123"
+def _path(event: Dict[str, Any]) -> str:
     return (event.get("rawPath") or "/").rstrip("/")
 
-def _qs(event):
+def _qs(event: Dict[str, Any]) -> Dict[str, str]:
     return event.get("queryStringParameters") or {}
 
-def only_promoter(groups):
+def _claims(event: Dict[str, Any]) -> Tuple[Optional[str], Set[str]]:
+    jwt = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {})
+    claims = jwt.get("claims", {}) if isinstance(jwt.get("claims"), dict) else {}
+    sub = claims.get("sub")
+    groups = claims.get("cognito:groups", "")
+    if isinstance(groups, str):
+        groups = groups.split(",") if groups else []
+    return sub, set(groups)
+
+def _now_iso() -> str:
+    return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+def _resp(status: int, body: Any = None) -> Dict[str, Any]:
+    # HTTP API CORS is configured at the gateway, so no need to add CORS headers here.
+    return {
+        "statusCode": status,
+        "headers": {"content-type": "application/json"},
+        "body": json.dumps(body if body is not None else {}),
+    }
+
+def _is_promoter(groups: Set[str]) -> bool:
     return "Promoters" in groups
 
-def only_wrestler(groups):
+def _is_wrestler(groups: Set[str]) -> bool:
     return "Wrestlers" in groups
 
+def _requires_auth(method: str, path: str) -> bool:
+    """
+    We expose GET /tryouts publicly. Everything else requires a JWT.
+    Make sure your API Gateway routes mirror this:
+      - GET /tryouts => authorization NONE
+      - All other routes => JWT authorizer
+    We still keep this guard to be robust if a request hits $default.
+    """
+    if method == "GET" and path == "/tryouts":
+        return False
+    return True
+
+def _uuid() -> str:
+    return str(uuid.uuid4())
+
+# ---------- Route handlers ----------
+def _get_tryouts(event: Dict[str, Any]) -> Dict[str, Any]:
+    # List open tryouts by date (GSI OpenByDate: status=partition, date=sort)
+    r = T_TRY.query(
+        IndexName="OpenByDate",
+        KeyConditionExpression=Key("status").eq("open"),
+        ScanIndexForward=True,  # ascending by date
+        Limit=100,
+    )
+    return _resp(200, r.get("Items", []))
+
+def _post_tryout(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
+    if not _is_promoter(groups):
+        return _resp(403, {"message": "Promoter role required"})
+    data = _json(event)
+    tid = _uuid()
+    item = {
+        "tryoutId": tid,
+        "ownerId": sub,
+        "orgName": (data.get("orgName") or data.get("org") or "").strip(),
+        "city": (data.get("city") or "").strip(),
+        "date": (data.get("date") or "").strip(),
+        "slots": int(data.get("slots") or 0),
+        "requirements": (data.get("requirements") or "").strip(),
+        "contact": (data.get("contact") or "").strip(),
+        "status": (data.get("status") or "open").strip() or "open",
+        "createdAt": _now_iso(),
+    }
+    T_TRY.put_item(Item=item)
+    return _resp(200, item)
+
+def _get_tryout(tryout_id: str) -> Dict[str, Any]:
+    item = T_TRY.get_item(Key={"tryoutId": tryout_id}).get("Item")
+    return _resp(200, item or {})
+
+def _delete_tryout(sub: str, tryout_id: str) -> Dict[str, Any]:
+    item = T_TRY.get_item(Key={"tryoutId": tryout_id}).get("Item")
+    if not item:
+        return _resp(404, {"message": "Not found"})
+    if item.get("ownerId") != sub:
+        return _resp(403, {"message": "Not your tryout"})
+    T_TRY.delete_item(Key={"tryoutId": tryout_id})
+    return _resp(200, {"ok": True})
+
+def _upsert_wrestler_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
+    if not _is_wrestler(groups):
+        return _resp(403, {"message": "Wrestler role required"})
+    data = _json(event)
+    data["userId"] = sub
+    data.setdefault("role", "Wrestler")
+    T_WREST.put_item(Item=data)
+    return _resp(200, {"ok": True, "userId": sub})
+
+def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
+    # promoter-only visibility rule
+    if not _is_promoter(groups):
+        return _resp(403, {"message": "Promoter role required to view wrestler profiles"})
+    qs = _qs(event)
+    style = qs.get("style")
+    city = qs.get("city")
+    verified = qs.get("verified")
+
+    # MVP: scan + filter; add GSIs later as needed
+    filters = []
+    if style:
+        filters.append(Attr("styles").contains(style))
+    if city:
+        filters.append(Attr("city").contains(city))
+    if verified == "true":
+        filters.append(Attr("verified_school").eq(True))
+
+    filter_expr = None
+    for f in filters:
+        filter_expr = f if filter_expr is None else filter_expr & f
+
+    if filter_expr is None:
+        result = T_WREST.scan(Limit=100)
+    else:
+        result = T_WREST.scan(FilterExpression=filter_expr, Limit=100)
+
+    return _resp(200, result.get("Items", []))
+
+def _upsert_promoter_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
+    if not _is_promoter(groups):
+        return _resp(403, {"message": "Promoter role required"})
+    data = _json(event)
+    data["userId"] = sub
+    data.setdefault("role", "Promoter")
+    T_PROMO.put_item(Item=data)
+    return _resp(200, {"ok": True, "userId": sub})
+
+def _get_promoter_profile(sub: str) -> Dict[str, Any]:
+    item = T_PROMO.get_item(Key={"userId": sub}).get("Item")
+    return _resp(200, item or {})
+
+def _post_application(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
+    if not _is_wrestler(groups):
+        return _resp(403, {"message": "Wrestler role required"})
+    data = _json(event)
+    tryout_id = (data.get("tryoutId") or "").strip()
+    if not tryout_id:
+        return _resp(400, {"message": "tryoutId required"})
+    now = _now_iso()
+    try:
+        T_APP.put_item(
+            Item={
+                "tryoutId": tryout_id,
+                "applicantId": sub,
+                "applicantIdGsi": sub,
+                "timestamp": now,
+                "notes": (data.get("notes") or "").strip(),
+                "reelLink": (data.get("reelLink") or "").strip(),
+                "status": "submitted",
+            },
+            # one application per wrestler per tryout
+            ConditionExpression="attribute_not_exists(tryoutId) AND attribute_not_exists(applicantId)",
+        )
+    except Exception as e:
+        # Likely a ConditionalCheckFailedException (duplicate)
+        # return 200 to keep UX smooth, but indicate already exists
+        msg = str(getattr(e, "response", {}).get("Error", {}).get("Code", "")) or str(e)
+        return _resp(200, {"ok": True, "tryoutId": tryout_id, "note": "already_applied", "detail": msg})
+
+    return _resp(200, {"ok": True, "tryoutId": tryout_id})
+
+def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
+    qs = _qs(event)
+    if "tryoutId" in qs:
+        tryout_id = qs["tryoutId"]
+        # verify ownership of the tryout
+        tr = T_TRY.get_item(Key={"tryoutId": tryout_id}).get("Item")
+        if not tr:
+            return _resp(404, {"message": "Tryout not found"})
+        if tr.get("ownerId") != sub:
+            return _resp(403, {"message": "Not your tryout"})
+        r = T_APP.query(
+            KeyConditionExpression=Key("tryoutId").eq(tryout_id),
+            Limit=200,
+        )
+        return _resp(200, r.get("Items", []))
+    # wrestler: list their own applications via GSI
+    r = T_APP.query(
+        IndexName="ByApplicant",
+        KeyConditionExpression=Key("applicantIdGsi").eq(sub),
+        Limit=200,
+    )
+    return _resp(200, r.get("Items", []))
+
+# ---------- Entrypoint ----------
 def lambda_handler(event, _ctx):
-    method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
-    path   = _path(event)
-    sub, groups = _claims(event)
+    """
+    HTTP API (payload v2.0) entrypoint.
+    - OPTIONS returns 204 before any auth checks (CORS preflight).
+    - GET /tryouts is public (no JWT required).
+    - All other routes require a valid JWT and are role-gated.
+    """
+    try:
+        method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
+        path = _path(event)
 
-    if not sub:
-        return resp(401, {"message": "Unauthorized"})
-
-    # ---- Wrestler profile ----
-    if path.startswith("/profiles/wrestlers"):
-        if method in ("POST","PUT","PATCH"):
-            if not only_wrestler(groups):
-                return resp(403, {"message":"Wrestler role required"})
-            data = _json(event)
-            data["userId"] = sub
-            # simple schema normalization
-            data.setdefault("role","Wrestler")
-            # upsert
-            T_WREST.put_item(Item=data)
-            return resp(200, {"ok": True, "userId": sub})
-
-        if method == "GET":
-            # promoter-only visibility (your rule)
-            if not only_promoter(groups):
-                return resp(403, {"message": "Promoter role required to view wrestler profiles"})
-            qs = _qs(event)  # filters: q, style, city, verified
-            style = qs.get("style")
-            city  = qs.get("city")
-            verified = qs.get("verified")
-            # MVP: scan + filters; scale later with GSIs
-            fe = []
-            if style:    fe.append(Attr("styles").contains(style))
-            if city:     fe.append(Attr("city").contains(city))
-            if verified == "true": fe.append(Attr("verified_school").eq(True))
-            filter_expr = None
-            for f in fe:
-                filter_expr = f if filter_expr is None else filter_expr & f
-            if filter_expr is None:
-                result = T_WREST.scan(Limit=100)
-            else:
-                result = T_WREST.scan(FilterExpression=filter_expr, Limit=100)
-            return resp(200, result.get("Items", []))
-
-    # ---- Promoter profile ----
-    if path.startswith("/profiles/promoters"):
-        if method in ("POST","PUT","PATCH"):
-            if not only_promoter(groups):
-                return resp(403, {"message":"Promoter role required"})
-            data = _json(event)
-            data["userId"] = sub
-            data.setdefault("role","Promoter")
-            T_PROMO.put_item(Item=data)
-            return resp(200, {"ok": True, "userId": sub})
-
-        if method == "GET":
-            # Return caller’s own promoter profile
-            item = T_PROMO.get_item(Key={"userId": sub}).get("Item")
-            return resp(200, item or {})
-
-    # ---- Tryouts ----
-    if path == "/tryouts":
-        if method == "POST":
-            if not only_promoter(groups):
-                return resp(403, {"message": "Promoter role required"})
-            data = _json(event)
-            tid = str(uuid.uuid4())
-            item = {
-                "tryoutId": tid,
-                "ownerId": sub,
-                "orgName": data.get("orgName") or data.get("org") or "",
-                "city": data.get("city") or "",
-                "date": data.get("date") or "",
-                "slots": int(data.get("slots") or 0),
-                "requirements": data.get("requirements") or "",
-                "contact": data.get("contact") or "",
-                "status": data.get("status") or "open",
-                "createdAt": datetime.datetime.utcnow().isoformat()
+        # --- 1) Handle CORS preflight early (no auth) ---
+        if method == "OPTIONS":
+            return {
+                "statusCode": 204,
+                "headers": {"content-type": "application/json"},
+                "body": "",
             }
-            T_TRY.put_item(Item=item)
-            return resp(200, item)
 
-        if method == "GET":
-            # list open tryouts ordered by date (use GSI)
-            r = T_TRY.query(
-                IndexName="OpenByDate",
-                KeyConditionExpression=Key("status").eq("open"),
-                ScanIndexForward=True, # ascending by date
-                Limit=100
-            )
-            return resp(200, r.get("Items", []))
+        # --- 2) Public route (no auth): GET /tryouts ---
+        if method == "GET" and path == "/tryouts":
+            return _get_tryouts(event)
 
-    if path.startswith("/tryouts/"):
-        tryout_id = path.split("/")[-1]
-        if method == "DELETE":
-            # Only owner can delete
-            # First read to verify ownership
-            item = T_TRY.get_item(Key={"tryoutId": tryout_id}).get("Item")
-            if not item: return resp(404, {"message":"Not found"})
-            if item.get("ownerId") != sub:
-                return resp(403, {"message":"Not your tryout"})
-            T_TRY.delete_item(Key={"tryoutId": tryout_id})
-            return resp(200, {"ok": True})
+        # --- 3) Protected routes (require JWT) ---
+        sub, groups = _claims(event)
+        if not sub:
+            return _resp(401, {"message": "Unauthorized"})
 
-        if method == "GET":
-            item = T_TRY.get_item(Key={"tryoutId": tryout_id}).get("Item")
-            return resp(200, item or {})
+        # Health check (protected to avoid abuse; call with a token)
+        if path == "/health":
+            return _resp(200, {"ok": True, "time": _now_iso()})
 
-    # ---- Applications ----
-    if path == "/applications":
-        if method == "POST":
-            if not only_wrestler(groups):
-                return resp(403, {"message":"Wrestler role required"})
-            data = _json(event)
-            tryout_id = data.get("tryoutId")
-            if not tryout_id: return resp(400, {"message":"tryoutId required"})
-            now = datetime.datetime.utcnow().isoformat()
-            # prevent duplicate application per wrestler per tryout
-            T_APP.put_item(
-                Item={
-                    "tryoutId": tryout_id,
-                    "applicantId": sub,
-                    "applicantIdGsi": sub,
-                    "timestamp": now,
-                    "notes": data.get("notes",""),
-                    "reelLink": data.get("reelLink",""),
-                    "status": "submitted"
-                },
-                ConditionExpression="attribute_not_exists(tryoutId) AND attribute_not_exists(applicantId)"
-            )
-            return resp(200, {"ok": True, "tryoutId": tryout_id})
+        # Wrestler profiles
+        if path.startswith("/profiles/wrestlers"):
+            if method in ("POST", "PUT", "PATCH"):
+                return _upsert_wrestler_profile(sub, groups, event)
+            if method == "GET":
+                return _list_wrestlers(groups, event)
 
-        if method == "GET":
-            qs = _qs(event)
-            # promoter reviews all apps for a tryout
-            if "tryoutId" in qs:
-                tryout_id = qs["tryoutId"]
-                # ownership check
-                tr = T_TRY.get_item(Key={"tryoutId": tryout_id}).get("Item")
-                if not tr: return resp(404, {"message":"Tryout not found"})
-                if tr.get("ownerId") != sub:
-                    return resp(403, {"message":"Not your tryout"})
-                r = T_APP.query(
-                    KeyConditionExpression=Key("tryoutId").eq(tryout_id),
-                    Limit=200
-                )
-                return resp(200, r.get("Items", []))
-            # wrestler views their own applications
-            r = T_APP.query(
-                IndexName="ByApplicant",
-                KeyConditionExpression=Key("applicantIdGsi").eq(sub),
-                Limit=200
-            )
-            return resp(200, r.get("Items", []))
+        # Promoter profiles
+        if path.startswith("/profiles/promoters"):
+            if method in ("POST", "PUT", "PATCH"):
+                return _upsert_promoter_profile(sub, groups, event)
+            if method == "GET":
+                return _get_promoter_profile(sub)
 
-    return resp(404, {"message": "Route not found"})
+        # Tryouts collection
+        if path == "/tryouts":
+            if method == "POST":
+                return _post_tryout(sub, groups, event)
+
+        # Tryout by id
+        if path.startswith("/tryouts/"):
+            tryout_id = path.split("/")[-1]
+            if method == "GET":
+                return _get_tryout(tryout_id)
+            if method == "DELETE":
+                return _delete_tryout(sub, tryout_id)
+
+        # Applications
+        if path == "/applications":
+            if method == "POST":
+                return _post_application(sub, groups, event)
+            if method == "GET":
+                return _get_applications(sub, event)
+
+        # No match
+        return _resp(404, {"message": "Route not found"})
+
+    except Exception as e:
+        # Log the full event only in dev if you want; here we keep response minimal.
+        # print("ERROR:", repr(e), "EVENT:", json.dumps(event))  # (optional)
+        return _resp(500, {"message": "Server error", "detail": str(e)})

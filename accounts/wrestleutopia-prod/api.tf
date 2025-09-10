@@ -37,7 +37,6 @@ resource "aws_apigatewayv2_route" "default" {
   api_id    = aws_apigatewayv2_api.http.id
   route_key = "$default"
   target    = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "NONE"
 }
 
@@ -52,20 +51,6 @@ resource "aws_apigatewayv2_stage" "prod" {
   api_id      = aws_apigatewayv2_api.http.id
   name        = "$default"
   auto_deploy = true
-}
-
-resource "aws_apigatewayv2_route" "options_root" {
-  api_id              = aws_apigatewayv2_api.http.id
-  route_key           = "OPTIONS /"
-  target              = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type  = "NONE"
-}
-
-resource "aws_apigatewayv2_route" "options_proxy" {
-  api_id              = aws_apigatewayv2_api.http.id
-  route_key           = "OPTIONS /{proxy+}"
-  target              = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type  = "NONE"
 }
 
 resource "aws_apigatewayv2_route" "get_tryouts" {
@@ -145,4 +130,11 @@ resource "aws_apigatewayv2_route" "presign" {
   target             = "integrations/${aws_apigatewayv2_integration.presign_lambda.id}"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+}
+
+resource "aws_apigatewayv2_route" "get_tryout_by_id" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "GET /tryouts/{tryoutId}"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
 }
