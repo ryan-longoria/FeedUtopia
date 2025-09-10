@@ -195,7 +195,7 @@ async function wireAuth() {
         password,
         options: {
           // Hint Cognito to use password + email OTP as the flow
-          authFlowType: 'USER_AUTH',
+          authFlowType: 'USER_SRP_AUTH',
           preferredChallenge: 'EMAIL_OTP',
         },
       });
