@@ -36,28 +36,49 @@ def _qs(event: Dict[str, Any]) -> Dict[str, str]:
     return event.get("queryStringParameters") or {}
 
 def _claims(event):
-    jwt = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}) or {}
-    claims = jwt.get("claims") or {}
+    """Return (sub, groups:set[str]) with robust normalization.
+
+    Handles API Gateway HTTP API v2 quirks:
+      - claims keys can vary in case
+      - 'cognito:groups' can be a list, a JSON-encoded string, a CSV string, or missing
+      - fall back to 'custom:role' when groups are absent
+    """
+    jwt   = (event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}) or {})
+    raw_c = jwt.get("claims") or {}
+
+    # Normalize keys to lowercase for safety
+    claims = {str(k).lower(): v for k, v in raw_c.items()}
     sub = claims.get("sub")
 
-    raw = claims.get("cognito:groups")
-    groups = set()
-    if isinstance(raw, list):
-        groups = set(map(str, raw))
-    elif isinstance(raw, str):
-        s = raw.strip()
+    groups: set[str] = set()
+
+    # --- Try 'cognito:groups' first ---
+    cg = claims.get("cognito:groups")
+    if isinstance(cg, list):
+        groups |= {str(x) for x in cg}
+    elif isinstance(cg, str):
+        s = cg.strip()
+        # If it's a JSON array string, parse it
         if s.startswith('[') and s.endswith(']'):
             try:
                 arr = json.loads(s)
                 if isinstance(arr, list):
-                    groups = set(map(str, arr))
+                    groups |= {str(x) for x in arr}
             except Exception:
                 pass
         if not groups:
+            # Fallback to comma/whitespace splitting
             parts = re.split(r"[,\s]+", s)
-            groups = set(p for p in (p.strip() for p in parts) if p)
-    else:
-        groups = set()
+            groups |= {p for p in (p.strip() for p in parts) if p}
+
+    # --- Fallback: map 'custom:role' -> canonical group name ---
+    role = (claims.get("custom:role") or claims.get("custom:role".lower()) or "").strip()
+    if role:
+        rl = role.lower()
+        if rl.startswith("wrestler"):
+            groups.add("Wrestlers")
+        elif rl.startswith("promoter"):
+            groups.add("Promoters")
 
     return sub, groups
 
