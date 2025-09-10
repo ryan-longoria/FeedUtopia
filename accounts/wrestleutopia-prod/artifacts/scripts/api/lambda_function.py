@@ -1,6 +1,7 @@
 # lambda_function.py
 import json
 import os
+import re
 import uuid
 import datetime
 from typing import Any, Dict, Tuple, Set, Optional
@@ -34,14 +35,31 @@ def _path(event: Dict[str, Any]) -> str:
 def _qs(event: Dict[str, Any]) -> Dict[str, str]:
     return event.get("queryStringParameters") or {}
 
-def _claims(event: Dict[str, Any]) -> Tuple[Optional[str], Set[str]]:
-    jwt = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {})
-    claims = jwt.get("claims", {}) if isinstance(jwt.get("claims"), dict) else {}
+def _claims(event):
+    jwt = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}) or {}
+    claims = jwt.get("claims") or {}
     sub = claims.get("sub")
-    groups = claims.get("cognito:groups", "")
-    if isinstance(groups, str):
-        groups = groups.split(",") if groups else []
-    return sub, set(groups)
+
+    raw = claims.get("cognito:groups")
+    groups = set()
+    if isinstance(raw, list):
+        groups = set(map(str, raw))
+    elif isinstance(raw, str):
+        s = raw.strip()
+        if s.startswith('[') and s.endswith(']'):
+            try:
+                arr = json.loads(s)
+                if isinstance(arr, list):
+                    groups = set(map(str, arr))
+            except Exception:
+                pass
+        if not groups:
+            parts = re.split(r"[,\s]+", s)
+            groups = set(p for p in (p.strip() for p in parts) if p)
+    else:
+        groups = set()
+
+    return sub, groups
 
 def _now_iso() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
