@@ -8,12 +8,12 @@ async function idToken() {
 
 export async function apiFetch(path, { method = "GET", body = null } = {}) {
   const token = await idToken();
+  const headers = { "content-type": "application/json" };
+  if (token) headers.authorization = `Bearer ${token}`;
+
   const res = await fetch(`${window.WU_API}${path}`, {
     method,
-    headers: {
-      "content-type": "application/json",
-      "authorization": token ? `Bearer ${token}` : ""
-    },
+    headers,
     body: body ? JSON.stringify(body) : null,
   });
   if (!res.ok) {
