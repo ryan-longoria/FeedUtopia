@@ -1,8 +1,13 @@
-import { Amplify } from 'aws-amplify';
+import { Amplify } from 'https://esm.sh/aws-amplify@6';
 import {
-  signUp, confirmSignUp, resendSignUpCode,
-  signIn, confirmSignIn, signOut, fetchAuthSession
-} from 'aws-amplify/auth';
+  signUp,
+  confirmSignUp,
+  resendSignUpCode,
+  signIn,
+  confirmSignIn,
+  signOut,
+  fetchAuthSession,
+} from 'https://esm.sh/aws-amplify@6/auth';
 
 Amplify.configure({
   Auth: {
@@ -12,11 +17,16 @@ Amplify.configure({
       userPoolClientId: '6f4qoincbfm9g0lifod7q8nuhg',
       loginWith: { username: false, email: true, phone: false },
       signUpVerificationMethod: 'code',
-    }
-  }
+    },
+  },
 });
 
 export {
-  signUp, confirmSignUp, resendSignUpCode,
-  signIn, confirmSignIn, signOut, fetchAuthSession
+  signUp,
+  confirmSignUp,
+  resendSignUpCode,
+  signIn,
+  confirmSignIn,
+  signOut,
+  fetchAuthSession,
 };
