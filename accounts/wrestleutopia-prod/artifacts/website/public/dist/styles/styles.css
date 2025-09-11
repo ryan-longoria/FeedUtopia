@@ -50,6 +50,9 @@
   }
 }
 
+[data-auth="in"] { display: none; }
+.authenticated [data-auth="in"] { display: block; }
+
 /* Base resets */
 *{box-sizing:border-box}
 html,body{

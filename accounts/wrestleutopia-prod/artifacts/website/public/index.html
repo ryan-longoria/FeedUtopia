@@ -104,7 +104,7 @@
             <p class="muted">Post tryouts, review applications, and shortlist talent.</p>
             <p class="muted">Search verified profiles by style, location, and experience.</p>
             <div class="mt-3">
-              <a href="#" class="btn small secondary" data-auth="out" data-k="sticky_join_promoter">Create Promoter Account</a>
+              <a href="#" class="btn small" data-auth="out" data-k="sticky_join_promoter">Create Promoter Account</a>
             </div>
           </div>
         </div>
@@ -256,5 +256,53 @@
     }
   </script>
   <!-- ===== /Logged-out tryouts ===== -->
+
+  <script type="module">
+    import { getAuthState, isPromoter, isWrestler } from '/js/roles.js';
+
+    // Try a few ways to open your auth UI (works with most setups)
+    function openSignup(intent = 'generic') {
+      // 1) If your auth bundle exposes a global
+      if (window.Auth?.open) { window.Auth.open('signup', { intent }); return; }
+
+      // 2) If your auth listens for a custom event
+      window.dispatchEvent(new CustomEvent('auth:open', { detail: { mode: 'signup', intent } }));
+
+      // 3) Fallback: trigger the nav login button (should open the modal)
+      const loginBtn = document.getElementById('login-btn');
+      if (loginBtn) loginBtn.click();
+    }
+
+    document.addEventListener('click', async (e) => {
+      const el = e.target.closest('a,button');
+      if (!el) return;
+
+      // Any element marked as "auth out" should open signup
+      if (el.dataset.auth === 'out') {
+        e.preventDefault();
+        const intent =
+          el.id?.includes('promoter') ? 'promoter' :
+          el.id?.includes('talent')   ? 'wrestler' :
+          (el.getAttribute('aria-label')?.includes('Promoter') ? 'promoter' :
+          el.getAttribute('aria-label')?.includes('Talent')   ? 'wrestler' : 'generic');
+        openSignup(intent);
+        return;
+      }
+
+      // Role-gated actions (e.g., Apply buttons)
+      if (el.dataset.requires) {
+        const s = await getAuthState();
+        const need = el.dataset.requires;
+        const ok =
+          (need === 'wrestler' && isWrestler(s)) ||
+          (need === 'promoter' && isPromoter(s));
+        if (!ok) {
+          e.preventDefault();
+          openSignup(need);
+        }
+      }
+    });
+  </script>
+
 </body>
 </html>
