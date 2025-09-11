@@ -31,7 +31,6 @@
     })();
   </script>
 </head>
-
 <body>
   <div data-include="/partials/nav.html"></div>
 
@@ -48,6 +47,7 @@
     </div>
   </header>
 
+  <!-- 60 days free offer (removed for logged-in users) -->
   <section class="section" id="free-offer">
     <div class="container">
       <div class="offer-band">
@@ -58,7 +58,7 @@
             <div class="chips">
               <span class="chip">Cancel anytime</span>
               <span class="chip">No commitment</span>
-              <span class="chip">Verified school badges</span>
+              <span class="chip">Verified accounts</span>
               <span class="chip">One-click applications</span>
             </div>
             <div class="fine">New accounts only. No commitment—cancel anytime within 60 days to avoid charges.</div>
@@ -79,30 +79,28 @@
         const s = await getAuthState();
         if (isPromoter(s) || isWrestler(s)) {
           const el = document.getElementById('free-offer');
-          if (el) el.remove(); // keep dashboards as the upsell for signed-in users
+          if (el) el.remove();
         }
       })();
     </script>
   </section>
 
   <main>
-
     <!-- how it works -->
     <section class="section">
       <div class="container">
         <h2>How it works</h2>
         <div class="steps mt-3">
           <div class="card step-card">
-            <h3><span class="num">1</span>For Wrestlers</h3>
-            <p class="muted"><span class="num">1</span> Create your profile…</p>
-            <p class="muted"><span class="num">2</span> Add reel and photos…</p>
-            <p class="muted"><span class="num">3</span> Apply and track status…</p>
+            <h3><span class="num"></span>For Wrestlers</h3>
+            <p class="muted">Create your profile, add reel and photos, and set your rates.</p>
+            <p class="muted">Browse tryouts, apply in one click, and track application status.</p>
             <div class="mt-3">
               <a href="#" class="btn small" data-auth="out" data-k="sticky_join_talent">Join as Talent</a>
             </div>
           </div>
           <div class="card step-card">
-            <h3><span class="num">1</span>For Promoters</h3>
+            <h3><span class="num"></span>For Promoters</h3>
             <p class="muted">Post tryouts, review applications, and shortlist talent.</p>
             <p class="muted">Search verified profiles by style, location, and experience.</p>
             <div class="mt-3">
@@ -117,9 +115,7 @@
     <section class="section">
       <div class="container">
         <h2>Upcoming Tryouts</h2>
-        <div id="home-tryouts" class="grid cols-3 mt-3">
-          <!-- main.js will populate; ensure Apply opens auth if not wrestler -->
-        </div>
+        <div id="home-tryouts" class="grid cols-3 mt-3"></div>
         <div class="mt-3">
           <a class="btn small secondary" href="tryouts.html">See all tryouts</a>
         </div>
@@ -171,7 +167,6 @@
         </div>
       </div>
     </section>
-
   </main>
 
   <!-- sticky bottom CTA -->
@@ -185,5 +180,81 @@
 
   <div data-include="/partials/footer.html"></div>
   <div data-include="/partials/auth.html"></div>
+
+  <!-- ===== Logged-out tryouts: 2 random + 1 locked ===== -->
+  <script type="module">
+    import { getAuthState, isPromoter, isWrestler } from '/js/roles.js';
+
+    const run = async () => {
+      const s = await getAuthState();
+      if (isPromoter(s) || isWrestler(s)) return; // dashboards handle logged-in views
+
+      const grid = document.querySelector('#home-tryouts');
+      if (!grid) return;
+
+      const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
+      const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString(); } catch { return iso; } };
+      const renderTryoutCard = (t) => `
+        <div class="card">
+          <div class="badge">${(t.status || 'open').toString().toUpperCase()}</div>
+          <h3 style="margin:6px 0 2px">${t.org || t.organization || 'Promotion'}</h3>
+          <div class="muted">${t.city || '—'}${t.state ? ', ' + t.state : ''} • ${fmtDate(t.date)}</div>
+          <p class="mt-3">${t.requirements || 'Basic bumps, cardio, promo.'}</p>
+          <div class="mt-3">
+            <a class="btn small" href="tryouts.html#${t.id || ''}" data-requires="wrestler">Apply</a>
+            ${typeof t.slots === 'number' ? `<span class="muted" style="margin-left:10px">Slots: ${t.slots}</span>` : ''}
+          </div>
+        </div>
+      `;
+      const renderLockedThird = () => `
+        <div class="card locked-card">
+          <div class="profile blurred">
+            <img src="https://picsum.photos/seed/tryoutlock/200/200" alt="Locked tryout"/>
+            <div class="info">
+              <div><strong>— — —</strong> <span class="muted">(— — —)</span></div>
+              <div class="mt-2">— — • —/—/— • —, —</div>
+              <p class="mt-2 muted">Full details and one-click apply are available to wrestlers.</p>
+              <a class="btn small mt-3" href="#" data-auth="out">Create free wrestler account</a>
+            </div>
+          </div>
+        </div>
+      `;
+
+      try {
+        const res = await fetch(`${window.WU_API}/tryouts?status=open&limit=25`, { credentials: 'omit' });
+        const json = await res.json();
+        const all = Array.isArray(json?.items) ? json.items : (Array.isArray(json) ? json : []);
+        const now = new Date();
+        const upcoming = all.filter(t => {
+          const d = new Date(t.date);
+          return !isNaN(d) && d >= now;
+        });
+
+        const pick = shuffle(upcoming).slice(0, 2);
+        grid.innerHTML =
+          (pick.length ? pick.map(renderTryoutCard).join('') : `
+            <div class="card">
+              <h3>No open tryouts (yet)</h3>
+              <p class="muted">Check back soon—or <a href="#" data-auth="out">create a free account</a> to get notified.</p>
+            </div>
+          `) + renderLockedThird();
+      } catch (e) {
+        grid.innerHTML = `
+          <div class="card">
+            <h3>Tryouts are loading…</h3>
+            <p class="muted">We’re having trouble fetching the latest. Try again shortly.</p>
+          </div>` + renderLockedThird();
+        console.error('Home tryouts fetch failed', e);
+      }
+    };
+
+    // Run when DOM is ready (we're at end of body, but keep this safe)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', run, { once: true });
+    } else {
+      run();
+    }
+  </script>
+  <!-- ===== /Logged-out tryouts ===== -->
 </body>
 </html>

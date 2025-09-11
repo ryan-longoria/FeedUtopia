@@ -55,3 +55,10 @@ export async function guardPage({ requireRole, redirect = 'index.html', replace 
   location.href = redirect;
   return s;
 }
+
+(async () => {
+  const s = await getAuthState();
+  if (isPromoter(s) || isWrestler(s)) {
+    document.body.classList.add('authenticated');
+  }
+})();
