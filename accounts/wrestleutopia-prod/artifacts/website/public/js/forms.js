@@ -1,6 +1,8 @@
+// forms.js
 import { apiFetch } from '/js/api.js';
-import { getAuthState, isPromoter, isWrestler, guardPage } from '/js/roles.js';
+import { getAuthState, isPromoter, isWrestler } from '/js/roles.js';
 
+// Read groups directly off the ID token (used in a couple places)
 async function userGroups() {
   try {
     const { fetchAuthSession } = await import('/js/auth-bridge.js');
@@ -14,8 +16,10 @@ async function userGroups() {
     return [];
   }
 }
-const isPromoter = (groups) => groups.includes('Promoters');
-const isWrestler = (groups) => groups.includes('Wrestlers');
+
+// ⚠️ renamed to avoid clashing with imports from roles.js
+const isPromoterGroup = (groups) => groups.includes('Promoters');
+const isWrestlerGroup = (groups) => groups.includes('Wrestlers');
 
 function serializeForm(form) {
   const data = new FormData(form);
@@ -82,7 +86,14 @@ function renderTryouts(list) {
   const target = document.querySelector('#tryout-list');
   if (!target) return;
   target.innerHTML = '';
-  (list || []).forEach(t => {
+
+  const items = Array.isArray(list) ? list : (list ? [list] : []);
+  if (items.length === 0) {
+    target.innerHTML = '<p class="muted">No open tryouts yet.</p>';
+    return;
+  }
+
+  items.forEach(t => {
     const id   = t.tryoutId || t.id;
     const org  = t.orgName || t.org || '';
     const city = t.city || '';
@@ -106,7 +117,7 @@ function renderTryouts(list) {
   });
 
   getAuthState().then(s => {
-    const allow = isWrestler(s);
+    const allow = isWrestler(s); // from roles.js (state-based)
     document.querySelectorAll('.apply-btn').forEach(btn => {
       if (!allow) {
         btn.textContent = 'Log in as Wrestler to apply';
@@ -163,6 +174,13 @@ async function renderTalentSearchPanel() {
     return;
   }
 
+  // Extra guard using raw group list (optional)
+  const groups = await userGroups();
+  if (!isPromoterGroup(groups)) {
+    (searchForm.closest('section, .card, .panel') || searchForm).style.display = 'none';
+    return;
+  }
+
   const onFilter = async () => {
     try {
       const o = serializeForm(searchForm);
@@ -191,7 +209,7 @@ async function renderTryoutsListPanel() {
   if (!listEl) return;
 
   try {
-    const list = await apiFetch('/tryouts');
+    const list = await apiFetch('/tryouts'); // public on backend
     renderTryouts(list);
     if (location.hash) {
       const id = location.hash.substring(1);
@@ -310,5 +328,4 @@ async function wireForms() {
 }
 
 document.addEventListener('DOMContentLoaded', wireForms);
-
 window.addEventListener('auth:changed', wireForms);
