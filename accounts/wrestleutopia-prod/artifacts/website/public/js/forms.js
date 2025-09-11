@@ -1,8 +1,21 @@
 import { apiFetch } from '/js/api.js';
 
-// ------------------------
-// Small utilities
-// ------------------------
+async function userGroups() {
+  try {
+    const { fetchAuthSession } = await import('/js/auth-bridge.js');
+    const s = await fetchAuthSession();
+    const id = s?.tokens?.idToken?.toString();
+    if (!id) return [];
+    const payload = JSON.parse(atob(id.split('.')[1]));
+    const g = payload['cognito:groups'];
+    return Array.isArray(g) ? g : (typeof g === 'string' && g ? [g] : []);
+  } catch {
+    return [];
+  }
+}
+const isPromoter = (groups) => groups.includes('Promoters');
+const isWrestler = (groups) => groups.includes('Wrestlers');
+
 function serializeForm(form) {
   const data = new FormData(form);
   const obj = {};
@@ -17,12 +30,6 @@ function serializeForm(form) {
   return obj;
 }
 
-async function idToken() {
-  const s = await fetchAuthSession();
-  return s?.tokens?.idToken?.toString() || '';
-}
-
-// simple toast (global) to avoid dependency on fake_db.js
 function toast(text, type = 'success') {
   const t = document.querySelector('#toast');
   if (!t) { if (type==='error') console.error(text); else console.log(text); return; }
@@ -31,16 +38,16 @@ function toast(text, type = 'success') {
   t.style.display = 'block';
   setTimeout(() => (t.style.display = 'none'), 2600);
 }
-window.toast = toast; // keep legacy callers happy
+window.toast = toast;
 
-// ------------------------
-// Rendering helpers
-// ------------------------
 function renderTalent(list) {
   const target = document.querySelector('#talent-list');
   if (!target) return;
+
+  const items = Array.isArray(list) ? list : (list ? [list] : []);
+
   target.innerHTML = '';
-  (list || []).forEach(p => {
+  items.forEach(p => {
     const ring = p.ring || p.ringName || p.name || 'Wrestler';
     const name = p.name || '';
     const yrs  = p.years ?? p.yearsExperience ?? 0;
@@ -106,7 +113,7 @@ function renderApps(list) {
     const reel = a.reelLink || a.reel || '#';
     const when = a.timestamp || a.created_at || a.createdAt || new Date().toISOString();
     const notes = a.notes || '';
-    const who = a.applicantId ? `Applicant: ${a.applicantId}` : ''; // minimal in MVP
+    const who = a.applicantId ? `Applicant: ${a.applicantId}` : '';
     const el = document.createElement('div');
     el.className = 'card';
     el.innerHTML = `<div><strong>${who}</strong></div>
@@ -116,7 +123,6 @@ function renderApps(list) {
   });
 }
 
-// Keep onclick="openApply(...)" working from HTML
 function openApply(id, org) {
   const f = document.querySelector('#apply-form');
   if (!f) return;
@@ -128,11 +134,82 @@ function openApply(id, org) {
 }
 window.openApply = openApply;
 
-// ------------------------
-// Wire up forms and lists
-// ------------------------
-document.addEventListener('DOMContentLoaded', () => {
-  // ---- Talent submission (Wrestler profile: POST /profiles/wrestlers)
+async function renderTalentSearchPanel() {
+  const searchForm = document.querySelector('#talent-search');
+  if (!searchForm) return;
+
+  const groups = await userGroups();
+  if (!isPromoter(groups)) {
+    const panel = searchForm.closest('section, .card, .panel') || searchForm;
+    panel.style.display = 'none';
+    return;
+  }
+
+  const onFilter = async () => {
+    try {
+      const o = serializeForm(searchForm);
+      const qs = new URLSearchParams();
+      if (o.style && o.style !== 'any') qs.set('style', o.style);
+      if (o.city) qs.set('city', o.city);
+      if (o.verified === 'true') qs.set('verified', 'true');
+      if (o.q) qs.set('q', o.q);
+
+      const path = `/profiles/wrestlers${qs.toString() ? '?' + qs.toString() : ''}`;
+      const list = await apiFetch(path);
+      renderTalent(list);
+    } catch (err) {
+      console.error(err);
+      toast('You must be a promoter to view talent profiles.', 'error');
+      renderTalent([]);
+    }
+  };
+
+  ['input','change'].forEach(evt => searchForm.addEventListener(evt, onFilter));
+  onFilter();
+}
+
+async function renderTryoutsListPanel() {
+  const listEl = document.querySelector('#tryout-list');
+  if (!listEl) return;
+
+  const groups = await userGroups();
+  if (!isWrestler(groups)) {
+    listEl.innerHTML = '<p class="muted">Sign in as a Wrestler to view tryouts.</p>';
+    return;
+  }
+
+  try {
+    const list = await apiFetch('/tryouts');
+    renderTryouts(list);
+
+    if (location.hash) {
+      const id = location.hash.substring(1);
+      const el = document.querySelector(`[data-tryout-id="${id}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+  } catch (err) {
+    console.error(err);
+    toast('Could not load tryouts', 'error');
+  }
+}
+
+async function renderAppsPanel() {
+  const apps = document.querySelector('#app-list');
+  if (!apps) return;
+
+  try {
+    const url = new URL(location.href);
+    const tId = url.searchParams.get('tryout');
+    const path = tId ? `/applications?tryoutId=${encodeURIComponent(tId)}` : '/applications';
+    const list = await apiFetch(path);
+    renderApps(list);
+  } catch (err) {
+    console.error(err);
+    renderApps([]);
+  }
+}
+
+async function wireForms() {
   const talentForm = document.querySelector('#talent-form');
   if (talentForm) {
     talentForm.addEventListener('submit', async (e) => {
@@ -142,7 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const styles = (Array.isArray(o.styles) ? o.styles : [o.styles]).filter(Boolean);
 
         const body = {
-          // server binds userId from token sub; we only send fields
           name: o.name, ring: o.ring, city: o.city,
           travel: Number(o.travel || 0),
           height_cm: Number(o.height_cm || 0),
@@ -159,7 +235,6 @@ document.addEventListener('DOMContentLoaded', () => {
         await apiFetch('/profiles/wrestlers', { method: 'POST', body });
         toast('Talent profile saved!');
         talentForm.reset();
-        // If you want to immediately show their own profile somewhere, you could fetch it here.
       } catch (err) {
         console.error(err);
         toast('Could not save profile', 'error');
@@ -167,7 +242,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ---- Tryout post (Promoter: POST /tryouts)
   const tryoutForm = document.querySelector('#tryout-form');
   if (tryoutForm) {
     tryoutForm.addEventListener('submit', async (e) => {
@@ -186,9 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await apiFetch('/tryouts', { method: 'POST', body });
         toast('Tryout posted!');
         tryoutForm.reset();
-        // Reload list
-        const list = await apiFetch('/tryouts');
-        renderTryouts(list);
+        await renderTryoutsListPanel();
       } catch (err) {
         console.error(err);
         toast('Could not post tryout', 'error');
@@ -196,7 +268,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ---- Applications: Wrestler apply (POST /applications)
   const appForm = document.querySelector('#apply-form');
   if (appForm) {
     appForm.addEventListener('submit', async (e) => {
@@ -204,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const o = serializeForm(appForm);
         const body = {
-          tryoutId: o.tryout_id,                 // hidden field set by openApply()
+          tryoutId: o.tryout_id,
           notes: o.notes || '',
           reelLink: o.reel || ''
         };
@@ -212,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toast('Application sent!');
         appForm.reset();
         const modal = document.querySelector('#apply-modal'); if (modal) modal.close();
-        // If you keep a “my applications” panel, you can refresh it here.
+        await renderAppsPanel();
       } catch (err) {
         console.error(err);
         toast('Could not submit application', 'error');
@@ -220,69 +291,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ---- Talent search (Promoter only: GET /profiles/wrestlers?...)
-  const searchForm = document.querySelector('#talent-search');
-  if (searchForm) {
-    const onFilter = async () => {
-      try {
-        const o = serializeForm(searchForm);
-        const qs = new URLSearchParams();
-        if (o.style && o.style !== 'any') qs.set('style', o.style);
-        if (o.city) qs.set('city', o.city);
-        if (o.verified === 'true') qs.set('verified', 'true');
-        // Optional text query (basic), server currently scans/filters
-        if (o.q) qs.set('q', o.q);
+  await Promise.all([
+    renderTalentSearchPanel(),
+    renderTryoutsListPanel(),
+    renderAppsPanel(),
+  ]);
+}
 
-        const path = `/profiles/wrestlers${qs.toString() ? '?' + qs.toString() : ''}`;
-        const list = await apiFetch(path);
-        renderTalent(list);
-      } catch (err) {
-        console.error(err);
-        // If 403, user probably isn't in Promoters group.
-        toast('You must be a promoter to view talent profiles.', 'error');
-        renderTalent([]);
-      }
-    };
-    ['input','change'].forEach(evt => searchForm.addEventListener(evt, onFilter));
-    onFilter();
-  }
+document.addEventListener('DOMContentLoaded', wireForms);
 
-  // ---- Tryouts listing (public to signed-in users): GET /tryouts
-  if (document.querySelector('#tryout-list')) {
-    (async () => {
-      try {
-        const list = await apiFetch('/tryouts');
-        renderTryouts(list);
-
-        // Deep link
-        if (location.hash) {
-          const id = location.hash.substring(1);
-          const el = document.querySelector(`[data-tryout-id="${id}"]`);
-          if (el) el.scrollIntoView({ behavior: 'smooth' });
-        }
-      } catch (err) {
-        console.error(err);
-        toast('Could not load tryouts', 'error');
-      }
-    })();
-  }
-
-  // ---- Applications list panel (two modes):
-  // If URL has ?tryout=ID and caller owns that tryout -> promoter review
-  // else show the caller’s own applications (wrestler)
-  if (document.querySelector('#app-list')) {
-    (async () => {
-      try {
-        const url = new URL(location.href);
-        const tId = url.searchParams.get('tryout');
-        const path = tId ? `/applications?tryoutId=${encodeURIComponent(tId)}` : '/applications';
-        const list = await apiFetch(path);
-        renderApps(list);
-      } catch (err) {
-        console.error(err);
-        // Hide errors if the role doesn't match this panel's intent
-        renderApps([]);
-      }
-    })();
-  }
-});
+window.addEventListener('auth:changed', wireForms);

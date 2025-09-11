@@ -57,7 +57,8 @@ resource "aws_apigatewayv2_route" "get_tryouts" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /tryouts"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = "NONE"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  authorization_type = "JWT"
 }
 
 resource "aws_apigatewayv2_route" "post_tryouts" {

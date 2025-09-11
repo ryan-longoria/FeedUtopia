@@ -1,9 +1,11 @@
 # lambda_function.py
 import json
 import os
+import re
 import uuid
 import datetime
 from typing import Any, Dict, Tuple, Set, Optional
+from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
@@ -22,6 +24,15 @@ T_TRY   = ddb.Table(TABLE_TRYOUTS)
 T_APP   = ddb.Table(TABLE_APPS)
 
 # ---------- Small helpers ----------
+def _jsonify(data):
+    if isinstance(data, Decimal):
+        return int(data) if data % 1 == 0 else float(data)
+    if isinstance(data, list):
+        return [_jsonify(x) for x in data]
+    if isinstance(data, dict):
+        return {k: _jsonify(v) for k, v in data.items()}
+    return data
+
 def _json(event: Dict[str, Any]) -> Dict[str, Any]:
     try:
         return json.loads(event.get("body") or "{}")
@@ -34,24 +45,61 @@ def _path(event: Dict[str, Any]) -> str:
 def _qs(event: Dict[str, Any]) -> Dict[str, str]:
     return event.get("queryStringParameters") or {}
 
-def _claims(event: Dict[str, Any]) -> Tuple[Optional[str], Set[str]]:
-    jwt = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {})
-    claims = jwt.get("claims", {}) if isinstance(jwt.get("claims"), dict) else {}
+def _claims(event):
+    """Return (sub, groups:set[str]) with robust normalization.
+
+    Handles API Gateway HTTP API v2 quirks:
+      - claims keys can vary in case
+      - 'cognito:groups' can be a list, a JSON-encoded string, a CSV string, or missing
+      - fall back to 'custom:role' when groups are absent
+    """
+    jwt   = (event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}) or {})
+    raw_c = jwt.get("claims") or {}
+
+    # Normalize keys to lowercase for safety
+    claims = {str(k).lower(): v for k, v in raw_c.items()}
     sub = claims.get("sub")
-    groups = claims.get("cognito:groups", "")
-    if isinstance(groups, str):
-        groups = groups.split(",") if groups else []
-    return sub, set(groups)
+
+    groups: set[str] = set()
+
+    # --- Try 'cognito:groups' first ---
+    cg = claims.get("cognito:groups")
+    if isinstance(cg, list):
+        groups |= {str(x) for x in cg}
+    elif isinstance(cg, str):
+        s = cg.strip()
+        # If it's a JSON array string, parse it
+        if s.startswith('[') and s.endswith(']'):
+            try:
+                arr = json.loads(s)
+                if isinstance(arr, list):
+                    groups |= {str(x) for x in arr}
+            except Exception:
+                pass
+        if not groups:
+            # Fallback to comma/whitespace splitting
+            parts = re.split(r"[,\s]+", s)
+            groups |= {p for p in (p.strip() for p in parts) if p}
+
+    # --- Fallback: map 'custom:role' -> canonical group name ---
+    role = (claims.get("custom:role") or claims.get("custom:role".lower()) or "").strip()
+    if role:
+        rl = role.lower()
+        if rl.startswith("wrestler"):
+            groups.add("Wrestlers")
+        elif rl.startswith("promoter"):
+            groups.add("Promoters")
+
+    return sub, groups
 
 def _now_iso() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 def _resp(status: int, body: Any = None) -> Dict[str, Any]:
-    # HTTP API CORS is configured at the gateway, so no need to add CORS headers here.
     return {
         "statusCode": status,
         "headers": {"content-type": "application/json"},
-        "body": json.dumps(body if body is not None else {}),
+        "body": json.dumps(_jsonify(body if body is not None else {})),
     }
 
 def _is_promoter(groups: Set[str]) -> bool:
@@ -129,33 +177,40 @@ def _upsert_wrestler_profile(sub: str, groups: Set[str], event: Dict[str, Any]) 
     return _resp(200, {"ok": True, "userId": sub})
 
 def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
-    # promoter-only visibility rule
     if not _is_promoter(groups):
         return _resp(403, {"message": "Promoter role required to view wrestler profiles"})
+
     qs = _qs(event)
-    style = qs.get("style")
-    city = qs.get("city")
-    verified = qs.get("verified")
+    style = (qs.get("style") or "").strip()
+    city  = (qs.get("city") or "").strip()
+    verified = (qs.get("verified") or "").strip().lower()
 
-    # MVP: scan + filter; add GSIs later as needed
-    filters = []
-    if style:
-        filters.append(Attr("styles").contains(style))
-    if city:
-        filters.append(Attr("city").contains(city))
-    if verified == "true":
-        filters.append(Attr("verified_school").eq(True))
+    fe = None
+    try:
+        if style:
+            cond = Attr("styles").contains(style)
+            fe = cond if fe is None else fe & cond
 
-    filter_expr = None
-    for f in filters:
-        filter_expr = f if filter_expr is None else filter_expr & f
+        if city:
+            cond = Attr("city").contains(city)
+            fe = cond if fe is None else fe & cond
 
-    if filter_expr is None:
-        result = T_WREST.scan(Limit=100)
-    else:
-        result = T_WREST.scan(FilterExpression=filter_expr, Limit=100)
+        if verified in ("true", "1", "yes"):
+            cond = Attr("verified_school").eq(True)
+            fe = cond if fe is None else fe & cond
 
-    return _resp(200, result.get("Items", []))
+        if fe is None:
+            r = T_WREST.scan(Limit=100)
+        else:
+            r = T_WREST.scan(FilterExpression=fe, Limit=100)
+
+        items = r.get("Items", [])
+        return _resp(200, items)
+
+    except Exception as e:
+        print("wrestlers scan error:", repr(e), "qs=", qs)
+        return _resp(500, {"message": "Server error", "where": "list_wrestlers", "detail": str(e)})
+
 
 def _upsert_promoter_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     if not _is_promoter(groups):
@@ -243,10 +298,6 @@ def lambda_handler(event, _ctx):
                 "body": "",
             }
 
-        # --- 2) Public route (no auth): GET /tryouts ---
-        if method == "GET" and path == "/tryouts":
-            return _get_tryouts(event)
-
         # --- 3) Protected routes (require JWT) ---
         sub, groups = _claims(event)
         if not sub:
@@ -260,8 +311,14 @@ def lambda_handler(event, _ctx):
         if path.startswith("/profiles/wrestlers"):
             if method in ("POST", "PUT", "PATCH"):
                 return _upsert_wrestler_profile(sub, groups, event)
+
             if method == "GET":
-                return _list_wrestlers(groups, event)
+                if _is_wrestler(groups):
+                    item = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
+                    return _resp(200, item)
+
+                if _is_promoter(groups):
+                    return _list_wrestlers(groups, event)
 
         # Promoter profiles
         if path.startswith("/profiles/promoters"):
@@ -272,9 +329,23 @@ def lambda_handler(event, _ctx):
 
         # Tryouts collection
         if path == "/tryouts":
+            if method == "GET":
+                if _is_promoter(groups):
+                    r = T_TRY.query(
+                        IndexName="ByOwner",
+                        KeyConditionExpression=Key("ownerId").eq(sub),
+                        ScanIndexForward=False,
+                        Limit=100,
+                    )
+                    return _resp(200, r.get("Items", []))
+
+                if _is_wrestler(groups):
+                    return _get_tryouts(event)
+
+                return _resp(403, {"message": "Wrestler or Promoter role required"})
+
             if method == "POST":
                 return _post_tryout(sub, groups, event)
-
         # Tryout by id
         if path.startswith("/tryouts/"):
             tryout_id = path.split("/")[-1]
