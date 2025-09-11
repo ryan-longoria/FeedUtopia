@@ -4,15 +4,23 @@ import os
 import re
 import uuid
 import datetime
-from typing import Any, Dict, Tuple, Set, Optional
+from typing import Any, Dict, Set
 from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 
-# ---------- Cold-start init ----------
-ddb = boto3.resource("dynamodb")
-# Env checks (fail fast if missing)
+# ------------------------------------------------------------------------------
+# Cold-start init
+# ------------------------------------------------------------------------------
+
+AWS_REGION = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-2"
+DEBUG_TRYOUTS = (os.environ.get("DEBUG_TRYOUTS") or "").strip().lower() in {"1", "true", "yes"}
+
+# Prefer explicit region to avoid accidental cross-region connections
+ddb = boto3.resource("dynamodb", region_name=AWS_REGION)
+
+# Env checks (fail fast if missing / wrong)
 TABLE_WRESTLERS = os.environ["TABLE_WRESTLERS"]
 TABLE_PROMOTERS = os.environ["TABLE_PROMOTERS"]
 TABLE_TRYOUTS   = os.environ["TABLE_TRYOUTS"]
@@ -23,7 +31,22 @@ T_PROMO = ddb.Table(TABLE_PROMOTERS)
 T_TRY   = ddb.Table(TABLE_TRYOUTS)
 T_APP   = ddb.Table(TABLE_APPS)
 
-# ---------- Small helpers ----------
+def _log(*args):
+    # Simple log helper (stringifies safely)
+    print("[WU]", *[repr(a) for a in args])
+
+# Log table wiring once at cold start
+_log("REGION", AWS_REGION, "TABLES", {
+    "wrestlers": TABLE_WRESTLERS,
+    "promoters": TABLE_PROMOTERS,
+    "tryouts": TABLE_TRYOUTS,
+    "apps": TABLE_APPS,
+})
+
+# ------------------------------------------------------------------------------
+# Small helpers
+# ------------------------------------------------------------------------------
+
 def _jsonify(data):
     if isinstance(data, Decimal):
         return int(data) if data % 1 == 0 else float(data)
@@ -46,29 +69,23 @@ def _qs(event: Dict[str, Any]) -> Dict[str, str]:
     return event.get("queryStringParameters") or {}
 
 def _claims(event):
-    """Return (sub, groups:set[str]) with robust normalization.
-
-    Handles API Gateway HTTP API v2 quirks:
-      - claims keys can vary in case
-      - 'cognito:groups' can be a list, a JSON-encoded string, a CSV string, or missing
-      - fall back to 'custom:role' when groups are absent
+    """
+    Return (sub, groups:set[str]) with robust normalization of Cognito claims.
     """
     jwt   = (event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}) or {})
     raw_c = jwt.get("claims") or {}
 
-    # Normalize keys to lowercase for safety
     claims = {str(k).lower(): v for k, v in raw_c.items()}
     sub = claims.get("sub")
 
     groups: set[str] = set()
 
-    # --- Try 'cognito:groups' first ---
+    # Try 'cognito:groups' first
     cg = claims.get("cognito:groups")
     if isinstance(cg, list):
         groups |= {str(x) for x in cg}
     elif isinstance(cg, str):
         s = cg.strip()
-        # If it's a JSON array string, parse it
         if s.startswith('[') and s.endswith(']'):
             try:
                 arr = json.loads(s)
@@ -77,17 +94,15 @@ def _claims(event):
             except Exception:
                 pass
         if not groups:
-            # Fallback to comma/whitespace splitting
             parts = re.split(r"[,\s]+", s)
             groups |= {p for p in (p.strip() for p in parts) if p}
 
-    # --- Fallback: map 'custom:role' -> canonical group name ---
-    role = (claims.get("custom:role") or claims.get("custom:role".lower()) or "").strip()
+    # Fallback from custom:role
+    role = (claims.get("custom:role") or "").strip().lower()
     if role:
-        rl = role.lower()
-        if rl.startswith("wrestler"):
+        if role.startswith("wrestler"):
             groups.add("Wrestlers")
-        elif rl.startswith("promoter"):
+        elif role.startswith("promoter"):
             groups.add("Promoters")
 
     return sub, groups
@@ -96,6 +111,7 @@ def _now_iso() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 def _resp(status: int, body: Any = None) -> Dict[str, Any]:
+    # CORS is handled at API Gateway, but content-type here helps clients.
     return {
         "statusCode": status,
         "headers": {"content-type": "application/json"},
@@ -108,51 +124,45 @@ def _is_promoter(groups: Set[str]) -> bool:
 def _is_wrestler(groups: Set[str]) -> bool:
     return "Wrestlers" in groups
 
-def _requires_auth(method: str, path: str) -> bool:
-    """
-    We expose GET /tryouts publicly. Everything else requires a JWT.
-    Make sure your API Gateway routes mirror this:
-      - GET /tryouts => authorization NONE
-      - All other routes => JWT authorizer
-    We still keep this guard to be robust if a request hits $default.
-    """
-    if method == "GET" and path == "/tryouts":
-        return False
-    return True
-
 def _uuid() -> str:
     return str(uuid.uuid4())
 
-# ---------- Route handlers ----------
+# ------------------------------------------------------------------------------
+# Route handlers
+# ------------------------------------------------------------------------------
+
 def _get_tryouts(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Return open tryouts. Prefer the OpenByDate GSI, but if it returns nothing
-    (status casing / missing date / index not warm yet), fall back to a scan.
+    Return open tryouts. Prefer GSI(OpenByDate) -> fallback scan(status='open').
+    Logs table name and result lengths to catch region/table mismatches.
     """
+    _log("TABLE_TRYOUTS", TABLE_TRYOUTS)
     items = []
-    from_path = "gsi"
+
+    # 1) GSI query
     try:
         r = T_TRY.query(
             IndexName="OpenByDate",
             KeyConditionExpression=Key("status").eq("open"),
-            ScanIndexForward=True,
+            ScanIndexForward=True,   # ascending by date
             Limit=100,
         )
         items = r.get("Items", []) or []
+        _log("OpenByDate result len", len(items))
     except Exception as e:
-        print("OpenByDate query failed:", repr(e))
-        items = []
+        _log("OpenByDate query failed", e)
 
+    # 2) Fallback scan if GSI empty/not ready or data not normalized
     if not items:
-        from_path = "scan"
         try:
             r2 = T_TRY.scan(
                 FilterExpression=Attr("status").eq("open"),
                 Limit=100,
             )
             items = r2.get("Items", []) or []
+            _log("Scan(open) result len", len(items))
         except Exception as e2:
-            print("Fallback scan failed:", repr(e2))
+            _log("Fallback scan failed", e2)
             return _resp(500, {"message": "Server error", "where": "_get_tryouts"})
 
     return _resp(200, items)
@@ -160,20 +170,27 @@ def _get_tryouts(event: Dict[str, Any]) -> Dict[str, Any]:
 def _post_tryout(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     if not _is_promoter(groups):
         return _resp(403, {"message": "Promoter role required"})
+
     data = _json(event)
-    tid = _uuid()
+
+    # Normalize critical fields
     status_in = (data.get("status") or "open").strip().lower()
-    date_in = (data.get("date") or "").strip()  # 'YYYY-MM-DD'
+    date_in   = (data.get("date") or "").strip()  # expected 'YYYY-MM-DD'
+    # optional: minimal date format validation
+    if date_in and not re.match(r"^\d{4}-\d{2}-\d{2}$", date_in):
+        return _resp(400, {"message": "date must be YYYY-MM-DD"})
+
+    tid = _uuid()
     item = {
         "tryoutId": tid,
         "ownerId": sub,
         "orgName": (data.get("orgName") or data.get("org") or "").strip(),
         "city": (data.get("city") or "").strip(),
-        "date": date_in,          # REQUIRED for GSI projection
+        "date": date_in,
         "slots": int(data.get("slots") or 0),
         "requirements": (data.get("requirements") or "").strip(),
         "contact": (data.get("contact") or "").strip(),
-        "status": status_in,      # lowercased
+        "status": status_in,
         "createdAt": _now_iso(),
     }
     T_TRY.put_item(Item=item)
@@ -206,8 +223,8 @@ def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
         return _resp(403, {"message": "Promoter role required to view wrestler profiles"})
 
     qs = _qs(event)
-    style = (qs.get("style") or "").strip()
-    city  = (qs.get("city") or "").strip()
+    style    = (qs.get("style") or "").strip()
+    city     = (qs.get("city") or "").strip()
     verified = (qs.get("verified") or "").strip().lower()
 
     fe = None
@@ -220,7 +237,7 @@ def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
             cond = Attr("city").contains(city)
             fe = cond if fe is None else fe & cond
 
-        if verified in ("true", "1", "yes"):
+        if verified in {"true", "1", "yes"}:
             cond = Attr("verified_school").eq(True)
             fe = cond if fe is None else fe & cond
 
@@ -233,9 +250,8 @@ def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
         return _resp(200, items)
 
     except Exception as e:
-        print("wrestlers scan error:", repr(e), "qs=", qs)
-        return _resp(500, {"message": "Server error", "where": "list_wrestlers", "detail": str(e)})
-
+        _log("wrestlers scan error", e, "qs=", qs)
+        return _resp(500, {"message": "Server error", "where": "list_wrestlers"})
 
 def _upsert_promoter_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     if not _is_promoter(groups):
@@ -257,26 +273,28 @@ def _post_application(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict
     tryout_id = (data.get("tryoutId") or "").strip()
     if not tryout_id:
         return _resp(400, {"message": "tryoutId required"})
+
     now = _now_iso()
     try:
         T_APP.put_item(
             Item={
                 "tryoutId": tryout_id,
                 "applicantId": sub,
-                "applicantIdGsi": sub,
+                "applicantIdGsi": sub,  # GSI to list a wrestler's apps
                 "timestamp": now,
                 "notes": (data.get("notes") or "").strip(),
                 "reelLink": (data.get("reelLink") or "").strip(),
                 "status": "submitted",
             },
-            # one application per wrestler per tryout
-            ConditionExpression="attribute_not_exists(tryoutId) AND attribute_not_exists(applicantId)",
+            ConditionExpression=(
+                "attribute_not_exists(tryoutId) AND attribute_not_exists(applicantId)"
+            ),  # one app per wrestler per tryout
         )
     except Exception as e:
-        # Likely a ConditionalCheckFailedException (duplicate)
-        # return 200 to keep UX smooth, but indicate already exists
-        msg = str(getattr(e, "response", {}).get("Error", {}).get("Code", "")) or str(e)
-        return _resp(200, {"ok": True, "tryoutId": tryout_id, "note": "already_applied", "detail": msg})
+        # duplicate (ConditionalCheckFailed) -> return ok to keep UX smooth
+        code = getattr(getattr(e, "response", {}), "get", lambda *_: {})("Error", {}).get("Code") if hasattr(e, "response") else ""
+        _log("post_application put_item exception", e, "code", code)
+        return _resp(200, {"ok": True, "tryoutId": tryout_id, "note": "already_applied"})
 
     return _resp(200, {"ok": True, "tryoutId": tryout_id})
 
@@ -284,7 +302,6 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
     qs = _qs(event)
     if "tryoutId" in qs:
         tryout_id = qs["tryoutId"]
-        # verify ownership of the tryout
         tr = T_TRY.get_item(Key={"tryoutId": tryout_id}).get("Item")
         if not tr:
             return _resp(404, {"message": "Tryout not found"})
@@ -295,7 +312,8 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
             Limit=200,
         )
         return _resp(200, r.get("Items", []))
-    # wrestler: list their own applications via GSI
+
+    # Wrestler: list own apps via GSI
     r = T_APP.query(
         IndexName="ByApplicant",
         KeyConditionExpression=Key("applicantIdGsi").eq(sub),
@@ -303,36 +321,39 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
     )
     return _resp(200, r.get("Items", []))
 
-# ---------- Entrypoint ----------
+# ------------------------------------------------------------------------------
+# Entrypoint
+# ------------------------------------------------------------------------------
+
 def lambda_handler(event, _ctx):
     try:
         method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
         path = _path(event)
 
-        # --- 1) CORS preflight ---
+        # 1) CORS preflight
         if method == "OPTIONS":
             return {"statusCode": 204, "headers": {"content-type": "application/json"}, "body": ""}
 
-        # --- 2) PUBLIC endpoints (no JWT) ---
+        # 2) PUBLIC endpoints (no JWT)
         if method == "GET" and path == "/tryouts":
-            # Public browse of open tryouts
+            # public browse of open tryouts
             return _get_tryouts(event)
 
         if method == "GET" and path.startswith("/tryouts/"):
-            # If you want individual tryouts public (matches your Terraform route)
+            # allow individual tryout fetch to be public if API GW route is public
             tryout_id = path.split("/")[-1]
             return _get_tryout(tryout_id)
 
-        # --- 3) AUTH-required endpoints ---
+        # 3) AUTH-required endpoints
         sub, groups = _claims(event)
         if not sub:
             return _resp(401, {"message": "Unauthorized"})
 
-        # Health (protected)
+        # Health (protected to avoid abuse)
         if path == "/health":
             return _resp(200, {"ok": True, "time": _now_iso()})
 
-        # Wrestler profiles (self vs promoter search)
+        # Wrestler profiles
         if path.startswith("/profiles/wrestlers"):
             if method in ("POST", "PUT", "PATCH"):
                 return _upsert_wrestler_profile(sub, groups, event)
@@ -343,7 +364,7 @@ def lambda_handler(event, _ctx):
                 if _is_promoter(groups):
                     return _list_wrestlers(groups, event)
 
-        # Promoter profiles (self)
+        # Promoter profiles
         if path.startswith("/profiles/promoters"):
             if method in ("POST", "PUT", "PATCH"):
                 return _upsert_promoter_profile(sub, groups, event)
@@ -355,7 +376,7 @@ def lambda_handler(event, _ctx):
             if method == "POST":
                 return _post_tryout(sub, groups, event)
 
-        # Add a separate “mine” endpoint for promoters to avoid clobbering the public route
+        # Promoter: list my tryouts (separate path so /tryouts stays public)
         if path == "/tryouts/mine" and method == "GET":
             if not _is_promoter(groups):
                 return _resp(403, {"message": "Promoter role required"})
@@ -380,7 +401,31 @@ def lambda_handler(event, _ctx):
             if method == "GET":
                 return _get_applications(sub, event)
 
+        # TEMP: debug endpoint (JWT required) — enable with env DEBUG_TRYOUTS=true
+        if DEBUG_TRYOUTS and path == "/debug/tryouts" and method == "GET":
+            info = {"region": AWS_REGION, "table": TABLE_TRYOUTS}
+            try:
+                # small scan to confirm the table we're actually reading
+                r = T_TRY.scan(Limit=5)
+                items = r.get("Items", []) or []
+                info["sample_count"] = len(items)
+                if items:
+                    # include one sample item only
+                    info["sample"] = items[:1]
+            except Exception as e:
+                info["error"] = str(e)
+            # optional: include caller/account during deep debugging
+            try:
+                sts = boto3.client("sts", region_name=AWS_REGION)
+                who = sts.get_caller_identity()
+                info["account"] = who.get("Account")
+                info["arn"] = who.get("Arn")
+            except Exception as e:
+                info["sts_error"] = str(e)
+            return _resp(200, info)
+
         return _resp(404, {"message": "Route not found"})
 
     except Exception as e:
+        _log("UNHANDLED", e)
         return _resp(500, {"message": "Server error", "detail": str(e)})
