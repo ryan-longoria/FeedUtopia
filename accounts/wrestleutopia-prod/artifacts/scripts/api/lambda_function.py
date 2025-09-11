@@ -168,33 +168,40 @@ def _upsert_wrestler_profile(sub: str, groups: Set[str], event: Dict[str, Any]) 
     return _resp(200, {"ok": True, "userId": sub})
 
 def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
-    # promoter-only visibility rule
     if not _is_promoter(groups):
         return _resp(403, {"message": "Promoter role required to view wrestler profiles"})
+
     qs = _qs(event)
-    style = qs.get("style")
-    city = qs.get("city")
-    verified = qs.get("verified")
+    style = (qs.get("style") or "").strip()
+    city  = (qs.get("city") or "").strip()
+    verified = (qs.get("verified") or "").strip().lower()
 
-    # MVP: scan + filter; add GSIs later as needed
-    filters = []
-    if style:
-        filters.append(Attr("styles").contains(style))
-    if city:
-        filters.append(Attr("city").contains(city))
-    if verified == "true":
-        filters.append(Attr("verified_school").eq(True))
+    fe = None
+    try:
+        if style:
+            cond = Attr("styles").contains(style)
+            fe = cond if fe is None else fe & cond
 
-    filter_expr = None
-    for f in filters:
-        filter_expr = f if filter_expr is None else filter_expr & f
+        if city:
+            cond = Attr("city").contains(city)
+            fe = cond if fe is None else fe & cond
 
-    if filter_expr is None:
-        result = T_WREST.scan(Limit=100)
-    else:
-        result = T_WREST.scan(FilterExpression=filter_expr, Limit=100)
+        if verified in ("true", "1", "yes"):
+            cond = Attr("verified_school").eq(True)
+            fe = cond if fe is None else fe & cond
 
-    return _resp(200, result.get("Items", []))
+        if fe is None:
+            r = T_WREST.scan(Limit=100)
+        else:
+            r = T_WREST.scan(FilterExpression=fe, Limit=100)
+
+        items = r.get("Items", [])
+        return _resp(200, items)
+
+    except Exception as e:
+        print("wrestlers scan error:", repr(e), "qs=", qs)
+        return _resp(500, {"message": "Server error", "where": "list_wrestlers", "detail": str(e)})
+
 
 def _upsert_promoter_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     if not _is_promoter(groups):
