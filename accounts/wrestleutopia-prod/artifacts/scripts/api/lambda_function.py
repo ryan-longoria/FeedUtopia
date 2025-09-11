@@ -298,10 +298,6 @@ def lambda_handler(event, _ctx):
                 "body": "",
             }
 
-        # --- 2) Public route (no auth): GET /tryouts ---
-        if method == "GET" and path == "/tryouts":
-            return _get_tryouts(event)
-
         # --- 3) Protected routes (require JWT) ---
         sub, groups = _claims(event)
         if not sub:
@@ -315,8 +311,14 @@ def lambda_handler(event, _ctx):
         if path.startswith("/profiles/wrestlers"):
             if method in ("POST", "PUT", "PATCH"):
                 return _upsert_wrestler_profile(sub, groups, event)
+
             if method == "GET":
-                return _list_wrestlers(groups, event)
+                if _is_wrestler(groups):
+                    item = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
+                    return _resp(200, item)
+
+                if _is_promoter(groups):
+                    return _list_wrestlers(groups, event)
 
         # Promoter profiles
         if path.startswith("/profiles/promoters"):
@@ -327,9 +329,23 @@ def lambda_handler(event, _ctx):
 
         # Tryouts collection
         if path == "/tryouts":
+            if method == "GET":
+                if _is_promoter(groups):
+                    r = T_TRY.query(
+                        IndexName="ByOwner",
+                        KeyConditionExpression=Key("ownerId").eq(sub),
+                        ScanIndexForward=False,
+                        Limit=100,
+                    )
+                    return _resp(200, r.get("Items", []))
+
+                if _is_wrestler(groups):
+                    return _get_tryouts(event)
+
+                return _resp(403, {"message": "Wrestler or Promoter role required"})
+
             if method == "POST":
                 return _post_tryout(sub, groups, event)
-
         # Tryout by id
         if path.startswith("/tryouts/"):
             tryout_id = path.split("/")[-1]
