@@ -5,6 +5,7 @@ import re
 import uuid
 import datetime
 from typing import Any, Dict, Tuple, Set, Optional
+from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
@@ -23,6 +24,15 @@ T_TRY   = ddb.Table(TABLE_TRYOUTS)
 T_APP   = ddb.Table(TABLE_APPS)
 
 # ---------- Small helpers ----------
+def _jsonify(data):
+    if isinstance(data, Decimal):
+        return int(data) if data % 1 == 0 else float(data)
+    if isinstance(data, list):
+        return [_jsonify(x) for x in data]
+    if isinstance(data, dict):
+        return {k: _jsonify(v) for k, v in data.items()}
+    return data
+
 def _json(event: Dict[str, Any]) -> Dict[str, Any]:
     try:
         return json.loads(event.get("body") or "{}")
@@ -86,11 +96,10 @@ def _now_iso() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 def _resp(status: int, body: Any = None) -> Dict[str, Any]:
-    # HTTP API CORS is configured at the gateway, so no need to add CORS headers here.
     return {
         "statusCode": status,
         "headers": {"content-type": "application/json"},
-        "body": json.dumps(body if body is not None else {}),
+        "body": json.dumps(_jsonify(body if body is not None else {})),
     }
 
 def _is_promoter(groups: Set[str]) -> bool:
