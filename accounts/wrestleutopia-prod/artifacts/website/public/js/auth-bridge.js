@@ -1,13 +1,9 @@
 import { Amplify } from 'https://esm.sh/aws-amplify@6';
 import {
-  signUp,
-  confirmSignUp,
-  resendSignUpCode,
-  signIn,
-  confirmSignIn,
-  signOut,
-  fetchAuthSession,
+  signUp, confirmSignUp, resendSignUpCode,
+  signIn, confirmSignIn, signOut, fetchAuthSession,
 } from 'https://esm.sh/aws-amplify@6/auth';
+import { Hub } from 'https://esm.sh/aws-amplify@6/utils';
 
 Amplify.configure({
   Auth: {
@@ -21,12 +17,36 @@ Amplify.configure({
   },
 });
 
+const AUTH_EVENT = 'auth:changed';
+function emitAuthChanged(detail = {}) {
+  window.dispatchEvent(new CustomEvent(AUTH_EVENT, { detail }));
+}
+export function onAuthChange(fn) {
+  const handler = (e) => fn(e.detail || {});
+  window.addEventListener(AUTH_EVENT, handler);
+  return () => window.removeEventListener(AUTH_EVENT, handler);
+}
+
+Hub.listen('auth', ({ payload }) => {
+  const { event } = payload || {};
+  if (['signedIn', 'signedOut', 'tokenRefresh'].includes(event)) {
+    emitAuthChanged({ event });
+  }
+});
+
+async function signInAndEmit(args) {
+  const r = await signIn(args);
+  emitAuthChanged({ event: 'signedIn' });
+  return r;
+}
+async function signOutAndEmit() {
+  await signOut();
+  emitAuthChanged({ event: 'signedOut' });
+}
+
 export {
-  signUp,
-  confirmSignUp,
-  resendSignUpCode,
-  signIn,
-  confirmSignIn,
-  signOut,
-  fetchAuthSession,
+  signUp, confirmSignUp, resendSignUpCode,
+  confirmSignIn, fetchAuthSession,
+  signInAndEmit as signIn,
+  signOutAndEmit as signOut,
 };
