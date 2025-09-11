@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>My Dashboard – WrestleUtopia</title>
+<link rel="stylesheet" href="styles/styles.css"/>
+<script type="module" src="/js/auth-bridge.js"></script>
+<script type="module" src="/js/include.js"></script>
+<script type="module" src="/js/roles.js"></script>
+</head><body>
+  <div data-include="partials/nav.html"></div>
+  <main class="section container">
+    <h1>My Dashboard</h1>
+    <section class="card mt-3">
+      <h2>Upcoming Tryouts</h2>
+      <div id="tryout-list" class="grid cols-3 mt-3"></div>
+    </section>
+    <section class="card mt-3">
+      <h2>My Applications</h2>
+      <div id="app-list" class="grid cols-2 mt-3"></div>
+    </section>
+  </main>
+  <script type="module">
+    import { guardPage } from '/js/roles.js';
+    import '/js/forms.js';
+    guardPage({ requireRole: 'Wrestler', redirect: 'index.html' });
+  </script>
+</body></html>

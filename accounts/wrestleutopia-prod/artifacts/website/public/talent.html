@@ -19,8 +19,19 @@
   <script type="module" src="/js/forms.js"></script>
   <script type="module" src="/js/main.js"></script>
   <script defer src="/js/include.js"></script>
+  <script type="module" src="/js/roles.js"></script>
 </head>
 <body>
+  <script type="module">
+    import { getAuthState, isWrestler } from '/js/roles.js';
+    (async () => {
+      const s = await getAuthState();
+      if (!isWrestler(s)) {
+        const join = document.querySelector('#join');
+        if (join) join.innerHTML = '<div class="card"><p class="muted">Create profile is for Wrestlers. Please sign up as a Wrestler.</p></div>';
+      }
+    })();
+  </script>
 
   <div data-include="partials/nav.html"></div>
 

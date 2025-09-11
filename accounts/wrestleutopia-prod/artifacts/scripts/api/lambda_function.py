@@ -280,77 +280,71 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
 
 # ---------- Entrypoint ----------
 def lambda_handler(event, _ctx):
-    """
-    HTTP API (payload v2.0) entrypoint.
-    - OPTIONS returns 204 before any auth checks (CORS preflight).
-    - GET /tryouts is public (no JWT required).
-    - All other routes require a valid JWT and are role-gated.
-    """
     try:
         method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
         path = _path(event)
 
-        # --- 1) Handle CORS preflight early (no auth) ---
+        # --- 1) CORS preflight ---
         if method == "OPTIONS":
-            return {
-                "statusCode": 204,
-                "headers": {"content-type": "application/json"},
-                "body": "",
-            }
+            return {"statusCode": 204, "headers": {"content-type": "application/json"}, "body": ""}
 
-        # --- 3) Protected routes (require JWT) ---
+        # --- 2) PUBLIC endpoints (no JWT) ---
+        if method == "GET" and path == "/tryouts":
+            # Public browse of open tryouts
+            return _get_tryouts(event)
+
+        if method == "GET" and path.startswith("/tryouts/"):
+            # If you want individual tryouts public (matches your Terraform route)
+            tryout_id = path.split("/")[-1]
+            return _get_tryout(tryout_id)
+
+        # --- 3) AUTH-required endpoints ---
         sub, groups = _claims(event)
         if not sub:
             return _resp(401, {"message": "Unauthorized"})
 
-        # Health check (protected to avoid abuse; call with a token)
+        # Health (protected)
         if path == "/health":
             return _resp(200, {"ok": True, "time": _now_iso()})
 
-        # Wrestler profiles
+        # Wrestler profiles (self vs promoter search)
         if path.startswith("/profiles/wrestlers"):
             if method in ("POST", "PUT", "PATCH"):
                 return _upsert_wrestler_profile(sub, groups, event)
-
             if method == "GET":
                 if _is_wrestler(groups):
                     item = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
                     return _resp(200, item)
-
                 if _is_promoter(groups):
                     return _list_wrestlers(groups, event)
 
-        # Promoter profiles
+        # Promoter profiles (self)
         if path.startswith("/profiles/promoters"):
             if method in ("POST", "PUT", "PATCH"):
                 return _upsert_promoter_profile(sub, groups, event)
             if method == "GET":
                 return _get_promoter_profile(sub)
 
-        # Tryouts collection
+        # Tryouts (auth-only variants)
         if path == "/tryouts":
-            if method == "GET":
-                if _is_promoter(groups):
-                    r = T_TRY.query(
-                        IndexName="ByOwner",
-                        KeyConditionExpression=Key("ownerId").eq(sub),
-                        ScanIndexForward=False,
-                        Limit=100,
-                    )
-                    return _resp(200, r.get("Items", []))
-
-                if _is_wrestler(groups):
-                    return _get_tryouts(event)
-
-                return _resp(403, {"message": "Wrestler or Promoter role required"})
-
             if method == "POST":
                 return _post_tryout(sub, groups, event)
-        # Tryout by id
+
+        # Add a separate “mine” endpoint for promoters to avoid clobbering the public route
+        if path == "/tryouts/mine" and method == "GET":
+            if not _is_promoter(groups):
+                return _resp(403, {"message": "Promoter role required"})
+            r = T_TRY.query(
+                IndexName="ByOwner",
+                KeyConditionExpression=Key("ownerId").eq(sub),
+                ScanIndexForward=False,
+                Limit=100,
+            )
+            return _resp(200, r.get("Items", []))
+
+        # Tryout by id (auth-only actions)
         if path.startswith("/tryouts/"):
             tryout_id = path.split("/")[-1]
-            if method == "GET":
-                return _get_tryout(tryout_id)
             if method == "DELETE":
                 return _delete_tryout(sub, tryout_id)
 
@@ -361,10 +355,7 @@ def lambda_handler(event, _ctx):
             if method == "GET":
                 return _get_applications(sub, event)
 
-        # No match
         return _resp(404, {"message": "Route not found"})
 
     except Exception as e:
-        # Log the full event only in dev if you want; here we keep response minimal.
-        # print("ERROR:", repr(e), "EVENT:", json.dumps(event))  # (optional)
         return _resp(500, {"message": "Server error", "detail": str(e)})

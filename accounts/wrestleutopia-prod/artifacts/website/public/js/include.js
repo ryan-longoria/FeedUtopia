@@ -57,11 +57,23 @@
   // Run includes first
   await injectPartialsRecursive();
 
-  // Active nav highlighting (unchanged)
-  const path = location.pathname.split('/').pop() || 'index.html';
-  document.querySelectorAll('.wu-links a').forEach((a) => {
-    if (a.getAttribute('href') === path) a.classList.add('active');
-  });
+  // Apply role-gated UI *after* partials are in the DOM
+  try {
+    const { applyRoleGatedUI } = await import('/js/roles.js');
+    await applyRoleGatedUI();
+  } catch (e) {
+    console.error('roles.js load/apply failed', e);
+  }
+
+  // Active nav highlighting: match by file (ignore hash)
+  (function highlightNav() {
+    const path = location.pathname.split('/').pop() || 'index.html';
+    document.querySelectorAll('.wu-links a').forEach((a) => {
+      const href = a.getAttribute('href') || '';
+      const targetPath = href.split('#')[0];
+      if (targetPath === path) a.classList.add('active');
+    });
+  })();
 
   // Mobile menu toggle (unchanged)
   const btn = document.getElementById('nav-toggle');

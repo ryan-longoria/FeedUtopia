@@ -1,4 +1,5 @@
 import { apiFetch } from '/js/api.js';
+import { getAuthState, isPromoter, isWrestler, guardPage } from '/js/roles.js';
 
 async function userGroups() {
   try {
@@ -98,10 +99,28 @@ function renderTryouts(list) {
       <div class="muted">${city} • ${dateStr}</div>
       <p class="mt-3">${reqs}</p>
       <div class="mt-3">
-        <button class="btn small" onclick="openApply('${id}','${org}')">Apply</button>
+        <button class="btn small apply-btn" data-id="${id}" data-org="${org}">Apply</button>
         <span class="muted" style="margin-left:10px">Slots: ${slots}</span>
       </div>`;
     target.appendChild(el);
+  });
+
+  getAuthState().then(s => {
+    const allow = isWrestler(s);
+    document.querySelectorAll('.apply-btn').forEach(btn => {
+      if (!allow) {
+        btn.textContent = 'Log in as Wrestler to apply';
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          document.querySelector('#login-btn')?.click();
+        }, { once: true });
+      } else {
+        btn.addEventListener('click', (e) => {
+          const b = e.currentTarget;
+          window.openApply(b.dataset.id, b.dataset.org);
+        });
+      }
+    });
   });
 }
 
@@ -138,10 +157,9 @@ async function renderTalentSearchPanel() {
   const searchForm = document.querySelector('#talent-search');
   if (!searchForm) return;
 
-  const groups = await userGroups();
-  if (!isPromoter(groups)) {
-    const panel = searchForm.closest('section, .card, .panel') || searchForm;
-    panel.style.display = 'none';
+  const s = await getAuthState();
+  if (!isPromoter(s)) {
+    (searchForm.closest('section, .card, .panel') || searchForm).style.display = 'none';
     return;
   }
 
@@ -172,16 +190,9 @@ async function renderTryoutsListPanel() {
   const listEl = document.querySelector('#tryout-list');
   if (!listEl) return;
 
-  const groups = await userGroups();
-  if (!isWrestler(groups)) {
-    listEl.innerHTML = '<p class="muted">Sign in as a Wrestler to view tryouts.</p>';
-    return;
-  }
-
   try {
     const list = await apiFetch('/tryouts');
     renderTryouts(list);
-
     if (location.hash) {
       const id = location.hash.substring(1);
       const el = document.querySelector(`[data-tryout-id="${id}"]`);
@@ -189,7 +200,7 @@ async function renderTryoutsListPanel() {
     }
   } catch (err) {
     console.error(err);
-    toast('Could not load tryouts', 'error');
+    listEl.innerHTML = '<p class="muted">Could not load tryouts.</p>';
   }
 }
 
