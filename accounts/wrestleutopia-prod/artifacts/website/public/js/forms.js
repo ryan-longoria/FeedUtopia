@@ -39,8 +39,12 @@ window.toast = toast; // keep legacy callers happy
 function renderTalent(list) {
   const target = document.querySelector('#talent-list');
   if (!target) return;
+
+  // NEW: normalize
+  const items = Array.isArray(list) ? list : (list ? [list] : []);
+
   target.innerHTML = '';
-  (list || []).forEach(p => {
+  items.forEach(p => {
     const ring = p.ring || p.ringName || p.name || 'Wrestler';
     const name = p.name || '';
     const yrs  = p.years ?? p.yearsExperience ?? 0;

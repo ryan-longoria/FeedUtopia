@@ -1,4 +1,20 @@
+// /js/main.js
 import { apiFetch } from '/js/api.js';
+
+// Lightweight helper to read Cognito groups from the ID token
+async function userGroups() {
+  try {
+    const { fetchAuthSession } = await import('/js/auth-bridge.js');
+    const s = await fetchAuthSession();
+    const id = s?.tokens?.idToken?.toString();
+    if (!id) return [];
+    const payload = JSON.parse(atob(id.split('.')[1]));
+    const g = payload['cognito:groups'];
+    return Array.isArray(g) ? g : (typeof g === 'string' && g ? [g] : []);
+  } catch {
+    return [];
+  }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   // ---------- Nav highlighting ----------
@@ -9,12 +25,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ---------- Home: Tryouts preview ----------
+  // ---------- Home: Tryouts preview (Wrestlers only) ----------
   const tryoutList = document.querySelector('#home-tryouts');
   if (tryoutList) {
     (async () => {
+      const groups = await userGroups();
+      const isWrestler = groups.includes('Wrestlers');
+
+      if (!isWrestler) {
+        // Don’t call the API; show a friendly hint instead.
+        tryoutList.innerHTML = '<p class="muted">Sign in as a Wrestler to view tryouts.</p>';
+        return;
+      }
+
       try {
-        const list = await apiFetch('/tryouts'); // returns open tryouts via GSI
+        const list = await apiFetch('/tryouts'); // now JWT + role-gated
         const top = (list || []).slice(0, 6);
         if (top.length === 0) {
           tryoutList.innerHTML = '<p class="muted">No open tryouts yet.</p>';
@@ -48,12 +73,21 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
   }
 
-  // ---------- Home: Talent spotlight (Promoter-only; API enforces) ----------
+  // ---------- Home: Talent spotlight (Promoter-only; avoid 403) ----------
   const spot = document.querySelector('#home-talent');
   if (spot) {
     (async () => {
+      const groups = await userGroups();
+      const isPromoter = groups.includes('Promoters');
+
+      if (!isPromoter) {
+        const section = spot.closest('section');
+        if (section) section.style.display = 'none';
+        return;
+      }
+
       try {
-        const list = await apiFetch('/profiles/wrestlers'); // 403 if not a Promoter
+        const list = await apiFetch('/profiles/wrestlers');
         const top = (list || []).slice(0, 8);
         if (top.length === 0) {
           spot.innerHTML = '<p class="muted">No talent to show yet.</p>';
@@ -83,7 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
           spot.appendChild(el);
         });
       } catch (err) {
-        // Not a promoter or other error—hide the section quietly.
         console.log('Talent spotlight hidden:', err?.message || err);
         const section = spot.closest('section');
         if (section) section.style.display = 'none';
