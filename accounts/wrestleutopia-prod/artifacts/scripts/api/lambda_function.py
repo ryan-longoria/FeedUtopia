@@ -125,30 +125,55 @@ def _uuid() -> str:
 
 # ---------- Route handlers ----------
 def _get_tryouts(event: Dict[str, Any]) -> Dict[str, Any]:
-    # List open tryouts by date (GSI OpenByDate: status=partition, date=sort)
-    r = T_TRY.query(
-        IndexName="OpenByDate",
-        KeyConditionExpression=Key("status").eq("open"),
-        ScanIndexForward=True,  # ascending by date
-        Limit=100,
-    )
-    return _resp(200, r.get("Items", []))
+    """
+    Return open tryouts. Prefer the OpenByDate GSI, but if it returns nothing
+    (status casing / missing date / index not warm yet), fall back to a scan.
+    """
+    items = []
+    from_path = "gsi"
+    try:
+        r = T_TRY.query(
+            IndexName="OpenByDate",
+            KeyConditionExpression=Key("status").eq("open"),
+            ScanIndexForward=True,
+            Limit=100,
+        )
+        items = r.get("Items", []) or []
+    except Exception as e:
+        print("OpenByDate query failed:", repr(e))
+        items = []
+
+    if not items:
+        from_path = "scan"
+        try:
+            r2 = T_TRY.scan(
+                FilterExpression=Attr("status").eq("open"),
+                Limit=100,
+            )
+            items = r2.get("Items", []) or []
+        except Exception as e2:
+            print("Fallback scan failed:", repr(e2))
+            return _resp(500, {"message": "Server error", "where": "_get_tryouts"})
+
+    return _resp(200, items)
 
 def _post_tryout(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     if not _is_promoter(groups):
         return _resp(403, {"message": "Promoter role required"})
     data = _json(event)
     tid = _uuid()
+    status_in = (data.get("status") or "open").strip().lower()
+    date_in = (data.get("date") or "").strip()  # 'YYYY-MM-DD'
     item = {
         "tryoutId": tid,
         "ownerId": sub,
         "orgName": (data.get("orgName") or data.get("org") or "").strip(),
         "city": (data.get("city") or "").strip(),
-        "date": (data.get("date") or "").strip(),
+        "date": date_in,          # REQUIRED for GSI projection
         "slots": int(data.get("slots") or 0),
         "requirements": (data.get("requirements") or "").strip(),
         "contact": (data.get("contact") or "").strip(),
-        "status": (data.get("status") or "open").strip() or "open",
+        "status": status_in,      # lowercased
         "createdAt": _now_iso(),
     }
     T_TRY.put_item(Item=item)
