@@ -19,9 +19,28 @@
   <script type="module" src="/js/forms.js"></script>
   <script type="module" src="/js/main.js"></script>
   <script defer src="/js/include.js"></script>
+  <script type="module" src="/js/roles.js"></script>
 </head>
 
 <body>
+  <script type="module">
+    import { getAuthState, isPromoter, isWrestler } from '/js/roles.js';
+    async function morphHero() {
+      const s = await getAuthState();
+      const joinBtn = document.querySelector('a[href="talent.html#join"]');
+      const tryoutBtn = document.querySelector('a[href="promoters.html#post"]');
+      if (joinBtn) {
+        if (isWrestler(s)) { joinBtn.textContent = 'View My Profile'; joinBtn.href = 'talent.html#join'; }
+        else if (isPromoter(s)) { joinBtn.style.display = 'none'; }
+      }
+      if (tryoutBtn) {
+        if (isPromoter(s)) { tryoutBtn.textContent = 'Post a Tryout'; }
+        else if (isWrestler(s)) { tryoutBtn.textContent = 'Browse Tryouts'; tryoutBtn.href = 'tryouts.html'; }
+      }
+    }
+    morphHero();
+    window.addEventListener('auth:changed', morphHero);
+  </script>
 
   <div data-include="/partials/nav.html"></div>
 

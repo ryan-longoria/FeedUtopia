@@ -19,8 +19,13 @@
   <script type="module" src="/js/forms.js"></script>
   <script type="module" src="/js/main.js"></script>
   <script defer src="/js/include.js"></script>
+  <script type="module" src="/js/roles.js"></script>
 </head>
 <body>
+  <script type="module">
+    import { guardPage } from '/js/roles.js';
+    guardPage({ requireRole: 'Promoter', redirect: 'index.html' });
+  </script>
 
   <div data-include="partials/nav.html"></div>
 
