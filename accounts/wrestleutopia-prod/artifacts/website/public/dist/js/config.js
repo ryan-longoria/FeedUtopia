@@ -1,3 +1,1 @@
-<script>
-  window.WU_API = "https://go2gft4394.execute-api.us-east-2.amazonaws.com";
-</script>
+window.WU_API = "https://go2gft4394.execute-api.us-east-2.amazonaws.com";
