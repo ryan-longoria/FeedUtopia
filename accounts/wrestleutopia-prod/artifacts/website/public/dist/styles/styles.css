@@ -323,3 +323,5 @@ label{display:block;margin:10px 0 6px;font-weight:600}
 }
 #free-offer .fine{ font-size:12px; opacity:.85; margin-top:8px }
 @media (max-width:900px){ #free-offer .offer-grid{ grid-template-columns:1fr } .cta-row{ justify-content:flex-start } }
+
+.locked-card.wrestler-only::before { content: "Wrestler-only view"; }

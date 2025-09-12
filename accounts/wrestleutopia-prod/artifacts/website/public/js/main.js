@@ -26,10 +26,7 @@ async function renderHomeTryouts(groups) {
   if (!tryoutList) return;
 
   const isWrestler = groups.includes('Wrestlers');
-  if (!isWrestler) {
-    tryoutList.innerHTML = '<p class="muted">Sign in as a Wrestler to view tryouts.</p>';
-    return;
-  }
+  if (!isWrestler) return;
 
   try {
     const list = await apiFetch('/tryouts');
