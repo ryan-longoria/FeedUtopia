@@ -89,8 +89,77 @@ async function loadMyTryouts() {
   }
 }
 
+function serializeForm(form) {
+  const data = new FormData(form);
+  const out = {};
+  for (const [k, v] of data.entries()) out[k] = v;
+  return out;
+}
+
+function toastInline(text, type = 'success') {
+  // Minimal inline toast (optional); replace with your global toast if present
+  const el = document.createElement('div');
+  el.textContent = text;
+  el.style.cssText = `position:fixed;right:16px;bottom:16px;padding:10px 14px;border-radius:8px;
+                      background:${type==='error'?'#3b1f2a':'#1f3b2a'};color:#fff;z-index:9999`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2200);
+}
+
+async function wireTryoutForm() {
+  const form = document.getElementById('tryout-form-dash');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Basic guard: promoter only
+    const s = await getAuthState();
+    if (!isPromoter(s)) {
+      toastInline('Promoter role required', 'error');
+      return;
+    }
+
+    const o = serializeForm(form);
+    // Backend expects orgName and YYYY-MM-DD
+    const body = {
+      orgName: (o.org || '').trim(),
+      city: (o.city || '').trim(),
+      date: (o.date || '').trim(),              // <input type="date"> provides YYYY-MM-DD
+      slots: Number(o.slots || 0),
+      requirements: (o.requirements || '').trim(),
+      contact: (o.contact || '').trim(),
+      status: 'open',
+    };
+
+    // Disable while submitting
+    const btn = form.querySelector('button[type="submit"]');
+    const prev = btn?.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+
+    try {
+      await apiFetch('/tryouts', { method: 'POST', body });
+      toastInline('Tryout posted!');
+      form.reset();
+
+      // Refresh the lists so the new tryout appears under "Active"
+      await loadMyTryouts();
+    } catch (err) {
+      console.error(err);
+      toastInline('Could not post tryout', 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = prev || 'Post Tryout'; }
+    }
+  });
+}
+
+async function initDash() {
+  await loadMyTryouts();
+  await wireTryoutForm();
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', loadMyTryouts, { once: true });
+  document.addEventListener('DOMContentLoaded', initDash, { once: true });
 } else {
-  loadMyTryouts();
+  initDash();
 }

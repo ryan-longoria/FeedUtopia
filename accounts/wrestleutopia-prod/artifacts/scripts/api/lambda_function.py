@@ -16,6 +16,7 @@ from boto3.dynamodb.conditions import Key, Attr
 
 AWS_REGION = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-2"
 DEBUG_TRYOUTS = (os.environ.get("DEBUG_TRYOUTS") or "").strip().lower() in {"1", "true", "yes"}
+UUID_PATH = re.compile(r"^/tryouts/[0-9a-fA-F-]{36}$")
 
 # Prefer explicit region to avoid accidental cross-region connections
 ddb = boto3.resource("dynamodb", region_name=AWS_REGION)
@@ -336,12 +337,12 @@ def lambda_handler(event, _ctx):
 
         # 2) PUBLIC endpoints (no JWT)
         if method == "GET" and path == "/tryouts":
-            # public browse of open tryouts
+            # public list of open tryouts
             return _get_tryouts(event)
 
-        if method == "GET" and path.startswith("/tryouts/"):
-            # allow individual tryout fetch to be public if API GW route is public
-            tryout_id = path.split("/")[-1]
+        # only treat as /tryouts/{id} if {id} looks like a UUID (prevents catching /tryouts/mine)
+        if method == "GET" and UUID_PATH.fullmatch(path):
+            tryout_id = path.rsplit("/", 1)[1]
             return _get_tryout(tryout_id)
 
         # 3) AUTH-required endpoints
