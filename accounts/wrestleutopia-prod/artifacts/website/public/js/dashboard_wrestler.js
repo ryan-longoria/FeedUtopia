@@ -158,13 +158,43 @@ async function loadMyApplications() {
       <h3>Loading applications…</h3>
     </div>`;
 
-  try {
-    // Prefer a “me” filter if you expose it; otherwise fetch all and client-filter later if needed
-    let apps = [];
-    try { apps = await apiFetch('/applications?me=true'); }
-    catch { apps = await apiFetch('/applications'); }
+  // get auth + sub
+  let s;
+  try { s = await getAuthState(); } catch {}
+  const mySub = s?.sub || null;
 
-    if (!Array.isArray(apps) || !apps.length) { renderEmptyApps(target); return; }
+  // helper to try endpoints in order
+  async function trySeq(urls) {
+    for (const u of urls) {
+      try { return await apiFetch(u); } catch (e) {
+        // only keep going on 401/403/404; rethrow others
+        const msg = String(e);
+        if (!(msg.includes('API 401') || msg.includes('API 403') || msg.includes('API 404'))) throw e;
+      }
+    }
+    return null;
+  }
+
+  try {
+    const urls = [
+      '/applications?me=true',
+      mySub ? `/applications?applicantId=${encodeURIComponent(mySub)}` : null,
+      mySub ? `/applications?userSub=${encodeURIComponent(mySub)}` : null,
+      '/applications'
+    ].filter(Boolean);
+
+    let apps = await trySeq(urls);
+
+    // Final fallback: client-filter by common fields
+    if (Array.isArray(apps) && mySub) {
+      const keys = ['applicantId','userSub','user_id','userId','owner','createdBy','sub','user_sub'];
+      apps = apps.filter(a => keys.some(k => (a?.[k] || '').toString() === mySub));
+    }
+
+    if (!Array.isArray(apps) || !apps.length) {
+      renderEmptyApps(target);
+      return;
+    }
 
     target.innerHTML = '';
     apps
