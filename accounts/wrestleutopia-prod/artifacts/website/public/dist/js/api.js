@@ -26,7 +26,7 @@ export async function apiFetch(path, { method = 'GET', body = null } = {}) {
   const token = await idToken();
   const headers = {};
 
-  if (token) headers.authorization = `Bearer ${token}`;
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   const hasBody = body != null;
   if (hasBody) headers['content-type'] = 'application/json';
