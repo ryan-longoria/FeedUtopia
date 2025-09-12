@@ -138,3 +138,11 @@ resource "aws_apigatewayv2_route" "get_tryout_by_id" {
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
   authorization_type = "NONE"
 }
+
+resource "aws_apigatewayv2_route" "get_wrestlers_me" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "GET /profiles/wrestlers/me"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  authorization_type = "JWT"
+}
