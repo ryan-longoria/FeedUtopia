@@ -9,6 +9,8 @@ from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
+from botocore.exceptions import ClientError
+from boto3.dynamodb.types import TypeSerializer
 
 # ------------------------------------------------------------------------------
 # Cold-start init
@@ -32,6 +34,14 @@ T_PROMO = ddb.Table(TABLE_PROMOTERS)
 T_TRY   = ddb.Table(TABLE_TRYOUTS)
 T_APP   = ddb.Table(TABLE_APPS)
 
+TABLE_HANDLES   = os.environ["TABLE_HANDLES"]
+T_HANDLES       = ddb.Table(TABLE_HANDLES)
+
+HANDLE_RE = re.compile(r"[^a-z0-9]+")
+MAX_BIO_LEN = 1500
+MAX_GIMMICKS = 10
+SER = TypeSerializer()
+
 def _log(*args):
     # Simple log helper (stringifies safely)
     print("[WU]", *[repr(a) for a in args])
@@ -47,6 +57,15 @@ _log("REGION", AWS_REGION, "TABLES", {
 # ------------------------------------------------------------------------------
 # Small helpers
 # ------------------------------------------------------------------------------
+
+def _av_map(pyobj: dict) -> dict:
+    # Convert a Python dict to DynamoDB AttributeValue map, skipping None
+    return {k: SER.serialize(v) for k, v in pyobj.items() if v is not None}
+
+def _slugify_handle(stage_name: str) -> str:
+    s = (stage_name or "").strip().lower()
+    s = HANDLE_RE.sub("-", s).strip("-")
+    return s or None
 
 def _jsonify(data):
     if isinstance(data, Decimal):
@@ -231,7 +250,7 @@ def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     fe = None
     try:
         if style:
-            cond = Attr("styles").contains(style)
+            cond = Attr("gimmicks").contains(style)
             fe = cond if fe is None else fe & cond
 
         if city:
@@ -322,6 +341,105 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
     )
     return _resp(200, r.get("Items", []))
 
+def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
+    if not _is_wrestler(groups):
+        return _resp(403, {"message": "Wrestler role required"})
+
+    data = _json(event)
+
+    # Required
+    name      = (data.get("name") or "").strip()
+    stage     = (data.get("stageName") or "").strip()
+    dob       = (data.get("dob") or "").strip()
+    city      = (data.get("city") or "").strip()
+    country   = (data.get("country") or "").strip()
+    region    = (data.get("region") or "").strip()
+
+    if not (name and stage and dob and city and country):
+        return _resp(400, {"message": "Missing required fields (name, stageName, dob, city, country)"})
+
+    # Optional/clean
+    bio = (data.get("bio") or "").strip()
+    if len(bio) > MAX_BIO_LEN:
+        return _resp(400, {"message": f"bio too long (max {MAX_BIO_LEN})"})
+    gimmicks = data.get("gimmicks") or []
+    if isinstance(gimmicks, str):
+        gimmicks = [x.strip() for x in gimmicks.split(",") if x.strip()]
+    gimmicks = list(dict.fromkeys(gimmicks))[:MAX_GIMMICKS]  # unique + cap
+    photo_key = (data.get("photoKey") or "").strip() or None
+
+    # Build handle from stage name
+    handle = _slugify_handle(stage)
+    if not handle:
+        return _resp(400, {"message": "Invalid stageName for handle"})
+
+    now = _now_iso()
+    profile = {
+        "userId": sub,
+        "name": name,
+        "stageName": stage,
+        "dob": dob,
+        "city": city,
+        "region": region or None,
+        "country": country,
+        "bio": bio or None,
+        "gimmicks": gimmicks or None,
+        "photoKey": photo_key,
+        "handle": handle,          # for GSI
+        "updatedAt": now,
+        "createdAt": now,          # ok to overwrite on first write
+        "role": "Wrestler"
+    }
+
+    # We reserve the handle in TABLE_HANDLES to guarantee uniqueness.
+    # If user is updating to the SAME handle they already own, allow it.
+    try:
+        ddb.meta.client.transact_write_items(
+            TransactItems=[
+                {
+                    "Put": {
+                        "TableName": TABLE_WRESTLERS,
+                        "Item": _av_map(profile),
+                        "ConditionExpression": "attribute_not_exists(userId) OR userId = :u",
+                        "ExpressionAttributeValues": {":u": {"S": sub}},
+                    }
+                },
+                {
+                    "Put": {
+                        "TableName": TABLE_HANDLES,
+                        "Item": {"handle": {"S": handle}, "owner": {"S": sub}},
+                        "ConditionExpression": "attribute_not_exists(handle) OR owner = :u",
+                        "ExpressionAttributeValues": {":u": {"S": sub}},
+                    }
+                },
+            ]
+        )
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
+            return _resp(409, {"message": "Stage name handle already taken"})
+        raise
+
+    return _resp(200, {**profile})
+
+def _get_profile_by_handle(handle: str) -> Dict[str, Any]:
+    if not handle:
+        return _resp(400, {"message": "handle required"})
+    try:
+        r = T_WREST.query(
+            IndexName="ByHandle",
+            KeyConditionExpression=Key("handle").eq(handle),
+            Limit=1,
+        )
+        items = r.get("Items") or []
+        if not items:
+            return _resp(404, {"message": "Not found"})
+        return _resp(200, items[0])
+    except Exception as e:
+        _log("get by handle error", e)
+        return _resp(500, {"message": "Server error"})
+
+
 # ------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------
@@ -344,6 +462,17 @@ def lambda_handler(event, _ctx):
         if method == "GET" and UUID_PATH.fullmatch(path):
             tryout_id = path.rsplit("/", 1)[1]
             return _get_tryout(tryout_id)
+        
+        if method == "GET" and path.startswith("/profiles/wrestlers/") and path != "/profiles/wrestlers/me":
+            handle = path.split("/")[-1]
+            return _get_profile_by_handle(handle)
+
+        # AUTH: PUT /profiles/wrestlers/me (create/update self)
+        if method == "PUT" and path == "/profiles/wrestlers/me":
+            sub, groups = _claims(event)
+            if not sub:
+                return _resp(401, {"message": "Unauthorized"})
+            return _put_me_profile(sub, groups, event)
 
         # 3) AUTH-required endpoints
         sub, groups = _claims(event)

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="theme-color" content="#0b0b12"/>
+  <title>WrestleUtopia – My Profile</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"/>
+  <link rel="stylesheet" href="/styles/styles.css"/>
+
+  <script src="/js/config.js"></script>
+  <script type="module" src="/js/auth-bridge.js"></script>
+  <script type="module" src="/js/api.js"></script>
+  <script defer src="/js/include.js"></script>
+  <script type="module" src="/js/roles.js"></script>
+  <script type="module" src="/js/profile_me.js"></script>
+
+  <style>
+    .avatar { width: 120px; height: 120px; border-radius: 999px; object-fit: cover; background:#0f1224; border:1px solid #1f2546 }
+    .hint { font-size:12px; color: var(--muted); }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media (max-width: 720px) { .grid-2 { grid-template-columns:1fr; } }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { background:#121934; border:1px solid #1f2546; padding:4px 8px; border-radius:999px; }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div data-include="partials/nav.html"></div>
+
+  <main class="section">
+    <div class="container">
+      <h1>My Wrestler Profile</h1>
+      <p class="muted">This info appears on your public page at <code>/w/&lt;handle&gt;</code>.</p>
+
+      <form id="profileForm" class="card mt-3" style="max-width:860px">
+        <div class="grid-2">
+          <div>
+            <label for="name">Legal Name</label>
+            <input class="input" id="name" name="name" required autocomplete="name"/>
+          </div>
+          <div>
+            <label for="stageName">Stage Name</label>
+            <input class="input" id="stageName" name="stageName" required autocomplete="nickname"/>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-2">
+          <div>
+            <label for="dob">Date of Birth</label>
+            <input class="input" id="dob" name="dob" type="date" required />
+          </div>
+          <div>
+            <label for="city">City</label>
+            <input class="input" id="city" name="city" required autocomplete="address-level2"/>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-2">
+          <div>
+            <label for="region">State/Region</label>
+            <input class="input" id="region" name="region" autocomplete="address-level1"/>
+          </div>
+          <div>
+            <label for="country">Country</label>
+            <input class="input" id="country" name="country" value="US" required autocomplete="country-name"/>
+          </div>
+        </div>
+
+        <div class="mt-2">
+          <label for="bio">Bio <span class="muted">(optional)</span></label>
+          <textarea class="input" id="bio" name="bio" rows="4" placeholder="Short intro, accolades, schools, safety certs…"></textarea>
+          <div class="hint">Up to 1500 characters.</div>
+        </div>
+
+        <div class="mt-2">
+          <label for="gimmicks">Gimmicks <span class="muted">(optional)</span></label>
+          <input class="input" id="gimmicks" name="gimmicks" placeholder="Comma-separated (e.g., Heel, High-flyer, Hardcore)"/>
+          <div class="hint">We’ll store up to 10.</div>
+        </div>
+
+        <div class="mt-3" style="display:flex; gap:16px; align-items:center">
+          <img id="avatarPreview" class="avatar" src="/assets/avatar-fallback.svg" alt="Profile avatar"/>
+          <div>
+            <label for="avatar">Profile Photo <span class="muted">(optional)</span></label>
+            <input class="input" id="avatar" name="avatar" type="file" accept="image/*"/>
+            <div class="hint">JPG/PNG recommended. We’ll upload directly to S3.</div>
+          </div>
+        </div>
+
+        <div class="mt-4" style="display:flex; gap:10px">
+          <button class="btn" type="submit" id="saveBtn">Save Profile</button>
+          <button class="btn secondary" type="button" id="viewBtn" disabled>View Public Page</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <div data-include="partials/footer.html"></div>
+  <div id="toast" class="toast"></div>
+</body>
+</html>

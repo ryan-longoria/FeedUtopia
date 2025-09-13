@@ -11,6 +11,28 @@ resource "aws_dynamodb_table" "wrestlers" {
     name = "userId" 
     type = "S" 
   }
+
+  attribute { 
+    name = "handle" 
+    type = "S" 
+  }
+
+  global_secondary_index {
+    name            = "ByHandle"
+    hash_key        = "handle"
+    projection_type = "ALL"
+  }
+}
+
+resource "aws_dynamodb_table" "profile_handles" {
+  name         = "${var.project_name}-ProfileHandles"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "handle"
+
+  attribute { 
+    name = "handle" 
+    type = "S" 
+  }
 }
 
 resource "aws_dynamodb_table" "promoters" {

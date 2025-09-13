@@ -154,3 +154,26 @@ resource "aws_apigatewayv2_route" "get_tryouts_mine" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
 }
+
+resource "aws_apigatewayv2_route" "get_wrestler_by_handle" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "GET /profiles/wrestlers/{handle}"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "put_wrestlers_me" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "PUT /profiles/wrestlers/me"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  authorization_type = "JWT"
+}
+
+resource "aws_apigatewayv2_route" "post_profile_avatar_presign" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "POST /profiles/wrestlers/me/photo-url"
+  target             = "integrations/${aws_apigatewayv2_integration.presign_lambda.id}"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  authorization_type = "JWT"
+}

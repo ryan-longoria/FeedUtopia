@@ -52,6 +52,7 @@ resource "aws_lambda_function" "api" {
       TABLE_TRYOUTS     = aws_dynamodb_table.tryouts.name
       TABLE_APPS        = aws_dynamodb_table.applications.name
       MEDIA_BUCKET      = aws_s3_bucket.media_bucket.bucket
+      TABLE_HANDLES   = aws_dynamodb_table.profile_handles.name
     }
   }
 }

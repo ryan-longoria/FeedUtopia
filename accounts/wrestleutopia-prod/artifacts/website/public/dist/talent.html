@@ -17,28 +17,14 @@
   <script type="module" src="/js/auth-bridge.js"></script>
   <script type="module" src="/js/api.js"></script>
   <script type="module" src="/js/forms.js"></script>
-  <script type="module" src="/js/main.js"></script>
+  <!-- main.js is homepage-only; omit to avoid extra work on this page -->
   <script defer src="/js/include.js"></script>
   <script type="module" src="/js/roles.js"></script>
 </head>
 <body>
-  <script type="module">
-    import { getAuthState, isWrestler } from '/js/roles.js';
-    (async () => {
-      const s = await getAuthState();
-      if (!isWrestler(s)) {
-        const join = document.querySelector('#join');
-        if (join) join.innerHTML = '<div class="card"><p class="muted">Create profile is for Wrestlers. Please sign up as a Wrestler.</p></div>';
-      }
-    })();
-  </script>
-
   <div data-include="partials/nav.html"></div>
 
   <main class="section container">
-    <h1>For Talent</h1>
-    <p class="muted">Create your profile and get seen by promoters. Add your reel and styles to help the right people find you.</p>
-
     <section id="search" class="card mt-4">
       <h2>Search Talent</h2>
       <form id="talent-search" class="mt-2">
@@ -77,89 +63,27 @@
       </form>
       <div id="talent-list" class="grid cols-2 mt-3"></div>
     </section>
-
-    <section id="join" class="card mt-6">
-      <h2>Create Your Profile</h2>
-      <form id="talent-form" class="mt-2">
-        <div class="form-row">
-          <div>
-            <label for="name">Your Name</label>
-            <input class="input" id="name" name="name" required autocomplete="name"/>
-          </div>
-          <div>
-            <label for="ring">Ring Name</label>
-            <input class="input" id="ring" name="ring" required autocomplete="nickname"/>
-          </div>
-        </div>
-        <div class="form-row">
-          <div>
-            <label for="city">City, State</label>
-            <input class="input" id="city" name="city" placeholder="San Antonio, TX" required autocomplete="address-level2"/>
-          </div>
-          <div>
-            <label for="travel">Travel Radius (miles)</label>
-            <input class="input" id="travel" name="travel" type="number" value="150" inputmode="numeric" min="0"/>
-          </div>
-        </div>
-        <div class="form-row">
-          <div>
-            <label for="height_cm">Height (cm)</label>
-            <input class="input" id="height_cm" name="height_cm" type="number" inputmode="numeric" min="0"/>
-          </div>
-          <div>
-            <label for="weight_kg">Weight (kg)</label>
-            <input class="input" id="weight_kg" name="weight_kg" type="number" inputmode="numeric" min="0"/>
-          </div>
-        </div>
-        <div class="form-row">
-          <div>
-            <label for="years">Years Experience</label>
-            <input class="input" id="years" name="years" type="number" inputmode="numeric" min="0"/>
-          </div>
-          <div>
-            <label for="school">School</label>
-            <input class="input" id="school" name="school" placeholder="e.g., Reality of Wrestling" autocomplete="organization"/>
-          </div>
-        </div>
-        <div class="form-row">
-          <div>
-            <label>Styles</label>
-            <div>
-              <label><input type="checkbox" name="styles" value="Technical" /> Technical</label>
-              <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="High-flyer" /> High-flyer</label>
-              <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Power" /> Power</label>
-            </div>
-          </div>
-          <div style="margin-top:28px">
-            <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Brawler" /> Brawler</label>
-            <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Striker" /> Striker</label>
-            <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Lucha" /> Lucha</label>
-            <label class="mt-2" style="display:block;"><input type="checkbox" name="styles" value="Strong Style" /> Strong Style</label>
-          </div>
-        </div>
-        <div class="form-row">
-          <div>
-            <label for="reel">Highlight Reel URL</label>
-            <input class="input" id="reel" name="reel" type="url" placeholder="https://..." inputmode="url" autocomplete="url"/>
-          </div>
-          <div class="form-row">
-            <div>
-              <label for="rate_min">Min Rate ($)</label>
-              <input class="input" id="rate_min" name="rate_min" type="number" inputmode="numeric" min="0"/>
-            </div>
-            <div>
-              <label for="rate_max">Max Rate ($)</label>
-              <input class="input" id="rate_max" name="rate_max" type="number" inputmode="numeric" min="0"/>
-            </div>
-          </div>
-        </div>
-        <button class="btn mt-4" type="submit">Create Profile</button>
-        <p class="muted mt-2" style="font-size:12px">By creating a profile you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
-      </form>
-    </section>
   </main>
 
   <div data-include="partials/footer.html"></div>
 
+  <!-- Hard lock: show a "Locked" card unless Promoter -->
+  <script type="module">
+    import { getAuthState, isPromoter } from '/js/roles.js';
+    (async () => {
+      const s = await getAuthState();
+      if (!isPromoter(s)) {
+        const sec = document.querySelector('#search');
+        if (sec) {
+          sec.innerHTML = `
+            <h2>Talent Search <span class="badge">Locked</span></h2>
+            <div class="mt-2">
+              <p class="muted">Only promoters can search wrestler profiles.</p>
+              <a href="#" class="btn small" data-auth="out" id="become-promoter">Create a free promoter account</a>
+            </div>`;
+        }
+      }
+    })();
+  </script>
 </body>
 </html>

@@ -203,6 +203,7 @@ resource "aws_iam_role" "api_lambda_role" {
   })
 }
 
+# EXISTING policy: api_dynamo_policy
 resource "aws_iam_policy" "api_dynamo_policy" {
   name        = "${var.project_name}-api-dynamo"
   description = "CRUD on WrestlerProfiles, PromoterProfiles, Tryouts (+GSIs), Applications (+GSIs)"
@@ -210,7 +211,7 @@ resource "aws_iam_policy" "api_dynamo_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid    = "CrudOnTables"
+        Sid    = "CrudOnTables",
         Effect = "Allow",
         Action = [
           "dynamodb:PutItem",
@@ -218,7 +219,9 @@ resource "aws_iam_policy" "api_dynamo_policy" {
           "dynamodb:UpdateItem",
           "dynamodb:DeleteItem",
           "dynamodb:Query",
-          "dynamodb:Scan"
+          "dynamodb:Scan",
+          "dynamodb:TransactWriteItems",
+          "dynamodb:ConditionCheckItem"
         ],
         Resource = [
           aws_dynamodb_table.wrestlers.arn,
@@ -226,12 +229,16 @@ resource "aws_iam_policy" "api_dynamo_policy" {
           aws_dynamodb_table.tryouts.arn,
           "${aws_dynamodb_table.tryouts.arn}/index/*",
           aws_dynamodb_table.applications.arn,
-          "${aws_dynamodb_table.applications.arn}/index/*"
+          "${aws_dynamodb_table.applications.arn}/index/*",
+
+          aws_dynamodb_table.profile_handles.arn,
+          "${aws_dynamodb_table.wrestlers.arn}/index/*"
         ]
       }
     ]
   })
 }
+
 
 resource "aws_iam_policy" "api_s3_media_policy" {
   name        = "${var.project_name}-api-s3-media"

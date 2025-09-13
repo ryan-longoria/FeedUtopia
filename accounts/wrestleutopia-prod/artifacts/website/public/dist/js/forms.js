@@ -166,21 +166,26 @@ window.openApply = openApply;
 
 async function renderTalentSearchPanel() {
   const searchForm = document.querySelector('#talent-search');
+  const resultsWrap = document.querySelector('#talent-list')?.closest('section, .card, .panel') || document.querySelector('#talent-list');
   if (!searchForm) return;
 
   const s = await getAuthState();
   if (!isPromoter(s)) {
-    (searchForm.closest('section, .card, .panel') || searchForm).style.display = 'none';
+    // Clear and show locked state
+    if (resultsWrap) {
+      resultsWrap.innerHTML = `
+        <div class="card">
+          <h2>Talent Search <span class="badge">Locked</span></h2>
+          <p class="muted">Only promoters can search wrestler profiles. 
+          <a href="#" data-auth="out" id="become-promoter">Create a free promoter account</a>.</p>
+        </div>`;
+    } else {
+      (searchForm.closest('section, .card, .panel') || searchForm).style.display = 'none';
+    }
     return;
   }
 
-  // Extra guard using raw group list (optional)
-  const groups = await userGroups();
-  if (!isPromoterGroup(groups)) {
-    (searchForm.closest('section, .card, .panel') || searchForm).style.display = 'none';
-    return;
-  }
-
+  // Promoter allowed → wire live filtering
   const onFilter = async () => {
     try {
       const o = serializeForm(searchForm);
@@ -203,6 +208,7 @@ async function renderTalentSearchPanel() {
   ['input','change'].forEach(evt => searchForm.addEventListener(evt, onFilter));
   onFilter();
 }
+
 
 async function renderTryoutsListPanel() {
   const listEl = document.querySelector('#tryout-list');
