@@ -118,12 +118,40 @@ async function init() {
   });
 
   viewBtn?.addEventListener('click', () => {
-    const handle =
-      viewBtn.dataset.handle ||
-      slugify(document.getElementById('stageName')?.value || '');
-    if (!handle) return;
-    // prefer pretty URL (/w/<handle>) — /w/index.html handles routing
-    location.href = `/w/${handle}`;
+    const stageName = document.getElementById('stageName')?.value || 'Wrestler';
+    const name      = document.getElementById('name')?.value || '';
+    const dob       = document.getElementById('dob')?.value || '';
+    const city      = document.getElementById('city')?.value || '';
+    const region    = document.getElementById('region')?.value || '';
+    const country   = document.getElementById('country')?.value || '';
+    const bio       = document.getElementById('bio')?.value || '';
+    const gimmicks  = (document.getElementById('gimmicks')?.value || '')
+                      .split(',').map(s=>s.trim()).filter(Boolean);
+
+    const avatarPreview = document.getElementById('avatarPreview');
+    const imgSrc = avatarPreview?.src || '/assets/avatar-fallback.svg';
+
+    const loc = [city, region, country].filter(Boolean).join(', ');
+
+    const html = `
+      <div style="display:grid;grid-template-columns:120px 1fr;gap:16px">
+        <img src="${imgSrc}" alt="Avatar" style="width:120px;height:120px;border-radius:999px;object-fit:cover;background:#0f1224;border:1px solid #1f2546"/>
+        <div>
+          <h2 style="margin:0">${stageName}</h2>
+          <div class="muted">${loc}</div>
+          <div class="chips mt-2">${gimmicks.map(g=>`<span class="chip">${g}</span>`).join('')}</div>
+        </div>
+      </div>
+      <div class="mt-3">${bio ? `<p>${bio.replace(/\n/g,'<br/>')}</p>` : '<p class="muted">No bio yet.</p>'}</div>
+      <dl class="mt-3">
+        <dt class="muted">Name</dt><dd>${name}</dd>
+        <dt class="muted mt-2">DOB</dt><dd>${dob}</dd>
+      </dl>
+    `;
+
+    const box = document.getElementById('preview-content');
+    if (box) box.innerHTML = html;
+    document.getElementById('preview-modal')?.showModal();
   });
 
   form?.addEventListener('submit', async (e) => {

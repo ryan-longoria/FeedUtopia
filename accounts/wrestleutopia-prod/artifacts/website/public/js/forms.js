@@ -50,21 +50,22 @@ function renderTalent(list) {
   if (!target) return;
 
   const items = Array.isArray(list) ? list : (list ? [list] : []);
-
   target.innerHTML = '';
-  items.forEach(p => {
-    const ring = p.ring || p.ringName || p.name || 'Wrestler';
+
+  const fallback = (ring) => `https://picsum.photos/seed/${encodeURIComponent(ring)}/200/200`;
+
+  items.forEach((p, idx) => {
+    const ring = p.ring || p.ringName || p.stageName || p.name || 'Wrestler';
     const name = p.name || '';
     const yrs  = p.years ?? p.yearsExperience ?? 0;
-    const styles = Array.isArray(p.styles) ? p.styles : [];
-    const avatar =
-      p.avatar ||
-      `https://picsum.photos/seed/${encodeURIComponent(ring)}/200/200`;
-    const city = p.city || '';
+    const styles = Array.isArray(p.styles) ? p.styles : (Array.isArray(p.gimmicks) ? p.gimmicks : []);
+    const city = [p.city, p.region, p.country].filter(Boolean).join(', ');
     const rateMin = p.rate_min ?? p.rateMin ?? 0;
     const rateMax = p.rate_max ?? p.rateMax ?? 0;
     const verified = !!p.verified_school || !!p.verifiedSchool;
     const reel = p.reel || p.reelLink || '#';
+    const avatar =
+      (p.photoKey && window.WU_MEDIA_BASE ? `${window.WU_MEDIA_BASE}/${p.photoKey}` : p.avatar) || fallback(ring);
 
     const el = document.createElement('div');
     el.className = 'card';
@@ -72,15 +73,45 @@ function renderTalent(list) {
       <img src="${avatar}" alt="${ring} profile"/>
       <div class="info">
         <div><strong>${ring}</strong> <span class="muted">(${name})</span></div>
-        <div class="mt-2">${city} • ${yrs} yrs • ${styles.join(', ')}</div>
+        <div class="mt-2">${city || '—'} • ${yrs} yrs • ${styles.join(', ')}</div>
         <div class="mt-2">${verified ? '<span class="badge">Verified school</span>' : ''}</div>
         <div class="mt-2 muted">Rate: $${rateMin}-${rateMax}</div>
-        <a class="btn small mt-3" href="${reel}" target="_blank" rel="noopener">View Reel</a>
+        <div class="mt-3" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn small view-profile-btn" type="button">View Profile</button>
+        </div>
       </div>
     </div>`;
+
+    // Open modal with full profile details
+    el.querySelector('.view-profile-btn')?.addEventListener('click', () => {
+      const html = `
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:16px">
+          <img src="${avatar}" alt="Avatar" style="width:120px;height:120px;border-radius:999px;object-fit:cover;background:#0f1224;border:1px solid #1f2546"/>
+          <div>
+            <h2 style="margin:0">${ring}</h2>
+            <div class="muted">${city || ''}</div>
+            <div class="chips mt-2">${styles.map(g=>`<span class="chip">${g}</span>`).join('')}</div>
+          </div>
+        </div>
+        <div class="mt-3">
+          ${p.bio ? `<p>${String(p.bio).replace(/\n/g,'<br/>')}</p>` : '<p class="muted">No bio yet.</p>'}
+        </div>
+        <dl class="mt-3">
+          <dt class="muted">Name</dt><dd>${name}</dd>
+          ${p.dob ? `<dt class="muted mt-2">DOB</dt><dd>${p.dob}</dd>` : ''}
+          ${verified ? `<dt class="muted mt-2">School</dt><dd>Verified</dd>` : ''}
+        </dl>
+        ${reel && reel !== '#' ? `<div class="mt-3"><a class="btn small secondary" href="${reel}" target="_blank" rel="noopener">Watch Reel</a></div>` : ''}
+      `;
+      const box = document.getElementById('wm-content');
+      if (box) box.innerHTML = html;
+      document.getElementById('wrestler-modal')?.showModal();
+    });
+
     target.appendChild(el);
   });
 }
+
 
 function renderTryouts(list) {
   const target = document.querySelector('#tryout-list');
