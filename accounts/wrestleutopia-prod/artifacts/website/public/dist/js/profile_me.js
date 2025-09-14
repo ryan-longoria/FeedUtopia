@@ -1,5 +1,5 @@
 // /js/profile_me.js
-import { apiFetch } from '/js/api.js';
+import { apiFetch, uploadToS3 } from '/js/api.js';
 import { getAuthState, isWrestler } from '/js/roles.js';
 
 const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, ''); // optional, e.g., https://cdn.wrestleutopia.com
@@ -64,25 +64,9 @@ async function uploadAvatarIfAny() {
   const file = document.getElementById('avatar')?.files?.[0];
   if (!file) return null;
 
-  // ask backend for a presigned URL under profiles/<sub>/avatar.<ext>
-  const r = await apiFetch('/profiles/wrestlers/me/photo-url', {
-    method: 'POST',
-    body: { contentType: file.type || 'image/jpeg' },
-  });
-
-  const { uploadUrl, photoKey } = r || {};
-  if (!uploadUrl || !photoKey) throw new Error('presign failed');
-
-  const put = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': file.type || 'image/jpeg' },
-    body: file,
-  });
-  if (!put.ok) {
-    const t = await put.text().catch(() => '');
-    throw new Error(`upload failed ${put.status} ${t}`);
-  }
-  return photoKey;
+  const s3uri = await uploadToS3(file.name, file.type || 'image/jpeg', file);
+  const key = s3uri.replace(/^s3:\/\//, '');
+  return key;
 }
 
 async function loadMe() {
@@ -153,8 +137,8 @@ async function init() {
       if (key) data.photoKey = key;
 
       // Send to backend
-      const saved = await apiFetch('/profiles/wrestlers/me', {
-        method: 'PUT',
+      const saved = await apiFetch('/profiles/wrestlers', {
+        method: 'POST',
         body: {
           name: data.name,
           stageName: data.stageName,
