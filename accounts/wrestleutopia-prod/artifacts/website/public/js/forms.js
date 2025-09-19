@@ -78,6 +78,7 @@ function renderTalent(list) {
         <div class="mt-2 muted">Rate: $${rateMin}-${rateMax}</div>
         <div class="mt-3" style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn small view-profile-btn" type="button">View Profile</button>
+          ${p.handle ? `<a class="btn small secondary" href="/w/#${encodeURIComponent(p.handle)}">See Full Profile</a>` : ''}
         </div>
       </div>
     </div>`;
