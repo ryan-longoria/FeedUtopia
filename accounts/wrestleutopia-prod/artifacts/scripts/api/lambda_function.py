@@ -279,10 +279,6 @@ def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
         return _resp(500, {"message": "Server error", "where": "list_wrestlers"})
 
 def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Auth'd wrestler creates/updates their own profile and reserves a unique handle.
-    Uses a transaction across WrestlerProfiles and Handles to guarantee uniqueness.
-    """
     if not _is_wrestler(groups):
         return _resp(403, {"message": "Wrestler role required"})
 
@@ -295,30 +291,28 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
     city      = (data.get("city") or "").strip()
     country   = (data.get("country") or "").strip()
     region    = (data.get("region") or "").strip()
-
     if not (name and stage and dob and city and country):
         return _resp(400, {"message": "Missing required fields (name, stageName, dob, city, country)"})
 
-    # Optional/clean
+    # Optional / clean
     bio = (data.get("bio") or "").strip()
     if len(bio) > MAX_BIO_LEN:
         return _resp(400, {"message": f"bio too long (max {MAX_BIO_LEN})"})
     gimmicks = data.get("gimmicks") or []
     if isinstance(gimmicks, str):
         gimmicks = [x.strip() for x in gimmicks.split(",") if x.strip()]
-    gimmicks = list(dict.fromkeys(gimmicks))[:MAX_GIMMICKS]  # unique + cap
+    gimmicks = list(dict.fromkeys(gimmicks))[:MAX_GIMMICKS]
     photo_key = (data.get("photoKey") or "").strip() or None
 
-    # Build handle from stage name
-    handle = _slugify_handle(stage)
-    if not handle:
-        return _resp(400, {"message": "Invalid stageName for handle"})
+    # Load current profile to see if we already have a handle
+    existing = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
+    current_handle = (existing.get("handle") or "").strip() or None
 
     now = _now_iso()
-    profile = {
+    base_profile = {
         "userId": sub,
         "name": name,
-        "stageName": stage,
+        "stageName": stage,   # <- can duplicate freely across users
         "dob": dob,
         "city": city,
         "region": region or None,
@@ -326,41 +320,65 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
         "bio": bio or None,
         "gimmicks": gimmicks or None,
         "photoKey": photo_key,
-        "handle": handle,          # for GSI ByHandle
         "updatedAt": now,
-        "createdAt": now,          # ok to overwrite on first write
-        "role": "Wrestler"
+        "createdAt": existing.get("createdAt") or now,
+        "role": "Wrestler",
     }
 
-    # Reserve handle + upsert profile atomically
-    try:
-        ddb.meta.client.transact_write_items(
-            TransactItems=[
-                {
-                    "Put": {
-                        "TableName": TABLE_WRESTLERS,
-                        "Item": _av_map(profile),
-                        "ConditionExpression": "attribute_not_exists(userId) OR userId = :u",
-                        "ExpressionAttributeValues": {":u": {"S": sub}},
-                    }
-                },
-                {
-                    "Put": {
-                        "TableName": TABLE_HANDLES,
-                        "Item": {"handle": {"S": handle}, "owner": {"S": sub}},
-                        "ConditionExpression": "attribute_not_exists(handle) OR owner = :u",
-                        "ExpressionAttributeValues": {":u": {"S": sub}},
-                    }
-                },
-            ]
-        )
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
-        if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
-            return _resp(409, {"message": "Stage name handle already taken"})
-        raise
+    # Helper: try to reserve a handle for THIS user (idempotent)
+    def _reserve_handle(owner: str, h: str) -> bool:
+        try:
+            T_HANDLES.put_item(
+                Item={"handle": h, "owner": owner},
+                # owner is a reserved word → alias it
+                ConditionExpression="attribute_not_exists(handle) OR #owner = :u",
+                ExpressionAttributeNames={"#owner": "owner"},
+                ExpressionAttributeValues={":u": owner},
+            )
+            return True
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code")
+            if code in ("ConditionalCheckFailedException", "TransactionCanceledException"):
+                return False
+            raise
 
-    return _resp(200, {**profile})
+    # Helper: pick a unique handle (base, base-2, base-3, … ; fallback to u-<sub8>)
+    def _pick_unique_handle(base: str, owner: str) -> str:
+        base = _slugify_handle(base) or "wrestler"
+        # try base and base-2..base-50
+        for i in range(0, 50):
+            h = base if i == 0 else f"{base}-{i+1}"
+            if _reserve_handle(owner, h):
+                return h
+        # last resort: deterministic per-user fallback
+        fallback = f"u-{owner[:8].lower()}"
+        # ensure we own (or take) the fallback
+        if _reserve_handle(owner, fallback):
+            return fallback
+        # if somehow fallback is taken by someone else (extremely unlikely), add random suffix
+        import random, string
+        for _ in range(20):
+            rnd = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(4))
+            h = f"{fallback}-{rnd}"
+            if _reserve_handle(owner, h):
+                return h
+        # final guard (should never happen)
+        return fallback
+
+    # 1) If we already have a handle → keep it (allow stageName duplicates freely)
+    if current_handle:
+        profile = {**base_profile, "handle": current_handle}
+        T_WREST.put_item(Item=profile)
+        return _resp(200, profile)
+
+    # 2) First-time profile: create a unique handle derived from stageName (numbered if needed)
+    desired = _slugify_handle(stage) or "wrestler"
+    new_handle = _pick_unique_handle(desired, sub)
+    profile = {**base_profile, "handle": new_handle}
+
+    # Save the profile (handles table already reserved by _pick_unique_handle)
+    T_WREST.put_item(Item=profile)
+    return _resp(200, profile)
 
 def _get_profile_by_handle(handle: str) -> Dict[str, Any]:
     """
