@@ -183,8 +183,11 @@ async function init() {
       toast('Profile saved!');
       // Update "View" button & avatar preview
       if (saved?.handle) {
-        viewBtn.disabled = false;
-        viewBtn.dataset.handle = saved.handle;
+        const btn = document.getElementById('view-public');
+        if (btn) {
+          btn.disabled = false;
+          btn.onclick = () => { location.href = `/w/#${encodeURIComponent(saved.handle)}`; };
+        }
       }
       if (saved?.photoKey && avatarPreview) {
         avatarPreview.src = photoUrlFromKey(saved.photoKey);
