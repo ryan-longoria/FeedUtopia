@@ -279,10 +279,6 @@ def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
         return _resp(500, {"message": "Server error", "where": "list_wrestlers"})
 
 def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Auth'd wrestler creates/updates their own profile and reserves a unique handle.
-    Uses a transaction across WrestlerProfiles and Handles to guarantee uniqueness.
-    """
     if not _is_wrestler(groups):
         return _resp(403, {"message": "Wrestler role required"})
 
@@ -326,13 +322,28 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
         "bio": bio or None,
         "gimmicks": gimmicks or None,
         "photoKey": photo_key,
-        "handle": handle,          # for GSI ByHandle
+        "handle": handle,          # for GSI
         "updatedAt": now,
         "createdAt": now,          # ok to overwrite on first write
-        "role": "Wrestler"
+        "role": "Wrestler",
     }
 
-    # Reserve handle + upsert profile atomically
+    # Helper: try reserve handle only (non-transactional)
+    def _reserve_handle(owner: str, h: str) -> bool:
+        try:
+            T_HANDLES.put_item(
+                Item={"handle": h, "owner": owner},
+                ConditionExpression="attribute_not_exists(handle) OR owner = :u",
+                ExpressionAttributeValues={":u": owner},
+            )
+            return True
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code")
+            if code in ("ConditionalCheckFailedException", "TransactionCanceledException"):
+                return False
+            raise
+
+    # Preferred path: transaction (atomic)
     try:
         ddb.meta.client.transact_write_items(
             TransactItems=[
@@ -354,13 +365,34 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
                 },
             ]
         )
+        return _resp(200, {**profile})
     except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
+        code = e.response.get("Error", {}).get("Code", "")
+        _log("put_me_profile transact error", code, str(e))
+
+        # If the handle is already owned by someone else → 409
         if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
             return _resp(409, {"message": "Stage name handle already taken"})
-        raise
 
-    return _resp(200, {**profile})
+        # If transactions aren’t allowed (common IAM gap), fall back to two writes
+        if code in ("AccessDeniedException", "AccessDenied", "MissingAuthenticationToken"):
+            try:
+                # 1) Reserve handle (fails if taken by another)
+                ok = _reserve_handle(sub, handle)
+                if not ok:
+                    return _resp(409, {"message": "Stage name handle already taken"})
+                # 2) Save profile (non-conditional put; last-write-wins for own row)
+                T_WREST.put_item(Item=profile)
+                return _resp(200, {**profile})
+            except ClientError as e2:
+                _log("put_me_profile fallback error", e2.response.get("Error", {}).get("Code", ""), str(e2))
+                return _resp(500, {"message": "Server error", "where": "put_me_profile_fallback"})
+
+        # Unknown error → 500
+        return _resp(500, {"message": "Server error", "where": "put_me_profile_transact", "code": code})
+    except Exception as e:
+        _log("put_me_profile unexpected", str(e))
+        return _resp(500, {"message": "Server error", "where": "put_me_profile_unhandled"})
 
 def _get_profile_by_handle(handle: str) -> Dict[str, Any]:
     """
