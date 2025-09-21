@@ -471,6 +471,38 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
     )
     return _resp(200, r.get("Items", []))
 
+def _get_promoter_public(user_id: str) -> Dict[str, Any]:
+    item = T_PROMO.get_item(Key={"userId": user_id}).get("Item")
+    if not item:
+        return _resp(404, {"message": "Not found"})
+    # Optionally strip private fields here
+    return _resp(200, item)
+
+def _list_promoters(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
+    # Allow Wrestlers (and optionally Promoters) to search orgs
+    if not (_is_wrestler(groups) or _is_promoter(groups)):
+        return _resp(403, {"message": "Wrestler or promoter role required"})
+
+    qs = _qs(event)
+    city = (qs.get("city") or "").strip()
+    q    = (qs.get("q") or "").strip()      # orgName or bio
+    limit = 100
+
+    fe = None
+    try:
+        if city:
+            cond = Attr("city").contains(city)
+            fe = cond if fe is None else fe & cond
+        if q:
+            cond = (Attr("orgName").contains(q) | Attr("bio").contains(q))
+            fe = cond if fe is None else fe & cond
+
+        r = T_PROMO.scan(FilterExpression=fe, Limit=limit) if fe is not None else T_PROMO.scan(Limit=limit)
+        return _resp(200, r.get("Items", []))
+    except Exception as e:
+        _log("promoters scan error", e, "qs=", qs)
+        return _resp(500, {"message": "Server error", "where": "list_promoters"})
+
 # ------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------
@@ -498,6 +530,10 @@ def lambda_handler(event, _ctx):
         if method == "GET" and path.startswith("/profiles/wrestlers/") and path != "/profiles/wrestlers/me":
             handle = path.split("/")[-1]
             return _get_profile_by_handle(handle)
+        
+        if method == "GET" and path.startswith("/profiles/promoters/") and path != "/profiles/promoters/me":
+            user_id = path.split("/")[-1]
+            return _get_promoter_public(user_id)
 
         # Auth'd Wrestler: PUT /profiles/wrestlers/me (create/update self + reserve handle)
         if method == "PUT" and path == "/profiles/wrestlers/me":
@@ -529,12 +565,26 @@ def lambda_handler(event, _ctx):
                 if _is_promoter(groups):
                     return _list_wrestlers(groups, event)
 
-        # Promoter profiles
-        if path.startswith("/profiles/promoters"):
-            if method in ("POST", "PUT", "PATCH"):
-                return _upsert_promoter_profile(sub, groups, event)
-            if method == "GET":
-                return _get_promoter_profile(sub)
+        # Auth'd: GET /profiles/promoters/me  (your own promoter profile)
+        if method == "GET" and path == "/profiles/promoters/me":
+            sub, groups = _claims(event)
+            if not sub:
+                return _resp(401, {"message": "Unauthorized"})
+            return _get_promoter_profile(sub)
+
+        # Auth'd: GET /profiles/promoters  (list/search for wrestlers)
+        if method == "GET" and path == "/profiles/promoters":
+            sub, groups = _claims(event)
+            if not sub:
+                return _resp(401, {"message": "Unauthorized"})
+            return _list_promoters(groups, event)
+
+        # Auth'd: PUT/POST/PATCH /profiles/promoters (upsert mine)
+        if path.startswith("/profiles/promoters") and method in ("PUT","POST","PATCH"):
+            sub, groups = _claims(event)
+            if not sub:
+                return _resp(401, {"message": "Unauthorized"})
+            return _upsert_promoter_profile(sub, groups, event)
 
         # Tryouts (auth-only variants)
         if path == "/tryouts":
