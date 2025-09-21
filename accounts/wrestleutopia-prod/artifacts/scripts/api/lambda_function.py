@@ -360,7 +360,7 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
                     "Put": {
                         "TableName": TABLE_HANDLES,
                         "Item": {"handle": {"S": handle}, "owner": {"S": sub}},
-                        "ConditionExpression": "attribute_not_exists(handle) OR owner = :u",
+                        "ConditionExpression": "attribute_not_exists(handle) OR #owner = :u",
                         "ExpressionAttributeNames": {"#owner": "owner"},
                         "ExpressionAttributeValues": {":u": {"S": sub}},
                     }
