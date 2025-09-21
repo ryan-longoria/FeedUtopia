@@ -57,7 +57,7 @@ async function uploadLogoIfAny() {
 
 async function loadMe() {
   try {
-    const me = await apiFetch('/profiles/promoters'); // GET current user's promoter profile
+    const me = await apiFetch('/profiles/promoters/me'); // GET current user's promoter profile
     if (!me || !me.userId) return;
 
     const map = {
@@ -98,6 +98,10 @@ async function init() {
 
   // Preview modal
   viewBtn?.addEventListener('click', () => {
+    if (state?.sub) {
+      location.href = `/p/${encodeURIComponent(state.sub)}`;
+      return;
+    }
     const orgName = document.getElementById('orgName')?.value || 'Your Promotion';
     const city    = document.getElementById('city')?.value || '';
     const region  = document.getElementById('region')?.value || '';

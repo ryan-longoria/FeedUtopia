@@ -128,6 +128,7 @@ function renderTryouts(list) {
   items.forEach(t => {
     const id   = t.tryoutId || t.id;
     const org  = t.orgName || t.org || '';
+    const ownerId = t.ownerId || '';
     const city = t.city || '';
     const dateStr = t.date ? new Date(t.date).toLocaleDateString() : '';
     const reqs = t.requirements || '';
@@ -138,7 +139,9 @@ function renderTryouts(list) {
     el.className = 'card';
     el.dataset.tryoutId = id;
     el.innerHTML = `<div class="badge">${status}</div>
-      <h3 style="margin:6px 0 2px">${org}</h3>
+      <h3 style="margin:6px 0 2px">
+        ${ownerId ? `<a href="/p/${encodeURIComponent(ownerId)}">${org}</a>` : org}
+      </h3>
       <div class="muted">${city} • ${dateStr}</div>
       <p class="mt-3">${reqs}</p>
       <div class="mt-3">
