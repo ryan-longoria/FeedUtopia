@@ -118,6 +118,12 @@ async function init() {
   });
 
   viewBtn?.addEventListener('click', () => {
+    const handle = viewBtn?.dataset?.handle;
+    if (handle) { 
+        location.href = `/w/${encodeURIComponent(handle)}`;
+        return;
+    }
+
     const stageName = document.getElementById('stageName')?.value || 'Wrestler';
     const name      = document.getElementById('name')?.value || '';
     const dob       = document.getElementById('dob')?.value || '';
@@ -165,8 +171,8 @@ async function init() {
       if (key) data.photoKey = key;
 
       // Send to backend
-      const saved = await apiFetch('/profiles/wrestlers', {
-        method: 'POST',
+      const saved = await apiFetch('/profiles/wrestlers/me', {
+        method: 'PUT',
         body: {
           name: data.name,
           stageName: data.stageName,
@@ -183,10 +189,11 @@ async function init() {
       toast('Profile saved!');
       // Update "View" button & avatar preview
       if (saved?.handle) {
-        const btn = document.getElementById('view-public');
+        const btn = document.getElementById('viewBtn');
         if (btn) {
           btn.disabled = false;
-          btn.onclick = () => { location.href = `/w/#${encodeURIComponent(saved.handle)}`; };
+          btn.dataset.handle = saved.handle;
+          btn.onclick = () => { location.href = `/w/${encodeURIComponent(saved.handle)}`; };
         }
       }
       if (saved?.photoKey && avatarPreview) {
