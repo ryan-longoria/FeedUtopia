@@ -177,3 +177,34 @@ resource "aws_apigatewayv2_route" "post_profile_avatar_presign" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
 }
+
+resource "aws_apigatewayv2_route" "put_promoter" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "PUT /profiles/promoters"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  authorization_type = "JWT"
+}
+
+resource "aws_apigatewayv2_route" "patch_promoter" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "PATCH /profiles/promoters"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  authorization_type = "JWT"
+}
+
+resource "aws_apigatewayv2_route" "get_promoter_me" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "GET /profiles/promoters/me"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  authorization_type = "JWT"
+}
+
+resource "aws_apigatewayv2_route" "get_promoter_public" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "GET /profiles/promoters/{userId}"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
