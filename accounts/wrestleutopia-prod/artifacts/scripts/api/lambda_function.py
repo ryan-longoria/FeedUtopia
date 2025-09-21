@@ -34,6 +34,7 @@ T_PROMO = ddb.Table(TABLE_PROMOTERS)
 T_TRY   = ddb.Table(TABLE_TRYOUTS)
 T_APP   = ddb.Table(TABLE_APPS)
 
+# Handles table (PK: handle) to reserve unique slugs
 TABLE_HANDLES   = os.environ["TABLE_HANDLES"]
 T_HANDLES       = ddb.Table(TABLE_HANDLES)
 
@@ -52,6 +53,7 @@ _log("REGION", AWS_REGION, "TABLES", {
     "promoters": TABLE_PROMOTERS,
     "tryouts": TABLE_TRYOUTS,
     "apps": TABLE_APPS,
+    "handles": TABLE_HANDLES,
 })
 
 # ------------------------------------------------------------------------------
@@ -229,7 +231,10 @@ def _delete_tryout(sub: str, tryout_id: str) -> Dict[str, Any]:
     T_TRY.delete_item(Key={"tryoutId": tryout_id})
     return _resp(200, {"ok": True})
 
+# ---------------- Wrestler Profiles (self-serve + promoter list + public read) --
+
 def _upsert_wrestler_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
+    # Legacy upsert (kept for backwards compatibility with older clients)
     if not _is_wrestler(groups):
         return _resp(403, {"message": "Wrestler role required"})
     data = _json(event)
@@ -250,7 +255,7 @@ def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     fe = None
     try:
         if style:
-            cond = Attr("gimmicks").contains(style)
+            cond = Attr("gimmicks").contains(style)  # styles/gimmicks stored here
             fe = cond if fe is None else fe & cond
 
         if city:
@@ -272,6 +277,113 @@ def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         _log("wrestlers scan error", e, "qs=", qs)
         return _resp(500, {"message": "Server error", "where": "list_wrestlers"})
+
+def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Auth'd wrestler creates/updates their own profile and reserves a unique handle.
+    Uses a transaction across WrestlerProfiles and Handles to guarantee uniqueness.
+    """
+    if not _is_wrestler(groups):
+        return _resp(403, {"message": "Wrestler role required"})
+
+    data = _json(event)
+
+    # Required
+    name      = (data.get("name") or "").strip()
+    stage     = (data.get("stageName") or "").strip()
+    dob       = (data.get("dob") or "").strip()
+    city      = (data.get("city") or "").strip()
+    country   = (data.get("country") or "").strip()
+    region    = (data.get("region") or "").strip()
+
+    if not (name and stage and dob and city and country):
+        return _resp(400, {"message": "Missing required fields (name, stageName, dob, city, country)"})
+
+    # Optional/clean
+    bio = (data.get("bio") or "").strip()
+    if len(bio) > MAX_BIO_LEN:
+        return _resp(400, {"message": f"bio too long (max {MAX_BIO_LEN})"})
+    gimmicks = data.get("gimmicks") or []
+    if isinstance(gimmicks, str):
+        gimmicks = [x.strip() for x in gimmicks.split(",") if x.strip()]
+    gimmicks = list(dict.fromkeys(gimmicks))[:MAX_GIMMICKS]  # unique + cap
+    photo_key = (data.get("photoKey") or "").strip() or None
+
+    # Build handle from stage name
+    handle = _slugify_handle(stage)
+    if not handle:
+        return _resp(400, {"message": "Invalid stageName for handle"})
+
+    now = _now_iso()
+    profile = {
+        "userId": sub,
+        "name": name,
+        "stageName": stage,
+        "dob": dob,
+        "city": city,
+        "region": region or None,
+        "country": country,
+        "bio": bio or None,
+        "gimmicks": gimmicks or None,
+        "photoKey": photo_key,
+        "handle": handle,          # for GSI ByHandle
+        "updatedAt": now,
+        "createdAt": now,          # ok to overwrite on first write
+        "role": "Wrestler"
+    }
+
+    # Reserve handle + upsert profile atomically
+    try:
+        ddb.meta.client.transact_write_items(
+            TransactItems=[
+                {
+                    "Put": {
+                        "TableName": TABLE_WRESTLERS,
+                        "Item": _av_map(profile),
+                        "ConditionExpression": "attribute_not_exists(userId) OR userId = :u",
+                        "ExpressionAttributeValues": {":u": {"S": sub}},
+                    }
+                },
+                {
+                    "Put": {
+                        "TableName": TABLE_HANDLES,
+                        "Item": {"handle": {"S": handle}, "owner": {"S": sub}},
+                        "ConditionExpression": "attribute_not_exists(handle) OR owner = :u",
+                        "ExpressionAttributeValues": {":u": {"S": sub}},
+                    }
+                },
+            ]
+        )
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
+            return _resp(409, {"message": "Stage name handle already taken"})
+        raise
+
+    return _resp(200, {**profile})
+
+def _get_profile_by_handle(handle: str) -> Dict[str, Any]:
+    """
+    PUBLIC: fetch a wrestler profile by handle via GSI.
+    (Return the raw item; lock down at front-end if you want to hide certain fields.)
+    """
+    if not handle:
+        return _resp(400, {"message": "handle required"})
+    try:
+        r = T_WREST.query(
+            IndexName="ByHandle",
+            KeyConditionExpression=Key("handle").eq(handle),
+            Limit=1,
+        )
+        items = r.get("Items") or []
+        if not items:
+            return _resp(404, {"message": "Not found"})
+        return _resp(200, items[0])
+    except Exception as e:
+        _log("get by handle error", e)
+        return _resp(500, {"message": "Server error"})
+
+# ---------------- Promoter Profiles & Applications -----------------------------
 
 def _upsert_promoter_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     if not _is_promoter(groups):
@@ -341,105 +453,6 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
     )
     return _resp(200, r.get("Items", []))
 
-def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
-    if not _is_wrestler(groups):
-        return _resp(403, {"message": "Wrestler role required"})
-
-    data = _json(event)
-
-    # Required
-    name      = (data.get("name") or "").strip()
-    stage     = (data.get("stageName") or "").strip()
-    dob       = (data.get("dob") or "").strip()
-    city      = (data.get("city") or "").strip()
-    country   = (data.get("country") or "").strip()
-    region    = (data.get("region") or "").strip()
-
-    if not (name and stage and dob and city and country):
-        return _resp(400, {"message": "Missing required fields (name, stageName, dob, city, country)"})
-
-    # Optional/clean
-    bio = (data.get("bio") or "").strip()
-    if len(bio) > MAX_BIO_LEN:
-        return _resp(400, {"message": f"bio too long (max {MAX_BIO_LEN})"})
-    gimmicks = data.get("gimmicks") or []
-    if isinstance(gimmicks, str):
-        gimmicks = [x.strip() for x in gimmicks.split(",") if x.strip()]
-    gimmicks = list(dict.fromkeys(gimmicks))[:MAX_GIMMICKS]  # unique + cap
-    photo_key = (data.get("photoKey") or "").strip() or None
-
-    # Build handle from stage name
-    handle = _slugify_handle(stage)
-    if not handle:
-        return _resp(400, {"message": "Invalid stageName for handle"})
-
-    now = _now_iso()
-    profile = {
-        "userId": sub,
-        "name": name,
-        "stageName": stage,
-        "dob": dob,
-        "city": city,
-        "region": region or None,
-        "country": country,
-        "bio": bio or None,
-        "gimmicks": gimmicks or None,
-        "photoKey": photo_key,
-        "handle": handle,          # for GSI
-        "updatedAt": now,
-        "createdAt": now,          # ok to overwrite on first write
-        "role": "Wrestler"
-    }
-
-    # We reserve the handle in TABLE_HANDLES to guarantee uniqueness.
-    # If user is updating to the SAME handle they already own, allow it.
-    try:
-        ddb.meta.client.transact_write_items(
-            TransactItems=[
-                {
-                    "Put": {
-                        "TableName": TABLE_WRESTLERS,
-                        "Item": _av_map(profile),
-                        "ConditionExpression": "attribute_not_exists(userId) OR userId = :u",
-                        "ExpressionAttributeValues": {":u": {"S": sub}},
-                    }
-                },
-                {
-                    "Put": {
-                        "TableName": TABLE_HANDLES,
-                        "Item": {"handle": {"S": handle}, "owner": {"S": sub}},
-                        "ConditionExpression": "attribute_not_exists(handle) OR owner = :u",
-                        "ExpressionAttributeValues": {":u": {"S": sub}},
-                    }
-                },
-            ]
-        )
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
-        if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
-            return _resp(409, {"message": "Stage name handle already taken"})
-        raise
-
-    return _resp(200, {**profile})
-
-def _get_profile_by_handle(handle: str) -> Dict[str, Any]:
-    if not handle:
-        return _resp(400, {"message": "handle required"})
-    try:
-        r = T_WREST.query(
-            IndexName="ByHandle",
-            KeyConditionExpression=Key("handle").eq(handle),
-            Limit=1,
-        )
-        items = r.get("Items") or []
-        if not items:
-            return _resp(404, {"message": "Not found"})
-        return _resp(200, items[0])
-    except Exception as e:
-        _log("get by handle error", e)
-        return _resp(500, {"message": "Server error"})
-
-
 # ------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------
@@ -462,12 +475,13 @@ def lambda_handler(event, _ctx):
         if method == "GET" and UUID_PATH.fullmatch(path):
             tryout_id = path.rsplit("/", 1)[1]
             return _get_tryout(tryout_id)
-        
+
+        # Public: GET /profiles/wrestlers/{handle}  (but not /me)
         if method == "GET" and path.startswith("/profiles/wrestlers/") and path != "/profiles/wrestlers/me":
             handle = path.split("/")[-1]
             return _get_profile_by_handle(handle)
 
-        # AUTH: PUT /profiles/wrestlers/me (create/update self)
+        # Auth'd Wrestler: PUT /profiles/wrestlers/me (create/update self + reserve handle)
         if method == "PUT" and path == "/profiles/wrestlers/me":
             sub, groups = _claims(event)
             if not sub:
@@ -486,11 +500,14 @@ def lambda_handler(event, _ctx):
         # Wrestler profiles
         if path.startswith("/profiles/wrestlers"):
             if method in ("POST", "PUT", "PATCH"):
+                # legacy writer; kept for older clients that still POST here
                 return _upsert_wrestler_profile(sub, groups, event)
             if method == "GET":
+                # me
                 if _is_wrestler(groups):
                     item = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
                     return _resp(200, item)
+                # promoter search
                 if _is_promoter(groups):
                     return _list_wrestlers(groups, event)
 
