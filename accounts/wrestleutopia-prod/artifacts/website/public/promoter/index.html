@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>WrestleUtopia – My Promotion</title>
+  <base href="/" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"/>
+  <link rel="stylesheet" href="/styles/styles.css"/>
+  <script src="/js/config.js"></script>
+  <script type="module" src="/js/promo_me.js"></script>
+</head>
+<body>
+  <div data-include="/partials/nav.html"></div>
+
+  <main class="section container">
+    <div class="grid-2">
+      <form id="promoForm" class="card">
+        <h2>Promotion Profile</h2>
+
+        <label>Promotion / Org Name
+          <input id="orgName" name="orgName" required/>
+        </label>
+
+        <div class="grid-3">
+          <label>City <input id="city" name="city" required/></label>
+          <label>Region <input id="region" name="region"/></label>
+          <label>Country <input id="country" name="country" required/></label>
+        </div>
+
+        <label>Website
+          <input id="website" name="website" placeholder="https://example.com"/>
+        </label>
+
+        <label>Contact (email or link)
+          <input id="contact" name="contact" placeholder="booking@example.com"/>
+        </label>
+
+        <label>About / Bio
+          <textarea id="bio" name="bio" rows="6" maxlength="1500"></textarea>
+        </label>
+
+        <div class="grid-2">
+          <label>Logo (square works best)
+            <input id="logo" name="logo" type="file" accept="image/*"/>
+          </label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <img id="logoPreview" src="/assets/avatar-fallback.svg" alt="Logo preview"
+                 style="width:120px;height:120px;border-radius:16px;object-fit:cover;background:#0f1224;border:1px solid #1f2546"/>
+          </div>
+        </div>
+
+        <div class="mt-3" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="saveBtn" class="btn" type="submit">Save</button>
+          <button id="viewBtn" class="btn secondary" type="button">Preview</button>
+        </div>
+      </form>
+
+      <div class="card">
+        <h2>Tips</h2>
+        <ul class="muted">
+          <li>Use your main city/region so wrestlers know where you run.</li>
+          <li>Logo uploads go to your S3 via the existing `uploadToS3` helper.</li>
+        </ul>
+      </div>
+    </div>
+  </main>
+
+  <dialog id="preview-modal" class="modal">
+    <div class="card" style="max-width:720px">
+      <h2 class="mt-0">Public Preview</h2>
+      <div id="preview-content" class="mt-2"></div>
+      <div class="mt-3" style="text-align:right">
+        <button class="btn secondary" onclick="this.closest('dialog').close()">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast"></div>
+  <div data-include="/partials/footer.html"></div>
+  <script defer src="/js/include.js"></script>
+</body>
+</html>
