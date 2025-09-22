@@ -7,17 +7,18 @@ const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString(); } ca
 function cardForTryout(t) {
   const id    = t.tryoutId || t.id || '';
   const org   = t.orgName || t.org || 'Promotion';
+  const ownerId = t.ownerId || '';
   const city  = t.city || '—';
   const date  = fmtDate(t.date);
   const slots = (typeof t.slots === 'number') ? `<span class="muted" style="margin-left:10px">Slots: ${t.slots}</span>` : '';
   const status = (t.status || 'open').toString().toUpperCase();
   const div = document.createElement('div');
   div.className = 'card';
-  const link = t.ownerId ? `<a href="/p/${encodeURIComponent(t.ownerId)}">${org}</a>` : org;
   div.innerHTML = `
     <div class="badge">${status}</div>
-    <h3 style="margin:6px 0 2px">${link}</h3>
-    <h3 style="margin:6px 0 2px">${org}</h3>
+    <h3 style="margin:6px 0 2px">
+      ${ownerId ? `<a href="/p/${encodeURIComponent(ownerId)}">${org}</a>` : org}
+    </h3>
     <div class="muted">${city} • ${date}</div>
     <p class="mt-3">${t.requirements || ''}</p>
     <div class="mt-3">

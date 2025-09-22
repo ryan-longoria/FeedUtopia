@@ -26,6 +26,7 @@ async function getMyWrestlerProfile() {
 function renderTryoutCard(t) {
   const id    = t.tryoutId || t.id || '';
   const org   = t.orgName || t.org || 'Promotion';
+  const ownerId = t.ownerId || '';
   const city  = t.city || '—';
   const date  = fmtDate(t.date);
   const reqs  = t.requirements || 'Basic bumps, cardio, promo.';
@@ -36,7 +37,9 @@ function renderTryoutCard(t) {
   div.className = 'card';
   div.innerHTML = `
     <div class="badge">${status}</div>
-    <h3 style="margin:6px 0 2px">${org}</h3>
+    <h3 style="margin:6px 0 2px">
+      ${ownerId ? `<a href="/p/${encodeURIComponent(ownerId)}">${org}</a>` : org}
+    </h3>
     <div class="muted">${city} • ${date}</div>
     <p class="mt-3">${reqs}</p>
     <div class="mt-3">
