@@ -120,7 +120,7 @@ async function init() {
   viewBtn?.addEventListener('click', () => {
     const handle = viewBtn?.dataset?.handle;
     if (handle) { 
-        location.href = `/w/${encodeURIComponent(handle)}`;
+        location.href = `/w/#${encodeURIComponent(handle)}`
         return;
     }
 
@@ -193,7 +193,7 @@ async function init() {
         if (btn) {
           btn.disabled = false;
           btn.dataset.handle = saved.handle;
-          btn.onclick = () => { location.href = `/w/${encodeURIComponent(saved.handle)}`; };
+          btn.onclick = () => { location.href = `/w/#${encodeURIComponent(saved.handle)}`; };
         }
       }
       if (saved?.photoKey && avatarPreview) {
