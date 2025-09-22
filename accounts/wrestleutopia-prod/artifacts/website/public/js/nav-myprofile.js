@@ -76,7 +76,9 @@ async function wireMyProfileLink() {
 
   // Recompute on click if still default
   link.addEventListener('click', async (e) => {
-    if (link.getAttribute('href') !== '/profile_me.html') return; // already upgraded
+    const h = (link.getAttribute('href') || '').trim();
+    if (h && h !== '#' && h !== '/profile_me.html') return; // already upgraded
+
     e.preventDefault();
     const url = await resolveMyProfileUrl();
     location.href = url || '/profile_me.html';
