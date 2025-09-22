@@ -326,7 +326,7 @@ label{display:block;margin:10px 0 6px;font-weight:600}
 
 /* === Profile polish (IG x NCSA) === */
 .hero {
-  position: relative; border-radius: var(--radius); overflow: hidden;
+  position: relative; border-radius: var(--radius); overflow: visible;
   background: linear-gradient(135deg, #160a18, #1a1032);
   min-height: 180px; box-shadow: var(--shadow);
 }
@@ -334,15 +334,15 @@ label{display:block;margin:10px 0 6px;font-weight:600}
   width: 100%; height: 220px; object-fit: cover; opacity: .35; display: block;
 }
 .hero-inner {
-  position: relative; display: grid; gap: 16px; padding: 16px; margin-top: -64px;
-  grid-template-columns: 128px 1fr; align-items: end;
+  position: relative; display: grid; gap: 16px; padding: 16px; margin-top: -40px;
+  grid-template-columns: 112px 1fr; align-items: end;
 }
 .avatar-ring {
   width: 128px; height: 128px; border-radius: 999px; object-fit: cover;
   border: 3px solid color-mix(in oklch, var(--accent2) 70%, #fff);
   box-shadow: 0 8px 24px rgba(0,0,0,.35); background:#0f1224;
 }
-.hero-meta h1 { margin: 0; font-size: 28px; line-height: 1.1; }
+.hero-meta h1 { margin: 4px 0 0; font-size: 28px; line-height: 1.15; }
 .handle { color: var(--muted); font-size: 14px; }
 .badge-verified {
   display:inline-flex; gap:6px; align-items:center; font-size:12px;
