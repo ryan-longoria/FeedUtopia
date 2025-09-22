@@ -1,3 +1,4 @@
+// /public/dist/js/promo_public.js
 import { apiFetch } from '/js/api.js';
 
 const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, '');
@@ -6,7 +7,7 @@ const mediaUrl = (k) => (k && MEDIA_BASE ? `${MEDIA_BASE}/${k}` : '/assets/avata
 // Basic text escape
 const h = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-// Safe external link
+// Guarded external link
 function safeLink(url, label) {
   const u = String(url || '').trim();
   if (!u) return '';
@@ -17,7 +18,7 @@ function safeLink(url, label) {
   return `<a href="${h(u)}" target="_blank" rel="noopener nofollow">${h(label || u)}</a>`;
 }
 
-// Return just anchor tags (no wrapper)
+// Social anchors (caller wraps once)
 function socialsRow(socials = {}) {
   return [
     socials.website && safeLink(socials.website, 'Website'),
@@ -60,15 +61,22 @@ function renderTryoutList(list) {
     </div>`;
 }
 
-// Now takes the container element explicitly
+function buildFullAddress(item = {}) {
+  // Prefer a single address string if provided, else compose from parts
+  const composed = [item.street1, item.street2, item.city, item.region, item.postalCode, item.country]
+    .filter(Boolean).join(', ');
+  return item.address ? String(item.address) : composed;
+}
+
+// Renders the public promoter page into containerEl
 function render(containerEl, item, tryouts = []) {
   if (!containerEl) return;
   if (!item?.userId) { containerEl.innerHTML = '<p class="muted">Promotion not found.</p>'; return; }
 
   const orgName = h(item.orgName || 'Promotion');
-  const cityLine = h([item.city, item.region, item.country].filter(Boolean).join(', '));
   const logo = mediaUrl(item.logoKey);
   const cover = item.coverKey ? mediaUrl(item.coverKey) : '';
+  const addressFull = h(buildFullAddress(item));
   const socials = socialsRow(item.socials);
 
   containerEl.innerHTML = `
@@ -78,12 +86,7 @@ function render(containerEl, item, tryouts = []) {
         <img class="avatar-ring" src="${h(logo)}" alt="${orgName} logo">
         <div class="hero-meta">
           <h1>${orgName}</h1>
-          ${cityLine ? `<div class="handle">${cityLine}</div>` : ''}
-          <div class="action-bar">
-            ${item.website ? `<a class="btn primary small" href="${h(item.website)}" target="_blank" rel="noopener">Visit Site</a>` : ''}
-            <a class="btn ghost small" href="/tryouts.html#new?org=${encodeURIComponent(item.handle||'')}">Post Tryout</a>
-            <button class="btn ghost small" id="shareBtn">Share</button>
-          </div>
+          ${addressFull ? `<div class="handle">${addressFull}</div>` : ''}
           ${socials ? `<div class="social-row mt-2">${socials}</div>` : ''}
         </div>
       </div>
@@ -95,6 +98,7 @@ function render(containerEl, item, tryouts = []) {
           <h2 class="mt-0">About</h2>
           ${item.description ? `<p>${h(item.description).replace(/\n/g,'<br/>')}</p>` : `<p class="muted">No description yet.</p>`}
           <dl class="meta-list mt-2">
+            ${addressFull ? `<dt>Address</dt><dd>${addressFull}</dd>` : ''}
             ${item.emailPublic ? `<dt>Email</dt><dd>${h(item.emailPublic)}</dd>` : ''}
             ${item.phonePublic ? `<dt>Phone</dt><dd>${h(item.phonePublic)}</dd>` : ''}
           </dl>
@@ -106,13 +110,29 @@ function render(containerEl, item, tryouts = []) {
         </div>
       </div>
 
-      ${Array.isArray(item.mediaKeys) && item.mediaKeys.length ? `
-        <div class="mt-3 card">
-          <h2 class="mt-0">Photos</h2>
+      <!-- Photos (placeholder-friendly) -->
+      <div class="mt-3 card">
+        <h2 class="mt-0">Photos</h2>
+        ${Array.isArray(item.mediaKeys) && item.mediaKeys.length ? `
           <div class="media-grid mt-2">
             ${item.mediaKeys.map(k => `<div class="media-card"><img src="${h(mediaUrl(k))}" alt=""></div>`).join('')}
+          </div>` : `<p class="muted">No photos yet.</p>`}
+      </div>
+
+      <!-- Videos (placeholder-friendly, mirrors wrestler highlights) -->
+      <div class="mt-3 card">
+        <h2 class="mt-0">Videos</h2>
+        ${Array.isArray(item.highlights) && item.highlights.length ? `
+          <div class="media-grid mt-2">
+            ${item.highlights.map(v => `
+              <div class="media-card">
+                ${/youtube|youtu\.be/i.test(String(v))
+                  ? `<iframe width="100%" height="220" src="${h(String(v)).replace('watch?v=','embed/')}" title="Video" frameborder="0" allowfullscreen></iframe>`
+                  : `<video src="${h(String(v))}" controls></video>`}
+              </div>`).join('')}
           </div>
-        </div>` : ''}
+        ` : `<p class="muted">No videos yet.</p>`}
+      </div>
 
       ${Array.isArray(item.rosterHandles) && item.rosterHandles.length ? `
         <div class="mt-3 card">
@@ -126,46 +146,35 @@ function render(containerEl, item, tryouts = []) {
         </div>` : ''}
     </section>
   `;
-
-  // Share button handler
-  const shareBtn = containerEl.querySelector('#shareBtn');
-  if (shareBtn) {
-    shareBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(location.href);
-        shareBtn.textContent = 'Link Copied!';
-        setTimeout(() => (shareBtn.textContent = 'Share'), 1300);
-      } catch {
-        alert('Copy failed. You can copy the URL from the address bar.');
-      }
-    }, { once: true });
-  }
 }
 
 function idFromPath(){
   const u = new URL(location.href);
-  const pathSegs = u.pathname.split('/').filter(Boolean);
-  const pathId = (pathSegs[1] || '').trim(); // e.g., ['p', '<id>']
+  const segs = u.pathname.split('/').filter(Boolean);
+  const pathId = (segs[1] || '').trim(); // e.g. ['p', '<id>']
   const hashId = (u.hash||'').replace(/^#/, '');
   return pathId || hashId || '';
 }
 
 async function init(){
   const id = idFromPath();
-  const wrap = document.getElementById('pp-wrap');
-  if (!wrap) return;
-  if (!id) { wrap.innerHTML = '<p class="muted">Missing promotion id.</p>'; return; }
+  const containerEl = document.getElementById('pp-wrap');
+  if (!containerEl) return;
+  if (!id) { containerEl.innerHTML = '<p class="muted">Missing promotion id.</p>'; return; }
   try {
     const [item, tryouts] = await Promise.all([
       apiFetch(`/profiles/promoters/${encodeURIComponent(id)}`),   // PUBLIC profile
       apiFetch(`/promoters/${encodeURIComponent(id)}/tryouts`)    // PUBLIC open tryouts
     ]);
-    render(wrap, item, tryouts);
+    render(containerEl, item, tryouts);
   } catch (e){
-    wrap.innerHTML = '<p class="muted">Could not load promotion.</p>';
+    containerEl.innerHTML = '<p class="muted">Could not load promotion.</p>';
     console.error(e);
   }
 }
 
-if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init, {once:true});
-else init();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init, { once: true });
+} else {
+  init();
+}

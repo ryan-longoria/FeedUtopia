@@ -87,7 +87,6 @@ async function run() {
 
           <div class="hero-meta">
             <h1>${h(stage)}</h1>
-            <div class="handle">@${h(handle)}</div>
             <div class="stats-bar">
               ${loc ? `<span class="pill">${h(loc)}</span>` : ''}
               ${htStr ? `<span class="pill">${htStr}</span>` : ''}
@@ -96,11 +95,6 @@ async function run() {
               ${Array.isArray(chips) && chips.length ? `<span class="pill">${h(chips.slice(0,3).join(' • '))}</span>` : ''}
             </div>
 
-            <div class="action-bar">
-              <a class="btn primary small" href="/tryouts.html#new?talent=${encodeURIComponent(handle)}">Book a Tryout</a>
-              <button class="btn ghost small" id="msgBtn">Message</button>
-              <button class="btn ghost small" id="shareBtn">Share</button>
-            </div>
 
             ${socialLinks ? `<div class="social-row mt-2">${socialLinks}</div>` : ''}
           </div>
@@ -110,12 +104,17 @@ async function run() {
       <section class="container" style="max-width:980px;margin-inline:auto">
         <nav class="tabs">
           <div class="tab-nav">
-            <a href="#about" aria-current="page">About</a>
-            <a href="#highlights">Highlights</a>
-            <a href="#photos">Photos</a>
-            ${p.achievements ? `<a href="#achievements">Achievements</a>` : ''}
+            <a href="#about" data-tab="about" aria-current="page">About</a>
+            <a href="#highlights" data-tab="highlights">Highlights</a>
+            <a href="#photos" data-tab="photos">Photos</a>
+            ${p.achievements ? `<a href="#achievements" data-tab="achievements">Achievements</a>` : ''}
           </div>
         </nav>
+
+        <div class="tab-panel" data-tab="about" id="tab-about">…</div>
+        <div class="tab-panel" data-tab="highlights" id="tab-highlights">…</div>
+        <div class="tab-panel" data-tab="photos" id="tab-photos">…</div>
+        ${p.achievements ? `<div class="tab-panel" data-tab="achievements" id="tab-achievements">…</div>` : ''}
 
         <div id="tab-about" class="mt-3 card">
           <h2 class="mt-0">About</h2>
@@ -160,6 +159,22 @@ async function run() {
 
       </section>
     `;
+
+    (function initTabs(root){
+      const links = root.querySelectorAll('.tab-nav a[data-tab]');
+      const panels = root.querySelectorAll('.tab-panel[data-tab]');
+      function activate(tab){
+        links.forEach(a => a.setAttribute('aria-current', a.dataset.tab === tab ? 'page' : 'false'));
+        panels.forEach(p => p.style.display = (p.dataset.tab === tab ? '' : 'none'));
+      }
+      links.forEach(a => a.addEventListener('click', (e) => {
+        e.preventDefault();
+        activate(a.dataset.tab);
+      }));
+      // default to first tab
+      const first = links[0]?.dataset.tab;
+      if (first) activate(first);
+    })(wrap);
 
   } catch (e) {
     console.error(e);
