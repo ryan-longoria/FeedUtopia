@@ -80,24 +80,87 @@ async function run() {
       : '';
 
     wrap.innerHTML = `
-      <div style="display:grid;grid-template-columns:160px 1fr;gap:16px">
-        <img src="${img}" alt="${h(stage)}" style="width:160px;height:160px;border-radius:999px;object-fit:cover;background:#0f1224;border:1px solid #1f2546"/>
-        <div>
-          <h1 style="margin:0">${h(stage)}</h1>
-          ${p.verified_school ? '<div class="mt-1"><span class="badge">Verified school</span></div>' : ''}
-          <dl class="mt-2">${topMetaRows}</dl>
+      <section class="hero card" style="max-width:980px;margin-inline:auto;overflow:hidden">
+        ${p.coverKey ? `<img class="cover" src="${objUrlFromKey(p.coverKey)}" alt="">` : ''}
+        <div class="hero-inner container">
+          <img class="avatar-ring" src="${img}" alt="${h(stage)} avatar">
+
+          <div class="hero-meta">
+            <h1>${h(stage)}</h1>
+            <div class="handle">@${h(handle)}</div>
+            <div class="stats-bar">
+              ${loc ? `<span class="pill">${h(loc)}</span>` : ''}
+              ${htStr ? `<span class="pill">${htStr}</span>` : ''}
+              ${wtStr ? `<span class="pill">${wtStr}</span>` : ''}
+              ${Number.isFinite(+p.experienceYears) ? `<span class="pill">${p.experienceYears} yr experience</span>` : ''}
+              ${Array.isArray(chips) && chips.length ? `<span class="pill">${h(chips.slice(0,3).join(' • '))}</span>` : ''}
+            </div>
+
+            <div class="action-bar">
+              <a class="btn primary small" href="/tryouts.html#new?talent=${encodeURIComponent(handle)}">Book a Tryout</a>
+              <button class="btn ghost small" id="msgBtn">Message</button>
+              <button class="btn ghost small" id="shareBtn">Share</button>
+            </div>
+
+            ${socialLinks ? `<div class="social-row mt-2">${socialLinks}</div>` : ''}
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div class="mt-4">
-        ${p.bio ? `<h2>Bio</h2><p>${h(p.bio).replace(/\n/g,'<br/>')}</p>` : ''}
-      </div>
+      <section class="container" style="max-width:980px;margin-inline:auto">
+        <nav class="tabs">
+          <div class="tab-nav">
+            <a href="#about" aria-current="page">About</a>
+            <a href="#highlights">Highlights</a>
+            <a href="#photos">Photos</a>
+            ${p.achievements ? `<a href="#achievements">Achievements</a>` : ''}
+          </div>
+        </nav>
 
-      <div class="grid cols-3 mt-4">
-        ${expBlock}
-        ${achBlock}
-      </div>
+        <div id="tab-about" class="mt-3 card">
+          <h2 class="mt-0">About</h2>
+          ${p.bio ? `<p>${h(p.bio).replace(/\n/g,'<br/>')}</p>` : `<p class="muted">No bio yet.</p>`}
+          <dl class="meta-list mt-2">
+            ${name ? `<dt>Name</dt><dd>${h(name)}</dd>` : ''}
+            ${p.emailPublic ? `<dt>Email</dt><dd>${h(p.emailPublic)}</dd>` : ''}
+            ${(p.phonePublic) ? `<dt>Phone</dt><dd>${h(p.phonePublic)}</dd>` : ''}
+            ${p.styles ? `<dt>Style</dt><dd>${h(p.styles)}</dd>` : ''}
+            ${p.gimmicks?.length ? `<dt>Gimmicks</dt><dd>${p.gimmicks.map(c=>`<span class="chip">${h(c)}</span>`).join(' ')}</dd>` : ''}
+          </dl>
+        </div>
+
+        <div id="tab-highlights" class="mt-3">
+          ${Array.isArray(p.highlights) && p.highlights.length ? `
+            <div class="media-grid">
+              ${p.highlights.map(v => `
+                <div class="media-card">
+                  ${/youtube|youtu\.be/i.test(v) ? 
+                    `<iframe width="100%" height="220" src="${h(v).replace('watch?v=','embed/')}" title="Highlight" frameborder="0" allowfullscreen></iframe>` :
+                    `<video src="${h(v)}" controls></video>`
+                  }
+                </div>`).join('')}
+            </div>
+          ` : `<div class="card"><p class="muted">No highlight videos yet.</p></div>`}
+        </div>
+
+        <div id="tab-photos" class="mt-3">
+          ${Array.isArray(p.mediaKeys) && p.mediaKeys.length ? `
+            <div class="media-grid">
+              ${p.mediaKeys.map(k => `<div class="media-card"><img src="${objUrlFromKey(k)}" alt=""></div>`).join('')}
+            </div>
+          ` : `<div class="card"><p class="muted">No photos yet.</p></div>`}
+        </div>
+
+        ${p.achievements ? `
+          <div id="tab-achievements" class="mt-3 card">
+            <h2 class="mt-0">Achievements</h2>
+            <p>${h(p.achievements).replace(/\n/g,'<br/>')}</p>
+          </div>
+        ` : ''}
+
+      </section>
     `;
+
   } catch (e) {
     console.error(e);
     wrap.innerHTML = `<div class="card"><h2>Profile not found</h2><p class="muted">We couldn’t load @${h(handle)}.</p></div>`;
