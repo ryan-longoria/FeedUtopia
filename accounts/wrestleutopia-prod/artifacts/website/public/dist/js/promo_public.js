@@ -91,7 +91,10 @@ function render(containerEl, item, tryouts = []) {
   const socials = socialsRow(item.socials);
 
   // Build nav tabs
-  const tabs = sectionIds(item).map((id, i) => {
+  const order = ['about','photos','videos','tryouts'];
+  if (Array.isArray(item.rosterHandles) && item.rosterHandles.length) order.push('roster');
+
+  const tabs = order.map((id,i) => {
     const title = id[0].toUpperCase() + id.slice(1);
     return `<a href="#${id}" ${i===0 ? 'aria-current="page"' : ''}>${title}</a>`;
   }).join('');
@@ -127,11 +130,6 @@ function render(containerEl, item, tryouts = []) {
         </dl>
       </div>
 
-      <div id="tryouts" class="mt-3 card" style="scroll-margin-top: 90px;">
-        <h2 class="mt-0">Upcoming Tryouts</h2>
-        ${renderTryoutList(tryouts)}
-      </div>
-
       <div id="photos" class="mt-3 card" style="scroll-margin-top: 90px;">
         <h2 class="mt-0">Photos</h2>
         ${Array.isArray(item.mediaKeys) && item.mediaKeys.length ? `
@@ -152,6 +150,11 @@ function render(containerEl, item, tryouts = []) {
               </div>`).join('')}
           </div>
         ` : `<p class="muted">No videos yet.</p>`}
+      </div>
+
+      <div id="tryouts" class="mt-3 card" style="scroll-margin-top: 90px;">
+        <h2 class="mt-0">Upcoming Tryouts</h2>
+        ${renderTryoutList(tryouts)}
       </div>
 
       ${Array.isArray(item.rosterHandles) && item.rosterHandles.length ? `
