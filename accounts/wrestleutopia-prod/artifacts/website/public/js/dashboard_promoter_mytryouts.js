@@ -17,7 +17,7 @@ function cardForTryout(t) {
   div.innerHTML = `
     <div class="badge">${status}</div>
     <h3 style="margin:6px 0 2px">
-      ${ownerId ? `<a href="/p/${encodeURIComponent(ownerId)}">${org}</a>` : org}
+      ${ownerId ? `<a href="/p/#${encodeURIComponent(ownerId)}">${org}</a>` : org}
     </h3>
     <div class="muted">${city} • ${date}</div>
     <p class="mt-3">${t.requirements || ''}</p>
