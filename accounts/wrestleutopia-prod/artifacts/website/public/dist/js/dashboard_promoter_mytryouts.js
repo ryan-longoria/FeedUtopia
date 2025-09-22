@@ -13,8 +13,10 @@ function cardForTryout(t) {
   const status = (t.status || 'open').toString().toUpperCase();
   const div = document.createElement('div');
   div.className = 'card';
+  const link = t.ownerId ? `<a href="/p/${encodeURIComponent(t.ownerId)}">${org}</a>` : org;
   div.innerHTML = `
     <div class="badge">${status}</div>
+    <h3 style="margin:6px 0 2px">${link}</h3>
     <h3 style="margin:6px 0 2px">${org}</h3>
     <div class="muted">${city} • ${date}</div>
     <p class="mt-3">${t.requirements || ''}</p>
@@ -31,6 +33,29 @@ function emptyState(target, title, msg) {
       <h3>${title}</h3>
       <p class="muted">${msg}</p>
     </div>`;
+}
+
+async function loadMyOrgIntoForm() {
+  const orgInput = document.getElementById('org');
+  const hint = document.getElementById('org-hint');
+  try {
+    const me = await apiFetch('/profiles/promoters/me');   // requires JWT (you have a route for this)
+    const org = me?.orgName || '';
+    if (orgInput) {
+      orgInput.value = org;
+      orgInput.readOnly = true;
+      orgInput.placeholder = org ? '' : 'Create your promotion profile first';
+    }
+    if (hint) {
+      hint.innerHTML = org
+        ? 'Pulled from your Promotion profile.'
+        : `No promotion profile yet. <a href="/promoter/">Create one</a> to post tryouts.`;
+    }
+    return org;
+  } catch {
+    if (hint) hint.innerHTML = `Couldn’t load your promotion. <a href="/promoter/">Create one</a>.`;
+    return '';
+  }
 }
 
 async function loadMyTryouts() {
@@ -110,39 +135,40 @@ async function wireTryoutForm() {
   const form = document.getElementById('tryout-form-dash');
   if (!form) return;
 
+  // preload org name (and keep it locked)
+  let orgName = await loadMyOrgIntoForm();
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Basic guard: promoter only
     const s = await getAuthState();
-    if (!isPromoter(s)) {
-      toastInline('Promoter role required', 'error');
-      return;
+    if (!isPromoter(s)) { toastInline('Promoter role required', 'error'); return; }
+
+    // ensure we have orgName from profile
+    if (!orgName) {
+      orgName = await loadMyOrgIntoForm();
+      if (!orgName) { toastInline('Create your promotion profile first', 'error'); return; }
     }
 
-    const o = serializeForm(form);
-    // Backend expects orgName and YYYY-MM-DD
+    const data = new FormData(form);
     const body = {
-      orgName: (o.org || '').trim(),
-      city: (o.city || '').trim(),
-      date: (o.date || '').trim(),              // <input type="date"> provides YYYY-MM-DD
-      slots: Number(o.slots || 0),
-      requirements: (o.requirements || '').trim(),
-      contact: (o.contact || '').trim(),
+      orgName,                                         // <-- always from profile
+      city: (data.get('city') || '').trim(),
+      date: (data.get('date') || '').trim(),           // YYYY-MM-DD
+      slots: Number(data.get('slots') || 0),
+      requirements: (data.get('requirements') || '').trim(),
+      contact: (data.get('contact') || '').trim(),
       status: 'open',
     };
 
-    // Disable while submitting
     const btn = form.querySelector('button[type="submit"]');
-    const prev = btn?.textContent;
-    if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
-
+    const prev = btn?.textContent; if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
     try {
       await apiFetch('/tryouts', { method: 'POST', body });
       toastInline('Tryout posted!');
       form.reset();
-
-      // Refresh the lists so the new tryout appears under "Active"
+      // restore org field after reset
+      document.getElementById('org').value = orgName;
       await loadMyTryouts();
     } catch (err) {
       console.error(err);

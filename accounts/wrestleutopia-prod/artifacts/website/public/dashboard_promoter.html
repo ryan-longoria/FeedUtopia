@@ -41,7 +41,7 @@
         <div style="display:flex;align-items:center;gap:12px;justify-content:space-between">
           <div class="muted">Need talent for an event?</div>
           <div class="quick">
-            <a class="btn small" href="tryouts.html">Post a Tryout</a>
+            <a class="btn small" href="#post-tryout">Post a Tryout</a>
             <a class="btn small secondary" href="talent.html">Search Talent</a>
           </div>
         </div>
@@ -66,7 +66,7 @@
           <h2>Active Tryouts</h2>
           <div id="my-active-tryouts" class="grid cols-3 mt-3"></div>
           <div class="mt-3">
-            <a class="btn small secondary" href="tryouts.html">Post a new tryout</a>
+            <a class="btn small secondary" href="#post-tryout">Post a new tryout</a>
           </div>
         </div>
 
@@ -77,13 +77,14 @@
         </div>
 
         <!-- Post a Tryout -->
-        <div class="card" style="grid-column:1 / -1">
+        <div id="post-tryout" class="card" style="grid-column:1 / -1">
           <h2>Post a Tryout</h2>
           <form id="tryout-form-dash" class="mt-2">
             <div class="form-row">
               <div>
                 <label for="org">Organization</label>
-                <input class="input" id="org" name="org" required />
+                <input class="input" id="org" name="org" readonly />
+                <div class="muted" id="org-hint"></div>
               </div>
               <div>
                 <label for="city">City</label>
