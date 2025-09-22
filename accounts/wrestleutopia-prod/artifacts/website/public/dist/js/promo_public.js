@@ -1,13 +1,10 @@
-// /public/dist/js/promo_public.js
 import { apiFetch } from '/js/api.js';
 
 const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, '');
 const mediaUrl = (k) => (k && MEDIA_BASE ? `${MEDIA_BASE}/${k}` : '/assets/avatar-fallback.svg');
-
-// Basic text escape
 const h = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-// Guarded external link
+// External link guard
 function safeLink(url, label) {
   const u = String(url || '').trim();
   if (!u) return '';
@@ -62,10 +59,24 @@ function renderTryoutList(list) {
 }
 
 function buildFullAddress(item = {}) {
-  // Prefer a single address string if provided, else compose from parts
   const composed = [item.street1, item.street2, item.city, item.region, item.postalCode, item.country]
     .filter(Boolean).join(', ');
   return item.address ? String(item.address) : composed;
+}
+
+function idFromPath(){
+  const u = new URL(location.href);
+  const segs = u.pathname.split('/').filter(Boolean);
+  const pathId = (segs[1] || '').trim(); // e.g. /p/<id>
+  const hashId = (u.hash||'').replace(/^#/, '');
+  return pathId || hashId || '';
+}
+
+function sectionIds(item){
+  // Show Roster tab only if data exists
+  const ids = ['about', 'tryouts', 'photos', 'videos'];
+  if (Array.isArray(item.rosterHandles) && item.rosterHandles.length) ids.push('roster');
+  return ids;
 }
 
 // Renders the public promoter page into containerEl
@@ -78,6 +89,12 @@ function render(containerEl, item, tryouts = []) {
   const cover = item.coverKey ? mediaUrl(item.coverKey) : '';
   const addressFull = h(buildFullAddress(item));
   const socials = socialsRow(item.socials);
+
+  // Build nav tabs
+  const tabs = sectionIds(item).map((id, i) => {
+    const title = id[0].toUpperCase() + id.slice(1);
+    return `<a href="#${id}" ${i===0 ? 'aria-current="page"' : ''}>${title}</a>`;
+  }).join('');
 
   containerEl.innerHTML = `
     <section class="hero card" style="max-width:980px;margin-inline:auto;overflow:hidden">
@@ -93,25 +110,29 @@ function render(containerEl, item, tryouts = []) {
     </section>
 
     <section class="container" style="max-width:980px;margin-inline:auto">
-      <div class="grid cols-2 mt-3">
-        <div class="card">
-          <h2 class="mt-0">About</h2>
-          ${item.description ? `<p>${h(item.description).replace(/\n/g,'<br/>')}</p>` : `<p class="muted">No description yet.</p>`}
-          <dl class="meta-list mt-2">
-            ${addressFull ? `<dt>Address</dt><dd>${addressFull}</dd>` : ''}
-            ${item.emailPublic ? `<dt>Email</dt><dd>${h(item.emailPublic)}</dd>` : ''}
-            ${item.phonePublic ? `<dt>Phone</dt><dd>${h(item.phonePublic)}</dd>` : ''}
-          </dl>
+      <nav class="tabs">
+        <div class="tab-nav">
+          ${tabs}
         </div>
+      </nav>
 
-        <div class="card">
-          <h2 class="mt-0">Upcoming Tryouts</h2>
-          ${renderTryoutList(tryouts)}
-        </div>
+      <!-- Sections: IDs match hrefs so clicks scroll to them -->
+      <div id="about" class="mt-3 card" style="scroll-margin-top: 90px;">
+        <h2 class="mt-0">About</h2>
+        ${item.description ? `<p>${h(item.description).replace(/\n/g,'<br/>')}</p>` : `<p class="muted">No description yet.</p>`}
+        <dl class="meta-list mt-2">
+          ${addressFull ? `<dt>Address</dt><dd>${addressFull}</dd>` : ''}
+          ${item.emailPublic ? `<dt>Email</dt><dd>${h(item.emailPublic)}</dd>` : ''}
+          ${item.phonePublic ? `<dt>Phone</dt><dd>${h(item.phonePublic)}</dd>` : ''}
+        </dl>
       </div>
 
-      <!-- Photos (placeholder-friendly) -->
-      <div class="mt-3 card">
+      <div id="tryouts" class="mt-3 card" style="scroll-margin-top: 90px;">
+        <h2 class="mt-0">Upcoming Tryouts</h2>
+        ${renderTryoutList(tryouts)}
+      </div>
+
+      <div id="photos" class="mt-3 card" style="scroll-margin-top: 90px;">
         <h2 class="mt-0">Photos</h2>
         ${Array.isArray(item.mediaKeys) && item.mediaKeys.length ? `
           <div class="media-grid mt-2">
@@ -119,8 +140,7 @@ function render(containerEl, item, tryouts = []) {
           </div>` : `<p class="muted">No photos yet.</p>`}
       </div>
 
-      <!-- Videos (placeholder-friendly, mirrors wrestler highlights) -->
-      <div class="mt-3 card">
+      <div id="videos" class="mt-3 card" style="scroll-margin-top: 90px;">
         <h2 class="mt-0">Videos</h2>
         ${Array.isArray(item.highlights) && item.highlights.length ? `
           <div class="media-grid mt-2">
@@ -135,7 +155,7 @@ function render(containerEl, item, tryouts = []) {
       </div>
 
       ${Array.isArray(item.rosterHandles) && item.rosterHandles.length ? `
-        <div class="mt-3 card">
+        <div id="roster" class="mt-3 card" style="scroll-margin-top: 90px;">
           <h2 class="mt-0">Roster</h2>
           <div class="media-grid mt-2">
             ${item.rosterHandles.map(hh => `
@@ -146,14 +166,45 @@ function render(containerEl, item, tryouts = []) {
         </div>` : ''}
     </section>
   `;
-}
 
-function idFromPath(){
-  const u = new URL(location.href);
-  const segs = u.pathname.split('/').filter(Boolean);
-  const pathId = (segs[1] || '').trim(); // e.g. ['p', '<id>']
-  const hashId = (u.hash||'').replace(/^#/, '');
-  return pathId || hashId || '';
+  // Smooth scrolling + active link state
+  const nav = containerEl.querySelector('.tab-nav');
+  const links = Array.from(nav.querySelectorAll('a'));
+  const sections = links
+    .map(a => document.getElementById(a.getAttribute('href').replace('#','')))
+    .filter(Boolean);
+
+  // Smooth scroll on click
+  links.forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = a.getAttribute('href').replace('#','');
+      const target = document.getElementById(id);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        links.forEach(l => l.setAttribute('aria-current', l === a ? 'page' : 'false'));
+        history.replaceState(null, '', `#${id}`);
+      }
+    });
+  });
+
+  // Highlight active link while scrolling
+  const io = new IntersectionObserver((entries) => {
+    let topMost = null;
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        if (!topMost || entry.boundingClientRect.top < topMost.boundingClientRect.top) {
+          topMost = entry;
+        }
+      }
+    }
+    if (topMost) {
+      const id = topMost.target.id;
+      links.forEach(l => l.setAttribute('aria-current', l.getAttribute('href') === `#${id}` ? 'page' : 'false'));
+    }
+  }, { rootMargin: '-40% 0px -55% 0px', threshold: [0, 1] });
+
+  sections.forEach(sec => io.observe(sec));
 }
 
 async function init(){
@@ -163,8 +214,8 @@ async function init(){
   if (!id) { containerEl.innerHTML = '<p class="muted">Missing promotion id.</p>'; return; }
   try {
     const [item, tryouts] = await Promise.all([
-      apiFetch(`/profiles/promoters/${encodeURIComponent(id)}`),   // PUBLIC profile
-      apiFetch(`/promoters/${encodeURIComponent(id)}/tryouts`)    // PUBLIC open tryouts
+      apiFetch(`/profiles/promoters/${encodeURIComponent(id)}`),
+      apiFetch(`/promoters/${encodeURIComponent(id)}/tryouts`)
     ]);
     render(containerEl, item, tryouts);
   } catch (e){
