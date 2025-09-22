@@ -27,9 +27,32 @@ function formToObj(form) {
   const fd = new FormData(form);
   const o = {};
   for (const [k, v] of fd.entries()) o[k] = v;
+
+  // required
+  o.orgName = (o.orgName || '').trim();
+  o.address = (o.address || '').trim();
+
+  // optionals / legacy location pieces
+  o.city    = (o.city || '').trim() || null;
+  o.region  = (o.region || '').trim() || null;
+  o.country = (o.country || '').trim() || null;
+
   o.website = (o.website || '').trim() || null;
   o.contact = (o.contact || '').trim() || null;
   o.bio     = (o.bio || '').trim() || null;
+
+  // socials map
+  const socials = {
+    twitter:   (o.social_twitter || '').trim() || null,
+    instagram: (o.social_instagram || '').trim() || null,
+    tiktok:    (o.social_tiktok || '').trim() || null,
+    youtube:   (o.social_youtube || '').trim() || null,
+    facebook:  (o.social_facebook || '').trim() || null,
+    website:   o.website || null, // keep also at top-level for convenience
+  };
+  Object.keys(socials).forEach(k => { if (!socials[k]) delete socials[k]; });
+  o.socials = Object.keys(socials).length ? socials : null;
+
   return o;
 }
 
@@ -62,6 +85,7 @@ async function loadMe() {
 
     const map = {
       orgName: 'orgName',
+      address: 'address',
       city: 'city',
       region: 'region',
       country: 'country',
@@ -69,6 +93,14 @@ async function loadMe() {
       contact: 'contact',
       bio: 'bio',
     };
+    if (me.socials) {
+      const s = me.socials;
+      if (s.twitter)   document.getElementById('social_twitter').value   = s.twitter;
+      if (s.instagram) document.getElementById('social_instagram').value = s.instagram;
+      if (s.tiktok)    document.getElementById('social_tiktok').value    = s.tiktok;
+      if (s.youtube)   document.getElementById('social_youtube').value   = s.youtube;
+      if (s.facebook)  document.getElementById('social_facebook').value  = s.facebook;
+    }
     for (const [field, id] of Object.entries(map)) {
       if (me[field]) document.getElementById(id).value = me[field];
     }
@@ -139,20 +171,26 @@ async function init() {
     setDisabled(saveBtn, true, 'Saving…');
     try {
       const data = formToObj(form);
+      if (!data.orgName || !data.address) {
+        toast('Promotion name and full address are required', 'error');
+        return;
+      }
+
       const key = await uploadLogoIfAny().catch(() => null);
       if (key) data.logoKey = key;
 
-      // Backend accepts PUT/POST/PATCH at /profiles/promoters
       const saved = await apiFetch('/profiles/promoters', {
         method: 'PUT',
         body: {
           orgName: data.orgName,
+          address: data.address,      // <-- required
           city: data.city,
-          region: data.region || null,
+          region: data.region,
           country: data.country,
           website: data.website,
           contact: data.contact,
           bio: data.bio,
+          socials: data.socials,      // <-- new
           logoKey: data.logoKey || null,
         },
       });
