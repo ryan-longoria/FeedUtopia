@@ -60,43 +60,27 @@ async function wireMyProfileLink() {
   const link = document.getElementById('nav-my-profile');
   if (!link) return;
 
-  // Make it focusable/clickable immediately
-  if (!link.getAttribute('href')) link.setAttribute('href', '#');
-
-  // Show it whenever auth says we're "in"
-  link.style.display = '';
-
-  // Compute the target now…
+  // Start with safe default (already set in HTML), then upgrade
   let target = await resolveMyProfileUrl();
 
-  // …and if still unknown, choose a sensible default based on groups quickly
-  // (lightweight parse without API calls)
   if (!target) {
+    // quick fallback by group without API call
     const s = await getSession();
     const payload = parseIdPayload(s?.tokens?.idToken?.toString());
-    if (inGroup(payload, 'Wrestlers')) target = '/profile_me.html';
-    else if (inGroup(payload, 'Promoters')) target = '/promo_me.html';
+    if (inGroup(payload, 'Promoters') && payload?.sub) {
+      target = `/p/#${encodeURIComponent(payload.sub)}`;
+    }
   }
 
-  // Set the href if we have it; otherwise keep "#" and let click recalc
   if (target) link.setAttribute('href', target);
 
-  // Always handle click to recompute right before navigating (handles races)
+  // Recompute on click if still default
   link.addEventListener('click', async (e) => {
-    // If we already have a real URL (not "#"), let the browser navigate
-    const currentHref = link.getAttribute('href') || '';
-    if (currentHref && currentHref !== '#') return;
-
+    if (link.getAttribute('href') !== '/profile_me.html') return; // already upgraded
     e.preventDefault();
     const url = await resolveMyProfileUrl();
-    if (url) {
-      link.setAttribute('href', url);
-      location.href = url;
-    } else {
-      // Final fallback
-      location.href = '/profile_me.html';
-    }
-  }, { once: false });
+    location.href = url || '/profile_me.html';
+  });
 }
 
 // Run on load and whenever auth changes
