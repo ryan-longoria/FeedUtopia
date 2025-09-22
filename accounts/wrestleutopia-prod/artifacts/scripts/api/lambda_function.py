@@ -284,53 +284,108 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
 
     data = _json(event)
 
-    # Required
-    name      = (data.get("name") or "").strip()
+    # -------- REQUIRED --------
     stage     = (data.get("stageName") or "").strip()
-    dob       = (data.get("dob") or "").strip()
+    first     = (data.get("firstName") or "").strip()
+    last      = (data.get("lastName") or "").strip()
+    dob       = (data.get("dob") or "").strip()           # YYYY-MM-DD
     city      = (data.get("city") or "").strip()
+    region    = (data.get("region") or "").strip()        # state
     country   = (data.get("country") or "").strip()
-    region    = (data.get("region") or "").strip()
-    if not (name and stage and dob and city and country):
-        return _resp(400, {"message": "Missing required fields (name, stageName, dob, city, country)"})
+    height_in = data.get("heightIn")
+    weight_lb = data.get("weightLb")
 
-    # Optional / clean
-    bio = (data.get("bio") or "").strip()
-    if len(bio) > MAX_BIO_LEN:
+    missing = []
+    if not stage:   missing.append("stageName")
+    if not first:   missing.append("firstName")
+    if not last:    missing.append("lastName")
+    if not dob or not re.match(r"^\d{4}-\d{2}-\d{2}$", dob): missing.append("dob (YYYY-MM-DD)")
+    if not city:    missing.append("city")
+    if not region:  missing.append("state/region")
+    if not country: missing.append("country")
+    try:
+        height_in = int(height_in)
+    except Exception:
+        height_in = None
+    try:
+        weight_lb = int(weight_lb)
+    except Exception:
+        weight_lb = None
+    if height_in is None: missing.append("heightIn (inches)")
+    if weight_lb is None: missing.append("weightLb (lbs)")
+
+    if missing:
+        return _resp(400, {"message": "Missing/invalid required fields", "fields": missing})
+
+    # -------- OPTIONAL --------
+    middle    = (data.get("middleName") or "").strip() or None
+    bio       = (data.get("bio") or "").strip() or None
+    if bio and len(bio) > MAX_BIO_LEN:
         return _resp(400, {"message": f"bio too long (max {MAX_BIO_LEN})"})
+
+    # gimmicks: normalize to unique list (max 10)
     gimmicks = data.get("gimmicks") or []
     if isinstance(gimmicks, str):
         gimmicks = [x.strip() for x in gimmicks.split(",") if x.strip()]
-    gimmicks = list(dict.fromkeys(gimmicks))[:MAX_GIMMICKS]
-    photo_key = (data.get("photoKey") or "").strip() or None
+    gimmicks = list(dict.fromkeys(gimmicks))[:MAX_GIMMICKS] or None
 
-    # Load current profile to see if we already have a handle
+    # socials: simple map of site->url
+    socials = data.get("socials") or {}
+    if not isinstance(socials, dict):
+        socials = {}
+    # keep only known keys; strip empties
+    allowed_socials = ["twitter", "instagram", "tiktok", "youtube", "website"]
+    socials = {k: (str(v).strip() or None) for k, v in socials.items() if k in allowed_socials}
+    socials = {k: v for k, v in socials.items() if v} or None
+
+    # experience & achievements
+    exp_years = data.get("experienceYears")
+    try:
+        exp_years = int(exp_years) if exp_years is not None and str(exp_years).strip() != "" else None
+    except Exception:
+        exp_years = None
+    achievements = (data.get("achievements") or "").strip() or None
+
+    # Load current to keep handle if present
     existing = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
     current_handle = (existing.get("handle") or "").strip() or None
 
     now = _now_iso()
     base_profile = {
         "userId": sub,
-        "name": name,
-        "stageName": stage,   # <- can duplicate freely across users
-        "dob": dob,
-        "city": city,
-        "region": region or None,
-        "country": country,
-        "bio": bio or None,
-        "gimmicks": gimmicks or None,
-        "photoKey": photo_key,
+        "role": "Wrestler",
         "updatedAt": now,
         "createdAt": existing.get("createdAt") or now,
-        "role": "Wrestler",
+
+        # NEW canonical fields
+        "stageName": stage,
+        "firstName": first,
+        "middleName": middle,
+        "lastName": last,
+        "dob": dob,
+        "city": city,
+        "region": region,
+        "country": country,
+        "heightIn": height_in,
+        "weightLb": weight_lb,
+
+        # Optional/extended
+        "bio": bio,
+        "gimmicks": gimmicks,
+        "socials": socials,
+        "experienceYears": exp_years,
+        "achievements": achievements,
+
+        # Legacy convenience (keep if you already use 'name' elsewhere)
+        "name": f"{first} {last}",
+        "photoKey": (data.get("photoKey") or "").strip() or existing.get("photoKey") or None,
     }
 
-    # Helper: try to reserve a handle for THIS user (idempotent)
+    # Handle reservation helpers (unchanged from your version)
     def _reserve_handle(owner: str, h: str) -> bool:
         try:
             T_HANDLES.put_item(
                 Item={"handle": h, "owner": owner},
-                # owner is a reserved word → alias it
                 ConditionExpression="attribute_not_exists(handle) OR #owner = :u",
                 ExpressionAttributeNames={"#owner": "owner"},
                 ExpressionAttributeValues={":u": owner},
@@ -342,41 +397,30 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
                 return False
             raise
 
-    # Helper: pick a unique handle (base, base-2, base-3, … ; fallback to u-<sub8>)
     def _pick_unique_handle(base: str, owner: str) -> str:
-        base = _slugify_handle(base) or "wrestler"
-        # try base and base-2..base-50
+        base_slug = _slugify_handle(base) or "wrestler"
         for i in range(0, 50):
-            h = base if i == 0 else f"{base}-{i+1}"
+            h = base_slug if i == 0 else f"{base_slug}-{i+1}"
             if _reserve_handle(owner, h):
                 return h
-        # last resort: deterministic per-user fallback
         fallback = f"u-{owner[:8].lower()}"
-        # ensure we own (or take) the fallback
         if _reserve_handle(owner, fallback):
             return fallback
-        # if somehow fallback is taken by someone else (extremely unlikely), add random suffix
         import random, string
         for _ in range(20):
             rnd = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(4))
             h = f"{fallback}-{rnd}"
             if _reserve_handle(owner, h):
                 return h
-        # final guard (should never happen)
         return fallback
 
-    # 1) If we already have a handle → keep it (allow stageName duplicates freely)
+    # Keep or allocate handle
     if current_handle:
         profile = {**base_profile, "handle": current_handle}
-        T_WREST.put_item(Item=profile)
-        return _resp(200, profile)
+    else:
+        desired = _slugify_handle(stage) or "wrestler"
+        profile = {**base_profile, "handle": _pick_unique_handle(desired, sub)}
 
-    # 2) First-time profile: create a unique handle derived from stageName (numbered if needed)
-    desired = _slugify_handle(stage) or "wrestler"
-    new_handle = _pick_unique_handle(desired, sub)
-    profile = {**base_profile, "handle": new_handle}
-
-    # Save the profile (handles table already reserved by _pick_unique_handle)
     T_WREST.put_item(Item=profile)
     return _resp(200, profile)
 
