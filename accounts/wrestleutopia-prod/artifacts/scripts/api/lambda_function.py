@@ -215,6 +215,12 @@ def _post_tryout(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str,
         "status": status_in,
         "createdAt": _now_iso(),
     }
+    slots = int(data.get("slots") or 0)
+    if slots < 0: slots = 0
+    if slots > 10000: slots = 10000
+
+    if status_in not in {"open","closed","filled"}:
+        status_in = "open"
     T_TRY.put_item(Item=item)
     return _resp(200, item)
 
@@ -331,12 +337,10 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
 
     # socials: simple map of site->url
     socials = data.get("socials") or {}
-    if not isinstance(socials, dict):
-        socials = {}
-    # keep only known keys; strip empties
-    allowed_socials = ["twitter", "instagram", "tiktok", "youtube", "website"]
-    socials = {k: (str(v).strip() or None) for k, v in socials.items() if k in allowed_socials}
-    socials = {k: v for k, v in socials.items() if v} or None
+    if not isinstance(socials, dict): socials = {}
+    allowed = ["twitter","instagram","tiktok","youtube","facebook","website"]
+    socials = {k: (str(v).strip() or None) for k,v in socials.items() if k in allowed}
+    socials = {k:v for k,v in socials.items() if v} or None
 
     # experience & achievements
     exp_years = data.get("experienceYears")
@@ -451,10 +455,43 @@ def _upsert_promoter_profile(sub: str, groups: Set[str], event: Dict[str, Any]) 
     if not _is_promoter(groups):
         return _resp(403, {"message": "Promoter role required"})
     data = _json(event)
-    data["userId"] = sub
-    data.setdefault("role", "Promoter")
-    T_PROMO.put_item(Item=data)
-    return _resp(200, {"ok": True, "userId": sub})
+
+    org = (data.get("orgName") or "").strip()
+    address = (data.get("address") or "").strip()  # <-- full address (required)
+    if not org or not address:
+        return _resp(400, {"message": "Missing required fields (orgName, address)"})
+
+    item = {
+        "userId": sub,
+        "role": "Promoter",
+        "orgName": org,
+        "address": address,                        # <-- new
+        "city": (data.get("city") or "").strip() or None,       # optional legacy
+        "region": (data.get("region") or "").strip() or None,   # optional legacy
+        "country": (data.get("country") or "").strip() or None, # optional legacy
+        "website": (data.get("website") or "").strip() or None,
+        "contact": (data.get("contact") or "").strip() or None,
+        "bio": (data.get("bio") or "").strip() or None,
+        "logoKey": (data.get("logoKey") or "").strip() or None,
+        "socials": data.get("socials") or None,   # <-- MAP like { twitter, instagram, ... }
+        "updatedAt": _now_iso(),
+    }
+    T_PROMO.put_item(Item=item)
+    return _resp(200, item)
+
+def _get_open_tryouts_by_owner(owner_id: str) -> Dict[str, Any]:
+    try:
+        r = T_TRY.query(
+            IndexName="ByOwner",
+            KeyConditionExpression=Key("ownerId").eq(owner_id),
+            Limit=100,
+            ScanIndexForward=True,
+        )
+        items = [it for it in (r.get("Items") or []) if (it.get("status") or "open") == "open"]
+        return _resp(200, items)
+    except Exception as e:
+        _log("open tryouts by owner error", e)
+        return _resp(500, {"message": "Server error"})
 
 def _get_promoter_profile(sub: str) -> Dict[str, Any]:
     item = T_PROMO.get_item(Key={"userId": sub}).get("Item")
@@ -578,6 +615,10 @@ def lambda_handler(event, _ctx):
         if method == "GET" and path.startswith("/profiles/promoters/") and path != "/profiles/promoters/me":
             user_id = path.split("/")[-1]
             return _get_promoter_public(user_id)
+        
+        if method == "GET" and path.startswith("/promoters/") and path.endswith("/tryouts"):
+            user_id = path.split("/")[2]  # /promoters/{userId}/tryouts
+            return _get_open_tryouts_by_owner(user_id)
 
         # Auth'd Wrestler: PUT /profiles/wrestlers/me (create/update self + reserve handle)
         if method == "PUT" and path == "/profiles/wrestlers/me":

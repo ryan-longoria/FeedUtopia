@@ -18,19 +18,36 @@
       <form id="promoForm" class="card">
         <h2>Promotion Profile</h2>
 
-        <label>Promotion / Org Name
+        <label>Promotion / Org Name <span class="muted">(required)</span>
           <input id="orgName" name="orgName" required/>
         </label>
 
+        <label>Full Address <span class="muted">(required)</span>
+          <input id="address" name="address" placeholder="123 Main St, City, ST 12345, Country" required/>
+        </label>
+
         <div class="grid-3">
-          <label>City <input id="city" name="city" required/></label>
-          <label>Region <input id="region" name="region"/></label>
-          <label>Country <input id="country" name="country" required/></label>
+          <label>City <input id="city" name="city"/></label>
+          <label>Region/State <input id="region" name="region"/></label>
+          <label>Country <input id="country" name="country"/></label>
         </div>
 
         <label>Website
           <input id="website" name="website" placeholder="https://example.com"/>
         </label>
+
+        <fieldset class="mt-2" style="border:0;padding:0">
+          <legend class="muted" style="font-size:12px">Socials (optional)</legend>
+          <div class="grid-3">
+            <label>Twitter/X <input id="social_twitter" name="social_twitter" placeholder="https://x.com/yourhandle"/></label>
+            <label>Instagram <input id="social_instagram" name="social_instagram" placeholder="https://instagram.com/yourhandle"/></label>
+            <label>TikTok <input id="social_tiktok" name="social_tiktok" placeholder="https://tiktok.com/@yourhandle"/></label>
+          </div>
+          <div class="grid-2 mt-1">
+            <label>YouTube <input id="social_youtube" name="social_youtube" placeholder="https://youtube.com/@channel"/></label>
+            <label>Facebook <input id="social_facebook" name="social_facebook" placeholder="https://facebook.com/yourpage"/></label>
+          </div>
+        </fieldset>
 
         <label>Contact (email or link)
           <input id="contact" name="contact" placeholder="booking@example.com"/>
@@ -46,7 +63,7 @@
           </label>
           <div style="display:flex;align-items:center;gap:12px">
             <img id="logoPreview" src="/assets/avatar-fallback.svg" alt="Logo preview"
-                 style="width:120px;height:120px;border-radius:16px;object-fit:cover;background:#0f1224;border:1px solid #1f2546"/>
+                style="width:120px;height:120px;border-radius:16px;object-fit:cover;background:#0f1224;border:1px solid #1f2546"/>
           </div>
         </div>
 
