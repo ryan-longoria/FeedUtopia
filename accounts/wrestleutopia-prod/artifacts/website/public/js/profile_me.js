@@ -34,12 +34,33 @@ function formToObj(form) {
   const fd = new FormData(form);
   const o = {};
   for (const [k, v] of fd.entries()) o[k] = v;
-  // normalize optionals
+
+  // required numeric
+  o.heightIn = Number(o.heightIn || NaN);
+  o.weightLb = Number(o.weightLb || NaN);
+
+  // optionals
   o.bio = (o.bio || '').trim() || null;
   o.gimmicks = (o.gimmicks || '')
     .split(',')
     .map((x) => x.trim())
     .filter(Boolean);
+
+  // socials map
+  o.socials = {
+    twitter:   (o.social_twitter || '').trim() || null,
+    instagram: (o.social_instagram || '').trim() || null,
+    tiktok:    (o.social_tiktok || '').trim() || null,
+    youtube:   (o.social_youtube || '').trim() || null,
+    website:   (o.social_website || '').trim() || null,
+  };
+  // remove empties
+  Object.keys(o.socials).forEach(k => { if (!o.socials[k]) delete o.socials[k]; });
+
+  // numbers (optional)
+  o.experienceYears = (o.experienceYears || '').toString().trim() === '' ? null : Number(o.experienceYears);
+  o.achievements = (o.achievements || '').trim() || null;
+
   return o;
 }
 
@@ -76,14 +97,28 @@ async function loadMe() {
 
     // fill fields if present
     const map = {
-      name: 'name',
+      firstName: 'firstName',
+      middleName: 'middleName',
+      lastName: 'lastName',
       stageName: 'stageName',
       dob: 'dob',
       city: 'city',
       region: 'region',
       country: 'country',
+      heightIn: 'heightIn',
+      weightLb: 'weightLb',
       bio: 'bio',
+      experienceYears: 'experienceYears',
+      achievements: 'achievements',
     };
+    if (me.socials) {
+      const s = me.socials;
+      if (s.twitter)   document.getElementById('social_twitter').value   = s.twitter;
+      if (s.instagram) document.getElementById('social_instagram').value = s.instagram;
+      if (s.tiktok)    document.getElementById('social_tiktok').value    = s.tiktok;
+      if (s.youtube)   document.getElementById('social_youtube').value   = s.youtube;
+      if (s.website)   document.getElementById('social_website').value   = s.website;
+    }
     for (const [field, id] of Object.entries(map)) {
       if (me[field]) document.getElementById(id).value = me[field];
     }
@@ -120,23 +155,25 @@ async function init() {
   viewBtn?.addEventListener('click', () => {
     const handle = viewBtn?.dataset?.handle;
     if (handle) { 
-        location.href = `/w/#${encodeURIComponent(handle)}`
-        return;
+      location.href = `/w/#${encodeURIComponent(handle)}`
+      return;
     }
 
     const stageName = document.getElementById('stageName')?.value || 'Wrestler';
-    const name      = document.getElementById('name')?.value || '';
+    const first     = document.getElementById('firstName')?.value || '';
+    const middle    = document.getElementById('middleName')?.value || '';
+    const last      = document.getElementById('lastName')?.value || '';
+    const fullName  = [first, middle, last].filter(Boolean).join(' ');
+
     const dob       = document.getElementById('dob')?.value || '';
     const city      = document.getElementById('city')?.value || '';
     const region    = document.getElementById('region')?.value || '';
     const country   = document.getElementById('country')?.value || '';
     const bio       = document.getElementById('bio')?.value || '';
     const gimmicks  = (document.getElementById('gimmicks')?.value || '')
-                      .split(',').map(s=>s.trim()).filter(Boolean);
+                        .split(',').map(s=>s.trim()).filter(Boolean);
 
-    const avatarPreview = document.getElementById('avatarPreview');
-    const imgSrc = avatarPreview?.src || '/assets/avatar-fallback.svg';
-
+    const imgSrc = document.getElementById('avatarPreview')?.src || '/assets/avatar-fallback.svg';
     const loc = [city, region, country].filter(Boolean).join(', ');
 
     const html = `
@@ -150,11 +187,10 @@ async function init() {
       </div>
       <div class="mt-3">${bio ? `<p>${bio.replace(/\n/g,'<br/>')}</p>` : '<p class="muted">No bio yet.</p>'}</div>
       <dl class="mt-3">
-        <dt class="muted">Name</dt><dd>${name}</dd>
+        <dt class="muted">Name</dt><dd>${fullName}</dd>
         <dt class="muted mt-2">DOB</dt><dd>${dob}</dd>
       </dl>
     `;
-
     const box = document.getElementById('preview-content');
     if (box) box.innerHTML = html;
     document.getElementById('preview-modal')?.showModal();
@@ -174,18 +210,29 @@ async function init() {
       const saved = await apiFetch('/profiles/wrestlers/me', {
         method: 'PUT',
         body: {
-          name: data.name,
+          // required
           stageName: data.stageName,
+          firstName: data.firstName,
+          middleName: data.middleName || null,
+          lastName: data.lastName,
           dob: data.dob,
           city: data.city,
-          region: data.region || null,
+          region: data.region,
           country: data.country,
+          heightIn: data.heightIn,
+          weightLb: data.weightLb,
+
+          // optional
           bio: data.bio,
           gimmicks: data.gimmicks,
+          socials: data.socials,
+          experienceYears: data.experienceYears,
+          achievements: data.achievements,
+
+          // media
           photoKey: data.photoKey || null,
         },
       });
-
       toast('Profile saved!');
       // Update "View" button & avatar preview
       if (saved?.handle) {

@@ -34,39 +34,66 @@
       <p class="muted">This info appears on your public page at <code>/w/&lt;handle&gt;</code>.</p>
 
       <form id="profileForm" class="card mt-3" style="max-width:860px">
+        <!-- Names -->
         <div class="grid-2">
           <div>
-            <label for="name">Legal Name</label>
-            <input class="input" id="name" name="name" required autocomplete="name"/>
+            <label for="firstName">First Name <span class="muted">(required)</span></label>
+            <input class="input" id="firstName" name="firstName" required autocomplete="given-name"/>
           </div>
           <div>
-            <label for="stageName">Stage Name</label>
+            <label for="middleName">Middle Name <span class="muted">(optional)</span></label>
+            <input class="input" id="middleName" name="middleName" autocomplete="additional-name"/>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-2">
+          <div>
+            <label for="lastName">Last Name <span class="muted">(required)</span></label>
+            <input class="input" id="lastName" name="lastName" required autocomplete="family-name"/>
+          </div>
+          <div>
+            <label for="stageName">Stage Name <span class="muted">(required)</span></label>
             <input class="input" id="stageName" name="stageName" required autocomplete="nickname"/>
           </div>
         </div>
 
+        <!-- Vital / Location -->
         <div class="grid-2 mt-2">
           <div>
-            <label for="dob">Date of Birth</label>
+            <label for="dob">Date of Birth <span class="muted">(required)</span></label>
             <input class="input" id="dob" name="dob" type="date" required />
           </div>
-          <div>
-            <label for="city">City</label>
-            <input class="input" id="city" name="city" required autocomplete="address-level2"/>
+          <div class="grid-2">
+            <div>
+              <label for="city">City <span class="muted">(required)</span></label>
+              <input class="input" id="city" name="city" required autocomplete="address-level2"/>
+            </div>
+            <div>
+              <label for="region">State/Region <span class="muted">(required)</span></label>
+              <input class="input" id="region" name="region" required autocomplete="address-level1"/>
+            </div>
           </div>
         </div>
 
         <div class="grid-2 mt-2">
           <div>
-            <label for="region">State/Region</label>
-            <input class="input" id="region" name="region" autocomplete="address-level1"/>
-          </div>
-          <div>
-            <label for="country">Country</label>
+            <label for="country">Country <span class="muted">(required)</span></label>
             <input class="input" id="country" name="country" value="US" required autocomplete="country-name"/>
+          </div>
+          <div class="grid-2">
+            <div>
+              <label for="heightIn">Height (inches) <span class="muted">(required)</span></label>
+              <input class="input" id="heightIn" name="heightIn" type="number" min="36" max="100" step="1" required />
+              <div class="hint">Tip: 6'0" = 72 inches.</div>
+            </div>
+            <div>
+              <label for="weightLb">Weight (lbs) <span class="muted">(required)</span></label>
+              <input class="input" id="weightLb" name="weightLb" type="number" min="50" max="600" step="1" required />
+            </div>
           </div>
         </div>
 
+        <!-- Optional profile content -->
         <div class="mt-2">
           <label for="bio">Bio <span class="muted">(optional)</span></label>
           <textarea class="input" id="bio" name="bio" rows="4" placeholder="Short intro, accolades, schools, safety certs…"></textarea>
@@ -79,6 +106,33 @@
           <div class="hint">We’ll store up to 10.</div>
         </div>
 
+        <div class="grid-2 mt-2">
+          <div>
+            <label for="experienceYears">Experience (years) <span class="muted">(optional)</span></label>
+            <input class="input" id="experienceYears" name="experienceYears" type="number" min="0" max="60" step="1"/>
+          </div>
+          <div>
+            <label for="achievements">Achievements <span class="muted">(optional)</span></label>
+            <input class="input" id="achievements" name="achievements" placeholder="Titles, tours, tournaments…"/>
+          </div>
+        </div>
+
+        <fieldset class="mt-3">
+          <legend class="muted">Socials <span class="muted">(optional)</span></legend>
+          <div class="grid-2">
+            <label>Twitter <input class="input" id="social_twitter" name="social_twitter" placeholder="https://x.com/handle"/></label>
+            <label>Instagram <input class="input" id="social_instagram" name="social_instagram" placeholder="https://instagram.com/handle"/></label>
+          </div>
+          <div class="grid-2 mt-2">
+            <label>TikTok <input class="input" id="social_tiktok" name="social_tiktok" placeholder="https://tiktok.com/@handle"/></label>
+            <label>YouTube <input class="input" id="social_youtube" name="social_youtube" placeholder="https://youtube.com/@handle"/></label>
+          </div>
+          <div class="mt-2">
+            <label>Website <input class="input" id="social_website" name="social_website" placeholder="https://yoursite.com"/></label>
+          </div>
+        </fieldset>
+
+        <!-- Avatar -->
         <div class="mt-3" style="display:flex; gap:16px; align-items:center">
           <img id="avatarPreview" class="avatar" src="/assets/avatar-fallback.svg" alt="Profile avatar"/>
           <div>
