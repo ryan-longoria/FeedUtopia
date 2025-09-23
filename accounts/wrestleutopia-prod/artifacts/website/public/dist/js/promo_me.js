@@ -125,7 +125,7 @@ async function loadMe() {
     // Socials (if your inputs exist)
     if (me.socials && typeof me.socials === 'object') {
       for (const [k, v] of Object.entries(me.socials)) {
-        setVal(k, v);
+        setVal(`social_${k}`, v);
       }
     }
 
@@ -236,9 +236,12 @@ async function init() {
       };
 
       // socials if present
-      const socialIds = ['twitter','instagram','facebook','tiktok','youtube'];
+      const socialKeys = ['twitter','instagram','facebook','tiktok','youtube','website'];
       const socials = {};
-      socialIds.forEach(id => { const v = getVal(id); if (v) socials[id] = v; });
+      for (const key of socialKeys) {
+        const v = getVal(`social_${key}`);
+        if (v) socials[key] = v;
+      }
       if (Object.keys(socials).length) data.socials = socials;
 
       // upload logo if provided
