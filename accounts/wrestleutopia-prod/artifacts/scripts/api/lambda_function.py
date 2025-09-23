@@ -243,10 +243,24 @@ def _upsert_wrestler_profile(sub: str, groups: Set[str], event: Dict[str, Any]) 
     # Legacy upsert (kept for backwards compatibility with older clients)
     if not _is_wrestler(groups):
         return _resp(403, {"message": "Wrestler role required"})
-    data = _json(event)
+    data = _json(event) or {}
     data["userId"] = sub
-    data.setdefault("role", "Wrestler")
-    T_WREST.put_item(Item=data)
+
+    # Load existing and merge so we never drop fields that weren't sent
+    existing = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
+    merged = {**existing, **data}
+
+    # normalize expected fields
+    if "mediaKeys" not in merged or not isinstance(merged["mediaKeys"], list):
+        merged["mediaKeys"] = existing.get("mediaKeys", [])
+    if "highlights" not in merged or not isinstance(merged["highlights"], list):
+        merged["highlights"] = existing.get("highlights", [])
+
+    merged.setdefault("role", "Wrestler")
+    merged.setdefault("createdAt", existing.get("createdAt") or _now_iso())
+    merged["updatedAt"] = _now_iso()
+
+    T_WREST.put_item(Item=merged)
     return _resp(200, {"ok": True, "userId": sub})
 
 def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
@@ -475,7 +489,10 @@ def _get_profile_by_handle(handle: str) -> Dict[str, Any]:
         items = r.get("Items") or []
         if not items:
             return _resp(404, {"message": "Not found"})
-        return _resp(200, items[0])
+        item = items[0]
+        item.setdefault("mediaKeys", [])
+        item.setdefault("highlights", [])
+        return _resp(200, item)
     except Exception as e:
         _log("get by handle error", e)
         return _resp(500, {"message": "Server error"})
@@ -676,6 +693,8 @@ def lambda_handler(event, _ctx):
                 # me
                 if _is_wrestler(groups):
                     item = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
+                    item.setdefault("mediaKeys", [])
+                    item.setdefault("highlights", [])
                     return _resp(200, item)
                 # promoter search
                 if _is_promoter(groups):
