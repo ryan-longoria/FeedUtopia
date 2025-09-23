@@ -243,10 +243,24 @@ def _upsert_wrestler_profile(sub: str, groups: Set[str], event: Dict[str, Any]) 
     # Legacy upsert (kept for backwards compatibility with older clients)
     if not _is_wrestler(groups):
         return _resp(403, {"message": "Wrestler role required"})
-    data = _json(event)
+    data = _json(event) or {}
     data["userId"] = sub
-    data.setdefault("role", "Wrestler")
-    T_WREST.put_item(Item=data)
+
+    # Load existing and merge so we never drop fields that weren't sent
+    existing = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
+    merged = {**existing, **data}
+
+    # normalize expected fields
+    if "mediaKeys" not in merged or not isinstance(merged["mediaKeys"], list):
+        merged["mediaKeys"] = existing.get("mediaKeys", [])
+    if "highlights" not in merged or not isinstance(merged["highlights"], list):
+        merged["highlights"] = existing.get("highlights", [])
+
+    merged.setdefault("role", "Wrestler")
+    merged.setdefault("createdAt", existing.get("createdAt") or _now_iso())
+    merged["updatedAt"] = _now_iso()
+
+    T_WREST.put_item(Item=merged)
     return _resp(200, {"ok": True, "userId": sub})
 
 def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
@@ -365,7 +379,8 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
 
     # socials: simple map of site->url
     socials = data.get("socials") or {}
-    if not isinstance(socials, dict): socials = {}
+    if not isinstance(socials, dict):
+        socials = {}
     allowed = ["twitter","instagram","tiktok","youtube","facebook","website"]
     socials = {k: (str(v).strip() or None) for k,v in socials.items() if k in allowed}
     socials = {k:v for k,v in socials.items() if v} or None
@@ -386,6 +401,7 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
     norm_key = _normalize_photo_key(raw_key, sub) if raw_key else (existing.get("photoKey") or None)
 
     now = _now_iso()
+    # Base (non-array) profile fields
     base_profile = {
         "userId": sub,
         "role": "Wrestler",
@@ -414,6 +430,31 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
         # Legacy convenience (keep if you already use 'name' elsewhere)
         "name": f"{first} {last}",
         "photoKey": norm_key,
+    }
+
+    # --- Persist gallery arrays ---
+    incoming_media = data.get("mediaKeys")
+    if isinstance(incoming_media, list):
+        media_keys = [str(x) for x in incoming_media if isinstance(x, str) and x.strip()]
+    else:
+        media_keys = existing.get("mediaKeys", [])
+
+    incoming_highlights = data.get("highlights")
+    if isinstance(incoming_highlights, list):
+        highlights_arr = [str(x) for x in incoming_highlights if isinstance(x, str) and x.strip()]
+    else:
+        highlights_arr = existing.get("highlights", [])
+
+    # If photoKey exists but not in mediaKeys, add it to the front (optional)
+    if base_profile.get("photoKey") and base_profile["photoKey"] not in media_keys:
+        media_keys = [base_profile["photoKey"]] + media_keys
+
+    # Build final item
+    item_out = {
+        **existing,
+        **base_profile,
+        "mediaKeys": media_keys,
+        "highlights": highlights_arr,
     }
 
     # Handle reservation helpers (unchanged from your version)
@@ -451,13 +492,14 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
 
     # Keep or allocate handle
     if current_handle:
-        profile = {**base_profile, "handle": current_handle}
+        item_out["handle"] = current_handle
     else:
         desired = _slugify_handle(stage) or "wrestler"
-        profile = {**base_profile, "handle": _pick_unique_handle(desired, sub)}
+        item_out["handle"] = _pick_unique_handle(desired, sub)
 
-    T_WREST.put_item(Item=profile)
-    return _resp(200, profile)
+    T_WREST.put_item(Item=item_out)
+    return _resp(200, item_out)
+
 
 def _get_profile_by_handle(handle: str) -> Dict[str, Any]:
     """
@@ -475,7 +517,10 @@ def _get_profile_by_handle(handle: str) -> Dict[str, Any]:
         items = r.get("Items") or []
         if not items:
             return _resp(404, {"message": "Not found"})
-        return _resp(200, items[0])
+        item = items[0]
+        item.setdefault("mediaKeys", [])
+        item.setdefault("highlights", [])
+        return _resp(200, item)
     except Exception as e:
         _log("get by handle error", e)
         return _resp(500, {"message": "Server error"})
@@ -676,6 +721,8 @@ def lambda_handler(event, _ctx):
                 # me
                 if _is_wrestler(groups):
                     item = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
+                    item.setdefault("mediaKeys", [])
+                    item.setdefault("highlights", [])
                     return _resp(200, item)
                 # promoter search
                 if _is_promoter(groups):

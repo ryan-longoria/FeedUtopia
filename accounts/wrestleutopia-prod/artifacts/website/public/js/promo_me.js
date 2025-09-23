@@ -205,7 +205,7 @@ async function init() {
         website: getVal('website'),
         contact: getVal('contact'),
         bio: getVal('bio'),
-        mediakeys,
+        mediaKeys,
         highlights,
       };
 
