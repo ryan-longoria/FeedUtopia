@@ -79,7 +79,7 @@ resource "aws_lambda_function" "upload_url" {
   source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/upload_url/upload_url.zip")
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
-  role             = aws_iam_role.upload_url_role.arn
+  role             = aws_iam_role.presign_lambda_role.arn
   timeout          = 10
 
   environment {

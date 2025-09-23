@@ -444,38 +444,3 @@ resource "aws_iam_role_policy_attachment" "image_processor_attach" {
   role       = aws_iam_role.image_processor_role.name
   policy_arn = aws_iam_policy.image_processor_policy.arn
 }
-
-data "aws_iam_policy_document" "upload_url_policy" {
-  statement {
-    sid       = "S3PresignRaw"
-    actions   = ["s3:PutObject", "s3:GetObject"]
-    resources = ["arn:aws:s3:::YOUR_MEDIA_BUCKET_NAME/raw/*"]
-  }
-  statement {
-    sid       = "DynamoMediaRW"
-    actions   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:GetItem", "dynamodb:Query"]
-    resources = [
-      "arn:aws:dynamodb:*:*:table/YOUR_TRYOUTS_TABLE_NAME"
-    ]
-  }
-  statement {
-    sid       = "Logs"
-    actions   = ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"]
-    resources = ["arn:aws:logs:*:*:*"]
-  }
-}
-
-resource "aws_iam_role" "upload_url_role" {
-  name               = "wu-media-upload-url"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-}
-
-resource "aws_iam_policy" "upload_url_policy" {
-  name   = "wu-media-upload-url"
-  policy = data.aws_iam_policy_document.upload_url_policy.json
-}
-
-resource "aws_iam_role_policy_attachment" "upload_url_attach" {
-  role       = aws_iam_role.upload_url_role.name
-  policy_arn = aws_iam_policy.upload_url_policy.arn
-}
