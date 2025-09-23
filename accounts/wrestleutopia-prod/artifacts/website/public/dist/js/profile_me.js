@@ -1,8 +1,12 @@
 // /js/profile_me.js
 import { apiFetch, uploadToS3 } from '/js/api.js';
 import { getAuthState, isWrestler } from '/js/roles.js';
+import { mediaUrl } from './media.js';
 
-const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, ''); // optional, e.g., https://cdn.wrestleutopia.com
+const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, '');
+
+const avatarEl = document.querySelector('#avatar');
+avatarEl.src = mediaUrl(profile.avatar_key);
 
 function toast(text, type = 'success') {
   const t = document.querySelector('#toast');
@@ -72,13 +76,6 @@ function setDisabled(el, on, labelBusy) {
     if (on) { el.dataset.prevText = prev; el.textContent = labelBusy; }
     else { el.textContent = el.dataset.prevText || el.textContent; }
   }
-}
-
-function photoUrlFromKey(key) {
-  if (!key) return '/assets/avatar-fallback.svg';
-  if (MEDIA_BASE) return `${MEDIA_BASE}/${key}`;
-  // If you later put CloudFront behind your S3 bucket, set window.WU_MEDIA_BASE to that domain.
-  return '/assets/avatar-fallback.svg';
 }
 
 async function uploadAvatarIfAny() {
