@@ -370,18 +370,25 @@ resource "aws_iam_role" "presign_lambda_role" {
 
 resource "aws_iam_policy" "presign_s3_policy" {
   name        = "${var.project_name}-presign-s3"
-  description = "Allow presign Lambda to sign S3 PUTs under raw/* prefix"
+  description = "Allow presign Lambda to sign S3 PUTs"
   policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [{
-      Sid: "AllowPutOnRawPrefix",
-      Effect: "Allow",
-      Action: ["s3:PutObject"],
-      Resource: "arn:aws:s3:::${var.s3_bucket_name}/raw/*"
-    }]
+    Statement = [
+      {
+        Sid    = "AllowPutOnUserPrefix",
+        Effect = "Allow",
+        Action = ["s3:PutObject","s3:GetObject"],
+        Resource = "arn:aws:s3:::${var.s3_bucket_name}/user/*"
+      },
+      {
+        Sid    = "AllowPutOnRawPrefix",
+        Effect = "Allow",
+        Action = ["s3:PutObject","s3:GetObject"],
+        Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/*"
+      }
+    ]
   })
 }
-
 resource "aws_iam_role_policy_attachment" "presign_logs_attach" {
   role       = aws_iam_role.presign_lambda_role.name
   policy_arn = aws_iam_policy.lambda_logs.arn

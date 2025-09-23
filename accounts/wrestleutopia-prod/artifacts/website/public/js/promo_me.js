@@ -70,8 +70,7 @@ async function uploadLogoIfAny() {
   const file = document.getElementById('logo')?.files?.[0];
   if (!file) return null;
   const s3 = await uploadToS3(file.name, file.type || 'image/jpeg', file); // returns s3://bucket/key
-  let key = String(s3).replace(/^s3:\/\//, '');
-  const slash = key.indexOf('/'); if (slash >= 0) key = key.slice(slash + 1);
+  const key = String(s3).replace(/^s3:\/\//, '');
   return key; // store as key only; public pages resolve via MEDIA_BASE
 }
 
