@@ -72,3 +72,44 @@ resource "aws_lambda_function" "presign" {
     }
   }
 }
+
+resource "aws_lambda_function" "upload_url" {
+  function_name = "${var.project_name}-upload-url"
+  filename         = "${path.module}/artifacts/scripts/upload_url/upload_url.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/upload_url/upload_url.zip")
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.12"
+  role             = aws_iam_role.presign_lambda_role.arn
+  timeout          = 10
+
+  environment {
+    variables = {
+      MEDIA_BUCKET = aws_s3_bucket.media_bucket.bucket
+      TABLE_TRYOUTS     = aws_dynamodb_table.tryouts.name
+      ALLOWED_ORIGIN = "https://www.wrestleutopia.com"
+    }
+  }
+}
+
+resource "aws_lambda_function" "image_processor" {
+  function_name    = "${var.project_name}-image-processor"
+  filename         = "${path.module}/artifacts/scripts/image_processor/image_processor.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/image_processor/image_processor.zip")
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.12"
+  role             = aws_iam_role.image_processor_role.arn
+  timeout          = 60
+  memory_size      = 1024
+
+  environment {
+    variables = {
+      MEDIA_BUCKET  = aws_s3_bucket.media_bucket.bucket
+      TABLE_TRYOUTS = aws_dynamodb_table.tryouts.name
+      CDN_BASE      = "https://cdn.wrestleutopia.com"
+    }
+  }
+
+  layers = [
+    "arn:aws:lambda:us-east-2:825765422855:layer:Python_pillow:5"
+  ]
+}

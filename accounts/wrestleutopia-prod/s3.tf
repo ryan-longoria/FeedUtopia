@@ -33,20 +33,39 @@ resource "aws_s3_bucket_lifecycle_configuration" "media_bucket_lifecycle" {
 
 resource "aws_s3_bucket_cors_configuration" "media" {
   bucket = aws_s3_bucket.media_bucket.id
+
   cors_rule {
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    allowed_origins = ["https://www.wrestleutopia.com"]
     allowed_headers = ["*"]
-    allowed_methods = ["GET","PUT"]
-    allowed_origins = var.allowed_origins
-    expose_headers  = ["ETag"]
-    max_age_seconds = 3600
+    expose_headers  = ["ETag", "Content-Type"]
+    max_age_seconds = 3000
   }
 }
 
-# Keep bucket private (all ON)
+resource "aws_s3_bucket_ownership_controls" "media" {
+  bucket = aws_s3_bucket.media_bucket.id
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "media" {
   bucket                  = aws_s3_bucket.media_bucket.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_notification" "media_notifications" {
+  bucket = aws_s3_bucket.media_bucket.id
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.image_processor.arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_prefix       = "raw/"
+  }
+
+  depends_on = [aws_lambda_permission.s3_invoke_imgproc]
 }

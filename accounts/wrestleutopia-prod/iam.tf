@@ -216,6 +216,14 @@ resource "aws_lambda_permission" "allow_events_cleanup" {
   source_arn    = aws_cloudwatch_event_rule.cognito_cleanup_rule.arn
 }
 
+resource "aws_lambda_permission" "s3_invoke_imgproc" {
+  statement_id  = "AllowS3InvokeImgProc"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.image_processor.function_name
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.media_bucket.arn
+}
+
 #############################
 ## Lambda IAM — API (CRUD)
 #############################
@@ -232,7 +240,6 @@ resource "aws_iam_role" "api_lambda_role" {
   })
 }
 
-# EXISTING policy: api_dynamo_policy
 resource "aws_iam_policy" "api_dynamo_policy" {
   name        = "${var.project_name}-api-dynamo"
   description = "CRUD on WrestlerProfiles, PromoterProfiles, Tryouts (+GSIs), Applications (+GSIs)"
@@ -320,6 +327,31 @@ resource "aws_lambda_permission" "presign_invoke" {
   source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
 }
 
+resource "aws_iam_policy" "presign_dynamo_policy" {
+  name        = "${var.project_name}-presign-dynamo"
+  description = "Allow presign Lambda to create/update media items in tryouts table"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "WriteMediaItems",
+        Effect = "Allow",
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:GetItem"
+        ],
+        Resource = aws_dynamodb_table.tryouts.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "presign_dynamo_attach" {
+  role       = aws_iam_role.presign_lambda_role.name
+  policy_arn = aws_iam_policy.presign_dynamo_policy.arn
+}
+
 #############################
 ## Lambda IAM — Presign (S3 PUT)
 #############################
@@ -338,19 +370,15 @@ resource "aws_iam_role" "presign_lambda_role" {
 
 resource "aws_iam_policy" "presign_s3_policy" {
   name        = "${var.project_name}-presign-s3"
-  description = "Allow presign Lambda to sign S3 PUTs under user/* prefix"
+  description = "Allow presign Lambda to sign S3 PUTs under raw/* prefix"
   policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [
-      {
-        Sid    = "AllowPutOnUserPrefix",
-        Effect = "Allow",
-        Action = [
-          "s3:PutObject"
-        ],
-        Resource = "arn:aws:s3:::${var.s3_bucket_name}/user/*"
-      }
-    ]
+    Statement = [{
+      Sid: "AllowPutOnRawPrefix",
+      Effect: "Allow",
+      Action: ["s3:PutObject"],
+      Resource: "arn:aws:s3:::${var.s3_bucket_name}/raw/*"
+    }]
   })
 }
 
@@ -364,7 +392,55 @@ resource "aws_iam_role_policy_attachment" "presign_s3_attach" {
   policy_arn = aws_iam_policy.presign_s3_policy.arn
 }
 
-#############################
-## API IAM
-#############################
+resource "aws_iam_role" "image_processor_role" {
+  name = "${var.project_name}-image-processor-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action    = "sts:AssumeRole",
+      Effect    = "Allow",
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
 
+resource "aws_iam_policy" "image_processor_policy" {
+  name        = "${var.project_name}-image-processor"
+  description = "Image processor: read raw/*, write images/*, update media item in DynamoDB"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "S3ReadRaw",
+        Effect = "Allow",
+        Action = ["s3:GetObject"],
+        Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/*"
+      },
+      {
+        Sid    = "S3WriteImages",
+        Effect = "Allow",
+        Action = ["s3:PutObject"],
+        Resource = "arn:aws:s3:::${var.s3_bucket_name}/images/*"
+      },
+      {
+        Sid    = "DynamoUpdateMedia",
+        Effect = "Allow",
+        Action = [
+          "dynamodb:UpdateItem",
+          "dynamodb:GetItem"
+        ],
+        Resource = aws_dynamodb_table.tryouts.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "image_processor_logs_attach" {
+  role       = aws_iam_role.image_processor_role.name
+  policy_arn = aws_iam_policy.lambda_logs.arn
+}
+
+resource "aws_iam_role_policy_attachment" "image_processor_attach" {
+  role       = aws_iam_role.image_processor_role.name
+  policy_arn = aws_iam_policy.image_processor_policy.arn
+}
