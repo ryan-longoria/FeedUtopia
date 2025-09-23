@@ -379,7 +379,8 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
 
     # socials: simple map of site->url
     socials = data.get("socials") or {}
-    if not isinstance(socials, dict): socials = {}
+    if not isinstance(socials, dict):
+        socials = {}
     allowed = ["twitter","instagram","tiktok","youtube","facebook","website"]
     socials = {k: (str(v).strip() or None) for k,v in socials.items() if k in allowed}
     socials = {k:v for k,v in socials.items() if v} or None
@@ -400,6 +401,7 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
     norm_key = _normalize_photo_key(raw_key, sub) if raw_key else (existing.get("photoKey") or None)
 
     now = _now_iso()
+    # Base (non-array) profile fields
     base_profile = {
         "userId": sub,
         "role": "Wrestler",
@@ -428,6 +430,31 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
         # Legacy convenience (keep if you already use 'name' elsewhere)
         "name": f"{first} {last}",
         "photoKey": norm_key,
+    }
+
+    # --- Persist gallery arrays ---
+    incoming_media = data.get("mediaKeys")
+    if isinstance(incoming_media, list):
+        media_keys = [str(x) for x in incoming_media if isinstance(x, str) and x.strip()]
+    else:
+        media_keys = existing.get("mediaKeys", [])
+
+    incoming_highlights = data.get("highlights")
+    if isinstance(incoming_highlights, list):
+        highlights_arr = [str(x) for x in incoming_highlights if isinstance(x, str) and x.strip()]
+    else:
+        highlights_arr = existing.get("highlights", [])
+
+    # If photoKey exists but not in mediaKeys, add it to the front (optional)
+    if base_profile.get("photoKey") and base_profile["photoKey"] not in media_keys:
+        media_keys = [base_profile["photoKey"]] + media_keys
+
+    # Build final item
+    item_out = {
+        **existing,
+        **base_profile,
+        "mediaKeys": media_keys,
+        "highlights": highlights_arr,
     }
 
     # Handle reservation helpers (unchanged from your version)
@@ -465,13 +492,14 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
 
     # Keep or allocate handle
     if current_handle:
-        profile = {**base_profile, "handle": current_handle}
+        item_out["handle"] = current_handle
     else:
         desired = _slugify_handle(stage) or "wrestler"
-        profile = {**base_profile, "handle": _pick_unique_handle(desired, sub)}
+        item_out["handle"] = _pick_unique_handle(desired, sub)
 
-    T_WREST.put_item(Item=profile)
-    return _resp(200, profile)
+    T_WREST.put_item(Item=item_out)
+    return _resp(200, item_out)
+
 
 def _get_profile_by_handle(handle: str) -> Dict[str, Any]:
     """
