@@ -1,7 +1,12 @@
 import { apiFetch } from '/js/api.js';
 
 const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, '');
-const mediaUrl = (k) => (k && MEDIA_BASE ? `${MEDIA_BASE}/${k}` : '/assets/avatar-fallback.svg');
+const mediaUrl = (k) => {
+  if (!k) return '/assets/avatar-fallback.svg';
+  const s = String(k);
+  if (s.startsWith('http://') || s.startsWith('https://')) return s; // ✅ absolute
+  return MEDIA_BASE ? `${MEDIA_BASE}/${s}` : '/assets/avatar-fallback.svg';
+};
 const h = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 // External link guard
@@ -89,7 +94,8 @@ function render(containerEl, item, tryouts = []) {
   const logo = mediaUrl(item.logoKey);
   const cover = item.coverKey ? mediaUrl(item.coverKey) : '';
   const addressFull = h(buildFullAddress(item));
-  const socials = socialsRow(item.socials || {});
+  const socials = socialsRow({ ...(item.website ? { website: item.website } : {}), ...(item.socials || {}) });
+
 
   // Build nav tabs
   const order = ['about','photos','videos','tryouts'];
