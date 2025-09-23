@@ -146,8 +146,7 @@ async function init() {
     try {
       for (const f of files) {
         const s3 = await uploadToS3(f.name, f.type || 'image/jpeg', f);
-        let key = String(s3).replace(/^s3:\/\//, '');
-        const slash = key.indexOf('/'); if (slash >= 0) key = key.slice(slash + 1);
+        const key = String(s3).replace(/^s3:\/\//, '');
         mediaKeys.push(key);
       }
       renderPhotoGrid();
@@ -176,8 +175,7 @@ async function init() {
 
     try {
       const s3 = await uploadToS3(f.name, f.type || 'video/mp4', f);
-      let key = String(s3).replace(/^s3:\/\//, '');
-      const slash = key.indexOf('/'); if (slash >= 0) key = key.slice(slash + 1);
+      const key = String(s3).replace(/^s3:\/\//, '');
       const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key; // public page expects full URL for videos
       highlights.push(absolute);
       renderHighlightList();
@@ -207,6 +205,8 @@ async function init() {
         website: getVal('website'),
         contact: getVal('contact'),
         bio: getVal('bio'),
+        mediakeys,
+        highlights,
       };
 
       // socials if present
