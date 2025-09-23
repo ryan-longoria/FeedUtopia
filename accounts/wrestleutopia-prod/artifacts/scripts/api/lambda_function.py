@@ -533,61 +533,71 @@ def _upsert_promoter_profile(sub: str, groups: Set[str], event: Dict[str, Any]) 
     data = _json(event) or {}
 
     org = (data.get("orgName") or "").strip()
-    address = (data.get("address") or "").strip()  # required
+    address = (data.get("address") or "").strip()
     if not org or not address:
         return _resp(400, {"message": "Missing required fields (orgName, address)"})
 
+    # Load current so we can preserve anything the user didn't send this time
+    existing = T_PROMO.get_item(Key={"userId": sub}).get("Item") or {}
+
     # --- socials (optional, filtered) ---
-    raw_socials = data.get("socials") or {}
-    socials = {}
+    raw_socials = data.get("socials")
+    socials = None
     if isinstance(raw_socials, dict):
-        for k in ["twitter", "instagram", "facebook", "tiktok", "youtube", "website"]:
-            v = (str(raw_socials.get(k) or "").strip()) or None
-            if v:
-                socials[k] = v
-    socials = socials or None
+        allowed = ["twitter", "instagram", "facebook", "tiktok", "youtube", "website"]
+        socials = {k: (str(v).strip() or None) for k, v in raw_socials.items() if k in allowed}
+        socials = {k: v for k, v in socials.items() if v} or None
+    else:
+        socials = existing.get("socials") or None
 
-    # --- logo key normalization ---
+    # --- logo: only update if provided; otherwise keep existing ---
     raw_logo = (data.get("logoKey") or "").strip()
-    logo_key = _normalize_photo_key(raw_logo, sub) if raw_logo else None
+    if raw_logo:
+        logo_key = _normalize_photo_key(raw_logo, sub) or existing.get("logoKey")
+    else:
+        logo_key = existing.get("logoKey")
 
-    # --- gallery photos ---
-    raw_media = data.get("mediaKeys")
-    media_keys: list[str] = []
-    if isinstance(raw_media, list):
-        for x in raw_media:
+    # --- gallery photos: only replace if client sent a list ---
+    if isinstance(data.get("mediaKeys"), list):
+        media_keys = []
+        for x in data["mediaKeys"]:
             if isinstance(x, str) and x.strip():
                 nk = _normalize_photo_key(x, sub)
                 if nk:
                     media_keys.append(nk)
+    else:
+        media_keys = existing.get("mediaKeys", [])
 
-    # --- highlight videos (URLs, keep as-is) ---
-    raw_hl = data.get("highlights")
-    highlights: list[str] = []
-    if isinstance(raw_hl, list):
-        for u in raw_hl:
-            if isinstance(u, str) and u.strip():
-                highlights.append(u.strip())
+    # --- highlights: only replace if client sent a list ---
+    if isinstance(data.get("highlights"), list):
+        highlights = [str(u).strip() for u in data["highlights"] if isinstance(u, str) and u.strip()]
+    else:
+        highlights = existing.get("highlights", [])
 
     item = {
+        **existing,  # start from existing to preserve anything else
         "userId": sub,
         "role": "Promoter",
         "orgName": org,
         "address": address,
-        "city": (data.get("city") or "").strip() or None,
-        "region": (data.get("region") or "").strip() or None,
-        "country": (data.get("country") or "").strip() or None,
-        "website": (data.get("website") or "").strip() or None,  # keep top-level for convenience
-        "contact": (data.get("contact") or "").strip() or None,
-        "bio": (data.get("bio") or "").strip() or None,
+        "city": (data.get("city") or "").strip() or existing.get("city") or None,
+        "region": (data.get("region") or "").strip() or existing.get("region") or None,
+        "country": (data.get("country") or "").strip() or existing.get("country") or None,
+        "website": (data.get("website") or "").strip() or existing.get("website") or None,
+        "contact": (data.get("contact") or "").strip() or existing.get("contact") or None,
+        "bio": (data.get("bio") or "").strip() or existing.get("bio") or None,
         "logoKey": logo_key,
         "socials": socials,
-        "mediaKeys": media_keys,       # ✅ persist photos
-        "highlights": highlights,      # ✅ persist videos
+        "mediaKeys": media_keys,
+        "highlights": highlights,
         "updatedAt": _now_iso(),
     }
+    # keep createdAt if it existed
+    item.setdefault("createdAt", existing.get("createdAt") or _now_iso())
+
     T_PROMO.put_item(Item=item)
     return _resp(200, item)
+
 
 def _get_open_tryouts_by_owner(owner_id: str) -> Dict[str, Any]:
     try:
