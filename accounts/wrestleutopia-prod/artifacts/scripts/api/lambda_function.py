@@ -283,6 +283,34 @@ def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         _log("wrestlers scan error", e, "qs=", qs)
         return _resp(500, {"message": "Server error", "where": "list_wrestlers"})
+    
+def _normalize_photo_key(raw: str, sub: str) -> str | None:
+    if not raw:
+        return None
+    k = raw.strip()
+
+    # If it's an s3:// URL, drop the scheme and bucket → keep only the key
+    if k.startswith("s3://"):
+        # s3://bucket/key...
+        parts = k.split("/", 3)
+        if len(parts) >= 4:
+            k = parts[3]  # key after bucket/
+        else:
+            return None
+
+    # If it already starts with user/, keep it
+    if k.startswith("user/"):
+        return k
+
+    # If it starts with {sub}/..., prefix user/
+    if sub and k.startswith(f"{sub}/"):
+        return f"user/{k}"
+
+    # Otherwise fall back to user/{sub}/{filename}
+    fname = k.split("/")[-1]
+    if not sub:
+        return None
+    return f"user/{sub}/{fname}"
 
 def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     if not _is_wrestler(groups):
@@ -354,6 +382,9 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
     existing = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
     current_handle = (existing.get("handle") or "").strip() or None
 
+    raw_key = (data.get("photoKey") or "").strip()
+    norm_key = _normalize_photo_key(raw_key, sub) if raw_key else (existing.get("photoKey") or None)
+
     now = _now_iso()
     base_profile = {
         "userId": sub,
@@ -382,7 +413,7 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
 
         # Legacy convenience (keep if you already use 'name' elsewhere)
         "name": f"{first} {last}",
-        "photoKey": (data.get("photoKey") or "").strip() or existing.get("photoKey") or None,
+        "photoKey": norm_key,
     }
 
     # Handle reservation helpers (unchanged from your version)
