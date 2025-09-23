@@ -9,10 +9,19 @@ resource "aws_apigatewayv2_api" "http" {
   cors_configuration {
     allow_origins = var.allowed_origins
     allow_methods = ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
-    allow_headers = ["*"]
-    expose_headers = ["content-type","etag"]
-    max_age = 3600
-    }
+    allow_headers     = [
+      "Authorization",
+      "Content-Type",
+      "X-Requested-With",
+      "X-Amz-Date",
+      "X-Amz-Security-Token",
+      "X-Amz-User-Agent",
+      "Accept",
+      "Origin"
+    ]
+    expose_headers    = ["content-type","etag"]
+    max_age           = 3000
+  }
 }
 
 resource "aws_apigatewayv2_authorizer" "jwt" {
