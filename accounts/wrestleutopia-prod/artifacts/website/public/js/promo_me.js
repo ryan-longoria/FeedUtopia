@@ -18,6 +18,28 @@ const setDisabled = (el, on, labelBusy = 'Saving…') => {
   }
 };
 
+function normalizeS3Key(uriOrKey, sub) {
+  if (!uriOrKey) return null;
+  let raw = String(uriOrKey).trim();
+
+  // Strip "s3://bucket/" → leave just the key
+  if (raw.startsWith('s3://')) {
+    raw = raw.slice('s3://'.length);
+    const firstSlash = raw.indexOf('/');
+    raw = firstSlash >= 0 ? raw.slice(firstSlash + 1) : raw; // remove "<bucket>/"
+  }
+
+  // If it already starts with "user/", keep it
+  if (/^user\//.test(raw)) return raw;
+
+  // If it starts with "<sub>/...", add "user/" prefix
+  if (sub && raw.startsWith(`${sub}/`)) return `user/${raw}`;
+
+  // Fallback: force "user/<sub>/<filename>"
+  const fname = raw.split('/').pop() || `file-${Date.now()}`;
+  return sub ? `user/${sub}/${fname}` : `user/unknown/${fname}`;
+}
+
 function toast(text, type = 'success') {
   const t = document.querySelector('#toast');
   if (!t) return console[type === 'error' ? 'error' : 'log'](text);
@@ -69,9 +91,9 @@ function renderHighlightList() {
 async function uploadLogoIfAny() {
   const file = document.getElementById('logo')?.files?.[0];
   if (!file) return null;
-  const s3 = await uploadToS3(file.name, file.type || 'image/jpeg', file); // returns s3://bucket/key
-  const key = String(s3).replace(/^s3:\/\//, '');
-  return key; // store as key only; public pages resolve via MEDIA_BASE
+  const s3 = await uploadToS3(file.name, file.type || 'image/jpeg', file); // "s3://bucket/key"
+  const { sub } = (await getAuthState()) || {};
+  return normalizeS3Key(s3, sub); // ✅ returns "user/<sub>/<file>"
 }
 
 // ---------- auth gate ----------
@@ -112,7 +134,10 @@ async function loadMe() {
     if (logoImg) logoImg.src = mediaUrlFromKey(me.logoKey);
 
     // Gallery + Highlights
-    mediaKeys = Array.isArray(me.mediaKeys) ? [...me.mediaKeys] : [];
+    const { sub } = (await getAuthState()) || {};
+    mediaKeys = Array.isArray(me.mediaKeys)
+      ? me.mediaKeys.map(k => normalizeS3Key(k, sub))
+      : [];
     highlights = Array.isArray(me.highlights) ? [...me.highlights] : [];
     renderPhotoGrid();
     renderHighlightList();
@@ -144,9 +169,10 @@ async function init() {
     if (!files.length) return;
 
     try {
+      const { sub } = (await getAuthState()) || {};
       for (const f of files) {
         const s3 = await uploadToS3(f.name, f.type || 'image/jpeg', f);
-        const key = String(s3).replace(/^s3:\/\//, '');
+        const key = normalizeS3Key(s3, sub);
         mediaKeys.push(key);
       }
       renderPhotoGrid();
@@ -172,11 +198,11 @@ async function init() {
     const input = document.getElementById('highlightFile');
     const f = input?.files?.[0];
     if (!f) return;
-
     try {
+      const { sub } = (await getAuthState()) || {};
       const s3 = await uploadToS3(f.name, f.type || 'video/mp4', f);
-      const key = String(s3).replace(/^s3:\/\//, '');
-      const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key; // public page expects full URL for videos
+      const key = normalizeS3Key(s3, sub);
+      const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key; // public page expects absolute for videos
       highlights.push(absolute);
       renderHighlightList();
       input.value = '';
