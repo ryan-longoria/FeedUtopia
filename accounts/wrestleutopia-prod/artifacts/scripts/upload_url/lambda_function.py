@@ -7,7 +7,7 @@ ddb = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
 BUCKET = os.environ["MEDIA_BUCKET"]
 CDN    = os.environ.get("CDN_BASE")
 
-def handler(event, ctx):
+def lambda_handler(event, ctx):
     body = json.loads(event.get("body") or "{}")
     profile_type = body["profileType"]   # wrestler|promoter
     profile_id   = body["profileId"]
