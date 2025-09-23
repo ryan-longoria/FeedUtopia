@@ -16,14 +16,15 @@ function safeLink(url, label) {
 }
 
 // Social anchors (caller wraps once)
-function socialsRow(socials = {}) {
+function socialsRow(socials) {
+  const s = (socials && typeof socials === 'object') ? socials : {};
   return [
-    socials.website && safeLink(socials.website, 'Website'),
-    socials.twitter && safeLink(socials.twitter, 'Twitter'),
-    socials.instagram && safeLink(socials.instagram, 'Instagram'),
-    socials.tiktok && safeLink(socials.tiktok, 'TikTok'),
-    socials.youtube && safeLink(socials.youtube, 'YouTube'),
-    socials.facebook && safeLink(socials.facebook, 'Facebook'),
+    s.website   && safeLink(s.website, 'Website'),
+    s.twitter   && safeLink(s.twitter, 'Twitter'),
+    s.instagram && safeLink(s.instagram, 'Instagram'),
+    s.tiktok    && safeLink(s.tiktok, 'TikTok'),
+    s.youtube   && safeLink(s.youtube, 'YouTube'),
+    s.facebook  && safeLink(s.facebook, 'Facebook'),
   ].filter(Boolean).join(' • ');
 }
 
@@ -88,7 +89,7 @@ function render(containerEl, item, tryouts = []) {
   const logo = mediaUrl(item.logoKey);
   const cover = item.coverKey ? mediaUrl(item.coverKey) : '';
   const addressFull = h(buildFullAddress(item));
-  const socials = socialsRow(item.socials);
+  const socials = socialsRow(item.socials || {});
 
   // Build nav tabs
   const order = ['about','photos','videos','tryouts'];
