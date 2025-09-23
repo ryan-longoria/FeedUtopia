@@ -9,8 +9,8 @@ resource "aws_apigatewayv2_api" "http" {
   cors_configuration {
     allow_origins = var.allowed_origins
     allow_methods = ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
-    allow_headers = ["authorization","Authorization","content-type"]
-    expose_headers = ["content-type"]
+    allow_headers = ["*"]
+    expose_headers = ["content-type","etag"]
     max_age = 3600
     }
 }
@@ -207,4 +207,28 @@ resource "aws_apigatewayv2_route" "get_promoter_public" {
   route_key          = "GET /profiles/promoters/{userId}"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
   authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_integration" "upload_url_integration" {
+  api_id                 = aws_apigatewayv2_api.http.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.upload_url.invoke_arn
+  payload_format_version = "2.0"
+  timeout_milliseconds   = 15000
+}
+
+resource "aws_apigatewayv2_route" "upload_url_route" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "POST /media/upload-url"
+  target             = "integrations/${aws_apigatewayv2_integration.upload_url_integration.id}"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  authorization_type = "JWT"
+}
+
+resource "aws_lambda_permission" "apigw_invoke_upload_url" {
+  statement_id  = "AllowAPIGwInvokeUploadUrl"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.upload_url.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
 }

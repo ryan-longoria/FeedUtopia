@@ -9,6 +9,37 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const setVal = (id, v = '') => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
 const setImg = (sel, key) => { const el = $(sel); if (el) el.src = key ? mediaUrl(String(key)) : '/assets/avatar-fallback.svg'; };
 
+// --- gallery state ---
+let mediaKeys = [];     // photo keys for /w/ page (used by wrestler_public.js)
+let highlights = [];    // URLs (YouTube or absolute MP4/HLS URLs)
+const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, '');
+
+function renderPhotoGrid() {
+  const wrap = document.getElementById('photoGrid'); if (!wrap) return;
+  wrap.innerHTML = (mediaKeys || []).map((k, i) => `
+    <div class="media-card">
+      <img src="${MEDIA_BASE ? `${MEDIA_BASE}/${k}` : '/assets/avatar-fallback.svg'}" alt="">
+      <button class="btn secondary media-remove" type="button" data-i="${i}">Remove</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.media-remove').forEach(btn => {
+    btn.onclick = () => { mediaKeys.splice(Number(btn.dataset.i), 1); renderPhotoGrid(); };
+  });
+}
+
+function renderHighlightList() {
+  const ul = document.getElementById('highlightList'); if (!ul) return;
+  ul.innerHTML = (highlights || []).map((u, i) => `
+    <li>
+      <span style="flex:1; word-break:break-all">${u}</span>
+      <button class="btn secondary" type="button" data-i="${i}">Remove</button>
+    </li>
+  `).join('');
+  ul.querySelectorAll('button').forEach(btn => {
+    btn.onclick = () => { highlights.splice(Number(btn.dataset.i), 1); renderHighlightList(); };
+  });
+}
+
 // Back-compat wrapper if other code ever called photoUrlFromKey()
 function photoUrlFromKey(key) { return key ? mediaUrl(String(key)) : '/assets/avatar-fallback.svg'; }
 
@@ -132,6 +163,11 @@ async function loadMe() {
     const me = await apiFetch('/profiles/wrestlers/me');
     if (!me || !me.userId) return;
 
+    mediaKeys = Array.isArray(me.mediaKeys) ? [...me.mediaKeys] : [];
+    highlights = Array.isArray(me.highlights) ? [...me.highlights] : [];
+    renderPhotoGrid();
+    renderHighlightList();
+
     // Save to window for any legacy code that expects it
     window.profile = me;
 
@@ -247,6 +283,46 @@ async function init() {
     document.getElementById('preview-modal')?.showModal();
   });
 
+  // Add gallery photos (multi-upload)
+  document.getElementById('addPhotosBtn')?.addEventListener('click', async () => {
+    const input = document.getElementById('photoFiles');
+    const files = Array.from(input?.files || []);
+    if (!files.length) return;
+    for (const f of files) {
+      const s3 = await uploadToS3(f.name, f.type || 'image/jpeg', f); // returns s3://bucket/key
+      let key = String(s3).replace(/^s3:\/\//, '');
+      const slash = key.indexOf('/'); if (slash >= 0) key = key.slice(slash + 1);
+      mediaKeys.push(key);
+    }
+    renderPhotoGrid();
+    input.value = '';
+  });
+
+  // Add highlight by URL
+  document.getElementById('addHighlightUrlBtn')?.addEventListener('click', () => {
+    const el = document.getElementById('highlightUrl');
+    const u = (el?.value || '').trim();
+    if (!u) return;
+    highlights.push(u);
+    renderHighlightList();
+    el.value = '';
+  });
+
+  // Upload highlight video file
+  document.getElementById('uploadHighlightBtn')?.addEventListener('click', async () => {
+    const input = document.getElementById('highlightFile');
+    const f = input?.files?.[0];
+    if (!f) return;
+    const s3 = await uploadToS3(f.name, f.type || 'video/mp4', f);
+    let key = String(s3).replace(/^s3:\/\//, '');
+    const slash = key.indexOf('/'); if (slash >= 0) key = key.slice(slash + 1);
+    const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key; // public page expects full URL for videos
+    highlights.push(absolute);
+    renderHighlightList();
+    input.value = '';
+  });
+
+
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     setDisabled(saveBtn, true, 'Saving…');
@@ -281,6 +357,8 @@ async function init() {
 
         // media
         photoKey: data.photoKey || null,
+        mediaKeys,
+        highlights,
       };
 
       const saved = await apiFetch('/profiles/wrestlers/me', { method: 'PUT', body: payload });
