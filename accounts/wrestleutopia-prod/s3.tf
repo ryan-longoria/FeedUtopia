@@ -61,3 +61,29 @@ resource "aws_s3_bucket_cors_configuration" "media" {
     max_age_seconds = 3600
   }
 }
+
+resource "aws_s3_bucket_public_access_block" "media" {
+  bucket                  = aws_s3_bucket.media_bucket.id
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+data "aws_iam_policy_document" "media_public_read" {
+  statement {
+    sid     = "PublicReadGetObject"
+    effect  = "Allow"
+    actions = ["s3:GetObject"]
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    resources = ["${aws_s3_bucket.media_bucket.arn}/*"]
+  }
+}
+
+resource "aws_s3_bucket_policy" "media_public" {
+  bucket = aws_s3_bucket.media_bucket.id
+  policy = data.aws_iam_policy_document.media_public_read.json
+}
