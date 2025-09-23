@@ -1,15 +1,19 @@
 // /js/profile_me.js
 import { apiFetch, uploadToS3 } from '/js/api.js';
 import { getAuthState, isWrestler } from '/js/roles.js';
-import { mediaUrl } from './media.js';
+import { mediaUrl } from '/js/media.js';
 
-const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, '');
+// ---------- tiny DOM helpers ----------
+const $  = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+const setVal = (id, v = '') => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+const setImg = (sel, key) => { const el = $(sel); if (el) el.src = key ? mediaUrl(String(key)) : '/assets/avatar-fallback.svg'; };
 
-const avatarEl = document.querySelector('#avatar');
-avatarEl.src = mediaUrl(profile.avatar_key);
+// Back-compat wrapper if other code ever called photoUrlFromKey()
+function photoUrlFromKey(key) { return key ? mediaUrl(String(key)) : '/assets/avatar-fallback.svg'; }
 
 function toast(text, type = 'success') {
-  const t = document.querySelector('#toast');
+  const t = $('#toast');
   if (!t) return console.log(text);
   t.textContent = text;
   t.classList.toggle('error', type === 'error');
@@ -58,7 +62,6 @@ function formToObj(form) {
     youtube:   (o.social_youtube || '').trim() || null,
     website:   (o.social_website || '').trim() || null,
   };
-  // remove empties
   Object.keys(o.socials).forEach(k => { if (!o.socials[k]) delete o.socials[k]; });
 
   // numbers (optional)
@@ -78,12 +81,18 @@ function setDisabled(el, on, labelBusy) {
   }
 }
 
+/**
+ * Reads the file input #avatar and uploads, returning the S3 key or null.
+ * NOTE: #avatar is the <input type="file"> and #avatarPreview is the <img>
+ */
 async function uploadAvatarIfAny() {
-  const file = document.getElementById('avatar')?.files?.[0];
+  const fileInput = document.getElementById('avatar');
+  const file = fileInput?.files?.[0];
   if (!file) return null;
 
+  // Your uploadToS3 returns s3://bucket/key — convert to the key only.
   const s3uri = await uploadToS3(file.name, file.type || 'image/jpeg', file);
-  const key = s3uri.replace(/^s3:\/\//, '');
+  const key = s3uri.replace(/^s3:\/\//, '').replace(/^[^/]+\/+/, ''); // drop bucket prefix if present
   return key;
 }
 
@@ -92,7 +101,10 @@ async function loadMe() {
     const me = await apiFetch('/profiles/wrestlers/me');
     if (!me || !me.userId) return;
 
-    // fill fields if present
+    // Save to window for any legacy code that expects it
+    window.profile = me;
+
+    // Map of fields: API key -> input id
     const map = {
       firstName: 'firstName',
       middleName: 'middleName',
@@ -108,28 +120,39 @@ async function loadMe() {
       experienceYears: 'experienceYears',
       achievements: 'achievements',
     };
+
+    // socials
     if (me.socials) {
       const s = me.socials;
-      if (s.twitter)   document.getElementById('social_twitter').value   = s.twitter;
-      if (s.instagram) document.getElementById('social_instagram').value = s.instagram;
-      if (s.tiktok)    document.getElementById('social_tiktok').value    = s.tiktok;
-      if (s.youtube)   document.getElementById('social_youtube').value   = s.youtube;
-      if (s.website)   document.getElementById('social_website').value   = s.website;
+      if (s.twitter)   setVal('social_twitter', s.twitter);
+      if (s.instagram) setVal('social_instagram', s.instagram);
+      if (s.tiktok)    setVal('social_tiktok', s.tiktok);
+      if (s.youtube)   setVal('social_youtube', s.youtube);
+      if (s.website)   setVal('social_website', s.website);
     }
+
+    // text/number fields
     for (const [field, id] of Object.entries(map)) {
-      if (me[field]) document.getElementById(id).value = me[field];
+      if (me[field] !== undefined && me[field] !== null) setVal(id, me[field]);
     }
+
+    // gimmicks array -> CSV field
     if (Array.isArray(me.gimmicks) && me.gimmicks.length) {
-      document.getElementById('gimmicks').value = me.gimmicks.join(', ');
+      setVal('gimmicks', me.gimmicks.join(', '));
     }
-    const img = document.getElementById('avatarPreview');
-    if (img) img.src = photoUrlFromKey(me.photoKey);
+
+    // avatar preview
+    setImg('#avatarPreview', me.photoKey || me.avatar_key || me.avatarKey || null);
+
     // enable "View" if we know the handle
-    document.getElementById('viewBtn').disabled = !me.handle;
-    if (me.handle) document.getElementById('viewBtn').dataset.handle = me.handle;
+    const vb = document.getElementById('viewBtn');
+    if (vb) {
+      vb.disabled = !me.handle;
+      if (me.handle) vb.dataset.handle = me.handle;
+    }
   } catch (e) {
     // 404 (no profile yet) is fine
-    console.debug('loadMe:', e.message || e);
+    console.debug('loadMe:', e?.message || e);
   }
 }
 
@@ -137,40 +160,40 @@ async function init() {
   const state = await ensureWrestler();
   if (!state) return;
 
-  const form = document.getElementById('profileForm');
-  const saveBtn = document.getElementById('saveBtn');
-  const viewBtn = document.getElementById('viewBtn');
-  const avatarInput = document.getElementById('avatar');
-  const avatarPreview = document.getElementById('avatarPreview');
+  const form          = document.getElementById('profileForm');
+  const saveBtn       = document.getElementById('saveBtn');
+  const viewBtn       = document.getElementById('viewBtn');
+  const avatarInput   = document.getElementById('avatar');        // <input type="file">
+  const avatarPreview = document.getElementById('avatarPreview'); // <img>
 
-  // live preview of avatar
+  // live preview of avatar file selection
   avatarInput?.addEventListener('change', () => {
     const f = avatarInput.files?.[0];
-    if (f) avatarPreview.src = URL.createObjectURL(f);
+    if (f && avatarPreview) avatarPreview.src = URL.createObjectURL(f);
   });
 
   viewBtn?.addEventListener('click', () => {
     const handle = viewBtn?.dataset?.handle;
-    if (handle) { 
-      location.href = `/w/#${encodeURIComponent(handle)}`
+    if (handle) {
+      location.href = `/w/#${encodeURIComponent(handle)}`;
       return;
     }
 
-    const stageName = document.getElementById('stageName')?.value || 'Wrestler';
-    const first     = document.getElementById('firstName')?.value || '';
-    const middle    = document.getElementById('middleName')?.value || '';
-    const last      = document.getElementById('lastName')?.value || '';
+    // Build a quick preview using current form values
+    const stageName = $('#stageName')?.value || 'Wrestler';
+    const first     = $('#firstName')?.value || '';
+    const middle    = $('#middleName')?.value || '';
+    const last      = $('#lastName')?.value || '';
     const fullName  = [first, middle, last].filter(Boolean).join(' ');
 
-    const dob       = document.getElementById('dob')?.value || '';
-    const city      = document.getElementById('city')?.value || '';
-    const region    = document.getElementById('region')?.value || '';
-    const country   = document.getElementById('country')?.value || '';
-    const bio       = document.getElementById('bio')?.value || '';
-    const gimmicks  = (document.getElementById('gimmicks')?.value || '')
-                        .split(',').map(s=>s.trim()).filter(Boolean);
+    const dob       = $('#dob')?.value || '';
+    const city      = $('#city')?.value || '';
+    const region    = $('#region')?.value || '';
+    const country   = $('#country')?.value || '';
+    const bio       = $('#bio')?.value || '';
+    const gimmicks  = ($('#gimmicks')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
 
-    const imgSrc = document.getElementById('avatarPreview')?.src || '/assets/avatar-fallback.svg';
+    const imgSrc = avatarPreview?.src || '/assets/avatar-fallback.svg';
     const loc = [city, region, country].filter(Boolean).join(', ');
 
     const html = `
@@ -199,53 +222,52 @@ async function init() {
 
     try {
       const data = formToObj(form);
-      // Try uploading avatar first (optional)
+
+      // Upload avatar first (optional)
       const key = await uploadAvatarIfAny().catch(() => null);
       if (key) data.photoKey = key;
 
-      // Send to backend
-      const saved = await apiFetch('/profiles/wrestlers/me', {
-        method: 'PUT',
-        body: {
-          // required
-          stageName: data.stageName,
-          firstName: data.firstName,
-          middleName: data.middleName || null,
-          lastName: data.lastName,
-          dob: data.dob,
-          city: data.city,
-          region: data.region,
-          country: data.country,
-          heightIn: data.heightIn,
-          weightLb: data.weightLb,
+      // PUT to backend
+      const payload = {
+        // required
+        stageName: data.stageName,
+        firstName: data.firstName,
+        middleName: data.middleName || null,
+        lastName: data.lastName,
+        dob: data.dob,
+        city: data.city,
+        region: data.region,
+        country: data.country,
+        heightIn: data.heightIn,
+        weightLb: data.weightLb,
 
-          // optional
-          bio: data.bio,
-          gimmicks: data.gimmicks,
-          socials: data.socials,
-          experienceYears: data.experienceYears,
-          achievements: data.achievements,
+        // optional
+        bio: data.bio,
+        gimmicks: data.gimmicks,
+        socials: data.socials,
+        experienceYears: data.experienceYears,
+        achievements: data.achievements,
 
-          // media
-          photoKey: data.photoKey || null,
-        },
-      });
+        // media
+        photoKey: data.photoKey || null,
+      };
+
+      const saved = await apiFetch('/profiles/wrestlers/me', { method: 'PUT', body: payload });
+
       toast('Profile saved!');
+
       // Update "View" button & avatar preview
-      if (saved?.handle) {
-        const btn = document.getElementById('viewBtn');
-        if (btn) {
-          btn.disabled = false;
-          btn.dataset.handle = saved.handle;
-          btn.onclick = () => { location.href = `/w/#${encodeURIComponent(saved.handle)}`; };
-        }
+      if (saved?.handle && viewBtn) {
+        viewBtn.disabled = false;
+        viewBtn.dataset.handle = saved.handle;
+        viewBtn.onclick = () => { location.href = `/w/#${encodeURIComponent(saved.handle)}`; };
       }
-      if (saved?.photoKey && avatarPreview) {
-        avatarPreview.src = photoUrlFromKey(saved.photoKey);
+      if ((saved?.photoKey || data.photoKey) && avatarPreview) {
+        avatarPreview.src = photoUrlFromKey(saved?.photoKey || data.photoKey);
       }
     } catch (err) {
       console.error(err);
-      toast(err.message || 'Save failed', 'error');
+      toast(err?.message || 'Save failed', 'error');
     } finally {
       setDisabled(saveBtn, false);
     }
@@ -254,6 +276,7 @@ async function init() {
   await loadMe();
 }
 
+// Ensure DOM exists before running
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init, { once: true });
 } else {

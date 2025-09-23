@@ -15,10 +15,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "media_bucket_encr
   bucket = aws_s3_bucket.media_bucket.id
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = "alias/aws/s3"
+      sse_algorithm     = "AES256"
     }
-    bucket_key_enabled = true
+    bucket_key_enabled = false
   }
 }
 
