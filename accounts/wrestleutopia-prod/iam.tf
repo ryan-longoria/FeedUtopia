@@ -24,6 +24,35 @@ resource "aws_iam_policy" "s3_full_policy" {
   })
 }
 
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_policy_document" "media_cf_access" {
+  statement {
+    sid     = "AllowCloudFrontOACRead"
+    effect  = "Allow"
+    actions = ["s3:GetObject"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+
+    resources = ["${aws_s3_bucket.media_bucket.arn}/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_distribution.media.id}"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "media_cf" {
+  bucket     = aws_s3_bucket.media_bucket.id
+  policy     = data.aws_iam_policy_document.media_cf_access.json
+  depends_on = [aws_cloudfront_distribution.media]
+}
+
 #############################
 ## Cross-Account IAM
 #############################
