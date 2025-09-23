@@ -86,13 +86,44 @@ function setDisabled(el, on, labelBusy) {
  * NOTE: #avatar is the <input type="file"> and #avatarPreview is the <img>
  */
 async function uploadAvatarIfAny() {
-  const fileInput = document.getElementById('avatar');
+  const fileInput = document.getElementById('avatar'); // <input type="file">
   const file = fileInput?.files?.[0];
   if (!file) return null;
 
-  // Your uploadToS3 returns s3://bucket/key — convert to the key only.
-  const s3uri = await uploadToS3(file.name, file.type || 'image/jpeg', file);
-  const key = s3uri.replace(/^s3:\/\//, '').replace(/^[^/]+\/+/, ''); // drop bucket prefix if present
+  // Your uploadToS3 likely returns either:
+  //   - "s3://<bucket>/user/<sub>/<filename>"
+  //   - or "s3://<bucket>/<sub>/<filename>"   (legacy)
+  //   - or sometimes just "<key>"
+  const s3uriOrKey = await uploadToS3(file.name, file.type || 'image/jpeg', file);
+
+  let raw = String(s3uriOrKey).trim();
+
+  // drop "s3://" and bucket if present → leave only "<key>"
+  if (raw.startsWith('s3://')) {
+    raw = raw.slice('s3://'.length);
+    const firstSlash = raw.indexOf('/');
+    raw = firstSlash >= 0 ? raw.slice(firstSlash + 1) : raw; // remove "<bucket>/"
+  }
+
+  // at this point `raw` should be something like:
+  //  "user/<sub>/<filename>"  or  "<sub>/<filename>"
+
+  // normalize to include "user/<sub>/" prefix
+  const { sub } = (await getAuthState()) || {};
+  const fname = raw.split('/').pop();
+  let key = raw;
+
+  if (!/^user\//.test(raw)) {
+    // handle legacy "<sub>/<filename>"
+    if (sub && new RegExp(`^${sub}/`).test(raw)) {
+      key = `user/${raw}`; // -> user/<sub>/<filename>
+    } else {
+      // fallback: if we can't detect sub in the key, build it explicitly
+      if (!sub) throw new Error('Unable to determine user id for media key');
+      key = `user/${sub}/${fname}`;
+    }
+  }
+
   return key;
 }
 
