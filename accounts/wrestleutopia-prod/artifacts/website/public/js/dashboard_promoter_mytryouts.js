@@ -12,6 +12,7 @@ function cardForTryout(t) {
   const date  = fmtDate(t.date);
   const slots = (typeof t.slots === 'number') ? `<span class="muted" style="margin-left:10px">Slots: ${t.slots}</span>` : '';
   const status = (t.status || 'open').toString().toUpperCase();
+
   const div = document.createElement('div');
   div.className = 'card';
   div.innerHTML = `
@@ -21,10 +22,23 @@ function cardForTryout(t) {
     </h3>
     <div class="muted">${city} • ${date}</div>
     <p class="mt-3">${t.requirements || ''}</p>
-    <div class="mt-3">
+    <div class="mt-3" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <a class="btn small" href="tryouts.html#${id}">View</a>
+      <button class="btn small" type="button" data-view-applicants="${id}" data-org="${org}" data-city="${city}" data-date="${t.date || ''}">
+        View Applicants
+      </button>
       ${slots}
     </div>`;
+
+  // wire the modal opener
+  const btn = div.querySelector('[data-view-applicants]');
+  btn?.addEventListener('click', (e) => {
+    const b = e.currentTarget;
+    window.openApplicantsModal?.(b.dataset.viewApplicants, {
+      org: b.dataset.org, city: b.dataset.city, date: b.dataset.date
+    });
+  });
+
   return div;
 }
 

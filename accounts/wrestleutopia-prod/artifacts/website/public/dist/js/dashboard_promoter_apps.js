@@ -2,6 +2,13 @@
 import { apiFetch } from '/js/api.js';
 import { getAuthState, isPromoter } from '/js/roles.js';
 
+function h(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]
+  ));
+}
+function dateNice(iso) { try { return iso ? new Date(iso).toLocaleString() : ''; } catch { return iso || ''; } }
+
 function mediaUrlFromKey(key) {
   if (!key) return '/assets/avatar-fallback.svg';
   if (String(key).startsWith('http')) return key;
@@ -48,6 +55,71 @@ function renderApps(list) {
     root.appendChild(el);
   }
 }
+
+function renderAppsIntoModal(list, meta = {}) {
+  const box = document.getElementById('apps-modal-list');
+  const sub = document.getElementById('apps-modal-subtitle');
+  const dlg = document.getElementById('apps-modal');
+  if (!box || !dlg) return;
+
+  const labelBits = [
+    meta.org && `<strong>${h(meta.org)}</strong>`,
+    meta.city && h(meta.city),
+    meta.date && new Date(meta.date).toLocaleDateString()
+  ].filter(Boolean);
+  if (sub) sub.innerHTML = labelBits.length ? labelBits.join(' • ') : 'All applicants';
+
+  const items = Array.isArray(list) ? list : [];
+  if (!items.length) {
+    box.innerHTML = `<div class="card"><p class="muted">No applications yet.</p></div>`;
+    dlg.showModal();
+    return;
+  }
+
+  // build rows
+  box.innerHTML = items.map(a => {
+    const p = a.applicantProfile || {};
+    const handle = p.handle || '';
+    const stage  = p.stageName || '(No stage name)';
+    const loc    = [p.city, p.region, p.country].filter(Boolean).join(', ');
+    const when   = dateNice(a.timestamp);
+    const reel   = a.reelLink ? `<a href="${h(a.reelLink)}" target="_blank" rel="noopener">Reel</a>` : '';
+    const notes  = a.notes ? `<div class="muted mt-1">${h(a.notes)}</div>` : '';
+
+    return `
+      <div class="card" style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap">
+          <div style="min-width:260px">
+            <div class="text-lg">
+              ${handle ? `<a href="/w/#${encodeURIComponent(handle)}">${h(stage)}</a>` : h(stage)}
+            </div>
+            <div class="muted small">${h(loc)}</div>
+            <div class="muted small">${h(when)}</div>
+            ${notes}
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${reel}
+            ${handle ? `<a class="btn small" href="/w/#${encodeURIComponent(handle)}">View Profile</a>` : ''}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  dlg.showModal();
+}
+
+async function openApplicantsModal(tryoutId, meta = {}) {
+  try {
+    const qs = tryoutId ? `?tryoutId=${encodeURIComponent(tryoutId)}` : '';
+    const list = await apiFetch(`/applications${qs}`);
+    renderAppsIntoModal(list, meta);
+  } catch (e) {
+    console.error(e);
+    renderAppsIntoModal([], meta);
+  }
+}
+// expose to other modules
+window.openApplicantsModal = openApplicantsModal;
 
 async function loadTryoutOptionsAndPick() {
   const sel = document.getElementById('apps-filter');
