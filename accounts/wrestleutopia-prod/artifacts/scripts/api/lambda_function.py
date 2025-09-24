@@ -676,34 +676,27 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
         if apps:
             ids = sorted({a.get("applicantId") for a in apps if a.get("applicantId")})
             if ids:
-                proj = "userId, handle, stageName, name, city, #r, photoKey"  # add 'name'; #r -> region
-                ean  = {"#r": "region"}
-
-                try:
-                    resp = ddb.meta.client.batch_get_item(
-                        RequestItems={
-                            TABLE_WRESTLERS: {
-                                "Keys": [{"userId": {"S": uid}} for uid in ids],
-                                "ProjectionExpression": proj,
-                                "ExpressionAttributeNames": ean,
-                            }
+                proj = "userId, handle, stageName, #n, city, #r, photoKey"  # alias reserved words
+                ean  = {"#r": "region", "#n": "name"}
+                resp = ddb.meta.client.batch_get_item(
+                    RequestItems={
+                        TABLE_WRESTLERS: {
+                            "Keys": [{"userId": {"S": uid}} for uid in ids],
+                            "ProjectionExpression": proj,
+                            "ExpressionAttributeNames": ean,
                         }
-                    )
+                    }
+                )
+                wrest_items = resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
+                profiles: dict[str, dict] = {}
+                for av in wrest_items:
+                    p = {k: list(v.values())[0] for k, v in av.items()}
+                    # fallback for older rows that only have 'name'
+                    p["stageName"] = p.get("stageName") or p.get("name") or None
+                    profiles[p["userId"]] = p
 
-                    wrest_items = resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
-                    profiles: dict[str, dict] = {}
-
-                    for av in wrest_items:
-                        # Convert AttributeValue map → plain dict
-                        p = {k: list(v.values())[0] for k, v in av.items()}
-                        # normalize stageName for older rows
-                        p["stageName"] = p.get("stageName") or p.get("name") or None
-                        profiles[p["userId"]] = p
-
-                    for a in apps:
-                        a["applicantProfile"] = profiles.get(a.get("applicantId"), {})
-                except Exception as e:
-                    _log("batch_get_item profiles failed", e)
+                for a in apps:
+                    a["applicantProfile"] = profiles.get(a.get("applicantId"), {})
 
         return _resp(200, apps)
 
