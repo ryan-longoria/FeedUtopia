@@ -116,6 +116,8 @@ async function openApplicantsModal(tryoutId, meta = {}) {
   } catch (e) {
     console.error(e);
     renderAppsIntoModal([], meta);
+    // Optional toast:
+    (window.toast?.('Could not load applications', 'error'));
   }
 }
 // expose to other modules

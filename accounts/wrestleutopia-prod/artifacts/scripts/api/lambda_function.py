@@ -677,26 +677,31 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
             ids = sorted({a.get("applicantId") for a in apps if a.get("applicantId")})
             if ids:
                 # Projection: only what we need for review cards
-                proj = "userId, handle, stageName, city, region, photoKey"
-                resp = ddb.meta.client.batch_get_item(
-                    RequestItems={
-                        TABLE_WRESTLERS: {
-                            "Keys": [{"userId": {"S": uid}} for uid in ids],
-                            "ProjectionExpression": proj,
+                proj = "userId, handle, stageName, city, #r, photoKey"  # #r -> region
+                ean  = {"#r": "region"}
+
+                try:
+                    resp = ddb.meta.client.batch_get_item(
+                        RequestItems={
+                            TABLE_WRESTLERS: {
+                                "Keys": [{"userId": {"S": uid}} for uid in ids],
+                                "ProjectionExpression": proj,
+                                "ExpressionAttributeNames": ean,
+                                # "ConsistentRead": False,  # optional
+                            }
                         }
-                    }
-                )
+                    )
+                    wrest_items = resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
+                    profiles: dict[str, dict] = {}
+                    for av_map in wrest_items:
+                        # Convert AttributeValue -> plain
+                        p = {k: list(v.values())[0] for k, v in av_map.items()}
+                        profiles[p["userId"]] = p
 
-                # Convert AttributeValues to plain dicts
-                wrest_items = resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
-                profiles: dict[str, dict] = {}
-                for av_map in wrest_items:
-                    p = {k: list(v.values())[0] for k, v in av_map.items()}
-                    profiles[p["userId"]] = p
-
-                # Attach to each application
-                for a in apps:
-                    a["applicantProfile"] = profiles.get(a.get("applicantId"), {})
+                    for a in apps:
+                        a["applicantProfile"] = profiles.get(a.get("applicantId"), {})
+                except Exception as e:
+                    _log("batch_get_item profiles failed", e)
 
         return _resp(200, apps)
 
