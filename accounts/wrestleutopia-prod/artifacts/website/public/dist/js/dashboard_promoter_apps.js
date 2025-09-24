@@ -49,13 +49,17 @@ function renderApps(list) {
   }
 }
 
-async function loadTryoutOptions() {
+async function loadTryoutOptionsAndPick() {
   const sel = document.getElementById('apps-filter');
   if (!sel) return '';
-  // Load the promoter’s own tryouts to populate the dropdown
+
+  // Clear stale options (keep the "All my tryouts" placeholder)
+  sel.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
+
   try {
-    const mine = await apiFetch('/tryouts/mine');
+    const mine = await apiFetch('/tryouts/mine'); // promoter’s tryouts
     const items = Array.isArray(mine) ? mine : [];
+
     for (const t of items) {
       const opt = document.createElement('option');
       opt.value = t.tryoutId || '';
@@ -63,11 +67,17 @@ async function loadTryoutOptions() {
       opt.textContent = `${t.orgName || 'Tryout'} — ${t.city || ''}${date ? ` • ${date}` : ''}`;
       sel.appendChild(opt);
     }
+
+    // If we have at least one tryout, select the first one by default
+    const first = sel.querySelector('option[value]:not([value=""])');
+    if (first) {
+      sel.value = first.value;
+      return sel.value; // the chosen tryoutId
+    }
   } catch (e) {
-    // non-fatal
-    console.debug('loadTryoutOptions:', e?.message || e);
+    console.debug('loadTryoutOptionsAndPick:', e?.message || e);
   }
-  return sel.value;
+  return ''; // none available
 }
 
 async function loadApplications(tryoutId = '') {
@@ -81,10 +91,18 @@ async function init() {
   if (!isPromoter(s)) return;
 
   const sel = document.getElementById('apps-filter');
-  await loadTryoutOptions();
-  await loadApplications(sel?.value || '');
+  const chosen = await loadTryoutOptionsAndPick();      // <-- pick a tryout
+  if (chosen) await loadApplications(chosen);           // <-- load promoter view
 
-  sel?.addEventListener('change', () => loadApplications(sel.value));
+  sel?.addEventListener('change', () => {
+    const id = sel.value.trim();
+    if (id) loadApplications(id);
+    else {
+      // Optional: show a friendly message when “All my tryouts” is selected
+      document.getElementById('app-list').innerHTML =
+        `<div class="card"><p class="muted">Choose a tryout to see applicants.</p></div>`;
+    }
+  });
 }
 
 if (document.readyState === 'loading') {
