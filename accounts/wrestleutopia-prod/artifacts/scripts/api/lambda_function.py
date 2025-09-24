@@ -676,8 +676,7 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
         if apps:
             ids = sorted({a.get("applicantId") for a in apps if a.get("applicantId")})
             if ids:
-                # Projection: only what we need for review cards
-                proj = "userId, handle, stageName, city, #r, photoKey"  # #r -> region
+                proj = "userId, handle, stageName, name, city, #r, photoKey"  # add 'name'; #r -> region
                 ean  = {"#r": "region"}
 
                 try:
@@ -687,15 +686,18 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
                                 "Keys": [{"userId": {"S": uid}} for uid in ids],
                                 "ProjectionExpression": proj,
                                 "ExpressionAttributeNames": ean,
-                                # "ConsistentRead": False,  # optional
                             }
                         }
                     )
+
                     wrest_items = resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
                     profiles: dict[str, dict] = {}
-                    for av_map in wrest_items:
-                        # Convert AttributeValue -> plain
-                        p = {k: list(v.values())[0] for k, v in av_map.items()}
+
+                    for av in wrest_items:
+                        # Convert AttributeValue map → plain dict
+                        p = {k: list(v.values())[0] for k, v in av.items()}
+                        # normalize stageName for older rows
+                        p["stageName"] = p.get("stageName") or p.get("name") or None
                         profiles[p["userId"]] = p
 
                     for a in apps:
