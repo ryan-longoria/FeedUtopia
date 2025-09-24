@@ -20,6 +20,7 @@
   <script defer src="/js/include.js"></script>
   <script type="module" src="/js/roles.js"></script>
   <script type="module" src="/js/dashboard_promoter_mytryouts.js"></script>
+  <script type="module" src="/js/dashboard_promoter_apps.js"></script>
 
   <!-- Require Promoter -->
   <script type="module">
@@ -74,6 +75,23 @@
         <div class="card" style="grid-column:1 / -1">
           <h2>Previous Tryouts</h2>
           <div id="my-previous-tryouts" class="grid cols-3 mt-3"></div>
+        </div>
+
+        <!-- Applications -->
+        <div class="card" style="grid-column:1 / -1">
+          <h2>Applications</h2>
+          <div class="muted">Review applicants. Filter by your tryout.</div>
+
+          <div class="form-row mt-2">
+            <div style="min-width:260px">
+              <label for="apps-filter">Filter by Tryout</label>
+              <select id="apps-filter" class="input">
+                <option value="">All my tryouts</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="app-list" class="grid cols-2 mt-3"></div>
         </div>
 
         <!-- Post a Tryout -->

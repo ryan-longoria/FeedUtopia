@@ -85,7 +85,7 @@ resource "aws_lambda_function" "upload_url" {
   environment {
     variables = {
       MEDIA_BUCKET = aws_s3_bucket.media_bucket.bucket
-      TABLE_TRYOUTS     = aws_dynamodb_table.tryouts.name
+      TABLE_NAME     = aws_dynamodb_table.tryouts.name
       ALLOWED_ORIGIN = "https://www.wrestleutopia.com"
     }
   }
@@ -104,7 +104,7 @@ resource "aws_lambda_function" "image_processor" {
   environment {
     variables = {
       MEDIA_BUCKET  = aws_s3_bucket.media_bucket.bucket
-      TABLE_TRYOUTS = aws_dynamodb_table.tryouts.name
+      TABLE_NAME = aws_dynamodb_table.tryouts.name
       CDN_BASE      = "https://cdn.wrestleutopia.com"
     }
   }

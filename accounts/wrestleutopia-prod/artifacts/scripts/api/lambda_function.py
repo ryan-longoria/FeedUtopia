@@ -657,24 +657,57 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
     qs = _qs(event)
     if "tryoutId" in qs:
         tryout_id = qs["tryoutId"]
+
+        # Only the owner can list applications for a tryout
         tr = T_TRY.get_item(Key={"tryoutId": tryout_id}).get("Item")
         if not tr:
             return _resp(404, {"message": "Tryout not found"})
         if tr.get("ownerId") != sub:
             return _resp(403, {"message": "Not your tryout"})
+
+        # Fetch applications
         r = T_APP.query(
             KeyConditionExpression=Key("tryoutId").eq(tryout_id),
             Limit=200,
         )
-        return _resp(200, r.get("Items", []))
+        apps = r.get("Items", [])
 
-    # Wrestler: list own apps via GSI
+        # ---- Enrich with wrestler profile snippets (single BatchGet) ----
+        if apps:
+            ids = sorted({a.get("applicantId") for a in apps if a.get("applicantId")})
+            if ids:
+                # Projection: only what we need for review cards
+                proj = "userId, handle, stageName, city, region, photoKey"
+                resp = ddb.meta.client.batch_get_item(
+                    RequestItems={
+                        TABLE_WRESTLERS: {
+                            "Keys": [{"userId": {"S": uid}} for uid in ids],
+                            "ProjectionExpression": proj,
+                        }
+                    }
+                )
+
+                # Convert AttributeValues to plain dicts
+                wrest_items = resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
+                profiles: dict[str, dict] = {}
+                for av_map in wrest_items:
+                    p = {k: list(v.values())[0] for k, v in av_map.items()}
+                    profiles[p["userId"]] = p
+
+                # Attach to each application
+                for a in apps:
+                    a["applicantProfile"] = profiles.get(a.get("applicantId"), {})
+
+        return _resp(200, apps)
+
+    # Wrestler: list own apps
     r = T_APP.query(
         IndexName="ByApplicant",
         KeyConditionExpression=Key("applicantIdGsi").eq(sub),
         Limit=200,
     )
     return _resp(200, r.get("Items", []))
+
 
 def _get_promoter_public(user_id: str) -> Dict[str, Any]:
     item = T_PROMO.get_item(Key={"userId": user_id}).get("Item")

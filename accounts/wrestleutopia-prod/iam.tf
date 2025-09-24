@@ -252,6 +252,7 @@ resource "aws_iam_policy" "api_dynamo_policy" {
         Action = [
           "dynamodb:PutItem",
           "dynamodb:GetItem",
+          "dynamodb:BatchGetItem",  # ✅ add this
           "dynamodb:UpdateItem",
           "dynamodb:DeleteItem",
           "dynamodb:Query",
@@ -266,7 +267,6 @@ resource "aws_iam_policy" "api_dynamo_policy" {
           "${aws_dynamodb_table.tryouts.arn}/index/*",
           aws_dynamodb_table.applications.arn,
           "${aws_dynamodb_table.applications.arn}/index/*",
-
           aws_dynamodb_table.profile_handles.arn,
           "${aws_dynamodb_table.wrestlers.arn}/index/*"
         ]
@@ -274,6 +274,7 @@ resource "aws_iam_policy" "api_dynamo_policy" {
     ]
   })
 }
+
 
 
 resource "aws_iam_policy" "api_s3_media_policy" {
