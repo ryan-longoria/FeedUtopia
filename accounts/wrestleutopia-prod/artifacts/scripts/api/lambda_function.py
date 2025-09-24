@@ -673,28 +673,48 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
         apps = r.get("Items", [])
 
         # ---- Enrich with wrestler profile snippets (single BatchGet) ----
+        # ---- Enrich with wrestler profile snippets (single BatchGet) ----
         if apps:
             ids = sorted({a.get("applicantId") for a in apps if a.get("applicantId")})
             if ids:
                 proj = "userId, handle, stageName, #n, city, #r, photoKey"  # alias reserved words
                 ean  = {"#r": "region", "#n": "name"}
-                resp = ddb.meta.client.batch_get_item(
-                    RequestItems={
+
+                profiles: dict[str, dict] = {}
+
+                try:
+                    # BatchGet with basic retry for UnprocessedKeys
+                    request = {
                         TABLE_WRESTLERS: {
                             "Keys": [{"userId": {"S": uid}} for uid in ids],
                             "ProjectionExpression": proj,
                             "ExpressionAttributeNames": ean,
+                            "ConsistentRead": False,
                         }
                     }
-                )
-                wrest_items = resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
-                profiles: dict[str, dict] = {}
-                for av in wrest_items:
-                    p = {k: list(v.values())[0] for k, v in av.items()}
-                    # fallback for older rows that only have 'name'
-                    p["stageName"] = p.get("stageName") or p.get("name") or None
-                    profiles[p["userId"]] = p
 
+                    client = ddb.meta.client
+                    resp = client.batch_get_item(RequestItems=request)
+                    wrest_items = resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
+
+                    # Handle unprocessed keys (retry a couple times)
+                    retries = 0
+                    while resp.get("UnprocessedKeys") and retries < 3:
+                        resp = client.batch_get_item(RequestItems=resp["UnprocessedKeys"])
+                        wrest_items += resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
+                        retries += 1
+
+                    # Convert AttributeValue maps to plain dicts
+                    for av in wrest_items:
+                        p = {k: list(v.values())[0] for k, v in av.items()}
+                        # Normalize stageName for older rows that only stored 'name'
+                        p["stageName"] = p.get("stageName") or p.get("name") or None
+                        profiles[p["userId"]] = p
+
+                except Exception as e:
+                    _log("batch_get_item profiles failed", e)
+
+                # Attach (even if profiles is empty, we still return apps list)
                 for a in apps:
                     a["applicantProfile"] = profiles.get(a.get("applicantId"), {})
 
