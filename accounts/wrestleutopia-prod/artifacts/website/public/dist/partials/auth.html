@@ -21,13 +21,52 @@
   <form id="form-signup" class="mt-3 hidden">
     <label>Email</label>
     <input class="input" name="email" type="email" autocomplete="email" required />
+
     <label>Password</label>
     <input class="input" name="password" type="password" autocomplete="new-password" required />
+
     <label>Role</label>
-    <select class="input" name="role" required>
+    <select class="input" name="role" id="signup-role" required>
       <option value="Wrestler">Wrestler</option>
       <option value="Promoter">Promoter</option>
     </select>
+
+    <!-- Wrestler fields -->
+    <fieldset id="wrestler-fields" class="mt-3">
+      <legend class="muted" style="margin-bottom:6px">Wrestler details</legend>
+      <label>First name</label>
+      <input class="input" name="given_name" required />
+      <label>Last name</label>
+      <input class="input" name="family_name" required />
+      <label>Stage name</label>
+      <input class="input" name="stageName" required />
+      <label>Date of birth (YYYY-MM-DD)</label>
+      <input class="input" name="dob" placeholder="1999-12-31" pattern="\\d{4}-\\d{2}-\\d{2}" required />
+      <div class="grid cols-3" style="gap:8px">
+        <div>
+          <label>City</label>
+          <input class="input" name="city" required />
+        </div>
+        <div>
+          <label>State/Region</label>
+          <input class="input" name="region" required />
+        </div>
+        <div>
+          <label>Country</label>
+          <input class="input" name="country" required />
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- Promoter fields -->
+    <fieldset id="promoter-fields" class="mt-3 hidden">
+      <legend class="muted" style="margin-bottom:6px">Promotion details</legend>
+      <label>Promotion / Org name</label>
+      <input class="input" name="orgName" />
+      <label>Full address</label>
+      <input class="input" name="address" />
+    </fieldset>
+
     <button class="btn mt-3" type="submit">Create Account</button>
     <p class="muted mt-2" style="font-size:12px">We’ll email you a confirmation code.</p>
   </form>
@@ -44,3 +83,177 @@
     <button class="btn secondary" type="button" id="auth-close">Close</button>
   </div>
 </dialog>
+
+<script type="module">
+  import { signIn, signUp, confirmSignUp, resendSignUpCode, signOut } from '/js/auth-bridge.js';
+
+  const dlg = document.getElementById('auth-modal');
+
+  // Tabs
+  const tabLogin  = document.getElementById('tab-login');
+  const tabSignup = document.getElementById('tab-signup');
+  const fLogin  = document.getElementById('form-login');
+  const fSignup = document.getElementById('form-signup');
+  const fConfirm= document.getElementById('form-confirm');
+
+  const roleSel = document.getElementById('signup-role');
+  const wf = document.getElementById('wrestler-fields');
+  const pf = document.getElementById('promoter-fields');
+
+  let signupEmailForConfirm = '';  // remember which email to confirm
+
+  function showLogin() {
+    tabLogin.setAttribute('aria-selected', 'true');
+    tabSignup.setAttribute('aria-selected', 'false');
+    fLogin.classList.remove('hidden');
+    fSignup.classList.add('hidden');
+    fConfirm.classList.add('hidden');
+  }
+  function showSignup(intentRole) {
+    tabLogin.setAttribute('aria-selected', 'false');
+    tabSignup.setAttribute('aria-selected', 'true');
+    fLogin.classList.add('hidden');
+    fSignup.classList.remove('hidden');
+    fConfirm.classList.add('hidden');
+    if (intentRole === 'promoter') roleSel.value = 'Promoter';
+    if (intentRole === 'wrestler') roleSel.value = 'Wrestler';
+    onRoleChange();
+  }
+  function showConfirm() {
+    fLogin.classList.add('hidden');
+    fSignup.classList.add('hidden');
+    fConfirm.classList.remove('hidden');
+  }
+
+  tabLogin.addEventListener('click', showLogin);
+  tabSignup.addEventListener('click', () => showSignup());
+
+  function onRoleChange() {
+    const r = roleSel.value;
+    const isW = r === 'Wrestler';
+    wf.classList.toggle('hidden', !isW);
+    pf.classList.toggle('hidden', isW);
+    // toggle requireds for clarity (Pre-Sign-Up Lambda also enforces server-side)
+    wf.querySelectorAll('input').forEach(i => i.required = isW);
+    pf.querySelectorAll('input').forEach(i => i.required = !isW);
+  }
+  roleSel.addEventListener('change', onRoleChange);
+  onRoleChange();
+
+  // Login submit
+  fLogin.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(fLogin);
+    const email = String(fd.get('email') || '').trim();
+    const password = String(fd.get('password') || '');
+    try {
+      await signIn({ username: email, password });
+      dlg.close();
+    } catch (err) {
+      alert(err?.message || 'Login failed');
+    }
+  });
+
+  // Sign-up submit (collects role-specific fields and sends as Cognito attributes)
+  fSignup.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(fSignup);
+    const role = String(fd.get('role') || 'Wrestler');
+
+    const email = String(fd.get('email') || '').trim();
+    const password = String(fd.get('password') || '');
+
+    const isW = role === 'Wrestler';
+
+    const userAttributes = {
+      email,
+      'custom:role': role,
+      // Wrestler attrs
+      given_name:   isW ? String(fd.get('given_name') || '') : undefined,
+      family_name:  isW ? String(fd.get('family_name') || '') : undefined,
+      'custom:stageName': isW ? String(fd.get('stageName') || '') : undefined,
+      'custom:dob':       isW ? String(fd.get('dob') || '') : undefined,
+      'custom:city':      isW ? String(fd.get('city') || '') : undefined,
+      'custom:region':    isW ? String(fd.get('region') || '') : undefined,
+      'custom:country':   isW ? String(fd.get('country') || '') : undefined,
+      // Promoter attrs
+      'custom:orgName':   !isW ? String(fd.get('orgName') || '') : undefined,
+      'custom:address':   !isW ? String(fd.get('address') || '') : undefined,
+    };
+    Object.keys(userAttributes).forEach(k => userAttributes[k] === undefined && delete userAttributes[k]);
+
+    try {
+      await signUp({
+        username: email,            // Amplify uses username; you configured email login
+        password,
+        options: { userAttributes }
+      });
+      signupEmailForConfirm = email;
+      showConfirm();
+    } catch (err) {
+      alert(err?.message || 'Sign up failed');
+    }
+  });
+
+  // Confirm submit
+  fConfirm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(fConfirm);
+    const code = String(fd.get('code') || '').trim();
+    try {
+      if (!signupEmailForConfirm) {
+        alert('Missing email to confirm. Please sign up again.');
+        showSignup();
+        return;
+      }
+      await confirmSignUp({ username: signupEmailForConfirm, confirmationCode: code });
+      // Auto sign-in for convenience
+      try {
+        const pwField = fSignup.querySelector('input[name="password"]');
+        const pwd = pwField ? pwField.value : '';
+        if (pwd) await signIn({ username: signupEmailForConfirm, password: pwd });
+      } catch {}
+      dlg.close();
+    } catch (err) {
+      alert(err?.message || 'Confirmation failed');
+    }
+  });
+
+  // Resend code
+  document.getElementById('resend-code')?.addEventListener('click', async () => {
+    try {
+      if (!signupEmailForConfirm) {
+        alert('Enter your email on the sign-up tab first.');
+        showSignup();
+        return;
+      }
+      await resendSignUpCode({ username: signupEmailForConfirm });
+      alert('Confirmation code resent.');
+    } catch (err) {
+      alert(err?.message || 'Could not resend code');
+    }
+  });
+
+  // Close
+  document.getElementById('auth-close')?.addEventListener('click', () => dlg.close());
+
+  // External open hook (your site dispatches this)
+  window.addEventListener('auth:open', (e) => {
+    try {
+      const intent = (e?.detail?.intent || '').toString().toLowerCase();
+      dlg.showModal();
+      if (intent === 'promoter' || intent === 'wrestler') showSignup(intent);
+      else showLogin();
+    } catch {
+      // Fallback open
+      try { dlg.showModal(); } catch {}
+    }
+  });
+
+  // Also wire the nav "Log In" button if present (your markup uses #login-btn)
+  document.getElementById('login-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    dlg.showModal();
+    showLogin();
+  });
+</script>

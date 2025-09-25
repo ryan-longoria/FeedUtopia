@@ -15,6 +15,8 @@ resource "aws_lambda_function" "add_to_group" {
     variables = {
       DEFAULT_GROUP = "Wrestlers"
       PROMOTER_NAME = "Promoters"
+      TABLE_WRESTLERS = aws_dynamodb_table.wrestlers.name
+      TABLE_PROMOTERS = aws_dynamodb_table.promoters.name
     }
   }
 }
@@ -112,4 +114,15 @@ resource "aws_lambda_function" "image_processor" {
   layers = [
     "arn:aws:lambda:us-east-2:825765422855:layer:Python_pillow:5"
   ]
+}
+
+resource "aws_lambda_function" "pre_signup" {
+  function_name    = "${var.project_name}-pre-signup"
+  filename         = "${path.module}/artifacts/scripts/pre_signup/pre_signup.zip"
+  source_code_hash = filebase64sha256("${path.module}/artifacts/scripts/pre_signup/pre_signup.zip")
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.12"
+  role             = aws_iam_role.pre_signup_role.arn
+  timeout          = 10
+
 }

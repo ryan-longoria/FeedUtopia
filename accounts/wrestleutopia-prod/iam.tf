@@ -224,6 +224,27 @@ resource "aws_lambda_permission" "s3_invoke_imgproc" {
   source_arn    = aws_s3_bucket.media_bucket.arn
 }
 
+resource "aws_iam_role" "pre_signup_role" {
+  name = "${var.project_name}-pre-signup-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{ Effect = "Allow", Action = "sts:AssumeRole", Principal = { Service = "lambda.amazonaws.com" } }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "pre_signup_logs" {
+  role       = aws_iam_role.pre_signup_role.name
+  policy_arn = aws_iam_policy.lambda_logs.arn
+}
+
+resource "aws_lambda_permission" "allow_cognito_presignup" {
+  statement_id  = "AllowExecutionFromCognitoPreSignUp"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.pre_signup.function_name
+  principal     = "cognito-idp.amazonaws.com"
+  source_arn    = aws_cognito_user_pool.this.arn
+}
+
 #############################
 ## Lambda IAM — API (CRUD)
 #############################
