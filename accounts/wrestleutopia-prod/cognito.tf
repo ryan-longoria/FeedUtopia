@@ -19,6 +19,82 @@ resource "aws_cognito_user_pool" "this" {
     }
   }
 
+  schema { 
+    name = "stageName" 
+    attribute_data_type = "String" 
+    mutable = true 
+    required = false 
+    string_attribute_constraints { 
+      min_length = 1 
+      max_length = 64 
+    } 
+  }
+  schema { 
+    name = "dob"       
+    attribute_data_type = "String" 
+    mutable = true 
+    required = false 
+    string_attribute_constraints { 
+      min_length = 10 
+      max_length = 10 
+    } 
+  }
+
+  schema { 
+    name = "city"      
+    attribute_data_type = "String" 
+    mutable = true 
+    required = false 
+    string_attribute_constraints { 
+      min_length = 1 
+      max_length = 64 
+    } 
+  }
+
+  schema { 
+    name = "region"    
+    attribute_data_type = "String" 
+    mutable = true 
+    required = false 
+    string_attribute_constraints { 
+      min_length = 1 
+      max_length = 64 
+    } 
+  }
+
+  schema { 
+    name = "country"   
+    attribute_data_type = "String" 
+    mutable = true 
+    required = false 
+    string_attribute_constraints { 
+      min_length = 2 
+      max_length = 64 
+    } 
+  }
+
+  schema { 
+    name = "orgName" 
+    attribute_data_type = "String" 
+    mutable = true 
+    required = false 
+    string_attribute_constraints { 
+      min_length = 1 
+      max_length = 96 
+    } 
+  }
+
+  schema { 
+    name = "address" 
+    attribute_data_type = "String" 
+    mutable = true 
+    required = false 
+    string_attribute_constraints { 
+      min_length = 3 
+      max_length = 160 
+    } 
+  }
+
   account_recovery_setting {
     recovery_mechanism {
       name     = "verified_email"
@@ -39,6 +115,7 @@ resource "aws_cognito_user_pool" "this" {
   }
 
   lambda_config {
+    pre_sign_up        = aws_lambda_function.pre_signup.arn
     post_confirmation = aws_lambda_function.add_to_group.arn
   }
 
@@ -92,8 +169,17 @@ resource "aws_cognito_user_pool_client" "web" {
     refresh_token = "days"
   }
 
-  read_attributes  = ["email", "email_verified", "custom:role", "given_name", "family_name"]
-  write_attributes = ["email", "custom:role", "given_name", "family_name"]
+  read_attributes = [
+    "email","email_verified","given_name","family_name","custom:role",
+    "custom:stageName","custom:dob","custom:city","custom:region","custom:country",
+    "custom:orgName","custom:address"
+  ]
+
+  write_attributes = [
+    "email","given_name","family_name","custom:role",
+    "custom:stageName","custom:dob","custom:city","custom:region","custom:country",
+    "custom:orgName","custom:address"
+  ]
 
   supported_identity_providers = ["COGNITO"]
 
