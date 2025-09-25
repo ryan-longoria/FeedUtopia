@@ -16,7 +16,7 @@ resource "aws_apigatewayv2_api" "http" {
     allow_headers     = ["Authorization", "Content-Type"]
     expose_headers    = ["content-type","etag"]
     max_age           = 3000
-    allow_credentials = true
+    allow_credentials = false
   }
 }
 
