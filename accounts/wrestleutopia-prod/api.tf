@@ -12,8 +12,8 @@ resource "aws_apigatewayv2_api" "http" {
 
   cors_configuration {
     allow_origins = var.allowed_origins
-    allow_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-    allow_headers = [
+    allow_methods = ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
+    allow_headers     = [
       "Authorization",
       "Content-Type",
       "X-Requested-With",
@@ -23,7 +23,7 @@ resource "aws_apigatewayv2_api" "http" {
       "Accept",
       "Origin"
     ]
-    expose_headers    = ["content-type", "etag"]
+    expose_headers    = ["content-type","etag"]
     max_age           = 3000
     allow_credentials = true
   }
@@ -73,13 +73,6 @@ resource "aws_apigatewayv2_integration" "upload_url_integration" {
 #############################
 # Routes
 #############################
-
-resource "aws_apigatewayv2_route" "default" {
-  api_id             = aws_apigatewayv2_api.http.id
-  route_key          = "$default"
-  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = "NONE"
-}
 
 resource "aws_apigatewayv2_route" "get_tryouts" {
   api_id             = aws_apigatewayv2_api.http.id
