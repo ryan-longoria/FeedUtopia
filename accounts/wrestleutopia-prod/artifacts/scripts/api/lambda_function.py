@@ -271,6 +271,7 @@ def _post_tryout(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str,
         return _resp(400, {"message": "date must be YYYY-MM-DD"})
 
     tid = _uuid()
+    slots = int(data.get("slots") or 0)
     item = {
         "tryoutId": tid,
         "ownerId": sub,
@@ -283,7 +284,7 @@ def _post_tryout(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str,
         "status": status_in,
         "createdAt": _now_iso(),
     }
-    slots = int(data.get("slots") or 0)
+    
     if slots < 0: slots = 0
     if slots > 10000: slots = 10000
 
