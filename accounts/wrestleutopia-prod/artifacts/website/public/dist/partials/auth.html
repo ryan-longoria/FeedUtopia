@@ -41,7 +41,14 @@
       <label>Stage name</label>
       <input class="input" name="stageName" required />
       <label>Date of birth (YYYY-MM-DD)</label>
-      <input class="input" name="dob" type="date" required />
+      <input
+        class="input"
+        name="dob"
+        type="date"
+        required
+        pattern="\d{4}-\d{2}-\d{2}"
+        max="<?= new Date().toISOString().slice(0,10) /* or hard-code for static site */ ?>"
+      />
       <div class="grid cols-3" style="gap:8px">
         <div>
           <label>City</label>
@@ -86,6 +93,16 @@
 
 <script type="module">
   import { signIn, signUp, confirmSignUp, resendSignUpCode, signOut } from '/js/auth-bridge.js';
+
+  function normalizeDOB(raw) {
+    const s = String(raw || '').trim();
+    const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (!m) return null;
+    const yyyy = m[1];
+    const mm = String(parseInt(m[2], 10)).padStart(2, '0');
+    const dd = String(parseInt(m[3], 10)).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
 
   const dlg = document.getElementById('auth-modal');
 
@@ -158,39 +175,71 @@
   fSignup.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(fSignup);
-    const role = String(fd.get('role') || 'Wrestler');
-
-    const email = String(fd.get('email') || '').trim();
+    const role     = String(fd.get('role') || 'Wrestler').trim();
+    const email    = String(fd.get('email') || '').trim();
     const password = String(fd.get('password') || '');
 
     const isW = role === 'Wrestler';
 
+    // Collect wrestler fields
+    const given_name =   isW ? String(fd.get('given_name') || '').trim() : undefined;
+    const family_name =  isW ? String(fd.get('family_name') || '').trim() : undefined;
+    const stageName =    isW ? String(fd.get('stageName') || '').trim()   : undefined;
+    const dobNorm =      isW ? normalizeDOB(fd.get('dob'))                : undefined;
+    const city =         isW ? String(fd.get('city') || '').trim()        : undefined;
+    const region =       isW ? String(fd.get('region') || '').trim()      : undefined;
+    const country =      isW ? String(fd.get('country') || '').trim()     : undefined;
+
+    if (isW) {
+      const missing = [];
+      if (!given_name) missing.push('First name');
+      if (!family_name) missing.push('Last name');
+      if (!stageName) missing.push('Stage name');
+      if (!dobNorm) missing.push('DOB (YYYY-MM-DD)');
+      if (!city) missing.push('City');
+      if (!region) missing.push('State/Region');
+      if (!country) missing.push('Country');
+      if (missing.length) {
+        alert(`Please complete: ${missing.join(', ')}`);
+        return;
+      }
+    }
+
+    // Build attributes (no empty strings)
     const userAttributes = {
       email,
       'custom:role': role,
-      // Wrestler attrs
-      given_name:   isW ? String(fd.get('given_name') || '') : undefined,
-      family_name:  isW ? String(fd.get('family_name') || '') : undefined,
-      'custom:stageName': isW ? String(fd.get('stageName') || '') : undefined,
-      'custom:dob':       isW ? String(fd.get('dob') || '') : undefined,
-      'custom:city':      isW ? String(fd.get('city') || '') : undefined,
-      'custom:region':    isW ? String(fd.get('region') || '') : undefined,
-      'custom:country':   isW ? String(fd.get('country') || '') : undefined,
-      // Promoter attrs
-      'custom:orgName':   !isW ? String(fd.get('orgName') || '') : undefined,
-      'custom:address':   !isW ? String(fd.get('address') || '') : undefined,
+      ...(isW && {
+        given_name,
+        family_name,
+        'custom:stageName': stageName,
+        'custom:dob': dobNorm,
+        'custom:city': city,
+        'custom:region': region,
+        'custom:country': country,
+      }),
+      ...(!isW && {
+        'custom:orgName': String(fd.get('orgName') || '').trim() || undefined,
+        'custom:address': String(fd.get('address') || '').trim() || undefined,
+      }),
     };
-    Object.keys(userAttributes).forEach(k => userAttributes[k] === undefined && delete userAttributes[k]);
+
+    // remove undefineds
+    Object.keys(userAttributes).forEach(k => userAttributes[k] == null && delete userAttributes[k]);
 
     try {
-      await signUp({
-        username: email,            // Amplify uses username; you configured email login
-        password,
-        options: { userAttributes }
-      });
+      await signUp({ username: email, password, options: { userAttributes } });
       signupEmailForConfirm = email;
       showConfirm();
     } catch (err) {
+      // Helpful handling for common cases
+      if (String(err?.name) === 'UsernameExistsException') {
+        signupEmailForConfirm = email;
+        showConfirm();
+        try { await resendSignUpCode({ username: email }); } catch {}
+        alert('Account already exists. Enter the code we emailed you.');
+        return;
+      }
       alert(err?.message || 'Sign up failed');
     }
   });
