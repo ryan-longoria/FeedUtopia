@@ -45,6 +45,9 @@ MAX_GIMMICKS = 10
 SER = TypeSerializer()
 DES = TypeDeserializer()
 
+TABLE_WRESTLERS_DESC = ddb.meta.client.describe_table(TableName=TABLE_WRESTLERS)
+WRES_PK = [k["AttributeName"] for k in TABLE_WRESTLERS_DESC["Table"]["KeySchema"]]
+
 def _log(*args):
     # Simple log helper (stringifies safely)
     print("[WU]", *[repr(a) for a in args])
@@ -61,6 +64,12 @@ _log("REGION", AWS_REGION, "TABLES", {
 # ------------------------------------------------------------------------------
 # Small helpers
 # ------------------------------------------------------------------------------
+
+def _key_map_for_user(user_id: str) -> dict:
+    km = {"userId": {"S": user_id}}
+    if len(WRES_PK) == 2 and "role" in WRES_PK:
+        km["role"] = {"S": "Wrestler"}
+    return km
 
 def _av_map(pyobj: dict) -> dict:
     # Convert a Python dict to DynamoDB AttributeValue map, skipping None
@@ -686,7 +695,7 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
                 try:
                     req = {
                         TABLE_WRESTLERS: {
-                            "Keys": [{"userId": {"S": uid}} for uid in ids],
+                            "Keys": [_key_map_for_user(uid) for uid in ids],
                             "ProjectionExpression": proj,
                             "ExpressionAttributeNames": ean,
                             "ConsistentRead": False,
