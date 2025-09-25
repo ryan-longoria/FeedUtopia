@@ -231,7 +231,7 @@ resource "aws_apigatewayv2_route" "upload_url_route" {
 
 resource "aws_apigatewayv2_route" "get_promoter_tryouts" {
   api_id             = aws_apigatewayv2_api.http.id
-  route_key          = "GET /profiles/promoters/{userId}/tryouts"
+  route_key          = "GET /promoters/{userId}/tryouts"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
   authorization_type = "NONE"
 }
