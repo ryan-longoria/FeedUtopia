@@ -29,7 +29,16 @@ async function renderHomeTryouts(groups) {
   if (!isWrestler) return;
 
   try {
-    const list = await apiFetch('/tryouts');
+    let list = [];
+    try {
+      list = await apiFetch('/tryouts');
+    } catch (e) {
+      if (String(e).includes('API 401')) {
+        tryoutList.innerHTML = '<p class="muted">Sign in to see current tryouts.</p>';
+        return;
+      }
+      throw e;
+    }
     const top = (list || []).slice(0, 6);
     tryoutList.innerHTML = '';
     if (top.length === 0) {

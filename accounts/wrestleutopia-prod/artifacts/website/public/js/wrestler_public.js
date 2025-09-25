@@ -175,6 +175,10 @@ async function run() {
     sections.forEach(sec => io.observe(sec));
 
   } catch (e) {
+    if (String(e).includes('API 401')) {
+      wrap.innerHTML = `<div class="card"><h2>Sign in required</h2><p class="muted">Please sign in to view this profile.</p></div>`;
+      return;
+    }
     console.error(e);
     wrap.innerHTML = `<div class="card"><h2>Profile not found</h2><p class="muted">We couldn’t load ${h(handle)}.</p></div>`;
   }

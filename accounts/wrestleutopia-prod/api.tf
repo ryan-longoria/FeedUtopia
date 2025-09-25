@@ -69,171 +69,176 @@ resource "aws_apigatewayv2_route" "get_tryouts" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /tryouts"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = "NONE"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "post_tryouts" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "POST /tryouts"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "delete_tryout" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "DELETE /tryouts/{tryoutId}"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_wrestlers" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /profiles/wrestlers"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "post_wrestlers" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "POST /profiles/wrestlers"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_promoter" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /profiles/promoters"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "post_promoter" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "POST /profiles/promoters"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_apps" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /applications"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "post_apps" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "POST /applications"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "presign" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /s3/presign"
   target             = "integrations/${aws_apigatewayv2_integration.presign_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_tryout_by_id" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /tryouts/{tryoutId}"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = "NONE"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_wrestlers_me" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /profiles/wrestlers/me"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_tryouts_mine" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /tryouts/mine"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_wrestler_by_handle" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /profiles/wrestlers/{handle}"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = "NONE"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "put_wrestlers_me" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "PUT /profiles/wrestlers/me"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "post_profile_avatar_presign" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "POST /profiles/wrestlers/me/photo-url"
   target             = "integrations/${aws_apigatewayv2_integration.presign_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "put_promoter" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "PUT /profiles/promoters"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "patch_promoter" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "PATCH /profiles/promoters"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_promoter_me" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /profiles/promoters/me"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_promoter_public" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /profiles/promoters/{userId}"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = "NONE"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "upload_url_route" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "POST /media/upload-url"
   target             = "integrations/${aws_apigatewayv2_integration.upload_url_integration.id}"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_promoter_tryouts" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "GET /promoters/{userId}/tryouts"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = "NONE"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 #############################
