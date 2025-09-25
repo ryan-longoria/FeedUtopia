@@ -1,342 +1,351 @@
-<dialog id="auth-modal" class="card" style="max-width:520px">
-  <h2>Welcome</h2>
-  <p class="muted">Log in or create an account to continue.</p>
-
-  <div class="mt-3" role="tablist" aria-label="Auth tabs" style="display:flex; gap:8px">
-    <button class="btn small" id="tab-login"  type="button" aria-selected="true">Log In</button>
-    <button class="btn small secondary" id="tab-signup" type="button" aria-selected="false">Create Account</button>
-  </div>
-
-  <!-- Login -->
-  <form id="form-login" class="mt-3">
-    <label>Email</label>
-    <input class="input" name="email" type="email" autocomplete="email" required />
-    <label>Password</label>
-    <input class="input" name="password" type="password" autocomplete="current-password" required />
-    <button class="btn mt-3" type="submit">Log In</button>
-    <p class="muted mt-2" style="font-size:12px">By continuing you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
-  </form>
-
-  <!-- Sign Up -->
-  <form id="form-signup" class="mt-3 hidden">
-    <label>Email</label>
-    <input class="input" name="email" type="email" autocomplete="email" required />
-
-    <label>Password</label>
-    <input class="input" name="password" type="password" autocomplete="new-password" required />
-
-    <label>Role</label>
-    <select class="input" name="role" id="signup-role" required>
-      <option value="Wrestler">Wrestler</option>
-      <option value="Promoter">Promoter</option>
-    </select>
-
-    <!-- Wrestler fields -->
-    <fieldset id="wrestler-fields" class="mt-3">
-      <legend class="muted" style="margin-bottom:6px">Wrestler details</legend>
-      <label>First name</label>
-      <input class="input" name="given_name" required />
-      <label>Last name</label>
-      <input class="input" name="family_name" required />
-      <label>Stage name</label>
-      <input class="input" name="stageName" required />
-      <label>Date of birth (YYYY-MM-DD)</label>
-      <input
-        class="input"
-        name="dob"
-        type="date"
-        required
-        pattern="\d{4}-\d{2}-\d{2}"
-        max="<?= new Date().toISOString().slice(0,10) /* or hard-code for static site */ ?>"
-      />
-      <div class="grid cols-3" style="gap:8px">
-        <div>
-          <label>City</label>
-          <input class="input" name="city" required />
-        </div>
-        <div>
-          <label>State/Region</label>
-          <input class="input" name="region" required />
-        </div>
-        <div>
-          <label>Country</label>
-          <input class="input" name="country" required />
-        </div>
-      </div>
-    </fieldset>
-
-    <!-- Promoter fields -->
-    <fieldset id="promoter-fields" class="mt-3 hidden">
-      <legend class="muted" style="margin-bottom:6px">Promotion details</legend>
-      <label>Promotion / Org name</label>
-      <input class="input" name="orgName" />
-      <label>Full address</label>
-      <input class="input" name="address" />
-    </fieldset>
-
-    <button class="btn mt-3" type="submit">Create Account</button>
-    <p class="muted mt-2" style="font-size:12px">We’ll email you a confirmation code.</p>
-  </form>
-
-  <!-- Confirm -->
-  <form id="form-confirm" class="mt-3 hidden">
-    <label>Confirmation Code</label>
-    <input class="input" name="code" inputmode="numeric" autocomplete="one-time-code" required />
-    <button class="btn mt-3" type="submit">Confirm</button>
-    <button class="btn small secondary" id="resend-code" type="button">Resend code</button>
-  </form>
-
-  <div class="mt-3" style="display:flex; gap:8px; justify-content:flex-end">
-    <button class="btn secondary" type="button" id="auth-close">Close</button>
-  </div>
-</dialog>
-
 <script type="module">
-  import { signIn, signUp, confirmSignUp, resendSignUpCode, signOut } from '/js/auth-bridge.js';
+  import {
+    signUp,
+    confirmSignUp,
+    resendSignUpCode,
+    signIn,
+    confirmSignIn,
+    signOut,
+    fetchAuthSession,
+  } from '/js/auth-bridge.js';
 
-  // ---- Singleton guard: prevent double wiring if the partial is injected twice
-  if (window.__WU_AUTH_WIRED) {
-    // Already wired; bail out to avoid duplicate listeners (which cause duplicate emails).
-    console.debug('[auth] wiring skipped (already wired)');
-  } else {
-    window.__WU_AUTH_WIRED = true;
+  // ===== Helpers =====
+  const dlg      = document.getElementById('auth-modal');
+  const tabLogin = document.getElementById('tab-login');
+  const tabSignup= document.getElementById('tab-signup');
 
-    // ---- Small state helper with sessionStorage persistence
-    const KEY = 'wu_signup_email';
-    const AuthState = {
-      get email() { return sessionStorage.getItem(KEY) || ''; },
-      set email(v) { if (v) sessionStorage.setItem(KEY, v); else sessionStorage.removeItem(KEY); }
+  const fLogin   = document.getElementById('form-login');
+  const fSignup  = document.getElementById('form-signup');
+  const fConfirm = document.getElementById('form-confirm');
+
+  const roleSel  = document.getElementById('signup-role');
+  const wf       = document.getElementById('wrestler-fields');
+  const pf       = document.getElementById('promoter-fields');
+
+  const btnClose = document.getElementById('auth-close');
+  const btnResend= document.getElementById('resend-code');
+
+  // state stash
+  let signupEmail = '';     // email used in sign-up (for confirmSignUp)
+  let signupPwd   = '';     // pwd used in sign-up (for auto-login after confirm)
+  let pendingMFA  = false;  // are we currently confirming an MFA/OTP challenge?
+
+  // simple toast -> use alert fallback
+  function toast(msg, type='info'){
+    try {
+      const el = document.querySelector('#toast');
+      if (!el) throw new Error();
+      el.textContent = msg;
+      el.classList.toggle('error', type === 'error');
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 2600);
+    } catch {
+      alert(msg);
+    }
+  }
+
+  function showLogin() {
+    tabLogin.setAttribute('aria-selected', 'true');
+    tabSignup.setAttribute('aria-selected', 'false');
+    fLogin.classList.remove('hidden');
+    fSignup.classList.add('hidden');
+    fConfirm.classList.add('hidden');
+    pendingMFA = false;
+    fConfirm.dataset.mode = '';
+  }
+
+  function showSignup(intentRole) {
+    tabLogin.setAttribute('aria-selected', 'false');
+    tabSignup.setAttribute('aria-selected', 'true');
+    fLogin.classList.add('hidden');
+    fSignup.classList.remove('hidden');
+    fConfirm.classList.add('hidden');
+    if (intentRole === 'promoter') roleSel.value = 'Promoter';
+    if (intentRole === 'wrestler') roleSel.value = 'Wrestler';
+    onRoleChange();
+    pendingMFA = false;
+    fConfirm.dataset.mode = '';
+  }
+
+  function showConfirm({ mode } = { mode: '' }) {
+    fLogin.classList.add('hidden');
+    fSignup.classList.add('hidden');
+    fConfirm.classList.remove('hidden');
+    fConfirm.dataset.mode = mode || '';
+  }
+
+  // Wrestler vs Promoter conditional UI + requireds
+  function onRoleChange() {
+    const r = roleSel.value;
+    const isW = r === 'Wrestler';
+    wf.classList.toggle('hidden', !isW);
+    pf.classList.toggle('hidden', isW);
+    // Requireds on visible group only
+    wf.querySelectorAll('input').forEach(i => i.required = isW);
+    pf.querySelectorAll('input').forEach(i => i.required = !isW);
+  }
+  roleSel.addEventListener('change', onRoleChange);
+  onRoleChange();
+
+  // Prevent double submits helper
+  function withSubmitLock(form, fn){
+    return async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('button[type="submit"]');
+      const orig = btn?.textContent;
+      if (btn) { btn.disabled = true; btn.textContent = 'Working...'; }
+      try { await fn(); }
+      finally { if (btn) { btn.disabled = false; btn.textContent = orig; } }
+    };
+  }
+
+  // ===== Sign Up =====
+  fSignup.addEventListener('submit', withSubmitLock(fSignup, async () => {
+    const fd = new FormData(fSignup);
+    const role = String(fd.get('role') || 'Wrestler');
+
+    const email = String(fd.get('email') || '').trim();
+    const password = String(fd.get('password') || '');
+
+    // Keep for confirm step + auto-login after confirm
+    signupEmail = email;
+    signupPwd   = password;
+
+    const isW = role === 'Wrestler';
+
+    // Build attributes carefully: never send empty Promoter attrs (avoids MIN_LENGTH errors)
+    const attrs = {
+      email,
+      'custom:role': role,
+      ...(isW && {
+        given_name: String(fd.get('given_name') || '').trim(),
+        family_name: String(fd.get('family_name') || '').trim(),
+        'custom:stageName': String(fd.get('stageName') || '').trim(),
+        'custom:dob': String(fd.get('dob') || '').trim(),         // <input type="date"> yields YYYY-MM-DD
+        'custom:city': String(fd.get('city') || '').trim(),
+        'custom:region': String(fd.get('region') || '').trim(),
+        'custom:country': String(fd.get('country') || '').trim(),
+      }),
+      ...(!isW && (() => {
+        const org  = String(fd.get('orgName') || '').trim();
+        const addr = String(fd.get('address') || '').trim();
+        // Only include if non-empty; if your schema requires min length, the UI required will enforce
+        const out = {};
+        if (org)  out['custom:orgName'] = org;
+        if (addr) out['custom:address'] = addr;
+        return out;
+      })()),
     };
 
-    const dlg = document.getElementById('auth-modal');
-
-    // Tabs
-    const tabLogin  = document.getElementById('tab-login');
-    const tabSignup = document.getElementById('tab-signup');
-    const fLogin  = document.getElementById('form-login');
-    const fSignup = document.getElementById('form-signup');
-    const fConfirm= document.getElementById('form-confirm');
-
-    const roleSel = document.getElementById('signup-role');
-    const wf = document.getElementById('wrestler-fields');
-    const pf = document.getElementById('promoter-fields');
-
-    // If we re-open the page after a partial sign-up, show Confirm directly
-    if (AuthState.email) {
-      try { dlg.showModal(); } catch {}
-      showConfirm();
-      // Optional: prefill confirm context (no field to fill though)
-    }
-
-    function showLogin() {
-      tabLogin.setAttribute('aria-selected', 'true');
-      tabSignup.setAttribute('aria-selected', 'false');
-      fLogin.classList.remove('hidden');
-      fSignup.classList.add('hidden');
-      fConfirm.classList.add('hidden');
-    }
-    function showSignup(intentRole) {
-      tabLogin.setAttribute('aria-selected', 'false');
-      tabSignup.setAttribute('aria-selected', 'true');
-      fLogin.classList.add('hidden');
-      fSignup.classList.remove('hidden');
-      fConfirm.classList.add('hidden');
-      if (intentRole === 'promoter') roleSel.value = 'Promoter';
-      if (intentRole === 'wrestler') roleSel.value = 'Wrestler';
-      onRoleChange();
-    }
-    function showConfirm() {
-      fLogin.classList.add('hidden');
-      fSignup.classList.add('hidden');
-      fConfirm.classList.remove('hidden');
-    }
-
-    tabLogin.addEventListener('click', showLogin);
-    tabSignup.addEventListener('click', () => showSignup());
-
-    function onRoleChange() {
-      const r = roleSel.value;
-      const isW = r === 'Wrestler';
-      wf.classList.toggle('hidden', !isW);
-      pf.classList.toggle('hidden', isW);
-      // toggle requireds for clarity (Pre-Sign-Up Lambda also enforces server-side)
-      wf.querySelectorAll('input').forEach(i => i.required = isW);
-      pf.querySelectorAll('input').forEach(i => i.required = !isW);
-    }
-    roleSel.addEventListener('change', onRoleChange);
-    onRoleChange();
-
-    // Helper: normalize YYYY-MM-DD
-    function normalizeDOB(raw) {
-      const s = String(raw || '').trim();
-      const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-      if (!m) return null;
-      const yyyy = m[1];
-      const mm = String(parseInt(m[2], 10)).padStart(2, '0');
-      const dd = String(parseInt(m[3], 10)).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
-    }
-
-    // Disable/enable helper to avoid double submits (which cause duplicate emails)
-    function withDisabled(btn, fn) {
-      if (!btn) return fn();
-      if (btn.dataset.busy === '1') return; // debounce
-      btn.dataset.busy = '1';
-      btn.disabled = true;
-      return Promise.resolve()
-        .then(fn)
-        .finally(() => { btn.dataset.busy = '0'; btn.disabled = false; });
-    }
-
-    // Login submit (simple password sign-in; if your pool requires MFA/OTP, handle it in auth-bridge.js)
-    fLogin.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const submitBtn = fLogin.querySelector('button[type="submit"]');
-      withDisabled(submitBtn, async () => {
-        const fd = new FormData(fLogin);
-        const email = String(fd.get('email') || '').trim();
-        const password = String(fd.get('password') || '');
-        try {
-          await signIn({ username: email, password });
-          AuthState.email = ''; // done, clear any leftover
-          dlg.close();
-        } catch (err) {
-          alert(err?.message || 'Login failed');
-        }
-      });
-    });
-
-    // Sign-up submit
-    fSignup.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const submitBtn = fSignup.querySelector('button[type="submit"]');
-      withDisabled(submitBtn, async () => {
-        const fd = new FormData(fSignup);
-        const role     = String(fd.get('role') || 'Wrestler').trim();
-        const email    = String(fd.get('email') || '').trim();
-        const password = String(fd.get('password') || '');
-
-        const isW = role === 'Wrestler';
-
-        const given_name =   isW ? String(fd.get('given_name') || '').trim() : undefined;
-        const family_name =  isW ? String(fd.get('family_name') || '').trim() : undefined;
-        const stageName =    isW ? String(fd.get('stageName') || '').trim()   : undefined;
-        const dobNorm =      isW ? normalizeDOB(fd.get('dob'))                : undefined;
-        const city =         isW ? String(fd.get('city') || '').trim()        : undefined;
-        const region =       isW ? String(fd.get('region') || '').trim()      : undefined;
-        const country =      isW ? String(fd.get('country') || '').trim()     : undefined;
-
-        if (isW) {
-          const missing = [];
-          if (!given_name) missing.push('First name');
-          if (!family_name) missing.push('Last name');
-          if (!stageName) missing.push('Stage name');
-          if (!dobNorm) missing.push('DOB (YYYY-MM-DD)');
-          if (!city) missing.push('City');
-          if (!region) missing.push('State/Region');
-          if (!country) missing.push('Country');
-          if (missing.length) { alert(`Please complete: ${missing.join(', ')}`); return; }
-        }
-
-        const userAttributes = {
-          email,
-          'custom:role': role,
-          ...(isW && {
-            given_name,
-            family_name,
-            'custom:stageName': stageName,
-            'custom:dob': dobNorm,
-            'custom:city': city,
-            'custom:region': region,
-            'custom:country': country,
-          }),
-          ...(!isW && {
-            'custom:orgName': String(fd.get('orgName') || '').trim() || undefined,
-            'custom:address': String(fd.get('address') || '').trim() || undefined,
-          }),
-        };
-        Object.keys(userAttributes).forEach(k => userAttributes[k] == null && delete userAttributes[k]);
-
-        try {
-          await signUp({ username: email, password, options: { userAttributes } });
-          AuthState.email = email;       // ✅ persist for confirm
-          showConfirm();
-        } catch (err) {
-          if (String(err?.name) === 'UsernameExistsException') {
-            // Already created (likely UNCONFIRMED). Move to Confirm, but do NOT auto-resend to avoid multiple emails.
-            AuthState.email = email;
-            showConfirm();
-            alert('Account already exists. Enter the code we emailed you.');
-            return;
-          }
-          alert(err?.message || 'Sign up failed');
-        }
-      });
-    });
-
-    // Confirm submit
-    fConfirm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const submitBtn = fConfirm.querySelector('button[type="submit"]');
-      withDisabled(submitBtn, async () => {
-        const fd = new FormData(fConfirm);
-        const code = String(fd.get('code') || '').trim();
-        const email = AuthState.email;
-        if (!email) {
-          alert('Missing email to confirm. Please sign up or log in again.');
-          showSignup();
-          return;
-        }
-        try {
-          await confirmSignUp({ username: email, confirmationCode: code });
-          AuthState.email = ''; // done
-          // Optionally auto sign-in: pull password from the sign-up form if still on page
-          try {
-            const pwd = fSignup.querySelector('input[name="password"]')?.value || '';
-            if (pwd) await signIn({ username: email, password: pwd });
-          } catch {}
-          dlg.close();
-        } catch (err) {
-          alert(err?.message || 'Confirmation failed');
-        }
-      });
-    });
-
-    // Resend code — manual only (no automatic resends to avoid duplicates)
-    document.getElementById('resend-code')?.addEventListener('click', () => {
-      const btn = document.getElementById('resend-code');
-      withDisabled(btn, async () => {
-        const email = AuthState.email;
-        if (!email) { alert('Enter your email on the sign-up tab first.'); showSignup(); return; }
-        try {
-          await resendSignUpCode({ username: email });
-          alert('Confirmation code resent.');
-        } catch (err) {
-          alert(err?.message || 'Could not resend code');
-        }
-      });
-    });
-
-    // Close
-    document.getElementById('auth-close')?.addEventListener('click', () => dlg.close());
-
-    // External open hook (your site dispatches this)
-    window.addEventListener('auth:open', (e) => {
-      try {
-        const intent = (e?.detail?.intent || '').toString().toLowerCase();
-        dlg.showModal();
-        if (intent === 'promoter' || intent === 'wrestler') showSignup(intent);
-        else showLogin();
-      } catch {
-        try { dlg.showModal(); } catch {}
+    // Client-side basic check for Wrestler (PreSignUp Lambda enforces server-side too)
+    if (isW) {
+      const missing = [];
+      if (!attrs.given_name) missing.push('First name');
+      if (!attrs.family_name) missing.push('Last name');
+      if (!attrs['custom:stageName']) missing.push('Stage name');
+      if (!attrs['custom:dob']) missing.push('DOB');
+      if (!attrs['custom:city']) missing.push('City');
+      if (!attrs['custom:region']) missing.push('State/Region');
+      if (!attrs['custom:country']) missing.push('Country');
+      if (missing.length) {
+        toast(`Please complete: ${missing.join(', ')}`, 'error');
+        return;
       }
-    });
+      // Light YYYY-MM-DD check
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(attrs['custom:dob'])) {
+        toast('DOB must be YYYY-MM-DD', 'error');
+        return;
+      }
+    }
 
-    // Also wire the nav "Log In" button if present (your markup uses #login-btn)
-    document.getElementById('login-btn')?.addEventListener('click', (e) => {
-      e.preventDefault();
+    try {
+      await signUp({ username: email, password, options: { userAttributes: attrs } });
+      // Move to sign-up confirmation
+      showConfirm({ mode: 'signup' });
+      toast('We emailed you a confirmation code');
+    } catch (err) {
+      // Common: UsernameExistsException if you double-click or re-submit
+      const msg = err?.name === 'UsernameExistsException'
+        ? 'Account already exists. If not confirmed yet, click “Resend code”.'
+        : (err?.message || 'Sign up failed');
+      toast(msg, 'error');
+      // If the user already exists but unconfirmed, allow them to go to confirm screen
+      if (err?.name === 'UsernameExistsException') {
+        showConfirm({ mode: 'signup' });
+      }
+      console.error('[auth] signUp error', err);
+    }
+  }));
+
+  // ===== Confirm (sign-up OR MFA/OTP) =====
+  fConfirm.addEventListener('submit', withSubmitLock(fConfirm, async () => {
+    const code = String(new FormData(fConfirm).get('code') || '').trim();
+    if (!code) return;
+
+    // MFA path
+    if (pendingMFA) {
+      try {
+        await confirmSignIn({ challengeResponse: code });
+        pendingMFA = false;
+        fConfirm.dataset.mode = '';
+        toast('Verification accepted — you are in!');
+        dlg.close();
+      } catch (err) {
+        toast(err?.message || 'MFA confirmation failed', 'error');
+        console.error('[auth] confirmSignIn error', err);
+      }
+      return;
+    }
+
+    // Sign-up confirmation path
+    if (!signupEmail) {
+      toast('Missing email context. Please sign up again.', 'error');
+      showSignup();
+      return;
+    }
+    try {
+      await confirmSignUp({ username: signupEmail, confirmationCode: code });
+      toast('Email confirmed! Signing you in...');
+      // Auto sign in (best effort)
+      try { if (signupPwd) await signIn({ username: signupEmail, password: signupPwd }); } catch {}
+      dlg.close();
+    } catch (err) {
+      toast(err?.message || 'Confirmation failed', 'error');
+      console.error('[auth] confirmSignUp error', err);
+    }
+  }));
+
+  // Resend sign-up code (only relevant for sign-up confirmation mode)
+  btnResend?.addEventListener('click', async () => {
+    if (pendingMFA) {
+      toast('This is an MFA code step; resend is not available from client.', 'error');
+      return;
+    }
+    if (!signupEmail) {
+      toast('Enter your email on the sign-up tab first.', 'error');
+      showSignup();
+      return;
+    }
+    try {
+      await resendSignUpCode({ username: signupEmail });
+      toast('Confirmation code resent.');
+    } catch (err) {
+      toast(err?.message || 'Could not resend code', 'error');
+      console.error('[auth] resendSignUpCode error', err);
+    }
+  });
+
+  // ===== Sign In (handles all Cognito v6 nextStep cases for email OTP) =====
+  fLogin.addEventListener('submit', withSubmitLock(fLogin, async () => {
+    const fd = new FormData(fLogin);
+    const email = String(fd.get('email') || '').trim();
+    const password = String(fd.get('password') || '');
+
+    try {
+      const { nextStep } = await signIn({
+        username: email,
+        password,
+        options: {
+          authFlowType: 'USER_SRP_AUTH',
+          preferredChallenge: 'EMAIL_OTP',
+        },
+      });
+
+      switch (nextStep.signInStep) {
+        case 'DONE': {
+          toast('Logged in!');
+          dlg.close();
+          break;
+        }
+        case 'CONFIRM_SIGN_UP': {
+          // Not confirmed yet
+          signupEmail = email;         // so confirmSignUp has a username
+          signupPwd   = password;      // optional auto-login after confirm
+          pendingMFA  = false;
+          showConfirm({ mode: 'signup' });
+          toast('Please enter the verification code we emailed you');
+          break;
+        }
+        case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
+        case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
+        case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE': {
+          pendingMFA = true;
+          showConfirm({ mode: '' });
+          toast('Enter the verification code');
+          break;
+        }
+        case 'CONTINUE_SIGN_IN_WITH_MFA_SELECTION': {
+          // Prefer EMAIL if allowed
+          const choice = nextStep.allowedMFATypes?.includes('EMAIL')
+            ? 'EMAIL'
+            : nextStep.allowedMFATypes?.[0];
+          await confirmSignIn({ challengeResponse: choice });
+          pendingMFA = true;
+          showConfirm({ mode: '' });
+          toast('Enter the verification code');
+          break;
+        }
+        case 'CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION': {
+          // Select PASSWORD_SRP as first factor to then get EMAIL_OTP challenge
+          await confirmSignIn({ challengeResponse: 'PASSWORD_SRP' });
+          pendingMFA = true;
+          showConfirm({ mode: '' });
+          toast('Enter the verification code');
+          break;
+        }
+        case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED': {
+          toast('New password required — UI not implemented yet.', 'error');
+          break;
+        }
+        default: {
+          console.warn('[auth] Unhandled nextStep', nextStep);
+          toast('Additional step required; not implemented.', 'error');
+        }
+      }
+    } catch (err) {
+      // Limits often trip when multiple challenge requests get fired by buggy UIs
+      const msg = (err?.name === 'LimitExceededException')
+        ? 'Too many attempts. Please wait a bit and try again.'
+        : (err?.message || 'Login failed');
+      toast(msg, 'error');
+      console.error('[auth] signIn error', err);
+    }
+  }));
+
+  // ===== Housekeeping / openers =====
+  btnClose?.addEventListener('click', () => dlg.close());
+
+  // External hook
+  window.addEventListener('auth:open', (e) => {
+    try {
+      const intent = (e?.detail?.intent || '').toString().toLowerCase();
       dlg.showModal();
-      showLogin();
-    });
-  } // end singleton guard
+      if (intent === 'promoter' || intent === 'wrestler') showSignup(intent);
+      else showLogin();
+    } catch {
+      try { dlg.showModal(); } catch {}
+    }
+  });
+
+  // Wire main “Log In” button if present
+  document.getElementById('login-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    dlg.showModal();
+    showLogin();
+  });
+
+  // Optional: small helper to flip UI based on group claims after login
+  async function updateRoleGatedUI(){
+    try {
+      const session = await fetchAuthSession();
+      const idt = session?.tokens?.idToken?.toString();
+      const groups = idt ? JSON.parse(atob(idt.split('.')[1]))['cognito:groups'] || [] : [];
+      const isSignedIn = !!idt;
+      document.querySelectorAll('[data-auth="in"]').forEach(el => el.style.display = isSignedIn ? '' : 'none');
+      document.querySelectorAll('[data-auth="out"]').forEach(el => el.style.display = isSignedIn ? 'none' : '');
+      const isPromoter = groups.includes('Promoters');
+      document.querySelectorAll('[data-requires="promoter"]').forEach(el => el.style.display = isPromoter ? '' : 'none');
+    } catch {}
+  }
+  // Optionally call updateRoleGatedUI() after successful login/confirm
 </script>
