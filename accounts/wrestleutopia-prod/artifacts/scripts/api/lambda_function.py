@@ -45,8 +45,7 @@ MAX_GIMMICKS = 10
 SER = TypeSerializer()
 DES = TypeDeserializer()
 
-TABLE_WRESTLERS_DESC = ddb.meta.client.describe_table(TableName=TABLE_WRESTLERS)
-WRES_PK = [k["AttributeName"] for k in TABLE_WRESTLERS_DESC["Table"]["KeySchema"]]
+WRES_PK = None
 
 def _log(*args):
     # Simple log helper (stringifies safely)
@@ -65,11 +64,69 @@ _log("REGION", AWS_REGION, "TABLES", {
 # Small helpers
 # ------------------------------------------------------------------------------
 
+def _get_wrestler_pk():
+    global WRES_PK
+    if WRES_PK is not None:
+        return WRES_PK
+    try:
+        desc = ddb.meta.client.describe_table(TableName=TABLE_WRESTLERS)
+        WRES_PK = [k["AttributeName"] for k in desc["Table"]["KeySchema"]]
+    except Exception as e:
+        # If we can’t describe, don’t break the function. Fall back to 1-key.
+        WRES_PK = ["userId"]
+        _log("WARN describe_table failed; defaulting wrestler PK", str(e))
+    return WRES_PK
+
 def _key_map_for_user(user_id: str) -> dict:
+    pk = _get_wrestler_pk()
     km = {"userId": {"S": user_id}}
-    if len(WRES_PK) == 2 and "role" in WRES_PK:
+    if len(pk) == 2 and "role" in pk:
         km["role"] = {"S": "Wrestler"}
     return km
+
+def _batch_get_wrestlers(ids, proj, ean):
+    client = ddb.meta.client
+    items = []
+
+    # try 2-key first
+    req2 = {
+        TABLE_WRESTLERS: {
+            "Keys": [{"userId": {"S": uid}, "role": {"S": "Wrestler"}} for uid in ids],
+            "ProjectionExpression": proj,
+            "ExpressionAttributeNames": ean,
+            "ConsistentRead": False,
+        }
+    }
+    try:
+        resp = client.batch_get_item(RequestItems=req2)
+        items += resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
+        tries = 0
+        while resp.get("UnprocessedKeys") and tries < 3:
+            resp = client.batch_get_item(RequestItems=resp["UnprocessedKeys"])
+            items += resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
+            tries += 1
+        if items:
+            return items
+    except Exception as e:
+        _log("batch_get 2-key failed, trying 1-key", str(e))
+
+    # fallback 1-key
+    req1 = {
+        TABLE_WRESTLERS: {
+            "Keys": [{"userId": {"S": uid}} for uid in ids],
+            "ProjectionExpression": proj,
+            "ExpressionAttributeNames": ean,
+            "ConsistentRead": False,
+        }
+    }
+    resp = client.batch_get_item(RequestItems=req1)
+    items += resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
+    tries = 0
+    while resp.get("UnprocessedKeys") and tries < 3:
+        resp = client.batch_get_item(RequestItems=resp["UnprocessedKeys"])
+        items += resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
+        tries += 1
+    return items
 
 def _av_map(pyobj: dict) -> dict:
     # Convert a Python dict to DynamoDB AttributeValue map, skipping None
@@ -220,7 +277,7 @@ def _post_tryout(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str,
         "orgName": (data.get("orgName") or data.get("org") or "").strip(),
         "city": (data.get("city") or "").strip(),
         "date": date_in,
-        "slots": int(data.get("slots") or 0),
+        "slots": slots,
         "requirements": (data.get("requirements") or "").strip(),
         "contact": (data.get("contact") or "").strip(),
         "status": status_in,
@@ -687,47 +744,23 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
         # ---- Enrich with wrestler profile snippets (single BatchGet) ----
         if apps:
             ids = sorted({a.get("applicantId") for a in apps if a.get("applicantId")})
-            profiles: dict[str, dict] = {}
-
+            profiles = {}
             if ids:
                 proj = "userId, handle, stageName, #n, city, #r, photoKey"
                 ean  = {"#r": "region", "#n": "name"}
                 try:
-                    req = {
-                        TABLE_WRESTLERS: {
-                            "Keys": [_key_map_for_user(uid) for uid in ids],
-                            "ProjectionExpression": proj,
-                            "ExpressionAttributeNames": ean,
-                            "ConsistentRead": False,
-                        }
-                    }
-                    client = ddb.meta.client
-                    resp   = client.batch_get_item(RequestItems=req)
-                    items  = resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
-
-                    # Retry unprocessed keys a few times
-                    retries = 0
-                    while resp.get("UnprocessedKeys") and retries < 3:
-                        resp = client.batch_get_item(RequestItems=resp["UnprocessedKeys"])
-                        items += resp.get("Responses", {}).get(TABLE_WRESTLERS, [])
-                        retries += 1
-
-                    # Decode AttributeValue maps properly
-                    for av in items:
+                    av_items = _batch_get_wrestlers(ids, proj, ean)
+                    for av in av_items:
                         p = {k: DES.deserialize(v) for k, v in av.items()}
-                        # Normalize stageName fallback for older rows
                         p["stageName"] = p.get("stageName") or p.get("name") or None
                         uid = p.get("userId")
                         if uid:
                             profiles[uid] = p
-
                 except Exception as e:
                     _log("batch_get_item profiles failed", e)
 
-            # Attach (even if profiles is empty, we keep returning apps)
             for a in apps:
-                uid = a.get("applicantId")
-                a["applicantProfile"] = profiles.get(uid, {})
+                a["applicantProfile"] = profiles.get(a.get("applicantId"), {})
 
         return _resp(200, apps)
 
