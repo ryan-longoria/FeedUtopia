@@ -2,14 +2,18 @@
 ## API Gateway
 ################################################################################
 
+#############################
+# HTTP API + CORS
+#############################
+
 resource "aws_apigatewayv2_api" "http" {
   name          = "${var.project_name}-api"
   protocol_type = "HTTP"
 
   cors_configuration {
     allow_origins = var.allowed_origins
-    allow_methods = ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
-    allow_headers     = [
+    allow_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    allow_headers = [
       "Authorization",
       "Content-Type",
       "X-Requested-With",
@@ -19,11 +23,15 @@ resource "aws_apigatewayv2_api" "http" {
       "Accept",
       "Origin"
     ]
-    expose_headers    = ["content-type","etag"]
+    expose_headers    = ["content-type", "etag"]
     max_age           = 3000
     allow_credentials = true
   }
 }
+
+#############################
+# Authorizer (Cognito JWT)
+#############################
 
 resource "aws_apigatewayv2_authorizer" "jwt" {
   api_id           = aws_apigatewayv2_api.http.id
@@ -36,18 +44,15 @@ resource "aws_apigatewayv2_authorizer" "jwt" {
   }
 }
 
+#############################
+# Integrations (Lambda targets)
+#############################
+
 resource "aws_apigatewayv2_integration" "api_lambda" {
   api_id                 = aws_apigatewayv2_api.http.id
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.api.arn
   payload_format_version = "2.0"
-}
-
-resource "aws_apigatewayv2_route" "default" {
-  api_id    = aws_apigatewayv2_api.http.id
-  route_key = "$default"
-  target    = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = "NONE"
 }
 
 resource "aws_apigatewayv2_integration" "presign_lambda" {
@@ -57,10 +62,23 @@ resource "aws_apigatewayv2_integration" "presign_lambda" {
   payload_format_version = "2.0"
 }
 
-resource "aws_apigatewayv2_stage" "prod" {
-  api_id      = aws_apigatewayv2_api.http.id
-  name        = "$default"
-  auto_deploy = true
+resource "aws_apigatewayv2_integration" "upload_url_integration" {
+  api_id                 = aws_apigatewayv2_api.http.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.upload_url.invoke_arn
+  payload_format_version = "2.0"
+  timeout_milliseconds   = 15000
+}
+
+#############################
+# Routes
+#############################
+
+resource "aws_apigatewayv2_route" "default" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "$default"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
 }
 
 resource "aws_apigatewayv2_route" "get_tryouts" {
@@ -219,14 +237,6 @@ resource "aws_apigatewayv2_route" "get_promoter_public" {
   authorization_type = "NONE"
 }
 
-resource "aws_apigatewayv2_integration" "upload_url_integration" {
-  api_id                 = aws_apigatewayv2_api.http.id
-  integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.upload_url.invoke_arn
-  payload_format_version = "2.0"
-  timeout_milliseconds   = 15000
-}
-
 resource "aws_apigatewayv2_route" "upload_url_route" {
   api_id             = aws_apigatewayv2_api.http.id
   route_key          = "POST /media/upload-url"
@@ -235,10 +245,12 @@ resource "aws_apigatewayv2_route" "upload_url_route" {
   authorization_type = "JWT"
 }
 
-resource "aws_lambda_permission" "apigw_invoke_upload_url" {
-  statement_id  = "AllowAPIGwInvokeUploadUrl"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.upload_url.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
+#############################
+# Stage
+#############################
+
+resource "aws_apigatewayv2_stage" "prod" {
+  api_id      = aws_apigatewayv2_api.http.id
+  name        = "$default"
+  auto_deploy = true
 }

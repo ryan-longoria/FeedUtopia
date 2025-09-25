@@ -8,91 +8,91 @@ resource "aws_cognito_user_pool" "this" {
   auto_verified_attributes = ["email"]
 
   schema {
-    attribute_data_type = "String"
-    name                = "role"
+    attribute_data_type      = "String"
+    name                     = "role"
     developer_only_attribute = false
-    mutable            = true
-    required           = false
+    mutable                  = true
+    required                 = false
     string_attribute_constraints {
       min_length = 3
       max_length = 32
     }
   }
 
-  schema { 
-    name = "stageName" 
-    attribute_data_type = "String" 
-    mutable = true 
-    required = false 
-    string_attribute_constraints { 
-      min_length = 1 
-      max_length = 64 
-    } 
+  schema {
+    name                = "stageName"
+    attribute_data_type = "String"
+    mutable             = true
+    required            = false
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 64
+    }
   }
-  schema { 
-    name = "dob"       
-    attribute_data_type = "String" 
-    mutable = true 
-    required = false 
-    string_attribute_constraints { 
-      min_length = 10 
-      max_length = 10 
-    } 
-  }
-
-  schema { 
-    name = "city"      
-    attribute_data_type = "String" 
-    mutable = true 
-    required = false 
-    string_attribute_constraints { 
-      min_length = 1 
-      max_length = 64 
-    } 
+  schema {
+    name                = "dob"
+    attribute_data_type = "String"
+    mutable             = true
+    required            = false
+    string_attribute_constraints {
+      min_length = 10
+      max_length = 10
+    }
   }
 
-  schema { 
-    name = "region"    
-    attribute_data_type = "String" 
-    mutable = true 
-    required = false 
-    string_attribute_constraints { 
-      min_length = 1 
-      max_length = 64 
-    } 
+  schema {
+    name                = "city"
+    attribute_data_type = "String"
+    mutable             = true
+    required            = false
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 64
+    }
   }
 
-  schema { 
-    name = "country"   
-    attribute_data_type = "String" 
-    mutable = true 
-    required = false 
-    string_attribute_constraints { 
-      min_length = 2 
-      max_length = 64 
-    } 
+  schema {
+    name                = "region"
+    attribute_data_type = "String"
+    mutable             = true
+    required            = false
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 64
+    }
   }
 
-  schema { 
-    name = "orgName" 
-    attribute_data_type = "String" 
-    mutable = true 
-    required = false 
-    string_attribute_constraints { 
-      min_length = 1 
-      max_length = 96 
-    } 
+  schema {
+    name                = "country"
+    attribute_data_type = "String"
+    mutable             = true
+    required            = false
+    string_attribute_constraints {
+      min_length = 2
+      max_length = 64
+    }
   }
 
-  schema { 
-    name = "address" 
-    attribute_data_type = "String" 
-    mutable = true 
-    required = false 
-    string_attribute_constraints { 
-      min_length = 3 
-      max_length = 160 
-    } 
+  schema {
+    name                = "orgName"
+    attribute_data_type = "String"
+    mutable             = true
+    required            = false
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 96
+    }
+  }
+
+  schema {
+    name                = "address"
+    attribute_data_type = "String"
+    mutable             = true
+    required            = false
+    string_attribute_constraints {
+      min_length = 3
+      max_length = 160
+    }
   }
 
   account_recovery_setting {
@@ -115,14 +115,14 @@ resource "aws_cognito_user_pool" "this" {
   }
 
   lambda_config {
-    pre_sign_up        = aws_lambda_function.pre_signup.arn
+    pre_sign_up       = aws_lambda_function.pre_signup.arn
     post_confirmation = aws_lambda_function.add_to_group.arn
   }
 
   email_configuration {
-    email_sending_account   = "DEVELOPER"
-    from_email_address      = "noreply@wrestleutopia.com"
-    source_arn              = "arn:aws:ses:us-east-2:390402544450:identity/noreply@wrestleutopia.com"
+    email_sending_account = "DEVELOPER"
+    from_email_address    = "noreply@wrestleutopia.com"
+    source_arn            = "arn:aws:ses:us-east-2:390402544450:identity/noreply@wrestleutopia.com"
   }
 
   lifecycle {
@@ -164,21 +164,21 @@ resource "aws_cognito_user_pool_client" "web" {
   access_token_validity         = 60
   id_token_validity             = 60
   token_validity_units {
-    access_token = "minutes"
-    id_token     = "minutes"
+    access_token  = "minutes"
+    id_token      = "minutes"
     refresh_token = "days"
   }
 
   read_attributes = [
-    "email","email_verified","given_name","family_name","custom:role",
-    "custom:stageName","custom:dob","custom:city","custom:region","custom:country",
-    "custom:orgName","custom:address"
+    "email", "email_verified", "given_name", "family_name", "custom:role",
+    "custom:stageName", "custom:dob", "custom:city", "custom:region", "custom:country",
+    "custom:orgName", "custom:address"
   ]
 
   write_attributes = [
-    "email","given_name","family_name","custom:role",
-    "custom:stageName","custom:dob","custom:city","custom:region","custom:country",
-    "custom:orgName","custom:address"
+    "email", "given_name", "family_name", "custom:role",
+    "custom:stageName", "custom:dob", "custom:city", "custom:region", "custom:country",
+    "custom:orgName", "custom:address"
   ]
 
   supported_identity_providers = ["COGNITO"]
@@ -191,7 +191,7 @@ resource "aws_cognito_user_pool_client" "web" {
 }
 
 resource "aws_cognito_user_pool_domain" "this" {
-  count       = var.enable_hosted_ui ? 1 : 0
-  domain      = var.cognito_domain_prefix
+  count        = var.enable_hosted_ui ? 1 : 0
+  domain       = var.cognito_domain_prefix
   user_pool_id = aws_cognito_user_pool.this.id
 }

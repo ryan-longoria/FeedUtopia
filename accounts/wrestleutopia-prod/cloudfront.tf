@@ -11,8 +11,8 @@ resource "aws_cloudfront_distribution" "media" {
   comment = "WrestleUtopia Media CDN"
 
   origin {
-    domain_name              = local.s3_origin_domain
-    origin_id                = "media-s3-origin"
+    domain_name = local.s3_origin_domain
+    origin_id   = "media-s3-origin"
 
     s3_origin_config {
       origin_access_identity = ""

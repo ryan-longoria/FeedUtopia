@@ -108,8 +108,8 @@ resource "aws_iam_role" "lambda_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
     }]
   })
@@ -121,8 +121,8 @@ resource "aws_iam_policy" "lambda_logs" {
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
-      Effect = "Allow",
-      Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      Effect   = "Allow",
+      Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
       Resource = "*"
     }]
   })
@@ -169,8 +169,8 @@ resource "aws_iam_role" "cognito_cleanup_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
-      Action = "sts:AssumeRole"
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
       Principal = { Service = "lambda.amazonaws.com" }
     }]
   })
@@ -183,21 +183,21 @@ resource "aws_iam_policy" "cognito_cleanup_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        Effect: "Allow",
-        Action: [
+        Effect : "Allow",
+        Action : [
           "cognito-idp:ListUsers",
           "cognito-idp:AdminDeleteUser"
         ],
-        Resource: aws_cognito_user_pool.this.arn
+        Resource : aws_cognito_user_pool.this.arn
       },
       {
-        Effect: "Allow",
-        Action: [
+        Effect : "Allow",
+        Action : [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ],
-        Resource: "*"
+        Resource : "*"
       }
     ]
   })
@@ -227,7 +227,7 @@ resource "aws_lambda_permission" "s3_invoke_imgproc" {
 resource "aws_iam_role" "pre_signup_role" {
   name = "${var.project_name}-pre-signup-role"
   assume_role_policy = jsonencode({
-    Version = "2012-10-17",
+    Version   = "2012-10-17",
     Statement = [{ Effect = "Allow", Action = "sts:AssumeRole", Principal = { Service = "lambda.amazonaws.com" } }]
   })
 }
@@ -271,6 +271,14 @@ resource "aws_iam_role_policy_attachment" "postconfirm_dynamo_attach" {
   policy_arn = aws_iam_policy.postconfirm_dynamo.arn
 }
 
+resource "aws_lambda_permission" "apigw_invoke_upload_url" {
+  statement_id  = "AllowAPIGwInvokeUploadUrl"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.upload_url.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
+}
+
 
 #############################
 ## Lambda IAM — API (CRUD)
@@ -300,7 +308,7 @@ resource "aws_iam_policy" "api_dynamo_policy" {
         Action = [
           "dynamodb:PutItem",
           "dynamodb:GetItem",
-          "dynamodb:BatchGetItem",  # ✅ add this
+          "dynamodb:BatchGetItem", # ✅ add this
           "dynamodb:UpdateItem",
           "dynamodb:DeleteItem",
           "dynamodb:Query",
@@ -424,15 +432,15 @@ resource "aws_iam_policy" "presign_s3_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid    = "AllowPutOnUserPrefix",
-        Effect = "Allow",
-        Action = ["s3:PutObject","s3:GetObject"],
+        Sid      = "AllowPutOnUserPrefix",
+        Effect   = "Allow",
+        Action   = ["s3:PutObject", "s3:GetObject"],
         Resource = "arn:aws:s3:::${var.s3_bucket_name}/user/*"
       },
       {
-        Sid    = "AllowPutOnRawPrefix",
-        Effect = "Allow",
-        Action = ["s3:PutObject","s3:GetObject"],
+        Sid      = "AllowPutOnRawPrefix",
+        Effect   = "Allow",
+        Action   = ["s3:PutObject", "s3:GetObject"],
         Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/*"
       }
     ]
@@ -467,15 +475,15 @@ resource "aws_iam_policy" "image_processor_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid    = "S3ReadRaw",
-        Effect = "Allow",
-        Action = ["s3:GetObject"],
+        Sid      = "S3ReadRaw",
+        Effect   = "Allow",
+        Action   = ["s3:GetObject"],
         Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/*"
       },
       {
-        Sid    = "S3WriteImages",
-        Effect = "Allow",
-        Action = ["s3:PutObject"],
+        Sid      = "S3WriteImages",
+        Effect   = "Allow",
+        Action   = ["s3:PutObject"],
         Resource = "arn:aws:s3:::${var.s3_bucket_name}/images/*"
       },
       {

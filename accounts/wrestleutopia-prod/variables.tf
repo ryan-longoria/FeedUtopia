@@ -62,22 +62,22 @@ variable "common_tags" {
   }
 }
 
-variable "cognito_domain_prefix" { 
-  type = string 
-  default = "wrestleutopia-auth" 
+variable "cognito_domain_prefix" {
+  type    = string
+  default = "wrestleutopia-auth"
 }
 
-variable "callback_urls" { 
-  type = list(string) 
+variable "callback_urls" {
+  type = list(string)
 }
 
-variable "logout_urls" { 
-  type = list(string) 
+variable "logout_urls" {
+  type = list(string)
 }
 
-variable "enable_hosted_ui" { 
-  type = bool 
-  default = true 
+variable "enable_hosted_ui" {
+  type    = bool
+  default = true
 }
 
 variable "allowed_origins" {
