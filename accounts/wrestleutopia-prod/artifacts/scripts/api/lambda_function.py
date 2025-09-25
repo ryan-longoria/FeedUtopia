@@ -10,8 +10,8 @@ from decimal import Decimal
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
-from boto3.dynamodb.types import TypeSerializer
 from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
+import json as _jsonmod
 
 # ------------------------------------------------------------------------------
 # Cold-start init
@@ -77,13 +77,6 @@ def _get_wrestler_pk():
         _log("WARN describe_table failed; defaulting wrestler PK", str(e))
     return WRES_PK
 
-def _key_map_for_user(user_id: str) -> dict:
-    pk = _get_wrestler_pk()
-    km = {"userId": {"S": user_id}}
-    if len(pk) == 2 and "role" in pk:
-        km["role"] = {"S": "Wrestler"}
-    return km
-
 def _batch_get_wrestlers(ids, proj, ean):
     client = ddb.meta.client
     items = []
@@ -128,10 +121,6 @@ def _batch_get_wrestlers(ids, proj, ean):
         tries += 1
     return items
 
-def _av_map(pyobj: dict) -> dict:
-    # Convert a Python dict to DynamoDB AttributeValue map, skipping None
-    return {k: SER.serialize(v) for k, v in pyobj.items() if v is not None}
-
 def _slugify_handle(stage_name: str) -> str:
     s = (stage_name or "").strip().lower()
     s = HANDLE_RE.sub("-", s).strip("-")
@@ -167,11 +156,24 @@ def _claims(event):
     groups = set()
 
     # groups (if present)
-    cg = claims.get("cognito:groups") or claims.get("cognito:groups".lower())
+    cg = claims.get("cognito:groups")
     if isinstance(cg, list):
         groups |= {str(x) for x in cg}
     elif isinstance(cg, str):
-        groups |= {p for p in re.split(r"[,\s]+", cg) if p}
+        s = cg.strip()
+        parsed = None
+        if s.startswith("["):
+            try:
+                parsed = _jsonmod.loads(s)
+            except Exception:
+                parsed = None
+        if isinstance(parsed, list):
+            groups |= {str(x) for x in parsed}
+        else:
+            # split on commas/spaces
+            for part in re.split(r"[,\s]+", s):
+                if part:
+                    groups.add(part)
 
     # fallback from scope → pseudo-group
     scope_str = claims.get("scope") or ""
@@ -201,11 +203,11 @@ def _resp(status: int, body: Any = None) -> Dict[str, Any]:
         "body": json.dumps(_jsonify(body if body is not None else {})),
     }
 
-def _is_promoter(groups: Set[str]) -> bool:
-    return "Promoters" in groups
+def _is_wrestler(groups: set[str]) -> bool:
+    return any((g or "").strip().lower() == "wrestlers" for g in groups)
 
-def _is_wrestler(groups: Set[str]) -> bool:
-    return "Wrestlers" in groups
+def _is_promoter(groups: set[str]) -> bool:
+    return any((g or "").strip().lower() == "promoters" for g in groups)
 
 def _uuid() -> str:
     return str(uuid.uuid4())
@@ -846,9 +848,13 @@ def lambda_handler(event, _ctx):
         if method == "GET" and UUID_PATH.fullmatch(path):
             tryout_id = path.rsplit("/", 1)[1]
             return _get_tryout(tryout_id)
-
-        # Public: GET /profiles/wrestlers/{handle}  (but not /me)
+        
         if method == "GET" and path.startswith("/profiles/wrestlers/") and path != "/profiles/wrestlers/me":
+            sub, groups = _claims(event)
+            if not sub:
+                return _resp(401, {"message": "Unauthorized"})
+            if not _is_promoter(groups):
+                return _resp(403, {"message": "Promoter role required"})
             handle = path.split("/")[-1]
             return _get_profile_by_handle(handle)
         
