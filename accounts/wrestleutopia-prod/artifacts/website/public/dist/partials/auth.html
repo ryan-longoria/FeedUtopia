@@ -92,353 +92,339 @@
 </dialog>
 
 <script type="module">
+  // Use your bridge so config is centralized
   import {
+    signIn,
+    confirmSignIn,
     signUp,
     confirmSignUp,
     resendSignUpCode,
-    signIn,
-    confirmSignIn,
     signOut,
-    fetchAuthSession,
   } from '/js/auth-bridge.js';
 
-  // ===== Helpers =====
-  const dlg      = document.getElementById('auth-modal');
-  const tabLogin = document.getElementById('tab-login');
-  const tabSignup= document.getElementById('tab-signup');
+  // ---- one-time wiring guard (prevents double event listeners) ----
+  if (window._wuAuthWired) {
+    // already initialized (avoids duplicate handlers that spam MFA)
+    console.debug('[auth] already wired, skipping');
+  } else {
+    window._wuAuthWired = true;
 
-  const fLogin   = document.getElementById('form-login');
-  const fSignup  = document.getElementById('form-signup');
-  const fConfirm = document.getElementById('form-confirm');
+    const dlg      = document.getElementById('auth-modal');
+    const tabLogin = document.getElementById('tab-login');
+    const tabSignup= document.getElementById('tab-signup');
+    const fLogin   = document.getElementById('form-login');
+    const fSignup  = document.getElementById('form-signup');
+    const fConfirm = document.getElementById('form-confirm');
 
-  const roleSel  = document.getElementById('signup-role');
-  const wf       = document.getElementById('wrestler-fields');
-  const pf       = document.getElementById('promoter-fields');
+    const roleSel  = document.getElementById('signup-role');
+    const wf       = document.getElementById('wrestler-fields');
+    const pf       = document.getElementById('promoter-fields');
 
-  const btnClose = document.getElementById('auth-close');
-  const btnResend= document.getElementById('resend-code');
+    // keep minimal in-memory state
+    let signupEmailForConfirm = '';
+    let signupPasswordCache   = '';
+    let submitLock = false; // debounce to avoid double calls
+    const withSubmitLock = (fn) => async (...args) => {
+      if (submitLock) return;
+      try { submitLock = true; await fn(...args); }
+      finally { submitLock = false; }
+    };
 
-  // state stash
-  let signupEmail = '';     // email used in sign-up (for confirmSignUp)
-  let signupPwd   = '';     // pwd used in sign-up (for auto-login after confirm)
-  let pendingMFA  = false;  // are we currently confirming an MFA/OTP challenge?
+    // small helpers
+    const show   = (el) => el && el.classList.remove('hidden');
+    const hide   = (el) => el && el.classList.add('hidden');
+    const toast  = (msg) => { try { alert(msg); } catch {} };
 
-  // simple toast -> use alert fallback
-  function toast(msg, type='info'){
-    try {
-      const el = document.querySelector('#toast');
-      if (!el) throw new Error();
-      el.textContent = msg;
-      el.classList.toggle('error', type === 'error');
-      el.style.display = 'block';
-      setTimeout(() => el.style.display = 'none', 2600);
-    } catch {
-      alert(msg);
+    function showLogin() {
+      tabLogin?.setAttribute('aria-selected', 'true');
+      tabSignup?.setAttribute('aria-selected', 'false');
+      show(fLogin); hide(fSignup); hide(fConfirm);
     }
-  }
 
-  function showLogin() {
-    tabLogin.setAttribute('aria-selected', 'true');
-    tabSignup.setAttribute('aria-selected', 'false');
-    fLogin.classList.remove('hidden');
-    fSignup.classList.add('hidden');
-    fConfirm.classList.add('hidden');
-    pendingMFA = false;
-    fConfirm.dataset.mode = '';
-  }
+    function showSignup(intentRole) {
+      tabLogin?.setAttribute('aria-selected', 'false');
+      tabSignup?.setAttribute('aria-selected', 'true');
+      hide(fLogin); show(fSignup); hide(fConfirm);
+      if (intentRole === 'promoter') roleSel.value = 'Promoter';
+      if (intentRole === 'wrestler') roleSel.value = 'Wrestler';
+      onRoleChange();
+    }
 
-  function showSignup(intentRole) {
-    tabLogin.setAttribute('aria-selected', 'false');
-    tabSignup.setAttribute('aria-selected', 'true');
-    fLogin.classList.add('hidden');
-    fSignup.classList.remove('hidden');
-    fConfirm.classList.add('hidden');
-    if (intentRole === 'promoter') roleSel.value = 'Promoter';
-    if (intentRole === 'wrestler') roleSel.value = 'Wrestler';
+    function showConfirmFor(email, { mode } = {}) {
+      signupEmailForConfirm = email || signupEmailForConfirm || '';
+      if (!signupEmailForConfirm) {
+        toast('We need your email to confirm. Please sign up or log in again.');
+        showSignup();
+        return;
+      }
+      hide(fLogin); hide(fSignup); show(fConfirm);
+      fConfirm.dataset.mode = mode || '';
+    }
+
+    function onRoleChange() {
+      if (!roleSel || !wf || !pf) return;
+      const isW = roleSel.value === 'Wrestler';
+      wf.classList.toggle('hidden', !isW);
+      pf.classList.toggle('hidden',  isW);
+      // toggle requireds so the browser helps you (Lambda still enforces server-side)
+      wf.querySelectorAll('input').forEach(i => i.required = isW);
+      pf.querySelectorAll('input').forEach(i => i.required = !isW);
+    }
+
+    roleSel?.addEventListener('change', onRoleChange);
     onRoleChange();
-    pendingMFA = false;
-    fConfirm.dataset.mode = '';
-  }
 
-  function showConfirm({ mode } = { mode: '' }) {
-    fLogin.classList.add('hidden');
-    fSignup.classList.add('hidden');
-    fConfirm.classList.remove('hidden');
-    fConfirm.dataset.mode = mode || '';
-  }
+    // Tabs
+    tabLogin?.addEventListener('click', showLogin);
+    tabSignup?.addEventListener('click', () => showSignup());
 
-  // Wrestler vs Promoter conditional UI + requireds
-  function onRoleChange() {
-    const r = roleSel.value;
-    const isW = r === 'Wrestler';
-    wf.classList.toggle('hidden', !isW);
-    pf.classList.toggle('hidden', isW);
-    // Requireds on visible group only
-    wf.querySelectorAll('input').forEach(i => i.required = isW);
-    pf.querySelectorAll('input').forEach(i => i.required = !isW);
-  }
-  roleSel.addEventListener('change', onRoleChange);
-  onRoleChange();
-
-  // Prevent double submits helper
-  function withSubmitLock(form, fn){
-    return async (e) => {
-      e.preventDefault();
-      const btn = form.querySelector('button[type="submit"]');
-      const orig = btn?.textContent;
-      if (btn) { btn.disabled = true; btn.textContent = 'Working...'; }
-      try { await fn(); }
-      finally { if (btn) { btn.disabled = false; btn.textContent = orig; } }
-    };
-  }
-
-  // ===== Sign Up =====
-  fSignup.addEventListener('submit', withSubmitLock(fSignup, async () => {
-    const fd = new FormData(fSignup);
-    const role = String(fd.get('role') || 'Wrestler');
-
-    const email = String(fd.get('email') || '').trim();
-    const password = String(fd.get('password') || '');
-
-    // Keep for confirm step + auto-login after confirm
-    signupEmail = email;
-    signupPwd   = password;
-
-    const isW = role === 'Wrestler';
-
-    // Build attributes carefully: never send empty Promoter attrs (avoids MIN_LENGTH errors)
-    const attrs = {
-      email,
-      'custom:role': role,
-      ...(isW && {
-        given_name: String(fd.get('given_name') || '').trim(),
-        family_name: String(fd.get('family_name') || '').trim(),
-        'custom:stageName': String(fd.get('stageName') || '').trim(),
-        'custom:dob': String(fd.get('dob') || '').trim(),         // <input type="date"> yields YYYY-MM-DD
-        'custom:city': String(fd.get('city') || '').trim(),
-        'custom:region': String(fd.get('region') || '').trim(),
-        'custom:country': String(fd.get('country') || '').trim(),
-      }),
-      ...(!isW && (() => {
-        const org  = String(fd.get('orgName') || '').trim();
-        const addr = String(fd.get('address') || '').trim();
-        // Only include if non-empty; if your schema requires min length, the UI required will enforce
-        const out = {};
-        if (org)  out['custom:orgName'] = org;
-        if (addr) out['custom:address'] = addr;
-        return out;
-      })()),
-    };
-
-    // Client-side basic check for Wrestler (PreSignUp Lambda enforces server-side too)
-    if (isW) {
-      const missing = [];
-      if (!attrs.given_name) missing.push('First name');
-      if (!attrs.family_name) missing.push('Last name');
-      if (!attrs['custom:stageName']) missing.push('Stage name');
-      if (!attrs['custom:dob']) missing.push('DOB');
-      if (!attrs['custom:city']) missing.push('City');
-      if (!attrs['custom:region']) missing.push('State/Region');
-      if (!attrs['custom:country']) missing.push('Country');
-      if (missing.length) {
-        toast(`Please complete: ${missing.join(', ')}`, 'error');
-        return;
-      }
-      // Light YYYY-MM-DD check
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(attrs['custom:dob'])) {
-        toast('DOB must be YYYY-MM-DD', 'error');
-        return;
-      }
-    }
-
-    try {
-      await signUp({ username: email, password, options: { userAttributes: attrs } });
-      // Move to sign-up confirmation
-      showConfirm({ mode: 'signup' });
-      toast('We emailed you a confirmation code');
-    } catch (err) {
-      // Common: UsernameExistsException if you double-click or re-submit
-      const msg = err?.name === 'UsernameExistsException'
-        ? 'Account already exists. If not confirmed yet, click “Resend code”.'
-        : (err?.message || 'Sign up failed');
-      toast(msg, 'error');
-      // If the user already exists but unconfirmed, allow them to go to confirm screen
-      if (err?.name === 'UsernameExistsException') {
-        showConfirm({ mode: 'signup' });
-      }
-      console.error('[auth] signUp error', err);
-    }
-  }));
-
-  // ===== Confirm (sign-up OR MFA/OTP) =====
-  fConfirm.addEventListener('submit', withSubmitLock(fConfirm, async () => {
-    const code = String(new FormData(fConfirm).get('code') || '').trim();
-    if (!code) return;
-
-    // MFA path
-    if (pendingMFA) {
-      try {
-        await confirmSignIn({ challengeResponse: code });
-        pendingMFA = false;
-        fConfirm.dataset.mode = '';
-        toast('Verification accepted — you are in!');
-        dlg.close();
-      } catch (err) {
-        toast(err?.message || 'MFA confirmation failed', 'error');
-        console.error('[auth] confirmSignIn error', err);
-      }
-      return;
-    }
-
-    // Sign-up confirmation path
-    if (!signupEmail) {
-      toast('Missing email context. Please sign up again.', 'error');
-      showSignup();
-      return;
-    }
-    try {
-      await confirmSignUp({ username: signupEmail, confirmationCode: code });
-      toast('Email confirmed! Signing you in...');
-      // Auto sign in (best effort)
-      try { if (signupPwd) await signIn({ username: signupEmail, password: signupPwd }); } catch {}
+    // Close dialog
+    document.getElementById('auth-close')?.addEventListener('click', () => {
       dlg.close();
-    } catch (err) {
-      toast(err?.message || 'Confirmation failed', 'error');
-      console.error('[auth] confirmSignUp error', err);
-    }
-  }));
+      // clear ephemeral state on close
+      signupEmailForConfirm = '';
+      signupPasswordCache = '';
+      fConfirm?.reset?.();
+    });
 
-  // Resend sign-up code (only relevant for sign-up confirmation mode)
-  btnResend?.addEventListener('click', async () => {
-    if (pendingMFA) {
-      toast('This is an MFA code step; resend is not available from client.', 'error');
-      return;
-    }
-    if (!signupEmail) {
-      toast('Enter your email on the sign-up tab first.', 'error');
-      showSignup();
-      return;
-    }
-    try {
-      await resendSignUpCode({ username: signupEmail });
-      toast('Confirmation code resent.');
-    } catch (err) {
-      toast(err?.message || 'Could not resend code', 'error');
-      console.error('[auth] resendSignUpCode error', err);
-    }
-  });
-
-  // ===== Sign In (handles all Cognito v6 nextStep cases for email OTP) =====
-  fLogin.addEventListener('submit', withSubmitLock(fLogin, async () => {
-    const fd = new FormData(fLogin);
-    const email = String(fd.get('email') || '').trim();
-    const password = String(fd.get('password') || '');
-
-    try {
-      const { nextStep } = await signIn({
-        username: email,
-        password,
-        options: {
-          authFlowType: 'USER_SRP_AUTH',
-          preferredChallenge: 'EMAIL_OTP',
-        },
-      });
-
-      switch (nextStep.signInStep) {
-        case 'DONE': {
-          toast('Logged in!');
-          dlg.close();
-          break;
-        }
-        case 'CONFIRM_SIGN_UP': {
-          // Not confirmed yet
-          signupEmail = email;         // so confirmSignUp has a username
-          signupPwd   = password;      // optional auto-login after confirm
-          pendingMFA  = false;
-          showConfirm({ mode: 'signup' });
-          toast('Please enter the verification code we emailed you');
-          break;
-        }
-        case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
-        case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
-        case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE': {
-          pendingMFA = true;
-          showConfirm({ mode: '' });
-          toast('Enter the verification code');
-          break;
-        }
-        case 'CONTINUE_SIGN_IN_WITH_MFA_SELECTION': {
-          // Prefer EMAIL if allowed
-          const choice = nextStep.allowedMFATypes?.includes('EMAIL')
-            ? 'EMAIL'
-            : nextStep.allowedMFATypes?.[0];
-          await confirmSignIn({ challengeResponse: choice });
-          pendingMFA = true;
-          showConfirm({ mode: '' });
-          toast('Enter the verification code');
-          break;
-        }
-        case 'CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION': {
-          // Select PASSWORD_SRP as first factor to then get EMAIL_OTP challenge
-          await confirmSignIn({ challengeResponse: 'PASSWORD_SRP' });
-          pendingMFA = true;
-          showConfirm({ mode: '' });
-          toast('Enter the verification code');
-          break;
-        }
-        case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED': {
-          toast('New password required — UI not implemented yet.', 'error');
-          break;
-        }
-        default: {
-          console.warn('[auth] Unhandled nextStep', nextStep);
-          toast('Additional step required; not implemented.', 'error');
-        }
-      }
-    } catch (err) {
-      // Limits often trip when multiple challenge requests get fired by buggy UIs
-      const msg = (err?.name === 'LimitExceededException')
-        ? 'Too many attempts. Please wait a bit and try again.'
-        : (err?.message || 'Login failed');
-      toast(msg, 'error');
-      console.error('[auth] signIn error', err);
-    }
-  }));
-
-  // ===== Housekeeping / openers =====
-  btnClose?.addEventListener('click', () => dlg.close());
-
-  // External hook
-  window.addEventListener('auth:open', (e) => {
-    try {
-      const intent = (e?.detail?.intent || '').toString().toLowerCase();
+    // Public hook: open modal with optional intent
+    window.addEventListener('auth:open', (e) => {
       dlg.showModal();
+      const intent = (e?.detail?.intent || '').toString().toLowerCase();
       if (intent === 'promoter' || intent === 'wrestler') showSignup(intent);
       else showLogin();
-    } catch {
-      try { dlg.showModal(); } catch {}
-    }
-  });
+    });
 
-  // Wire main “Log In” button if present
-  document.getElementById('login-btn')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    dlg.showModal();
-    showLogin();
-  });
+    // Also wire your nav “Log In” button
+    document.getElementById('login-btn')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      dlg.showModal();
+      showLogin();
+    });
 
-  // Optional: small helper to flip UI based on group claims after login
-  async function updateRoleGatedUI(){
-    try {
-      const session = await fetchAuthSession();
-      const idt = session?.tokens?.idToken?.toString();
-      const groups = idt ? JSON.parse(atob(idt.split('.')[1]))['cognito:groups'] || [] : [];
-      const isSignedIn = !!idt;
-      document.querySelectorAll('[data-auth="in"]').forEach(el => el.style.display = isSignedIn ? '' : 'none');
-      document.querySelectorAll('[data-auth="out"]').forEach(el => el.style.display = isSignedIn ? 'none' : '');
-      const isPromoter = groups.includes('Promoters');
-      document.querySelectorAll('[data-requires="promoter"]').forEach(el => el.style.display = isPromoter ? '' : 'none');
-    } catch {}
+    // --------------------------
+    // Sign Up
+    // --------------------------
+    fSignup?.addEventListener('submit', withSubmitLock(async (e) => {
+      e.preventDefault();
+      const fd = new FormData(fSignup);
+      const email    = String(fd.get('email') || '').trim();
+      const password = String(fd.get('password') || '');
+      const role     = String(fd.get('role') || 'Wrestler');
+
+      const isW = role === 'Wrestler';
+
+      // Collect attributes, but never send empty strings for optional ones
+      const ua = {
+        email,
+        'custom:role': role,
+      };
+
+      if (isW) {
+        const given      = String(fd.get('given_name') || '').trim();
+        const family     = String(fd.get('family_name') || '').trim();
+        const stage      = String(fd.get('stageName') || '').trim();
+        const dob        = String(fd.get('dob') || '').trim();       // <input type="date"> gives YYYY-MM-DD
+        const city       = String(fd.get('city') || '').trim();
+        const region     = String(fd.get('region') || '').trim();
+        const country    = String(fd.get('country') || '').trim();
+        Object.assign(ua, {
+          given_name: given,
+          family_name: family,
+          'custom:stageName': stage,
+          'custom:dob': dob,
+          'custom:city': city,
+          'custom:region': region,
+          'custom:country': country,
+        });
+      } else {
+        const orgName  = String(fd.get('orgName') || '').trim();
+        const address  = String(fd.get('address') || '').trim();
+        if (orgName) ua['custom:orgName'] = orgName;
+        if (address) ua['custom:address'] = address; // don’t send empty string (avoids min-length schema errors)
+      }
+
+      try {
+        await signUp({
+          username: email,
+          password,
+          options: { userAttributes: ua }
+        });
+
+        // remember for confirm + possible auto sign-in
+        signupEmailForConfirm = email;
+        signupPasswordCache   = password;
+
+        showConfirmFor(email, { mode: 'signup' });
+        toast('We emailed you a verification code.');
+      } catch (err) {
+        console.error('[auth] signUp error', err);
+        // Friendly messages for common cases
+        const msg = err?.name === 'UsernameExistsException'
+          ? 'An account with this email already exists.'
+          : (err?.message || 'Sign up failed');
+        toast(msg);
+      }
+    }));
+
+    // --------------------------
+    // Resend sign-up code
+    // --------------------------
+    document.getElementById('resend-code')?.addEventListener('click', withSubmitLock(async () => {
+      if (!signupEmailForConfirm) {
+        toast('Open the Create Account tab and enter your email first.');
+        showSignup();
+        return;
+      }
+      try {
+        await resendSignUpCode({ username: signupEmailForConfirm });
+        toast('Verification code resent.');
+      } catch (err) {
+        console.error('[auth] resendSignUpCode error', err);
+        toast(err?.message || 'Could not resend code.');
+      }
+    }));
+
+    // --------------------------
+    // Confirm (sign-up OR MFA)
+    // --------------------------
+    fConfirm?.addEventListener('submit', withSubmitLock(async (e) => {
+      e.preventDefault();
+      const code = String(new FormData(fConfirm).get('code') || '').trim();
+
+      // MFA branch
+      if (fConfirm.dataset.mfa === 'true') {
+        try {
+          await confirmSignIn({ challengeResponse: code });
+          // done – user is signed in now
+          fConfirm.dataset.mfa = '';
+          dlg.close();
+          toast('You are signed in.');
+          return;
+        } catch (err) {
+          console.error('[auth] confirmSignIn error', err);
+          toast(err?.message || 'MFA confirmation failed.');
+          return;
+        }
+      }
+
+      // Sign-up confirmation branch
+      if (!signupEmailForConfirm) {
+        toast('We lost the email for confirmation; please sign up or log in again.');
+        showSignup();
+        return;
+      }
+      try {
+        await confirmSignUp({ username: signupEmailForConfirm, confirmationCode: code });
+        toast('Email confirmed! Signing you in…');
+
+        // Auto sign-in after confirming (optional)
+        if (signupPasswordCache) {
+          try { await signIn({ username: signupEmailForConfirm, password: signupPasswordCache }); }
+          catch (e2) { /* ignore – user can click Log In */ }
+        }
+        dlg.close();
+      } catch (err) {
+        console.error('[auth] confirmSignUp error', err);
+        let m = err?.message || 'Confirmation failed.';
+        if (err?.name === 'ExpiredCodeException') m = 'Code expired. Click “Resend code”.';
+        toast(m);
+      }
+    }));
+
+    // --------------------------
+    // Log In (handles Amplify v6 nextStep cleanly)
+    // --------------------------
+    fLogin?.addEventListener('submit', withSubmitLock(async (e) => {
+      e.preventDefault();
+      const fd = new FormData(fLogin);
+      const email    = String(fd.get('email') || '').trim();
+      const password = String(fd.get('password') || '');
+
+      try {
+        const { nextStep } = await signIn({
+          username: email,
+          password,
+          options: {
+            authFlowType: 'USER_SRP_AUTH',
+            preferredChallenge: 'EMAIL_OTP', // ask Cognito to use email codes
+          },
+        });
+
+        switch (nextStep.signInStep) {
+          case 'DONE': {
+            dlg.close();
+            toast('Logged in!');
+            break;
+          }
+
+          case 'CONFIRM_SIGN_UP': {
+            // account exists but not verified
+            showConfirmFor(email, { mode: 'signup' });
+            toast('Enter the verification code we just emailed you.');
+            break;
+          }
+
+          case 'CONTINUE_SIGN_IN_WITH_MFA_SELECTION': {
+            // choose EMAIL once; this triggers a **single** OTP email
+            const choice = nextStep.allowedMFATypes?.includes('EMAIL')
+              ? 'EMAIL'
+              : nextStep.allowedMFATypes?.[0];
+            await confirmSignIn({ challengeResponse: choice });
+            // show the MFA code form
+            showConfirmFor(email, { mode: '' });
+            fConfirm.dataset.mfa = 'true';
+            toast('Enter the code we emailed you.');
+            break;
+          }
+
+          case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
+          case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
+          case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE': {
+            // code already sent by Cognito; just collect it
+            showConfirmFor(email, { mode: '' });
+            fConfirm.dataset.mfa = 'true';
+            toast('Enter the code we emailed you.');
+            break;
+          }
+
+          case 'CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION': {
+            // choose PASSWORD; Cognito will follow with an EMAIL_OTP challenge
+            await confirmSignIn({ challengeResponse: 'PASSWORD_SRP' });
+            showConfirmFor(email, { mode: '' });
+            fConfirm.dataset.mfa = 'true';
+            toast('Enter the code we emailed you.');
+            break;
+          }
+
+          case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED': {
+            toast('A new password is required (UI not implemented yet).');
+            break;
+          }
+
+          default: {
+            console.warn('[auth] unhandled nextStep', nextStep);
+            toast('Additional verification required (not implemented).');
+          }
+        }
+      } catch (err) {
+        console.error('[auth] signIn error', err);
+        let m = err?.message || 'Login failed.';
+        if (err?.name === 'LimitExceededException') m = 'Too many attempts. Please wait a minute and try again.';
+        toast(m);
+      }
+    }));
+
+    // --------------------------
+    // Log Out
+    // --------------------------
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('#logout-btn');
+      if (!btn) return;
+      e.preventDefault();
+      try { await signOut(); toast('Logged out.'); }
+      catch (err) { console.error('[auth] signOut error', err); toast('Logout failed.'); }
+    });
   }
-  // Optionally call updateRoleGatedUI() after successful login/confirm
 </script>
+
