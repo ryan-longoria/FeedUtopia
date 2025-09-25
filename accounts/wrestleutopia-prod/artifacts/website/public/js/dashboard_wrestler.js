@@ -98,10 +98,19 @@ async function loadRecommendedTryouts() {
       return;
     }
 
-    const [profile, list] = await Promise.all([
+  let profile = null, list = [];
+  try {
+    [profile, list] = await Promise.all([
       getMyWrestlerProfile(),
-      apiFetch('/tryouts'), // your backend already exposes this
+      apiFetch('/tryouts'),
     ]);
+  } catch (e) {
+    if (String(e).includes('API 401')) {
+      target.innerHTML = '<div class="card"><p class="muted">Please sign in to view recommended tryouts.</p></div>';
+      return;
+    }
+    throw e;
+  }
 
     const now = new Date();
     const upcomingOpen = (Array.isArray(list) ? list : [])

@@ -258,6 +258,10 @@ async function renderTryoutsListPanel() {
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     }
   } catch (err) {
+    if (String(err).includes('API 401')) {
+      listEl.innerHTML = '<p class="muted">Please sign in to view tryouts.</p>';
+      return;
+    }
     console.error(err);
     listEl.innerHTML = '<p class="muted">Could not load tryouts.</p>';
   }

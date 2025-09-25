@@ -65,6 +65,10 @@ async function init() {
     html('ph-gimmicks', chips || '');
 
   } catch (e) {
+    if (String(e).includes('API 401')) {
+      html('profile', `<div class="card"><h2>Sign in required</h2><p class="muted">Please sign in to view this profile.</p></div>`);
+      return;
+    }
     console.error(e);
     html('profile', `<div class="card"><h2>Profile not found</h2><p class="muted">We couldn’t find <code>${handle}</code>.</p></div>`);
     toast('Profile not found', 'error');

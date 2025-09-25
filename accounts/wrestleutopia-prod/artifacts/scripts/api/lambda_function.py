@@ -159,43 +159,36 @@ def _qs(event: Dict[str, Any]) -> Dict[str, str]:
     return event.get("queryStringParameters") or {}
 
 def _claims(event):
-    """
-    Return (sub, groups:set[str]) with robust normalization of Cognito claims.
-    """
-    jwt   = (event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}) or {})
-    raw_c = jwt.get("claims") or {}
+    jwt = (event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}) or {})
+    raw = jwt.get("claims") or {}
+    claims = {str(k).lower(): v for k, v in raw.items()}
 
-    claims = {str(k).lower(): v for k, v in raw_c.items()}
-    sub = claims.get("sub")
+    sub = claims.get("sub") or claims.get("username")  # access token may use 'username'
+    groups = set()
 
-    groups: set[str] = set()
-
-    # Try 'cognito:groups' first
-    cg = claims.get("cognito:groups")
+    # groups (if present)
+    cg = claims.get("cognito:groups") or claims.get("cognito:groups".lower())
     if isinstance(cg, list):
         groups |= {str(x) for x in cg}
     elif isinstance(cg, str):
-        s = cg.strip()
-        if s.startswith('[') and s.endswith(']'):
-            try:
-                arr = json.loads(s)
-                if isinstance(arr, list):
-                    groups |= {str(x) for x in arr}
-            except Exception:
-                pass
-        if not groups:
-            parts = re.split(r"[,\s]+", s)
-            groups |= {p for p in (p.strip() for p in parts) if p}
+        groups |= {p for p in re.split(r"[,\s]+", cg) if p}
 
-    # Fallback from custom:role
+    # fallback from scope → pseudo-group
+    scope_str = claims.get("scope") or ""
+    scopes = set(scope_str.split()) if scope_str else set()
+    if "api://wrestleutopia/profiles.write" in scopes and "Wrestlers" not in groups:
+        # mild inference; adjust to your policy
+        pass
+
+    # optional: still check custom:role if present
     role = (claims.get("custom:role") or "").strip().lower()
-    if role:
-        if role.startswith("wrestler"):
-            groups.add("Wrestlers")
-        elif role.startswith("promoter"):
-            groups.add("Promoters")
+    if role.startswith("wrestler"):
+        groups.add("Wrestlers")
+    elif role.startswith("promoter"):
+        groups.add("Promoters")
 
     return sub, groups
+
 
 def _now_iso() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -272,6 +265,9 @@ def _post_tryout(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str,
 
     tid = _uuid()
     slots = int(data.get("slots") or 0)
+    if slots < 0: slots = 0
+    if slots > 10000: slots = 10000
+
     item = {
         "tryoutId": tid,
         "ownerId": sub,
@@ -284,9 +280,6 @@ def _post_tryout(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str,
         "status": status_in,
         "createdAt": _now_iso(),
     }
-    
-    if slots < 0: slots = 0
-    if slots > 10000: slots = 10000
 
     if status_in not in {"open","closed","filled"}:
         status_in = "open"

@@ -6,9 +6,9 @@ function joinUrl(base, path) {
   return base.replace(/\/+$/, '') + '/' + String(path).replace(/^\/+/, '');
 }
 
-async function idToken() {
+async function accessToken() {
   const s = await fetchAuthSession();
-  return s?.tokens?.idToken?.toString() || '';
+  return s?.tokens?.accessToken?.toString() || '';
 }
 
 export function qs(params = {}) {
@@ -23,18 +23,15 @@ export function qs(params = {}) {
 }
 
 export async function apiFetch(path, { method = 'GET', body = null } = {}) {
-  const token = await idToken();
+  const token = await accessToken();
   const headers = {};
-
   if (token) headers.Authorization = `Bearer ${token}`;
-
-  const hasBody = body != null;
-  if (hasBody) headers['content-type'] = 'application/json';
+  if (body != null) headers['content-type'] = 'application/json';
 
   const res = await fetch(joinUrl(window.WU_API, path), {
     method,
     headers,
-    body: hasBody ? JSON.stringify(body) : null,
+    body: body != null ? JSON.stringify(body) : null,
   });
 
   if (!res.ok) {
@@ -60,9 +57,7 @@ export async function apiFetch(path, { method = 'GET', body = null } = {}) {
 
 export async function uploadToS3(filename, contentType, blob) {
   const ct = contentType || (blob && blob.type) || 'application/octet-stream';
-  const presign = await apiFetch(
-    `/s3/presign${qs({ key: filename, contentType: ct })}`
-  );
+  const presign = await apiFetch(`/s3/presign${qs({ key: filename, contentType: ct })}`);
   const put = await fetch(presign.uploadUrl, {
     method: 'PUT',
     headers: { 'content-type': ct },

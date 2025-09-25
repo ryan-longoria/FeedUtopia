@@ -229,6 +229,10 @@ async function init(){
     ]);
     render(containerEl, item, tryouts);
   } catch (e){
+    if (String(e).includes('API 401')) {
+      containerEl.innerHTML = '<p class="muted">Please sign in to view this promotion.</p>';
+      return;
+    }
     containerEl.innerHTML = '<p class="muted">Could not load promotion.</p>';
     console.error(e);
   }
