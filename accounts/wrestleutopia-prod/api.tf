@@ -13,16 +13,7 @@ resource "aws_apigatewayv2_api" "http" {
   cors_configuration {
     allow_origins = var.allowed_origins
     allow_methods = ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
-    allow_headers     = [
-      "Authorization",
-      "Content-Type",
-      "X-Requested-With",
-      "X-Amz-Date",
-      "X-Amz-Security-Token",
-      "X-Amz-User-Agent",
-      "Accept",
-      "Origin"
-    ]
+    allow_headers     = ["Authorization", "Content-Type"]
     expose_headers    = ["content-type","etag"]
     max_age           = 3000
     allow_credentials = true
@@ -236,6 +227,13 @@ resource "aws_apigatewayv2_route" "upload_url_route" {
   target             = "integrations/${aws_apigatewayv2_integration.upload_url_integration.id}"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   authorization_type = "JWT"
+}
+
+resource "aws_apigatewayv2_route" "get_promoter_tryouts" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "GET /profiles/promoters/{userId}/tryouts"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
 }
 
 #############################
