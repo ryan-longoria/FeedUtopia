@@ -245,6 +245,33 @@ resource "aws_lambda_permission" "allow_cognito_presignup" {
   source_arn    = aws_cognito_user_pool.this.arn
 }
 
+resource "aws_iam_policy" "postconfirm_dynamo" {
+  name        = "${var.project_name}-postconfirm-dynamo"
+  description = "Allow post-confirm Lambda to create initial profile rows"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = [
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:GetItem"
+      ],
+      Resource = [
+        aws_dynamodb_table.wrestlers.arn,
+        aws_dynamodb_table.promoters.arn,
+        aws_dynamodb_table.profile_handles.arn
+      ]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "postconfirm_dynamo_attach" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.postconfirm_dynamo.arn
+}
+
+
 #############################
 ## Lambda IAM — API (CRUD)
 #############################
