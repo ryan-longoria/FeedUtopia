@@ -839,93 +839,82 @@ def lambda_handler(event, _ctx):
         if method == "OPTIONS":
             return {"statusCode": 204, "headers": {"content-type": "application/json"}, "body": ""}
 
-        # 2) PUBLIC endpoints (no JWT)
+        # 2) PUBLIC endpoints (no auth required)
         if method == "GET" and path == "/tryouts":
-            # public list of open tryouts
             return _get_tryouts(event)
 
-        # only treat as /tryouts/{id} if {id} looks like a UUID (prevents catching /tryouts/mine)
-        if method == "GET" and UUID_PATH.fullmatch(path):
+        if method == "GET" and UUID_PATH.fullmatch(path):  # /tryouts/{uuid}
             tryout_id = path.rsplit("/", 1)[1]
             return _get_tryout(tryout_id)
-        
+
+        # Public profiles (read-only)
         if method == "GET" and path.startswith("/profiles/wrestlers/") and path != "/profiles/wrestlers/me":
-            sub, groups = _claims(event)
-            if not sub:
-                return _resp(401, {"message": "Unauthorized"})
-            if not _is_promoter(groups):
-                return _resp(403, {"message": "Promoter role required"})
             handle = path.split("/")[-1]
             return _get_profile_by_handle(handle)
-        
+
         if method == "GET" and path.startswith("/profiles/promoters/") and path != "/profiles/promoters/me":
             user_id = path.split("/")[-1]
             return _get_promoter_public(user_id)
-        
+
         if method == "GET" and path.startswith("/promoters/") and path.endswith("/tryouts"):
             user_id = path.split("/")[2]  # /promoters/{userId}/tryouts
             return _get_open_tryouts_by_owner(user_id)
 
-        # Auth'd Wrestler: PUT /profiles/wrestlers/me (create/update self + reserve handle)
-        if method == "PUT" and path == "/profiles/wrestlers/me":
-            sub, groups = _claims(event)
-            if not sub:
-                return _resp(401, {"message": "Unauthorized"})
-            return _put_me_profile(sub, groups, event)
-
-        # 3) AUTH-required endpoints
+        # 3) AUTH-required endpoints (extract once)
         sub, groups = _claims(event)
         if not sub:
             return _resp(401, {"message": "Unauthorized"})
 
-        # Health (protected to avoid abuse)
+        # Health
         if path == "/health":
             return _resp(200, {"ok": True, "time": _now_iso()})
 
-        # Wrestler profiles
-        if path.startswith("/profiles/wrestlers"):
-            if method in ("POST", "PUT", "PATCH"):
-                # legacy writer; kept for older clients that still POST here
-                return _upsert_wrestler_profile(sub, groups, event)
-            if method == "GET":
-                # me
-                if _is_wrestler(groups):
-                    item = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
-                    item.setdefault("mediaKeys", [])
-                    item.setdefault("highlights", [])
-                    return _resp(200, item)
-                # promoter search
-                if _is_promoter(groups):
-                    return _list_wrestlers(groups, event)
+        # Wrestler "me" (explicit path)
+        if method == "GET" and path == "/profiles/wrestlers/me":
+            item = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
+            item.setdefault("mediaKeys", [])
+            item.setdefault("highlights", [])
+            return _resp(200, item)
 
-        # Auth'd: GET /profiles/promoters/me  (your own promoter profile)
+        # Wrestler PUT (create/update self)
+        if method == "PUT" and path == "/profiles/wrestlers/me":
+            return _put_me_profile(sub, groups, event)
+
+        # Wrestler legacy POST/PATCH (kept for older clients)
+        if path.startswith("/profiles/wrestlers") and method in ("POST","PATCH"):
+            return _upsert_wrestler_profile(sub, groups, event)
+
+        # Wrestler/Promoter listing/search endpoints
+        if method == "GET" and path == "/profiles/wrestlers":
+            # caller must be a Promoter to search wrestlers
+            if _is_promoter(groups):
+                return _list_wrestlers(groups, event)
+            # if the caller is a wrestler and asked this route, return their own item
+            if _is_wrestler(groups):
+                item = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
+                item.setdefault("mediaKeys", [])
+                item.setdefault("highlights", [])
+                return _resp(200, item)
+            return _resp(403, {"message": "Wrestler or promoter role required"})
+
+        # Promoter "me"
         if method == "GET" and path == "/profiles/promoters/me":
-            sub, groups = _claims(event)
-            if not sub:
-                return _resp(401, {"message": "Unauthorized"})
             return _get_promoter_profile(sub)
 
-        # Auth'd: GET /profiles/promoters  (list/search for wrestlers)
+        # Promoter search (for wrestlers to find orgs)
         if method == "GET" and path == "/profiles/promoters":
-            sub, groups = _claims(event)
-            if not sub:
-                return _resp(401, {"message": "Unauthorized"})
             return _list_promoters(groups, event)
 
-        # Auth'd: PUT/POST/PATCH /profiles/promoters (upsert mine)
+        # Promoter upserts
         if path.startswith("/profiles/promoters") and method in ("PUT","POST","PATCH"):
-            sub, groups = _claims(event)
-            if not sub:
-                return _resp(401, {"message": "Unauthorized"})
             return _upsert_promoter_profile(sub, groups, event)
 
-        # Tryouts (auth-only variants)
-        if path == "/tryouts":
-            if method == "POST":
-                return _post_tryout(sub, groups, event)
+        # Tryouts (writer)
+        if method == "POST" and path == "/tryouts":
+            return _post_tryout(sub, groups, event)
 
-        # Promoter: list my tryouts (separate path so /tryouts stays public)
-        if path == "/tryouts/mine" and method == "GET":
+        # Tryouts mine
+        if method == "GET" and path == "/tryouts/mine":
             if not _is_promoter(groups):
                 return _resp(403, {"message": "Promoter role required"})
             r = T_TRY.query(
@@ -936,33 +925,29 @@ def lambda_handler(event, _ctx):
             )
             return _resp(200, r.get("Items", []))
 
-        # Tryout by id (auth-only actions)
-        if path.startswith("/tryouts/"):
+        # Tryouts delete
+        if path.startswith("/tryouts/") and method == "DELETE":
             tryout_id = path.split("/")[-1]
-            if method == "DELETE":
-                return _delete_tryout(sub, tryout_id)
+            return _delete_tryout(sub, tryout_id)
 
-        # Applications
+        # Applications (wrestler)
         if path == "/applications":
             if method == "POST":
                 return _post_application(sub, groups, event)
             if method == "GET":
                 return _get_applications(sub, event)
 
-        # TEMP: debug endpoint (JWT required) — enable with env DEBUG_TRYOUTS=true
+        # Debug (auth)
         if DEBUG_TRYOUTS and path == "/debug/tryouts" and method == "GET":
             info = {"region": AWS_REGION, "table": TABLE_TRYOUTS}
             try:
-                # small scan to confirm the table we're actually reading
                 r = T_TRY.scan(Limit=5)
                 items = r.get("Items", []) or []
                 info["sample_count"] = len(items)
                 if items:
-                    # include one sample item only
                     info["sample"] = items[:1]
             except Exception as e:
                 info["error"] = str(e)
-            # optional: include caller/account during deep debugging
             try:
                 sts = boto3.client("sts", region_name=AWS_REGION)
                 who = sts.get_caller_identity()
