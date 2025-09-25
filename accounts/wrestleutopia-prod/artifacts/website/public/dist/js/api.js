@@ -28,12 +28,12 @@ export async function apiFetch(path, { method = 'GET', body = null } = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body != null) headers['content-type'] = 'application/json';
 
+  const hasBody = body !== null && body !== undefined;
   const res = await fetch(joinUrl(window.WU_API, path), {
     method,
     headers,
-    body: body != null ? JSON.stringify(body) : null,
+    body: hasBody ? JSON.stringify(body) : null,
   });
-
   if (!res.ok) {
     let msg = res.statusText;
     try {
