@@ -6,9 +6,11 @@ function joinUrl(base, path) {
   return base.replace(/\/+$/, '') + '/' + String(path).replace(/^\/+/, '');
 }
 
-async function accessToken() {
+async function authToken() {
   const s = await fetchAuthSession();
-  return s?.tokens?.accessToken?.toString() || '';
+  return s?.tokens?.idToken?.toString()
+      || s?.tokens?.accessToken?.toString()
+      || '';
 }
 
 export function qs(params = {}) {
@@ -23,7 +25,7 @@ export function qs(params = {}) {
 }
 
 export async function apiFetch(path, { method = 'GET', body = null } = {}) {
-  const token = await accessToken();
+  const token = await authToken();
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body != null) headers['content-type'] = 'application/json';
