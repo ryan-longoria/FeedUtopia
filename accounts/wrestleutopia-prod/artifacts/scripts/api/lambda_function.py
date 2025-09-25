@@ -744,10 +744,13 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
         # ---- Enrich with wrestler profile snippets (single BatchGet) ----
         if apps:
             ids = sorted({a.get("applicantId") for a in apps if a.get("applicantId")})
-            profiles = {}
+            profiles: dict[str, dict] = {}
+
             if ids:
                 proj = "userId, handle, stageName, #n, city, #r, photoKey"
                 ean  = {"#r": "region", "#n": "name"}
+
+                # 1) Try batch get (both 2-key and 1-key)
                 try:
                     av_items = _batch_get_wrestlers(ids, proj, ean)
                     for av in av_items:
@@ -759,9 +762,29 @@ def _get_applications(sub: str, event: Dict[str, Any]) -> Dict[str, Any]:
                 except Exception as e:
                     _log("batch_get_item profiles failed", e)
 
-            for a in apps:
-                a["applicantProfile"] = profiles.get(a.get("applicantId"), {})
+                # 2) Fallback: per-ID GetItem with the correct key shape
+                #    (BatchGet can return empty if keys don’t match schema or wrong table/region)
+                pk = _get_wrestler_pk()  # e.g. ["userId"] or ["userId","role"]
+                for uid in ids:
+                    if uid in profiles:
+                        continue
+                    key = {"userId": uid}
+                    if len(pk) == 2 and "role" in pk:
+                        key["role"] = "Wrestler"
+                    try:
+                        gi = T_WREST.get_item(Key=key, ProjectionExpression=proj, ExpressionAttributeNames=ean)
+                        it = gi.get("Item")
+                        if it:
+                            # T_WREST.get_item returns normal dict, not AVs
+                            it["stageName"] = it.get("stageName") or it.get("name") or None
+                            profiles[uid] = it
+                    except Exception as e:
+                        _log("get_item fallback failed", uid, e)
 
+            # attach, even if still empty
+            for a in apps:
+                uid = a.get("applicantId")
+                a["applicantProfile"] = profiles.get(uid, {})
         return _resp(200, apps)
 
     # Wrestler: list own apps
