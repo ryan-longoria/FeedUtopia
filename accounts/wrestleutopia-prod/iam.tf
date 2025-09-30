@@ -529,6 +529,15 @@ resource "aws_iam_policy" "presign_s3_policy" {
         Effect   = "Allow",
         Action   = ["s3:PutObject", "s3:GetObject"],
         Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/*"
+      },
+      {
+        Sid      = "AllowPutOnProfilesPrefix",
+        Effect   = "Allow",
+        Action   = ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload", "s3:PutObjectTagging"],
+        Resource = "arn:aws:s3:::${var.s3_bucket_name}/profiles/*",
+        Condition = {
+          StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" }
+        }
       }
     ]
   })
