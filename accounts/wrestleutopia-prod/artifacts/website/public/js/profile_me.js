@@ -7,7 +7,13 @@ import { mediaUrl } from '/js/media.js';
 const $  = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const setVal = (id, v = '') => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
-const setImg = (sel, key) => { const el = $(sel); if (el) el.src = key ? mediaUrl(String(key)) : '/assets/avatar-fallback.svg'; };
+const setImg = (sel, key) => {
+  const el = $(sel);
+  if (!el) return;
+  if (!key) { el.src = '/assets/avatar-fallback.svg'; return; }
+  const url = mediaUrl(String(key));
+  el.src = String(key).startsWith('profiles/') ? `${url}?v=${Date.now()}` : url;
+};
 
 // --- gallery state ---
 let mediaKeys = [];     // photo keys for /w/ page (used by wrestler_public.js)
@@ -334,7 +340,8 @@ async function init() {
         viewBtn.onclick = () => { location.href = `/w/#${encodeURIComponent(saved.handle)}`; };
       }
       if ((saved?.photoKey || data.photoKey) && avatarPreview) {
-        avatarPreview.src = photoUrlFromKey(saved?.photoKey || data.photoKey);
+        const k = saved?.photoKey || data.photoKey;
+        avatarPreview.src = `${photoUrlFromKey(k)}?v=${Date.now()}`;
       }
     } catch (err) {
       console.error(err);
