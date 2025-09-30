@@ -70,11 +70,12 @@ export async function uploadAvatar(file) {
     headers: {
       'Content-Type': file.type,
       'x-amz-server-side-encryption': 'AES256',
+      'Cache-Control': 'no-cache',
     },
     body: file,
   });
   if (!putRes.ok) throw new Error(`S3 upload failed ${putRes.status}: ${await putRes.text().catch(()=>putRes.statusText)}`);
-  return objectKey; // e.g. user/<sub>/avatar.jpg
+  return objectKey;
 }
 
 export async function uploadToS3(filename, contentType, file) {
