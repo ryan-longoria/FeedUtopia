@@ -1,5 +1,5 @@
 // /js/profile_me.js
-import { apiFetch, uploadToS3 } from '/js/api.js';
+import { apiFetch, uploadToS3, uploadAvatar } from '/js/api.js';
 import { getAuthState, isWrestler } from '/js/roles.js';
 import { mediaUrl } from '/js/media.js';
 
@@ -12,6 +12,7 @@ const setImg = (sel, key) => {
   if (!el) return;
   if (!key) { el.src = '/assets/avatar-fallback.svg'; return; }
   const url = mediaUrl(String(key));
+  // Cache-bust avatars stored under /profiles/
   el.src = String(key).startsWith('profiles/') ? `${url}?v=${Date.now()}` : url;
 };
 
@@ -127,7 +128,8 @@ async function uploadAvatarIfAny() {
   const file = fileInput?.files?.[0];
   if (!file) return null;
 
-  return await uploadAvatar(file); // -> "profiles/<sub>/avatar.<ext>"
+  // Use dedicated avatar presign -> returns "profiles/<sub>/avatar.<ext>"
+  return await uploadAvatar(file);
 }
 
 async function loadMe() {
@@ -180,8 +182,8 @@ async function loadMe() {
       setVal('gimmicks', me.gimmicks.join(', '));
     }
 
-    // avatar preview
-    setImg('#avatarPreview', me.photoKey || me.avatar_key || me.avatarKey || null);
+    // avatar preview (support legacy field names)
+    setImg('#avatarPreview', me.photoKey || me.avatar_key || me.avatarKey || me.photo_key || null);
 
     // enable "View" if we know the handle
     const vb = document.getElementById('viewBtn');
@@ -261,7 +263,7 @@ async function init() {
     const files = Array.from(input?.files || []);
     if (!files.length) return;
     for (const f of files) {
-      const key = await uploadToS3(f.name, f.type || 'image/jpeg', f);
+      const key = await uploadToS3(f.name, f.type || 'image/jpeg', f); // returns objectKey string
       mediaKeys.push(key);
     }
     renderPhotoGrid();
@@ -283,13 +285,12 @@ async function init() {
     const input = document.getElementById('highlightFile');
     const f = input?.files?.[0];
     if (!f) return;
-      const key = await uploadToS3(f.name, f.type || 'video/mp4', f);
-      const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key;
-      highlights.push(absolute);
+    const key = await uploadToS3(f.name, f.type || 'video/mp4', f);
+    const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key; // public page expects full URL for videos
+    highlights.push(absolute);
     renderHighlightList();
     input.value = '';
   });
-
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -300,7 +301,13 @@ async function init() {
 
       // Upload avatar first (optional)
       const key = await uploadAvatarIfAny().catch(() => null);
-      if (key) data.photoKey = key;
+      if (key) {
+        // Send all possible field names to satisfy backend variants
+        data.photoKey   = key;
+        data.avatarKey  = key;   // legacy camel
+        data.photo_key  = key;   // legacy snake
+        data.avatar_key = key;   // legacy snake
+      }
 
       // PUT to backend
       const payload = {
@@ -324,7 +331,11 @@ async function init() {
         achievements: data.achievements,
 
         // media
-        photoKey: data.photoKey || null,
+        photoKey:   data.photoKey   || null,
+        avatarKey:  data.avatarKey  || null,
+        photo_key:  data.photo_key  || null,
+        avatar_key: data.avatar_key || null,
+
         mediaKeys,
         highlights,
       };
@@ -339,9 +350,14 @@ async function init() {
         viewBtn.dataset.handle = saved.handle;
         viewBtn.onclick = () => { location.href = `/w/#${encodeURIComponent(saved.handle)}`; };
       }
-      if ((saved?.photoKey || data.photoKey) && avatarPreview) {
-        const k = saved?.photoKey || data.photoKey;
-        avatarPreview.src = `${photoUrlFromKey(k)}?v=${Date.now()}`;
+
+      // Choose the newest avatar key from response or fallback to what we sent
+      const newKey =
+        saved?.photoKey || saved?.avatarKey || saved?.avatar_key || saved?.photo_key ||
+        data.photoKey   || data.avatarKey   || data.avatar_key   || data.photo_key;
+
+      if (newKey && avatarPreview) {
+        avatarPreview.src = `${photoUrlFromKey(newKey)}?v=${Date.now()}`;
       }
     } catch (err) {
       console.error(err);
