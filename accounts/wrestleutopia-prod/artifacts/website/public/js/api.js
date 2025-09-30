@@ -57,13 +57,33 @@ export async function apiFetch(path, { method = 'GET', body = null } = {}) {
   return res.json();
 }
 
+export async function uploadAvatar(file) {
+  const presign = await apiFetch(`/profiles/wrestlers/me/photo-url?contentType=${encodeURIComponent(file.type)}`, {
+    method: 'POST'
+  });
+  const uploadUrl = presign?.uploadUrl;
+  const objectKey = presign?.objectKey;
+  if (!uploadUrl || !objectKey) throw new Error('presign failed');
+
+  const putRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': file.type,
+      'x-amz-server-side-encryption': 'AES256',
+    },
+    body: file,
+  });
+  if (!putRes.ok) throw new Error(`S3 upload failed ${putRes.status}: ${await putRes.text().catch(()=>putRes.statusText)}`);
+  return objectKey; // e.g. user/<sub>/avatar.jpg
+}
+
 export async function uploadToS3(filename, contentType, file) {
   const params = new URLSearchParams({
     key: filename || 'upload.bin',
     contentType: contentType || 'application/octet-stream',
   });
 
-  const presign = await apiFetch(`/media/presign?${params.toString()}`, { method: 'GET' });
+  const presign = await apiFetch(`/s3/presign?${params.toString()}`, { method: 'GET' });
 
   const uploadUrl = presign?.uploadUrl || presign?.url || presign?.signedUrl;
   const objectKey = presign?.objectKey || presign?.key;

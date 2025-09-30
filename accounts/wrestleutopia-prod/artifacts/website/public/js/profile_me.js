@@ -121,39 +121,7 @@ async function uploadAvatarIfAny() {
   const file = fileInput?.files?.[0];
   if (!file) return null;
 
-  // Your uploadToS3 likely returns either:
-  //   - "s3://<bucket>/user/<sub>/<filename>"
-  //   - or "s3://<bucket>/<sub>/<filename>"   (legacy)
-  //   - or sometimes just "<key>"
-  const { objectKey } = await uploadToS3(file.name, file.type || 'image/jpeg', file);
-  let raw = objectKey;
-  // drop "s3://" and bucket if present → leave only "<key>"
-  if (raw.startsWith('s3://')) {
-    raw = raw.slice('s3://'.length);
-    const firstSlash = raw.indexOf('/');
-    raw = firstSlash >= 0 ? raw.slice(firstSlash + 1) : raw; // remove "<bucket>/"
-  }
-
-  // at this point `raw` should be something like:
-  //  "user/<sub>/<filename>"  or  "<sub>/<filename>"
-
-  // normalize to include "user/<sub>/" prefix
-  const { sub } = (await getAuthState()) || {};
-  const fname = raw.split('/').pop();
-  let key = raw;
-
-  if (!/^user\//.test(raw)) {
-    // handle legacy "<sub>/<filename>"
-    if (sub && new RegExp(`^${sub}/`).test(raw)) {
-      key = `user/${raw}`; // -> user/<sub>/<filename>
-    } else {
-      // fallback: if we can't detect sub in the key, build it explicitly
-      if (!sub) throw new Error('Unable to determine user id for media key');
-      key = `user/${sub}/${fname}`;
-    }
-  }
-
-  return key;
+  return await uploadAvatar(file); // -> "profiles/<sub>/avatar.<ext>"
 }
 
 async function loadMe() {
@@ -287,8 +255,8 @@ async function init() {
     const files = Array.from(input?.files || []);
     if (!files.length) return;
     for (const f of files) {
-      const { objectKey } = await uploadToS3(f.name, f.type || 'image/jpeg', f);
-      mediaKeys.push(objectKey);
+      const key = await uploadToS3(f.name, f.type || 'image/jpeg', f);
+      mediaKeys.push(key);
     }
     renderPhotoGrid();
     input.value = '';
@@ -309,8 +277,7 @@ async function init() {
     const input = document.getElementById('highlightFile');
     const f = input?.files?.[0];
     if (!f) return;
-      const s3 = await uploadToS3(f.name, f.type || 'video/mp4', f);
-      const key = String(s3).replace(/^s3:\/\//, '');
+      const key = await uploadToS3(f.name, f.type || 'video/mp4', f);
       const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key;
       highlights.push(absolute);
     renderHighlightList();
