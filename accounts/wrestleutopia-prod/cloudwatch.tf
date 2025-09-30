@@ -17,3 +17,22 @@ resource "aws_cloudwatch_log_group" "api_access" {
   name              = "/apigw/${var.project_name}/access"
   retention_in_days = 30
 }
+
+resource "aws_cloudwatch_event_rule" "s3_raw_puts" {
+  name        = "wutopia-s3-raw-puts"
+  description = "S3 Object Created events for ${aws_s3_bucket.media_bucket.bucket} with key prefix raw/"
+  event_pattern = jsonencode({
+    "source":      ["aws.s3"],
+    "detail-type": ["Object Created"],
+    "detail": {
+      "bucket": { "name": [aws_s3_bucket.media_bucket.bucket] },
+      "object": { "key": [ { "prefix": "raw/" } ] }
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "imgproc" {
+  rule      = aws_cloudwatch_event_rule.s3_raw_puts.name
+  target_id = "lambda-imgproc"
+  arn       = aws_lambda_function.image_processor.arn
+}

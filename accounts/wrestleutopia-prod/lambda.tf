@@ -100,12 +100,13 @@ resource "aws_lambda_function" "image_processor" {
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
   role             = aws_iam_role.image_processor_role.arn
-  timeout          = 60
+  timeout          = 120
+  reserved_concurrent_executions = 10
   memory_size      = 1024
+  ephemeral_storage { size = 1024 }
 
   environment {
     variables = {
-      MEDIA_BUCKET = aws_s3_bucket.media_bucket.bucket
       TABLE_NAME   = aws_dynamodb_table.tryouts.name
       CDN_BASE     = "https://cdn.wrestleutopia.com"
     }
