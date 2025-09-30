@@ -90,8 +90,8 @@ function renderHighlightList() {
 
 async function uploadLogoIfAny() {
   const file = document.getElementById('logo')?.files?.[0];
-  const { objectKey } = await uploadToS3(file.name, file.type || 'image/jpeg', file);
-  return objectKey;
+  if (!file) return null;
+  return await uploadToS3(file.name, file.type || 'image/jpeg', file);
 }
 
 // ---------- auth gate ----------
@@ -169,8 +169,8 @@ async function init() {
     try {
       const { sub } = (await getAuthState()) || {};
       for (const f of files) {
-        const { objectKey } = await uploadToS3(f.name, f.type || 'image/jpeg', f);
-        mediaKeys.push(objectKey);
+        const key = await uploadToS3(f.name, f.type || 'image/jpeg', f);
+        mediaKeys.push(key);
       }
       renderPhotoGrid();
       input.value = '';
@@ -197,8 +197,8 @@ async function init() {
     if (!f) return;
     try {
       const { sub } = (await getAuthState()) || {};
-      const { objectKey } = await uploadToS3(f.name, f.type || 'video/mp4', f);
-      const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${objectKey}` : objectKey;
+      const key = await uploadToS3(f.name, f.type || 'video/mp4', f);
+      const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key;
       highlights.push(absolute);
       renderHighlightList();
       input.value = '';
