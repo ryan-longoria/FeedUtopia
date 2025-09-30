@@ -58,7 +58,7 @@ def lambda_handler(event, _ctx):
             "Bucket": BUCK,
             "Key": object_key,
             "ContentType": ctype,
-            # No ACL; bucket is private. Serve via CloudFront/S3 GET using object_key.
+            "ServerSideEncryption": "AES256",
         },
         ExpiresIn=expires,
     )
