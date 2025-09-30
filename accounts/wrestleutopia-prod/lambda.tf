@@ -101,7 +101,6 @@ resource "aws_lambda_function" "image_processor" {
   runtime          = "python3.12"
   role             = aws_iam_role.image_processor_role.arn
   timeout          = 120
-  reserved_concurrent_executions = 10
   memory_size      = 1024
   ephemeral_storage { size = 1024 }
 
