@@ -57,23 +57,36 @@ export async function apiFetch(path, { method = 'GET', body = null } = {}) {
   return res.json();
 }
 
-export async function uploadToS3({ uploadUrl, file, contentType }) {
-  const ct = contentType || file?.type || "application/octet-stream";
+export async function uploadToS3(filename, contentType, file) {
+  const params = new URLSearchParams({
+    key: filename || 'upload.bin',
+    contentType: contentType || 'application/octet-stream',
+  });
 
-  const res = await fetch(uploadUrl, {
-    method: "PUT",
+  const presign = await apiFetch(`/media/presign?${params.toString()}`, { method: 'GET' });
+
+  const uploadUrl = presign?.uploadUrl || presign?.url || presign?.signedUrl;
+  const objectKey = presign?.objectKey || presign?.key;
+  if (!uploadUrl || !objectKey) {
+    console.error('presign response:', presign);
+    throw new Error('Failed to get presigned URL (missing uploadUrl/objectKey)');
+  }
+
+  const putRes = await fetch(uploadUrl, {
+    method: 'PUT',
     headers: {
-      "content-type": ct,
-      "x-amz-server-side-encryption": "AES256",
+      'Content-Type': contentType || 'application/octet-stream',
+      'x-amz-server-side-encryption': 'AES256',
     },
     body: file,
   });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`S3 upload failed ${res.status}: ${text}`);
+  if (!putRes.ok) {
+    const text = await putRes.text().catch(() => '');
+    throw new Error(`S3 upload failed ${putRes.status}: ${text || putRes.statusText}`);
   }
-  return { etag: res.headers.get("ETag") };
+
+  return objectKey;
 }
 
 export const api = {
