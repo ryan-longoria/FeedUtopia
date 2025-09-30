@@ -35,7 +35,6 @@ def lambda_handler(event, _ctx):
 
     # Decide target key
     if path.endswith("/profiles/wrestlers/me/photo-url"):
-        # Require an image content-type and standardize key to profiles/{sub}/avatar.ext
         if not ctype.startswith("image/"):
             return _resp(400, {"message": "contentType must be image/* for avatar uploads"})
         ext = ctype.split("/", 1)[1].lower()
@@ -44,7 +43,6 @@ def lambda_handler(event, _ctx):
             return _resp(400, {"message": f"unsupported image type; allowed: {sorted(ALLOWED_IMAGE_EXT)}"})
         object_key = f"profiles/{sub}/avatar.{ext}"
     else:
-        # Generic per-user upload under user/{sub}/
         base = raw.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
         base = _safe_base(base)
         if not base:
@@ -63,4 +61,9 @@ def lambda_handler(event, _ctx):
         ExpiresIn=expires,
     )
 
-    return _resp(200, {"uploadUrl": url, "objectKey": object_key, "expiresIn": expires})
+    return _resp(200, {
+        "uploadUrl": url,
+        "objectKey": object_key,
+        "expiresIn": expires,
+        "contentType": ctype
+    })
