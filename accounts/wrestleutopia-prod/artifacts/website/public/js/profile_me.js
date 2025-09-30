@@ -125,10 +125,8 @@ async function uploadAvatarIfAny() {
   //   - "s3://<bucket>/user/<sub>/<filename>"
   //   - or "s3://<bucket>/<sub>/<filename>"   (legacy)
   //   - or sometimes just "<key>"
-  const s3uriOrKey = await uploadToS3(file.name, file.type || 'image/jpeg', file);
-
-  let raw = String(s3uriOrKey).trim();
-
+  const { objectKey } = await uploadToS3(file.name, file.type || 'image/jpeg', file);
+  let raw = objectKey;
   // drop "s3://" and bucket if present → leave only "<key>"
   if (raw.startsWith('s3://')) {
     raw = raw.slice('s3://'.length);
@@ -289,9 +287,8 @@ async function init() {
     const files = Array.from(input?.files || []);
     if (!files.length) return;
     for (const f of files) {
-      const s3 = await uploadToS3(f.name, f.type || 'image/jpeg', f); // returns s3://bucket/key
-      const key = String(s3).replace(/^s3:\/\//, '');
-      mediaKeys.push(key);
+      const { objectKey } = await uploadToS3(f.name, f.type || 'image/jpeg', f);
+      mediaKeys.push(objectKey);
     }
     renderPhotoGrid();
     input.value = '';
@@ -312,10 +309,10 @@ async function init() {
     const input = document.getElementById('highlightFile');
     const f = input?.files?.[0];
     if (!f) return;
-    const s3 = await uploadToS3(f.name, f.type || 'video/mp4', f);
-    const key = String(s3).replace(/^s3:\/\//, '');
-    const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key; // public page expects full URL for videos
-    highlights.push(absolute);
+      const s3 = await uploadToS3(f.name, f.type || 'video/mp4', f);
+      const key = String(s3).replace(/^s3:\/\//, '');
+      const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key;
+      highlights.push(absolute);
     renderHighlightList();
     input.value = '';
   });
