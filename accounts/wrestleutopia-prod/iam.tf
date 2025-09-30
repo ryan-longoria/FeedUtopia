@@ -72,26 +72,32 @@ data "aws_iam_policy_document" "media_cf_access" {
   }
 
   statement {
-    sid     = "DenyIfNotFromOurOrg"
-    effect  = "Deny"
-    actions = ["s3:*"]
-    principals { 
-      type = "*" 
-      identifiers = ["*"] 
-    }
-    resources = [
-      aws_s3_bucket.media_bucket.arn,
-      "${aws_s3_bucket.media_bucket.arn}/*"
+    sid    = "DenyIfNotFromOurOrg"
+    effect = "Deny"
+
+    actions = [
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:AbortMultipartUpload",
+      "s3:PutObjectTagging",
+      "s3:DeleteObjectTagging"
     ]
 
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    resources = ["${aws_s3_bucket.media_bucket.arn}/*"]
+
     condition {
-      test     = "StringNotEquals"
+      test     = "StringNotEqualsIfExists"
       variable = "aws:PrincipalOrgID"
       values   = ["o-4uer5s3xlw"]
     }
 
     condition {
-      test     = "ArnNotEquals"
+      test     = "ArnNotEqualsIfExists"
       variable = "AWS:SourceArn"
       values   = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_distribution.media.id}"]
     }
