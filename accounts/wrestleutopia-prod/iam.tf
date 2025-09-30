@@ -6,24 +6,6 @@
 # S3 IAM
 #############################
 
-resource "aws_iam_policy" "s3_full_policy" {
-  name        = "${var.project_name}_s3_full_policy"
-  description = "Policy to allow Lambda full access to S3"
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = "s3:*",
-        Resource = [
-          "arn:aws:s3:::${var.s3_bucket_name}",
-          "arn:aws:s3:::${var.s3_bucket_name}/*"
-        ]
-      }
-    ]
-  })
-}
-
 data "aws_caller_identity" "current" {}
 
 data "aws_iam_policy_document" "media_cf_access" {
@@ -42,6 +24,75 @@ data "aws_iam_policy_document" "media_cf_access" {
     condition {
       test     = "StringEquals"
       variable = "AWS:SourceArn"
+      values   = [
+        "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_distribution.media.id}"
+      ]
+    }
+  }
+
+  statement {
+    sid     = "DenyInsecureTransport"
+    effect  = "Deny"
+    actions = ["s3:*"]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    resources = [
+      aws_s3_bucket.media_bucket.arn,
+      "${aws_s3_bucket.media_bucket.arn}/*"
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  statement {
+    sid     = "DenyUnencryptedObjectUploads"
+    effect  = "Deny"
+    actions = ["s3:PutObject"]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    resources = ["${aws_s3_bucket.media_bucket.arn}/*"]
+
+    condition {
+      test     = "StringNotEquals"
+      variable = "s3:x-amz-server-side-encryption"
+      values   = ["AES256"]
+    }
+  }
+
+  statement {
+    sid     = "DenyIfNotFromOurOrg"
+    effect  = "Deny"
+    actions = ["s3:*"]
+    principals { 
+      type = "*" 
+      identifiers = ["*"] 
+    }
+    resources = [
+      aws_s3_bucket.media_bucket.arn,
+      "${aws_s3_bucket.media_bucket.arn}/*"
+    ]
+
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:PrincipalOrgID"
+      values   = ["o-4uer5s3xlw"]
+    }
+
+    condition {
+      test     = "ArnNotEquals"
+      variable = "AWS:SourceArn"
       values   = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_distribution.media.id}"]
     }
   }
@@ -52,6 +103,37 @@ resource "aws_s3_bucket_policy" "media_cf" {
   policy     = data.aws_iam_policy_document.media_cf_access.json
   depends_on = [aws_cloudfront_distribution.media]
 }
+
+data "aws_iam_policy_document" "cloudtrail_logs" {
+  statement {
+    sid     = "AWSCloudTrailAclCheck"
+    effect  = "Allow"
+    principals { 
+      type = "Service"
+      identifiers = ["cloudtrail.amazonaws.com"] 
+    }
+    actions   = ["s3:GetBucketAcl"]
+    resources = [aws_s3_bucket.cloudtrail_logs.arn]
+  }
+
+  statement {
+    sid     = "AWSCloudTrailWrite"
+    effect  = "Allow"
+    principals { 
+      type = "Service" 
+      identifiers = ["cloudtrail.amazonaws.com"] 
+    }
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.cloudtrail_logs.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"]
+  }
+}
+
+
+resource "aws_s3_bucket_policy" "cloudtrail_logs" {
+  bucket = aws_s3_bucket.cloudtrail_logs.id
+  policy = data.aws_iam_policy_document.cloudtrail_logs.json
+}
+
 
 #############################
 ## Cross-Account IAM
@@ -216,14 +298,6 @@ resource "aws_lambda_permission" "allow_events_cleanup" {
   source_arn    = aws_cloudwatch_event_rule.cognito_cleanup_rule.arn
 }
 
-resource "aws_lambda_permission" "s3_invoke_imgproc" {
-  statement_id  = "AllowS3InvokeImgProc"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.image_processor.function_name
-  principal     = "s3.amazonaws.com"
-  source_arn    = aws_s3_bucket.media_bucket.arn
-}
-
 resource "aws_iam_role" "pre_signup_role" {
   name = "${var.project_name}-pre-signup-role"
   assume_role_policy = jsonencode({
@@ -279,6 +353,13 @@ resource "aws_lambda_permission" "apigw_invoke_upload_url" {
   source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
 }
 
+resource "aws_lambda_permission" "allow_eventbridge" {
+  statement_id  = "AllowExecutionFromEventBridge"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.image_processor.arn
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.s3_raw_puts.arn
+}
 
 #############################
 ## Lambda IAM — API (CRUD)

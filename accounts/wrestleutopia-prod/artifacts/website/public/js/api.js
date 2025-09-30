@@ -57,19 +57,23 @@ export async function apiFetch(path, { method = 'GET', body = null } = {}) {
   return res.json();
 }
 
-export async function uploadToS3(filename, contentType, blob) {
-  const ct = contentType || (blob && blob.type) || 'application/octet-stream';
-  const presign = await apiFetch(`/s3/presign${qs({ key: filename, contentType: ct })}`);
-  const put = await fetch(presign.uploadUrl, {
-    method: 'PUT',
-    headers: { 'content-type': ct },
-    body: blob,
+export async function uploadToS3({ uploadUrl, file, contentType }) {
+  const ct = contentType || file?.type || "application/octet-stream";
+
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "content-type": ct,
+      "x-amz-server-side-encryption": "AES256",
+    },
+    body: file,
   });
-  if (!put.ok) {
-    const t = await put.text().catch(() => '');
-    throw new Error(`S3 upload failed ${put.status}${t ? `: ${t}` : ''}`);
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`S3 upload failed ${res.status}: ${text}`);
   }
-  return `s3://${presign.objectKey}`;
+  return { etag: res.headers.get("ETag") };
 }
 
 export const api = {
