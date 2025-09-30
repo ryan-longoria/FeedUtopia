@@ -49,7 +49,7 @@ resource "aws_s3_bucket_cors_configuration" "media" {
   bucket = aws_s3_bucket.media_bucket.id
 
   cors_rule {
-    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"]
     allowed_origins = ["https://www.wrestleutopia.com"]
     allowed_headers = ["authorization","cache-control","content-type","x-amz-*"]
     expose_headers  = ["ETag"]
