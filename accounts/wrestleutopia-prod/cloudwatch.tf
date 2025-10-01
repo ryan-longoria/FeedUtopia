@@ -18,11 +18,6 @@ resource "aws_cloudwatch_log_group" "api_access" {
   retention_in_days = 30
 }
 
-resource "aws_cloudwatch_log_group" "lambda_api" {
-  name              = "/aws/lambda/${aws_lambda_function.api.function_name}"
-  retention_in_days = 30
-}
-
 resource "aws_cloudwatch_log_group" "lambda_imgproc" {
   name              = "/aws/lambda/${aws_lambda_function.image_processor.function_name}"
   retention_in_days = 30
