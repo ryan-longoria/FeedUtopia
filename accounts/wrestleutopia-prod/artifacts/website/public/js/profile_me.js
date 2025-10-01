@@ -12,8 +12,10 @@ const setImg = (sel, key) => {
   if (!el) return;
   if (!key) { el.src = '/assets/avatar-fallback.svg'; return; }
   const url = mediaUrl(String(key));
-  // Cache-bust avatars stored under /profiles/
-  el.src = String(key).startsWith('profiles/') ? `${url}?v=${Date.now()}` : url;
+  const needsBust =
+    /^public\/wrestlers\/profiles\//.test(String(key)) ||
+    /^profiles\//.test(String(key));
+  el.src = needsBust ? `${url}?v=${Date.now()}` : url;
 };
 
 // --- gallery state ---
@@ -23,12 +25,15 @@ const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, '');
 
 function renderPhotoGrid() {
   const wrap = document.getElementById('photoGrid'); if (!wrap) return;
-  wrap.innerHTML = (mediaKeys || []).map((k, i) => `
-    <div class="media-card">
-      <img src="${MEDIA_BASE ? `${MEDIA_BASE}/${k}` : '/assets/avatar-fallback.svg'}" alt="">
-      <button class="btn secondary media-remove" type="button" data-i="${i}">Remove</button>
-    </div>
-  `).join('');
+  wrap.innerHTML = (mediaKeys || []).map((k, i) => {
+    const raw = typeof k === 'string' && k.startsWith('raw/');
+    const imgSrc = raw ? '/assets/image-processing.svg' : mediaUrl(k);
+    return `
+      <div class="media-card">
+        <img src="${imgSrc}" alt="">
+        <button class="btn secondary media-remove" type="button" data-i="${i}">Remove</button>
+      </div>
+    `}).join('');
   wrap.querySelectorAll('.media-remove').forEach(btn => {
     btn.onclick = () => { mediaKeys.splice(Number(btn.dataset.i), 1); renderPhotoGrid(); };
   });
@@ -128,7 +133,7 @@ async function uploadAvatarIfAny() {
   const file = fileInput?.files?.[0];
   if (!file) return null;
 
-  // Use dedicated avatar presign -> returns "profiles/<sub>/avatar.<ext>"
+  // Use dedicated avatar presign -> returns "public/wrestlers/profiles/<sub>/avatar.<ext>"
   return await uploadAvatar(file);
 }
 
@@ -286,8 +291,9 @@ async function init() {
     const f = input?.files?.[0];
     if (!f) return;
     const key = await uploadToS3(f.name, f.type || 'video/mp4', f);
-    const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key; // public page expects full URL for videos
-    highlights.push(absolute);
+    // If key is already public, turn into CDN URL; if it's raw/, store as-is and let backend swap it later.
+    const val = (typeof key === 'string' && key.startsWith('public/')) ? mediaUrl(key) : key;
+    highlights.push(val);
     renderHighlightList();
     input.value = '';
   });
@@ -357,7 +363,7 @@ async function init() {
         data.photoKey   || data.avatarKey   || data.avatar_key   || data.photo_key;
 
       if (newKey && avatarPreview) {
-        avatarPreview.src = `${photoUrlFromKey(newKey)}?v=${Date.now()}`;
+        avatarPreview.src = photoUrlFromKey(newKey);
       }
     } catch (err) {
       console.error(err);

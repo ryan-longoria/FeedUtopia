@@ -1,13 +1,22 @@
+// /js/wrestler_public.js
 import { apiFetch } from '/js/api.js';
+import { mediaUrl } from '/js/media.js';
 
-function objUrlFromKey(key) {
+const h = (str) =>
+  String(str ?? '').replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]));
+
+// Keys under these prefixes should be cache-busted (avatar/logo updates)
+const needsBust = (k) =>
+  /^public\/wrestlers\/profiles\//.test(String(k)) ||
+  /^profiles\//.test(String(k)); // legacy
+
+// Turn a key (or absolute URL) into a browser URL. If it's raw/*, show a placeholder.
+function imgSrcFromKey(key) {
   if (!key) return '/assets/avatar-fallback.svg';
-  if (String(key).startsWith('http')) return key;
-  if (window.WU_MEDIA_BASE) return `${window.WU_MEDIA_BASE.replace(/\/+$/,'')}/${key}`;
-  return '/assets/avatar-fallback.svg';
+  const s = String(key);
+  if (s.startsWith('raw/')) return '/assets/image-processing.svg';
+  return mediaUrl(s);
 }
-
-const h = (str) => String(str ?? '').replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]));
 
 function fmtHeight(inches) {
   const n = Math.round(Number(inches));
@@ -43,7 +52,8 @@ async function run() {
     const stage = p.stageName || p.ring || p.name || handle;
     const name  = [p.firstName, p.middleName, p.lastName].filter(Boolean).join(' ');
     const loc   = [p.city, p.region, p.country].filter(Boolean).join(' - ');
-    const img   = objUrlFromKey(p.photoKey);
+    const avatarBase = p?.photoKey ? mediaUrl(p.photoKey) : '/assets/avatar-fallback.svg';
+    const avatarSrc  = p?.photoKey && needsBust(p.photoKey) ? `${avatarBase}?v=${Date.now()}` : avatarBase;
     const chips = Array.isArray(p.gimmicks) ? p.gimmicks : [];
     const htStr = fmtHeight(p.heightIn);
     const wtStr = fmtWeight(p.weightLb);
@@ -62,9 +72,9 @@ async function run() {
 
     wrap.innerHTML = `
       <section class="hero card" style="max-width:980px;margin-inline:auto;overflow:hidden">
-        ${p.coverKey ? `<img class="cover" src="${objUrlFromKey(p.coverKey)}" alt="">` : ''}
+        ${p.coverKey ? `<img class="cover" src="${h(mediaUrl(p.coverKey))}" alt="">` : ''}
         <div class="hero-inner container">
-          <img class="avatar-ring" src="${img}" alt="${h(stage)} avatar">
+          <img class="avatar-ring" src="${h(avatarSrc)}" alt="${h(stage)} avatar">
           <div class="hero-meta">
             <h1>${h(stage)}</h1>
             <div class="stats-bar">
@@ -118,7 +128,7 @@ async function run() {
         <div id="photos" class="mt-3" style="scroll-margin-top: 90px;">
           ${Array.isArray(p.mediaKeys) && p.mediaKeys.length ? `
             <div class="media-grid">
-              ${p.mediaKeys.map(k => `<div class="media-card"><img src="${objUrlFromKey(k)}" alt=""></div>`).join('')}
+              ${p.mediaKeys.map(k => `<div class="media-card"><img src="${h(imgSrcFromKey(k))}" alt=""></div>`).join('')}
             </div>
           ` : `<div class="card"><p class="muted">No photos yet.</p></div>`}
         </div>
@@ -142,13 +152,11 @@ async function run() {
     // Smooth scroll on click
     links.forEach(a => {
       a.addEventListener('click', (e) => {
-        // allow the hash to update, but do smooth scroll
         e.preventDefault();
         const id = a.getAttribute('href').replace('#','');
         const target = document.getElementById(id);
         if (target) {
           target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          // update aria-current immediately for feedback
           links.forEach(l => l.setAttribute('aria-current', l === a ? 'page' : 'false'));
           history.replaceState(null, '', `#${id}`);
         }
@@ -157,7 +165,6 @@ async function run() {
 
     // Highlight active link while scrolling
     const io = new IntersectionObserver((entries) => {
-      // choose the section closest to top
       let topMost = null;
       for (const entry of entries) {
         if (entry.isIntersecting) {

@@ -1,6 +1,7 @@
 // /js/promo_me.js
 import { apiFetch, uploadToS3 } from '/js/api.js';
 import { getAuthState, isPromoter } from '/js/roles.js';
+import { mediaUrl } from '/js/media.js';
 
 // ---------- tiny DOM helpers ----------
 const $  = (sel) => document.querySelector(sel);
@@ -29,11 +30,9 @@ function normalizeS3Key(uriOrKey, sub) {
     raw = firstSlash >= 0 ? raw.slice(firstSlash + 1) : raw; // remove "<bucket>/"
   }
 
-  // If it already starts with "user/", keep it
-  if (/^user\//.test(raw)) return raw;
+  if (/^(public\/(wrestlers|promoters)\/|raw\/uploads\/)/.test(raw)) return raw;
 
-  // If it starts with "<sub>/...", add "user/" prefix
-  if (sub && raw.startsWith(`${sub}/`)) return `user/${raw}`;
+  if (/^user\//.test(raw)) return raw;
 
   // Fallback: force "user/<sub>/<filename>"
   const fname = raw.split('/').pop() || `file-${Date.now()}`;
@@ -51,12 +50,15 @@ function toast(text, type = 'success') {
 
 // ---------- media helpers (logos/photos/videos) ----------
 const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, '');
-
-function mediaUrlFromKey(key, fallback = '/assets/avatar-fallback.svg') {
-  if (!key) return fallback;
-  if (String(key).startsWith('http')) return key;
-  return MEDIA_BASE ? `${MEDIA_BASE}/${key}` : fallback;
-}
+const setLogoImg = (el, key) => {
+  if (!el) return;
+  if (!key) { el.src = '/assets/avatar-fallback.svg'; return; }
+  const url = mediaUrl(String(key));
+  const needsBust =
+    /^public\/promoters\/profiles\//.test(String(key)) ||
+    /^profiles\//.test(String(key)); // legacy
+  el.src = needsBust ? `${url}?v=${Date.now()}` : url;
+};
 
 // State for gallery (photos) + highlights (video links or absolute URLs)
 let mediaKeys = [];   // array of S3 object keys (images)
@@ -64,15 +66,16 @@ let highlights = [];  // array of URLs (YouTube or absolute video URLs)
 
 function renderPhotoGrid() {
   const wrap = document.getElementById('photoGrid'); if (!wrap) return;
-  wrap.innerHTML = (mediaKeys || []).map((k, i) => `
-    <div class="media-card">
-      <img src="${mediaUrlFromKey(k)}" alt="">
-      <button class="btn secondary media-remove" type="button" data-i="${i}">Remove</button>
-    </div>
-  `).join('');
-  wrap.querySelectorAll('.media-remove').forEach(btn => {
-    btn.onclick = () => { mediaKeys.splice(Number(btn.dataset.i), 1); renderPhotoGrid(); };
-  });
+  wrap.innerHTML = (mediaKeys || []).map((k, i) => {
+    const raw = typeof k === 'string' && k.startsWith('raw/');
+    const imgSrc = raw ? '/assets/image-processing.svg' : mediaUrl(k);
+    return `
+      <div class="media-card">
+        <img src="${imgSrc}" alt="">
+        <button class="btn secondary media-remove" type="button" data-i="${i}">Remove</button>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderHighlightList() {
@@ -83,6 +86,9 @@ function renderHighlightList() {
       <button class="btn secondary" type="button" data-i="${i}">Remove</button>
     </li>
   `).join('');
+  wrap.querySelectorAll('.media-remove').forEach(btn => {
+    btn.onclick = () => { mediaKeys.splice(Number(btn.dataset.i), 1); renderPhotoGrid(); };
+  });
   ul.querySelectorAll('button').forEach(btn => {
     btn.onclick = () => { highlights.splice(Number(btn.dataset.i), 1); renderHighlightList(); };
   });
@@ -91,6 +97,25 @@ function renderHighlightList() {
 async function uploadLogoIfAny() {
   const file = document.getElementById('logo')?.files?.[0];
   if (!file) return null;
+  try {
+    if (typeof apiFetch === 'function') {
+      // If you add a route like POST /profiles/promoters/me/logo-url (mirroring wrestlers)
+      const presign = await apiFetch('/profiles/promoters/me/logo-url', { method: 'POST', body: { contentType: file.type || 'image/jpeg' }});
+      if (presign?.uploadUrl && presign?.objectKey) {
+        await fetch(presign.uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': presign.contentType || file.type || 'image/jpeg',
+            'x-amz-server-side-encryption': 'AES256',
+          },
+          body: file,
+        });
+        return presign.objectKey; // e.g., public/promoters/profiles/<sub>/logo.png
+      }
+    }
+  } catch (_) { /* fall through to generic */ }
+
+  // Fallback: generic presign (likely lands in raw/uploads or legacy user/<sub>/)
   return await uploadToS3(file.name, file.type || 'image/jpeg', file);
 }
 
@@ -129,7 +154,7 @@ async function loadMe() {
 
     // Logo preview
     const logoImg = document.getElementById('logoPreview');
-    if (logoImg) logoImg.src = mediaUrlFromKey(me.logoKey);
+    if (logoImg) setLogoImg(logoImg, me.logoKey);
 
     // Gallery + Highlights
     const { sub } = (await getAuthState()) || {};
@@ -198,8 +223,8 @@ async function init() {
     try {
       const { sub } = (await getAuthState()) || {};
       const key = await uploadToS3(f.name, f.type || 'video/mp4', f);
-      const absolute = MEDIA_BASE ? `${MEDIA_BASE}/${key}` : key;
-      highlights.push(absolute);
+      const val = (typeof key === 'string' && key.startsWith('public/')) ? mediaUrl(key) : key;
+      highlights.push(val);
       renderHighlightList();
       input.value = '';
     } catch (err) {
@@ -260,7 +285,7 @@ async function init() {
 
       // Ensure preview reflects any new logo immediately
       if (saved?.logoKey && logoPreview) {
-        logoPreview.src = mediaUrlFromKey(saved.logoKey);
+        setLogoImg(logoPreview, saved.logoKey);
       }
     } catch (err) {
       console.error(err);

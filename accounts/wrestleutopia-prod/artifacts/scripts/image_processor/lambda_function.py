@@ -145,7 +145,14 @@ def _process_image_variants(img: Image.Image, base_out_prefix: str) -> Dict[str,
 
         buf = io.BytesIO()
         im2.save(buf, "JPEG", quality=86)
-        s3.put_object(Bucket=_BUCKET, Key=out_key, Body=buf.getvalue(), ContentType="image/jpeg")
+        s3.put_object(
+            Bucket=_BUCKET,
+            Key=out_key,
+            Body=buf.getvalue(),
+            ContentType="image/jpeg",
+            ServerSideEncryption="AES256",
+            CacheControl="public, max-age=31536000, immutable"
+        )
 
         variants[f"w{w}"] = f"{CDN_BASE}/{out_key}"
     return variants
@@ -173,7 +180,7 @@ def _process_records(records: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
             _BUCKET = b  # used by variant writer
 
             # Only process raw/ keys
-            if not k.startswith("raw/"):
+            if not k.startswith("raw/uploads/") and not k.startswith("raw/"):
                 skipped += 1
                 continue
 
@@ -203,10 +210,13 @@ def _process_records(records: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
                     skipped += 1
                     continue
 
+                kind = (meta.get("kind") or meta.get("ownerkind") or "wrestler").lower()
+                role_folder = "wrestlers" if kind == "wrestler" else "promoters"
+
                 # Derive output prefix from your original logic
                 # images/<mediaId>/w{w}.jpg  where mediaId is after '#'
                 media_id = sk.split("#", 1)[1] if "#" in sk else sk
-                out_prefix = f"images/{media_id}"
+                out_prefix = f"public/{role_folder}/images/{media_id}"
 
                 # Load & process image
                 body = o["Body"].read()

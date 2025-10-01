@@ -36,7 +36,8 @@ def lambda_handler(event, ctx):
             "Bucket": BUCKET,
             "Key": key,
             "ContentType": content_type,
-            "Metadata": { "pk": pk, "sk": sk }
+            "Metadata": { "pk": pk, "sk": sk },
+            "ServerSideEncryption": "AES256",
         },
         ExpiresIn=900
     )

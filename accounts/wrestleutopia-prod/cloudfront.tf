@@ -29,7 +29,7 @@ resource "aws_cloudfront_distribution" "media" {
     compress               = true
 
     forwarded_values {
-      query_string = false
+      query_string = true
       cookies { forward = "none" }
     }
 
