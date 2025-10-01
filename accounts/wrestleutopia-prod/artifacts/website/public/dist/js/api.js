@@ -87,14 +87,11 @@ export async function uploadAvatar(file) {
   return objectKey;
 }
 
-export async function uploadToS3(filename, contentType, file, opts = {}) {
+export async function uploadToS3(filename, contentType, file) {
   const params = new URLSearchParams({
     key: filename || 'upload.bin',
     contentType: contentType || 'application/octet-stream',
   });
-
-  if (opts.actor) params.set('actor', opts.actor);
-  if (opts.type)  params.set('type', opts.type);
 
   const presign = await apiFetch(`/s3/presign?${params.toString()}`, { method: 'GET' });
 
