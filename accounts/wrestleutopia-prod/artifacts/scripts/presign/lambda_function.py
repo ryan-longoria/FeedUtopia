@@ -41,7 +41,7 @@ def lambda_handler(event, _ctx):
         if ext == "jpeg": ext = "jpg"
         if ext not in ALLOWED_IMAGE_EXT:
             return _resp(400, {"message": f"unsupported image type; allowed: {sorted(ALLOWED_IMAGE_EXT)}"})
-        object_key = f"profiles/{sub}/avatar.{ext}"
+        object_key = f"user/{sub}/avatar.{ext}"
     else:
         base = raw.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
         base = _safe_base(base)
