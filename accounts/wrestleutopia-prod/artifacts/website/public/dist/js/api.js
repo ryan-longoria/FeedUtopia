@@ -87,11 +87,13 @@ export async function uploadAvatar(file) {
   return objectKey;
 }
 
-export async function uploadToS3(filename, contentType, file) {
+export async function uploadToS3(filename, contentType, file, opts = {}) {
   const params = new URLSearchParams({
     key: filename || 'upload.bin',
     contentType: contentType || 'application/octet-stream',
   });
+  if (opts.actor) params.set('actor', String(opts.actor));
+  if (opts.type)  params.set('type', String(opts.type));
 
   const presign = await apiFetch(`/s3/presign?${params.toString()}`, { method: 'GET' });
 
@@ -107,7 +109,6 @@ export async function uploadToS3(filename, contentType, file) {
   const putRes = await fetch(uploadUrl, {
     method: 'PUT',
     headers: {
-      // MUST match what was signed:
       'Content-Type': signedCT,
       'x-amz-server-side-encryption': 'AES256',
     },
