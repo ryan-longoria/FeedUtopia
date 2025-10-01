@@ -194,7 +194,7 @@ async function init() {
     try {
       const { sub } = (await getAuthState()) || {};
       for (const f of files) {
-        const key = await uploadToS3(f.name, f.type || 'image/jpeg', f, { actor: 'promoter', type: 'gallery' });
+        const key = await uploadToS3(f.name, f.type || 'image/jpeg', f);
         mediaKeys.push(key);
       }
       renderPhotoGrid();
@@ -222,12 +222,7 @@ async function init() {
     if (!f) return;
     try {
       const { sub } = (await getAuthState()) || {};
-      const key = await uploadToS3(
-        f.name,
-        f.type || 'video/mp4',
-        f,
-        { actor: 'promoter', type: 'highlight' }
-      );
+      const key = await uploadToS3(f.name, f.type || 'video/mp4', f);
       const val = (typeof key === 'string' && key.startsWith('public/')) ? mediaUrl(key) : key;
       highlights.push(val);
       renderHighlightList();
@@ -271,11 +266,7 @@ async function init() {
       if (Object.keys(socials).length) data.socials = socials;
 
       // upload logo if provided
-      const logoKey = await (async () => {
-        const file = document.getElementById('logo')?.files?.[0];
-        if (!file) return null;
-        return await uploadToS3(file.name, file.type || 'image/jpeg', file, { actor: 'promoter', type: 'logo' });
-      })();  
+      const logoKey = await uploadLogoIfAny();
       if (logoKey) data.logoKey = logoKey;
 
       // attach gallery + highlights

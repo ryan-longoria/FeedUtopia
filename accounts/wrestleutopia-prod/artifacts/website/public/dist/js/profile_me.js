@@ -268,7 +268,7 @@ async function init() {
     const files = Array.from(input?.files || []);
     if (!files.length) return;
     for (const f of files) {
-      const key = await uploadToS3(f.name, f.type || 'image/jpeg', f, { actor: 'wrestler', type: 'gallery' });
+      const key = await uploadToS3(f.name, f.type || 'image/jpeg', f); // returns objectKey string
       mediaKeys.push(key);
     }
     renderPhotoGrid();
@@ -290,12 +290,7 @@ async function init() {
     const input = document.getElementById('highlightFile');
     const f = input?.files?.[0];
     if (!f) return;
-    const key = await uploadToS3(
-      f.name,
-      f.type || 'video/mp4',
-      f,
-      { actor: 'wrestler', type: 'highlight' }
-    );
+    const key = await uploadToS3(f.name, f.type || 'video/mp4', f);
     // If key is already public, turn into CDN URL; if it's raw/, store as-is and let backend swap it later.
     const val = (typeof key === 'string' && key.startsWith('public/')) ? mediaUrl(key) : key;
     highlights.push(val);
