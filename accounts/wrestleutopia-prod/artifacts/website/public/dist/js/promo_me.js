@@ -232,7 +232,7 @@ async function init() {
       toast('Video upload failed', 'error');
     }
   });
-
+ 
   // Save handler
   const form = document.getElementById('promoForm');
   const saveBtn = document.getElementById('saveBtn');
