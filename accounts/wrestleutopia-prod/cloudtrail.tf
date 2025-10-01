@@ -11,6 +11,7 @@ resource "aws_cloudtrail" "media_trail" {
 
   advanced_event_selector {
     name = "S3WriteEventsForMedia"
+
     field_selector {
       field  = "eventCategory"
       equals = ["Data"]
@@ -24,8 +25,14 @@ resource "aws_cloudtrail" "media_trail" {
       equals = ["false"]
     }
     field_selector {
-      field  = "resources.ARN"
-      starts_with = ["${aws_s3_bucket.media_bucket.arn}/raw/"]
+      field        = "resources.ARN"
+      starts_with  = [
+        "${aws_s3_bucket.media_bucket.arn}/raw/uploads/",
+        "${aws_s3_bucket.media_bucket.arn}/public/wrestlers/profiles/",
+        "${aws_s3_bucket.media_bucket.arn}/public/promoters/profiles/",
+        "${aws_s3_bucket.media_bucket.arn}/public/wrestlers/images/",
+        "${aws_s3_bucket.media_bucket.arn}/public/promoters/images/",
+      ]
     }
   }
 }

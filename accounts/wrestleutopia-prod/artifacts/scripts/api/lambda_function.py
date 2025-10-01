@@ -362,33 +362,70 @@ def _list_wrestlers(groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
         _log("wrestlers scan error", e, "qs=", qs)
         return _resp(500, {"message": "Server error", "where": "list_wrestlers"})
     
-def _normalize_photo_key(raw: str, sub: str) -> str | None:
+# >>> CHANGE START: add new normalizer
+def _normalize_media_key(raw: str, sub: str, actor: str, kind: str | None = None) -> str | None:
+    """
+    Normalizes any S3 key we store in Dynamo to the new layout.
+
+    Layout we target:
+      raw/uploads/{sub}/...
+      public/wrestlers/{profiles|gallery|highlights|images}/...
+      public/promoters/{profiles|gallery|highlights|images}/...
+
+    Args:
+      raw   : incoming key or s3:// URL
+      sub   : caller's userId (Cognito sub)
+      actor : "wrestler" | "promoter"
+      kind  : optional "avatar" | "logo" to hint profiles/ vs gallery/ (not required)
+
+    Accepted inputs:
+      - s3://bucket/key                -> strips to "key"
+      - public/wrestlers/...           -> kept as-is
+      - public/promoters/...           -> kept as-is
+      - raw/uploads/...                -> kept as-is
+      - profiles/{sub}/avatar.jpg      -> mapped to public/<actor>/profiles/{sub}/avatar.jpg
+      - user/{sub}/file.jpg            -> mapped to public/<actor>/gallery/{sub}/file.jpg
+      - {sub}/file.jpg                 -> mapped to raw/uploads/{sub}/file.jpg
+      - anything else                  -> raw/uploads/{sub}/{basename}
+    """
     if not raw:
         return None
-    k = raw.strip()
 
-    # If it's an s3:// URL, drop the scheme and bucket → keep only the key
+    k = str(raw).strip()
+
+    # Strip s3://bucket/ prefix if present
     if k.startswith("s3://"):
-        # s3://bucket/key...
         parts = k.split("/", 3)
         if len(parts) >= 4:
-            k = parts[3]  # key after bucket/
+            k = parts[3]
         else:
             return None
 
-    # If it already starts with user/, keep it
-    if k.startswith("user/"):
+    # Canonical namespaces → keep
+    if k.startswith(("public/wrestlers/", "public/promoters/", "raw/uploads/")):
         return k
 
-    # If it starts with {sub}/..., prefix user/
-    if sub and k.startswith(f"{sub}/"):
-        return f"user/{k}"
+    # Legacy: explicit 'profiles/{sub}/...' -> to public/<actor>/profiles/{sub}/...
+    if sub and k.startswith(f"profiles/{sub}/"):
+        base = "wrestlers" if actor == "wrestler" else "promoters"
+        tail = k.split(f"profiles/{sub}/", 1)[1]
+        return f"public/{base}/profiles/{sub}/{tail}"
 
-    # Otherwise fall back to user/{sub}/{filename}
-    fname = k.split("/")[-1]
-    if not sub:
-        return None
-    return f"user/{sub}/{fname}"
+    # Legacy: 'user/{sub}/file' -> public/<actor>/gallery/{sub}/file
+    if sub and k.startswith(f"user/{sub}/"):
+        base = "wrestlers" if actor == "wrestler" else "promoters"
+        tail = k.split(f"user/{sub}/", 1)[1]
+        return f"public/{base}/gallery/{sub}/{tail}"
+
+    # Legacy: bare '{sub}/file' -> put into raw (to be processed/migrated later)
+    if sub and k.startswith(f"{sub}/"):
+        tail = k.split(f"{sub}/", 1)[1]
+        return f"raw/uploads/{sub}/{tail}"
+
+    # Unknown: safe default into raw
+    fname = (k.rsplit("/", 1)[-1] or f"file-{int(datetime.datetime.utcnow().timestamp())}")
+    return f"raw/uploads/{sub}/{fname}" if sub else None
+
 
 def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[str, Any]:
     if not _is_wrestler(groups):
@@ -462,7 +499,7 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
     current_handle = (existing.get("handle") or "").strip() or None
 
     raw_key = (data.get("photoKey") or "").strip()
-    norm_key = _normalize_photo_key(raw_key, sub) if raw_key else (existing.get("photoKey") or None)
+    norm_key = _normalize_media_key(raw_key, sub, actor="wrestler", kind="avatar") if raw_key else (existing.get("photoKey") or None)
 
     now = _now_iso()
     # Base (non-array) profile fields
@@ -499,7 +536,12 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
     # --- Persist gallery arrays ---
     incoming_media = data.get("mediaKeys")
     if isinstance(incoming_media, list):
-        media_keys = [str(x) for x in incoming_media if isinstance(x, str) and x.strip()]
+        media_keys = []
+        for x in incoming_media:
+            if isinstance(x, str) and x.strip():
+                nk = _normalize_media_key(x, sub, actor="wrestler")
+                if nk:
+                    media_keys.append(nk)
     else:
         media_keys = existing.get("mediaKeys", [])
 
@@ -510,8 +552,11 @@ def _put_me_profile(sub: str, groups: Set[str], event: Dict[str, Any]) -> Dict[s
         highlights_arr = existing.get("highlights", [])
 
     # If photoKey exists but not in mediaKeys, add it to the front (optional)
-    if base_profile.get("photoKey") and base_profile["photoKey"] not in media_keys:
-        media_keys = [base_profile["photoKey"]] + media_keys
+    pk = base_profile.get("photoKey") or ""
+    if pk and pk not in media_keys:
+        # Only add if it's a gallery/images key, not the profiles/ avatar
+        if pk.startswith(("public/wrestlers/gallery/", "public/wrestlers/images/")):
+            media_keys = [pk] + media_keys
 
     # Build final item
     item_out = {
@@ -617,16 +662,17 @@ def _upsert_promoter_profile(sub: str, groups: Set[str], event: Dict[str, Any]) 
     # --- logo: only update if provided; otherwise keep existing ---
     raw_logo = (data.get("logoKey") or "").strip()
     if raw_logo:
-        logo_key = _normalize_photo_key(raw_logo, sub) or existing.get("logoKey")
+        logo_key = _normalize_media_key(raw_logo, sub, actor="promoter", kind="logo") or existing.get("logoKey")
     else:
         logo_key = existing.get("logoKey")
+
 
     # --- gallery photos: only replace if client sent a list ---
     if isinstance(data.get("mediaKeys"), list):
         media_keys = []
         for x in data["mediaKeys"]:
             if isinstance(x, str) and x.strip():
-                nk = _normalize_photo_key(x, sub)
+                nk = _normalize_media_key(x, sub, actor="promoter")
                 if nk:
                     media_keys.append(nk)
     else:

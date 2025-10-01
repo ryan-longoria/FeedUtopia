@@ -23,6 +23,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "media_bucket_encr
 
 resource "aws_s3_bucket_lifecycle_configuration" "media_bucket_lifecycle" {
   bucket = aws_s3_bucket.media_bucket.id
+
   rule {
     id     = "delete_posts_after_1_week"
     status = "Enabled"
@@ -33,10 +34,73 @@ resource "aws_s3_bucket_lifecycle_configuration" "media_bucket_lifecycle" {
   }
 
   rule {
-    id     = "gallery_intelligent_tiering"
+    id     = "raw_uploads_expire_7d"
     status = "Enabled"
-    filter { prefix = "gallery/" }
+    filter { prefix = "raw/uploads/" }
+    expiration { days = 7 }
+    noncurrent_version_expiration { noncurrent_days = 7 }
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
 
+  rule {
+    id     = "public_wrestlers_images_tiering"
+    status = "Enabled"
+    filter { prefix = "public/wrestlers/images/" }
+    transition { 
+      days = 0 
+      storage_class = "INTELLIGENT_TIERING" 
+    }
+    noncurrent_version_expiration { noncurrent_days = 30 }
+  }
+
+  rule {
+    id     = "public_promoters_images_tiering"
+    status = "Enabled"
+    filter { prefix = "public/promoters/images/" }
+    transition { 
+      days = 0 
+      storage_class = "INTELLIGENT_TIERING" 
+    }
+    noncurrent_version_expiration { noncurrent_days = 30 }
+  }
+
+  rule {
+    id     = "public_wrestlers_gallery_tiering"
+    status = "Enabled"
+    filter { prefix = "public/wrestlers/gallery/" }
+    transition { 
+      days = 0 
+      storage_class = "INTELLIGENT_TIERING" 
+    }
+    noncurrent_version_expiration { noncurrent_days = 30 }
+  }
+
+  rule {
+    id     = "public_promoters_gallery_tiering"
+    status = "Enabled"
+    filter { prefix = "public/promoters/gallery/" }
+    transition { 
+      days = 0 
+      storage_class = "INTELLIGENT_TIERING" 
+    }
+    noncurrent_version_expiration { noncurrent_days = 30 }
+  }
+
+  rule {
+    id     = "public_wrestlers_highlights_tiering"
+    status = "Enabled"
+    filter { prefix = "public/wrestlers/highlights/" }
+    transition { 
+      days = 0 
+      storage_class = "INTELLIGENT_TIERING" 
+    }
+    noncurrent_version_expiration { noncurrent_days = 30 }
+  }
+
+  rule {
+    id     = "public_promoters_highlights_tiering"
+    status = "Enabled"
+    filter { prefix = "public/promoters/highlights/" }
     transition { 
       days = 0 
       storage_class = "INTELLIGENT_TIERING" 

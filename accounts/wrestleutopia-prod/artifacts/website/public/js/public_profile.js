@@ -1,13 +1,10 @@
 // /js/public_profile.js
 import { apiFetch } from '/js/api.js';
+import { mediaUrl } from '/js/media.js';
 
-const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, '');
-
-function photoUrlFromKey(key) {
-  if (!key) return '/assets/avatar-fallback.svg';
-  if (MEDIA_BASE) return `${MEDIA_BASE}/${key}`;
-  return '/assets/avatar-fallback.svg';
-}
+const needsBust = (k) =>
+  /^public\/wrestlers\/profiles\//.test(String(k)) ||
+  /^profiles\//.test(String(k)); // legacy keys
 
 function getHandleFromUrl() {
   // supports /w/<handle> and /w/index.html?handle=<handle>
@@ -46,10 +43,14 @@ async function init() {
     // Title
     document.title = `${p.stageName || 'Wrestler'} – WrestleUtopia`;
 
-    // Hero
+    // Hero avatar (via mediaUrl + selective cache-bust for profile keys)
     const img = document.getElementById('ph-avatar');
-    if (img) img.src = photoUrlFromKey(p.photoKey);
+    if (img) {
+      const base = p?.photoKey ? mediaUrl(p.photoKey) : '/assets/avatar-fallback.svg';
+      img.src = p?.photoKey && needsBust(p.photoKey) ? `${base}?v=${Date.now()}` : base;
+    }
 
+    // Headline fields
     set('ph-stage', p.stageName || 'Wrestler');
     const loc = [p.city, p.region, p.country].filter(Boolean).join(', ');
     set('ph-loc', loc);

@@ -19,7 +19,10 @@ data "aws_iam_policy_document" "media_cf_access" {
       identifiers = ["cloudfront.amazonaws.com"]
     }
 
-    resources = ["${aws_s3_bucket.media_bucket.arn}/*"]
+    resources = [
+      "${aws_s3_bucket.media_bucket.arn}/public/*",
+      "${aws_s3_bucket.media_bucket.arn}/posts/*",
+    ]
 
     condition {
       test     = "StringEquals"
@@ -422,20 +425,29 @@ resource "aws_iam_policy" "api_dynamo_policy" {
 
 resource "aws_iam_policy" "api_s3_media_policy" {
   name        = "${var.project_name}-api-s3-media"
-  description = "Allow API Lambda limited S3 access under user/* prefix"
+  description = "Allow API Lambda read (and optional delete) on public assets"
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       {
-        Sid    = "UserPrefixRW"
+        Sid    = "ReadPublic"
         Effect = "Allow",
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject"
-        ],
-        Resource = "arn:aws:s3:::${var.s3_bucket_name}/user/*"
-      }
+        Action = ["s3:GetObject"],
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/posts/*"
+        ]
+      },
+      {
+          Sid    = "OptionalDeletePublic"
+          Effect = "Allow",
+          Action = ["s3:DeleteObject"],
+          Resource = [
+            "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/*",
+            "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/*"
+          ]
+        }
     ]
   })
 }
@@ -519,22 +531,19 @@ resource "aws_iam_policy" "presign_s3_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid      = "AllowPutOnUserPrefix",
-        Effect   = "Allow",
-        Action   = ["s3:PutObject", "s3:GetObject"],
-        Resource = "arn:aws:s3:::${var.s3_bucket_name}/user/*"
-      },
-      {
         Sid      = "AllowPutOnRawPrefix",
         Effect   = "Allow",
         Action   = ["s3:PutObject", "s3:GetObject"],
-        Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/*"
+        Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/uploads/*"
       },
       {
-        Sid      = "AllowPutOnProfilesPrefix",
+        Sid      = "AllowPutOnPublicProfiles",
         Effect   = "Allow",
         Action   = ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload", "s3:PutObjectTagging"],
-        Resource = "arn:aws:s3:::${var.s3_bucket_name}/profiles/*",
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/profiles/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/profiles/*"
+        ],
         Condition = {
           StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" }
         }
@@ -566,7 +575,7 @@ resource "aws_iam_role" "image_processor_role" {
 
 resource "aws_iam_policy" "image_processor_policy" {
   name        = "${var.project_name}-image-processor"
-  description = "Image processor: read raw/*, write images/*, update media item in DynamoDB"
+  description = "Image processor: read raw/uploads/*, write public images, update media item in DynamoDB"
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
@@ -574,13 +583,16 @@ resource "aws_iam_policy" "image_processor_policy" {
         Sid      = "S3ReadRaw",
         Effect   = "Allow",
         Action   = ["s3:GetObject"],
-        Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/*"
+        Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/uploads/*"
       },
       {
-        Sid      = "S3WriteImages",
+        Sid      = "S3WritePublicImages",
         Effect   = "Allow",
         Action   = ["s3:PutObject"],
-        Resource = "arn:aws:s3:::${var.s3_bucket_name}/images/*"
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/images/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/images/*"
+        ]
       },
       {
         Sid    = "DynamoUpdateMedia",

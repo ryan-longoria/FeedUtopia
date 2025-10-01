@@ -1,13 +1,13 @@
+// /js/promo_public.js
 import { apiFetch } from '/js/api.js';
+import { mediaUrl } from '/js/media.js';
 
-const MEDIA_BASE = (window.WU_MEDIA_BASE || '').replace(/\/+$/, '');
-const mediaUrl = (k) => {
-  if (!k) return '/assets/avatar-fallback.svg';
-  const s = String(k);
-  if (s.startsWith('http://') || s.startsWith('https://')) return s; // ✅ absolute
-  return MEDIA_BASE ? `${MEDIA_BASE}/${s}` : '/assets/avatar-fallback.svg';
-};
-const h = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const h = (s) =>
+  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Cache-bust only profile-like assets so users see new logos/covers immediately
+const needsBust = (k) =>
+  /^public\/promoters\/profiles\//.test(String(k)) || /^profiles\//.test(String(k)); // legacy support
 
 // External link guard
 function safeLink(url, label) {
@@ -16,7 +16,9 @@ function safeLink(url, label) {
   try {
     const parsed = new URL(u, location.origin);
     if (!/^https?:$/.test(parsed.protocol)) return '';
-  } catch { return ''; }
+  } catch {
+    return '';
+  }
   return `<a href="${h(u)}" target="_blank" rel="noopener nofollow">${h(label || u)}</a>`;
 }
 
@@ -78,26 +80,23 @@ function idFromPath(){
   return pathId || hashId || '';
 }
 
-function sectionIds(item){
-  // Show Roster tab only if data exists
-  const ids = ['about', 'tryouts', 'photos', 'videos'];
-  if (Array.isArray(item.rosterHandles) && item.rosterHandles.length) ids.push('roster');
-  return ids;
-}
-
 // Renders the public promoter page into containerEl
 function render(containerEl, item, tryouts = []) {
   if (!containerEl) return;
   if (!item?.userId) { containerEl.innerHTML = '<p class="muted">Promotion not found.</p>'; return; }
 
   const orgName = h(item.orgName || 'Promotion');
-  const logo = mediaUrl(item.logoKey);
-  const cover = item.coverKey ? mediaUrl(item.coverKey) : '';
+
+  // Logo + Cover with selective cache-busting
+  const logoBase  = item.logoKey  ? mediaUrl(item.logoKey)  : '/assets/avatar-fallback.svg';
+  const coverBase = item.coverKey ? mediaUrl(item.coverKey) : '';
+  const logo  = item.logoKey  ? (needsBust(item.logoKey)  ? `${logoBase}?v=${Date.now()}`  : logoBase)  : logoBase;
+  const cover = item.coverKey ? (needsBust(item.coverKey) ? `${coverBase}?v=${Date.now()}` : coverBase) : '';
+
   const addressFull = h(buildFullAddress(item));
   const socials = socialsRow({ ...(item.website ? { website: item.website } : {}), ...(item.socials || {}) });
 
-
-  // Build nav tabs
+  // Build nav tabs (About, Photos, Videos, Tryouts, optional Roster)
   const order = ['about','photos','videos','tryouts'];
   if (Array.isArray(item.rosterHandles) && item.rosterHandles.length) order.push('roster');
 
@@ -141,7 +140,13 @@ function render(containerEl, item, tryouts = []) {
         <h2 class="mt-0">Photos</h2>
         ${Array.isArray(item.mediaKeys) && item.mediaKeys.length ? `
           <div class="media-grid mt-2">
-            ${item.mediaKeys.map(k => `<div class="media-card"><img src="${h(mediaUrl(k))}" alt=""></div>`).join('')}
+            ${item.mediaKeys.map(k => {
+              const s = String(k || '');
+              if (s.startsWith('raw/')) {
+                return `<div class="media-card"><img src="/assets/image-processing.svg" alt="Processing…"></div>`;
+              }
+              return `<div class="media-card"><img src="${h(mediaUrl(s))}" alt=""></div>`;
+            }).join('')}
           </div>` : `<p class="muted">No photos yet.</p>`}
       </div>
 
@@ -149,12 +154,17 @@ function render(containerEl, item, tryouts = []) {
         <h2 class="mt-0">Videos</h2>
         ${Array.isArray(item.highlights) && item.highlights.length ? `
           <div class="media-grid mt-2">
-            ${item.highlights.map(v => `
-              <div class="media-card">
-                ${/youtube|youtu\.be/i.test(String(v))
-                  ? `<iframe width="100%" height="220" src="${h(String(v)).replace('watch?v=','embed/')}" title="Video" frameborder="0" allowfullscreen></iframe>`
-                  : `<video src="${h(String(v))}" controls></video>`}
-              </div>`).join('')}
+            ${item.highlights.map(v => {
+              const sv = String(v || '');
+              const isYT = /youtube|youtu\.be/i.test(sv);
+              const src = (sv.startsWith('public/') || sv.startsWith('raw/')) ? mediaUrl(sv) : sv;
+              return `
+                <div class="media-card">
+                  ${isYT
+                    ? `<iframe width="100%" height="220" src="${h(src).replace('watch?v=','embed/')}" title="Video" frameborder="0" allowfullscreen></iframe>`
+                    : `<video src="${h(src)}" controls></video>`}
+                </div>`;
+            }).join('')}
           </div>
         ` : `<p class="muted">No videos yet.</p>`}
       </div>
