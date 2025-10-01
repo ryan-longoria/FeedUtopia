@@ -547,6 +547,20 @@ resource "aws_iam_policy" "presign_s3_policy" {
         Condition = {
           StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" }
         }
+      },
+      {
+        Sid    = "AllowPutOnPublicGalleryAndHighlights"
+        Effect = "Allow"
+        Action = ["s3:PutObject","s3:GetObject","s3:AbortMultipartUpload","s3:PutObjectTagging"]
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/gallery/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/gallery/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/highlights/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/highlights/*"
+        ]
+        Condition = {
+          StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" }
+        }
       }
     ]
   })
@@ -602,6 +616,20 @@ resource "aws_iam_policy" "image_processor_policy" {
           "dynamodb:GetItem"
         ],
         Resource = aws_dynamodb_table.tryouts.arn
+      },
+      {
+        Sid    = "AllowPutOnPublicGalleryAndHighlights"
+        Effect = "Allow"
+        Action = ["s3:PutObject","s3:GetObject","s3:AbortMultipartUpload","s3:PutObjectTagging"]
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/gallery/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/gallery/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/highlights/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/highlights/*"
+        ]
+        Condition = {
+          StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" }
+        }
       }
     ]
   })
