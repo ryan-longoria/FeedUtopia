@@ -45,12 +45,6 @@ resource "aws_cloudwatch_event_target" "imgproc" {
   rule      = aws_cloudwatch_event_rule.s3_raw_puts.name
   target_id = "lambda-imgproc"
   arn       = aws_lambda_function.image_processor.arn
-}
-
-resource "aws_cloudwatch_event_target" "imgproc" {
-  rule      = aws_cloudwatch_event_rule.s3_raw_puts.name
-  target_id = "lambda-imgproc"
-  arn       = aws_lambda_function.image_processor.arn
 
   dead_letter_config {
     arn = aws_sqs_queue.imgproc_dlq.arn
