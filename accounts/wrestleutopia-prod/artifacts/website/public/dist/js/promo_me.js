@@ -1,5 +1,5 @@
 // /js/promo_me.js
-import { apiFetch, uploadToS3 } from '/js/api.js';
+import { apiFetch, uploadToS3, md5Base64 } from '/js/api.js';
 import { getAuthState, isPromoter } from '/js/roles.js';
 import { mediaUrl } from '/js/media.js';
 
@@ -98,15 +98,22 @@ async function uploadLogoIfAny() {
   const file = document.getElementById('logo')?.files?.[0];
   if (!file) return null;
   try {
+    const md5b64 = await md5Base64(file);
+
     if (typeof apiFetch === 'function') {
       // If you add a route like POST /profiles/promoters/me/logo-url (mirroring wrestlers)
-      const presign = await apiFetch('/profiles/promoters/me/logo-url', { method: 'POST', body: { contentType: file.type || 'image/jpeg' }});
+      const presign = await apiFetch('/profiles/promoters/me/logo-url', {
+        method: 'POST',
+        headers: { 'Content-MD5': md5b64 },
+        body: { contentType: file.type || 'image/jpeg' }
+      });
       if (presign?.uploadUrl && presign?.objectKey) {
         await fetch(presign.uploadUrl, {
           method: 'PUT',
           headers: {
             'Content-Type': presign.contentType || file.type || 'image/jpeg',
             'x-amz-server-side-encryption': 'AES256',
+            'Content-MD5': md5b64,
           },
           body: file,
         });
