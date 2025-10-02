@@ -594,6 +594,22 @@ resource "aws_iam_role_policy_attachment" "image_processor_attach" {
   policy_arn = aws_iam_policy.image_processor_policy.arn
 }
 
+data "aws_iam_policy_document" "image_processor_dlq_write" {
+  statement {
+    sid     = "AllowSendToDLQ"
+    actions = ["sqs:SendMessage"]
+    resources = [
+      aws_sqs_queue.image_processor_dlq.arn
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "image_processor_dlq_write" {
+  name   = "${var.project_name}-image-processor-dlq-write"
+  role   = aws_iam_role.image_processor_role.name
+  policy = data.aws_iam_policy_document.image_processor_dlq_write.json
+}
+
 #############################
 # Lambda Invoke Permissions (misc)
 #############################

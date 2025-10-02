@@ -1,266 +1,279 @@
-# lambda_function.py (image-processor) — EventBridge-aware + idempotency
 import os
 import io
+import re
 import time
+import json
 import logging
-from typing import Dict, Any, Iterable, Tuple
+from typing import Dict, Any, Iterable, Tuple, Optional
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
-from PIL import Image
+from PIL import Image, UnidentifiedImageError, ImageFile
 
-# --- AWS clients/resources
-s3  = boto3.client("s3")
+MAX_SRC_BYTES = int(os.getenv("MAX_SRC_BYTES", str(25 * 1024 * 1024)))
+MAX_IMAGE_PIXELS = int(os.getenv("MAX_IMAGE_PIXELS", "75000000"))
+FAILED_RETRY_SECS = int(os.getenv("FAILED_RETRY_SECS", "600"))
+
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+ImageFile.LOAD_TRUNCATED_IMAGES = False
+
+_BOTO_CFG = Config(
+    retries={"mode": "standard", "max_attempts": 5},
+    read_timeout=15,
+    connect_timeout=3,
+)
+s3 = boto3.client("s3", config=_BOTO_CFG)
 ddb = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
 
-# --- Config
-CDN_BASE = os.environ["CDN_BASE"]           # e.g., https://cdn.wrestleutopia.com
-VARIANT_WIDTHS = (400, 1200)                # keep original sizes
+CDN_BASE = os.environ["CDN_BASE"]
+VARIANT_WIDTHS = (400, 1200)
+DDB_TTL_SECS = int(os.getenv("DDB_TTL_SECS", "7776000"))
+SAFE_ID = re.compile(r"^[A-Za-z0-9:_#-]{1,120}$")
+SAFE_MEDIA = re.compile(r"[^A-Za-z0-9_-]")
 
-# --- Logging
-logger = logging.getLogger()
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logger = logging.getLogger("image_processor")
 if not logger.handlers:
-    logging.basicConfig(level=logging.INFO)
-logger.setLevel(logging.INFO)
+    logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
+logger.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
 
 
-# -----------------------------
-# Helpers: idempotency
-# -----------------------------
-def _idem_keys_from_record(rec: Dict[str, Any]) -> Tuple[str, str]:
-    """
-    Build idempotency keys from an S3-style record dict.
-    Prefer VersionId; fall back to S3 'sequencer'; last resort 'null'.
-    """
+def jlog(level: int, msg: str, **fields) -> None:
+    """Emit a structured JSON log entry."""
+    logger.log(
+        level,
+        json.dumps({"msg": msg, "lvl": logging.getLevelName(level), **fields}),
+    )
+
+
+def _now() -> int:
+    """Return current epoch seconds."""
+    return int(time.time())
+
+
+def _idem_keys_from_record(
+    rec: Dict[str, Any]
+) -> Tuple[str, str, Optional[str], str, str]:
+    """Build idempotency keys and core identifiers from a record."""
     b = rec["s3"]["bucket"]["name"]
     k = rec["s3"]["object"]["key"]
-    ver = rec["s3"]["object"].get("versionId") or rec["s3"]["object"].get("sequencer") or "null"
+    ver = rec["s3"]["object"].get("versionId") or rec["s3"]["object"].get(
+        "sequencer"
+    ) or "null"
     idem_pk = f"IDEMP#{b}/{k}"
     idem_sk = ver
-    return idem_pk, idem_sk
+    return idem_pk, idem_sk, rec["s3"]["object"].get("versionId"), b, k
 
 
-def _claim_idempotency(idem_pk: str, idem_sk: str) -> bool:
-    """
-    Attempt to create an idempotency record. If it already exists, skip work.
-    """
+def _claim_idempotency(pk: str, sk: str) -> bool:
+    """Attempt to claim idempotency, allowing reclaim after a short FAILED window."""
     try:
         ddb.put_item(
             Item={
-                "PK": idem_pk,
-                "SK": idem_sk,
+                "PK": pk,
+                "SK": sk,
                 "type": "idempotency",
                 "state": "INPROGRESS",
-                "ts": int(time.time()),
+                "ts": _now(),
+                "ttl": _now() + DDB_TTL_SECS,
             },
-            ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
+            ConditionExpression=(
+                "attribute_not_exists(PK) AND attribute_not_exists(SK)"
+                " OR (#st = :failed AND #ts < :retry_before)"
+            ),
+            ExpressionAttributeNames={"#st": "state", "#ts": "ts"},
+            ExpressionAttributeValues={
+                ":failed": "FAILED",
+                ":retry_before": _now() - FAILED_RETRY_SECS,
+            },
         )
         return True
     except ClientError as e:
         if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
-            logger.info("Idempotency claim exists for %s %s; skipping.", idem_pk, idem_sk)
             return False
         raise
 
 
-def _mark_done(idem_pk: str, idem_sk: str) -> None:
+def _mark_done(pk: str, sk: str, state: str, **meta) -> None:
+    """Mark an idempotency row as DONE or FAILED with metadata."""
     ddb.update_item(
-        Key={"PK": idem_pk, "SK": idem_sk},
-        UpdateExpression="SET #st = :done, done_ts = :t",
+        Key={"PK": pk, "SK": sk},
+        UpdateExpression="SET #st = :s, done_ts = :t, meta = :m",
         ExpressionAttributeNames={"#st": "state"},
-        ExpressionAttributeValues={":done": "DONE", ":t": int(time.time())},
+        ExpressionAttributeValues={":s": state, ":t": _now(), ":m": meta},
     )
 
 
-def _release_claim(idem_pk: str, idem_sk: str) -> None:
-    """
-    Delete the in-progress claim so a retry can process again.
-    Best-effort; don't mask the original error.
-    """
-    try:
-        ddb.delete_item(Key={"PK": idem_pk, "SK": idem_sk})
-    except Exception:
-        pass
-
-
-# -----------------------------
-# Helpers: event normalization
-# -----------------------------
 def _records_from_event(event: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
-    """
-    Normalize both EventBridge-delivered S3 events and direct S3 events
-    into a list of S3-like record dicts with the shape our processor expects.
-    """
-    # EventBridge path (S3 -> EventBridge -> Rule -> Lambda)
-    if "detail" in event and isinstance(event["detail"], dict) and "bucket" in event["detail"]:
-        detail = event["detail"]
-        rec = {
-            "eventName": detail.get("eventName", "ObjectCreated:Put"),
-            "s3": {
-                "bucket": {"name": detail["bucket"]["name"]},
-                "object": {
-                    "key": detail["object"]["key"],
-                    "versionId": detail["object"].get("version-id"),
-                    "sequencer": detail.get("sequencer"),
+    """Normalize EventBridge or direct S3 events into record dicts."""
+    if isinstance(event.get("detail"), dict) and "bucket" in event["detail"]:
+        d = event["detail"]
+        return [
+            {
+                "eventName": d.get("eventName", "ObjectCreated:Put"),
+                "s3": {
+                    "bucket": {"name": d["bucket"]["name"]},
+                    "object": {
+                        "key": d["object"]["key"],
+                        "versionId": d["object"].get("version-id"),
+                        "sequencer": d.get("sequencer"),
+                        "size": d["object"].get("size"),
+                    },
                 },
-            },
-        }
-        return [rec]
-
-    # Direct S3 event path
-    if "Records" in event and isinstance(event["Records"], list):
+            }
+        ]
+    if isinstance(event.get("Records"), list):
         return event["Records"]
-
-    # Nothing recognizable
     return []
 
 
-# -----------------------------
-# Core processing
-# -----------------------------
-def _is_image_content_type(ctype: str) -> bool:
-    return (ctype or "").lower().startswith("image/")
+def _read_object(bucket: str, key: str, version_id: Optional[str]) -> Dict[str, Any]:
+    """Read an S3 object, honoring VersionId when provided."""
+    args = {"Bucket": bucket, "Key": key}
+    if version_id:
+        args["VersionId"] = version_id
+    return s3.get_object(**args)
 
 
-def _read_object(bucket: str, key: str) -> Dict[str, Any]:
-    """Wrapper so we can add logging and future range/stream handling here."""
-    resp = s3.get_object(Bucket=bucket, Key=key)
-    return resp
+def _is_allowed_format(fmt: Optional[str]) -> bool:
+    """Return True if the format is an allowed image type."""
+    return fmt in {"JPEG", "PNG", "WEBP"}
 
 
-def _lower_meta(meta: Dict[str, str]) -> Dict[str, str]:
-    return {str(k).lower(): v for k, v in (meta or {}).items()}
+def _safe_media_id(sk: str) -> str:
+    """Derive and sanitize media identifier from SK."""
+    mid = sk.split("#", 1)[1] if "#" in sk else sk
+    mid = SAFE_MEDIA.sub("_", mid)[:80]
+    return mid or "unknown"
 
 
-def _process_image_variants(img: Image.Image, base_out_prefix: str) -> Dict[str, str]:
-    """
-    Create JPEG thumbnails under images/<mediaId>/w{width}.jpg
-    Return a dict like: { "w400": "<cdn>/images/.../w400.jpg", ... }
-    """
-    variants = {}
+def _process_image_variants(
+    img: Image.Image, base_out_prefix: str, bucket: str
+) -> Dict[str, str]:
+    """Generate resized variants and return their CDN URLs."""
+    out: Dict[str, str] = {}
     for w in VARIANT_WIDTHS:
         im2 = img.copy()
-        im2.thumbnail((w, 10000))  # preserve aspect; cap height generously
-        out_key = f"{base_out_prefix}/w{w}.jpg"
-
+        im2.thumbnail((w, 10000))
         buf = io.BytesIO()
-        im2.save(buf, "JPEG", quality=86)
+        im2.save(buf, "JPEG", quality=86, optimize=True)
+        key = f"{base_out_prefix}/w{w}.jpg"
         s3.put_object(
-            Bucket=_BUCKET,
-            Key=out_key,
+            Bucket=bucket,
+            Key=key,
             Body=buf.getvalue(),
             ContentType="image/jpeg",
+            CacheControl="public, max-age=31536000, immutable",
             ServerSideEncryption="AES256",
-            CacheControl="public, max-age=31536000, immutable"
         )
+        out[f"w{w}"] = f"{CDN_BASE}/{key}"
+    return out
 
-        variants[f"w{w}"] = f"{CDN_BASE}/{out_key}"
-    return variants
 
-
-# Globals set per-invocation to reduce param passing noise
-_BUCKET = None
+def _valid_event_source(event: Dict[str, Any]) -> bool:
+    """Return True only for S3-origin EventBridge or direct S3 events."""
+    if "detail" in event:
+        return event.get("source") == "aws.s3"
+    return bool(event.get("Records"))
 
 
 def _process_records(records: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    """Process event records and generate variants."""
     processed = 0
     skipped = 0
-
-    global _BUCKET
-
     for rec in records:
         try:
-            event_name = rec.get("eventName", "")
-            if not event_name.startswith("ObjectCreated:"):
+            if not str(rec.get("eventName", "")).startswith("ObjectCreated:"):
                 skipped += 1
                 continue
-
-            b = rec["s3"]["bucket"]["name"]
-            k = rec["s3"]["object"]["key"]
-            _BUCKET = b  # used by variant writer
-
-            # Only process raw/ keys
-            if not k.startswith("raw/uploads/") and not k.startswith("raw/"):
+            idem_pk, idem_sk, ver, bucket, key = _idem_keys_from_record(rec)
+            size = int(rec["s3"]["object"].get("size") or 0)
+            if not (key.startswith("raw/uploads/") or key.startswith("raw/")):
                 skipped += 1
                 continue
-
-            # Idempotency: claim
-            idem_pk, idem_sk = _idem_keys_from_record(rec)
+            if size and size > MAX_SRC_BYTES:
+                _mark_done(idem_pk, idem_sk, "FAILED", reason="too_large", size=size)
+                skipped += 1
+                continue
             if not _claim_idempotency(idem_pk, idem_sk):
                 skipped += 1
                 continue
-
             try:
-                # Fetch object & basic gating
-                o = _read_object(b, k)
-                ctype = o.get("ContentType") or ""
-                if not _is_image_content_type(ctype):
-                    # Not an image -> mark done to avoid re-processing this version
-                    _mark_done(idem_pk, idem_sk)
+                obj = _read_object(bucket, key, ver)
+                body = obj["Body"].read(MAX_SRC_BYTES + 1)
+                if len(body) > MAX_SRC_BYTES:
+                    _mark_done(idem_pk, idem_sk, "FAILED", reason="too_large_read")
                     skipped += 1
                     continue
-
-                # Required upstream metadata
-                meta = _lower_meta(o.get("Metadata") or {})
-                pk, sk = meta.get("pk"), meta.get("sk")
-                if not pk or not sk:
-                    # Missing metadata -> mark done so retries don't loop forever
-                    logger.warning("Missing pk/sk metadata on %s/%s; skipping.", b, k)
-                    _mark_done(idem_pk, idem_sk)
+                try:
+                    raw = Image.open(io.BytesIO(body))
+                    raw.verify()
+                    probe = Image.open(io.BytesIO(body))
+                    fmt = getattr(probe, "format", None)
+                    img = probe.convert("RGB")
+                    if not _is_allowed_format(fmt):
+                        _mark_done(idem_pk, idem_sk, "FAILED", reason="not_image")
+                        skipped += 1
+                        continue
+                except (UnidentifiedImageError, Image.DecompressionBombError) as e:
+                    _mark_done(idem_pk, idem_sk, "FAILED", reason=type(e).__name__)
                     skipped += 1
                     continue
-
+                meta = {str(k).lower(): v for k, v in (obj.get("Metadata") or {}).items()}
+                pk = meta.get("pk")
+                sk = meta.get("sk")
+                if not pk or not sk or not SAFE_ID.fullmatch(pk) or not SAFE_ID.fullmatch(sk):
+                    _mark_done(idem_pk, idem_sk, "FAILED", reason="bad_metadata")
+                    skipped += 1
+                    continue
                 kind = (meta.get("kind") or meta.get("ownerkind") or "wrestler").lower()
                 role_folder = "wrestlers" if kind == "wrestler" else "promoters"
-
-                # Derive output prefix from your original logic
-                # images/<mediaId>/w{w}.jpg  where mediaId is after '#'
-                media_id = sk.split("#", 1)[1] if "#" in sk else sk
+                media_id = _safe_media_id(sk)
                 out_prefix = f"public/{role_folder}/images/{media_id}"
-
-                # Load & process image
-                body = o["Body"].read()
-                img = Image.open(io.BytesIO(body)).convert("RGB")
-                variants = _process_image_variants(img, out_prefix)
-
-                # Update your media record
+                variants = _process_image_variants(img, out_prefix, bucket)
                 ddb.update_item(
                     Key={"PK": pk, "SK": sk},
                     UpdateExpression="SET #s = :ready, variants.image = :v",
+                    ConditionExpression="attribute_exists(PK) AND attribute_exists(SK)",
                     ExpressionAttributeNames={"#s": "status"},
                     ExpressionAttributeValues={":ready": "ready", ":v": variants},
                 )
-
-                # Success -> finalize idempotency
-                _mark_done(idem_pk, idem_sk)
+                _mark_done(
+                    idem_pk,
+                    idem_sk,
+                    "DONE",
+                    variants=list(variants.keys()),
+                    bucket=bucket,
+                    key=key,
+                    version=ver or "null",
+                    pk=pk,
+                    sk=sk,
+                )
                 processed += 1
-
             except Exception as inner:
-                # Failure -> release claim so retry can reprocess
-                _release_claim(idem_pk, idem_sk)
-                raise inner
-
+                _mark_done(idem_pk, idem_sk, "FAILED", reason=str(inner)[:200])
+                raise
         except Exception as e:
-            logger.exception("Failed processing record: %s", e)
-            # continue to next record
-
+            jlog(
+                logging.ERROR,
+                "record_failed",
+                err=str(e)[:500],
+                bucket=rec.get("s3", {}).get("bucket", {}).get("name"),
+                key=rec.get("s3", {}).get("object", {}).get("key"),
+            )
     return {"processed": processed, "skipped": skipped}
 
 
-# -----------------------------
-# Lambda entrypoint
-# -----------------------------
 def lambda_handler(event, context):
-    """
-    Supports:
-      - EventBridge (S3 -> EventBridge -> Rule -> Lambda)
-      - Direct S3 notifications (if you ever switch back)
-    """
-    records = _records_from_event(event)
-    if not records:
-        logger.info("No recognizable records in event; nothing to do.")
+    """AWS Lambda entry point for processing image uploads."""
+    if not _valid_event_source(event):
+        jlog(logging.INFO, "invalid_event_source")
         return {"processed": 0, "skipped": 0}
-
-    result = _process_records(records)
-    logger.info("Done. %s", result)
-    return result
+    recs = _records_from_event(event)
+    if not recs:
+        jlog(logging.INFO, "no_records")
+        return {"processed": 0, "skipped": 0}
+    res = _process_records(recs)
+    jlog(logging.INFO, "done", **res)
+    return res

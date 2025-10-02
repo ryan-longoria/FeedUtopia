@@ -21,8 +21,14 @@ resource "aws_lambda_function" "add_to_group" {
       PROMOTER_NAME   = "Promoters"
       TABLE_WRESTLERS = aws_dynamodb_table.wrestlers.name
       TABLE_PROMOTERS = aws_dynamodb_table.promoters.name
+      ENVIRONMENT     = var.environment
+      LOG_LEVEL       = var.environment == "prod" ? "ERROR" : "DEBUG"
+      GROUP_ALLOWLIST = "Wrestlers,Promoters"
     }
   }
+
+  tracing_config { mode = "Active" }
+
 }
 
 #############################
@@ -146,12 +152,24 @@ resource "aws_lambda_function" "image_processor" {
     variables = {
       TABLE_NAME = aws_dynamodb_table.tryouts.name
       CDN_BASE   = "https://cdn.wrestleutopia.com"
+      LOG_LEVEL  = var.environment == "prod" ? "ERROR" : "DEBUG"
+      ENV        = var.environment
+      DDB_TTL_SECS       = "7776000"
+      MAX_SRC_BYTES      = "26214400"
+      MAX_IMAGE_PIXELS   = "75000000"
+      FAILED_RETRY_SECS  = "600"
     }
   }
 
   layers = [
     "arn:aws:lambda:us-east-2:825765422855:layer:Python_pillow:5"
   ]
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.image_processor_dlq.arn
+  }
+
+  tracing_config { mode = "Active" }
 }
 
 #############################
