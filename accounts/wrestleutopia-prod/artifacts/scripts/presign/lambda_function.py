@@ -182,14 +182,13 @@ def lambda_handler(event, _ctx):
     try:
         ext = _validate_type_and_ext(req_type, ctype)
     except ValueError as e:
+        log.warning({"msg": "validate_failed", "err": str(e), "ctype": ctype, "type": req_type})
         return _resp(400, {"message": str(e)})
-
-    if not raw_name:
-        raw_name = f"{uuid.uuid4().hex}.{ext}"
 
     try:
         content_md5 = _require_md5(event.get("headers") or {})
     except ValueError as e:
+        log.warning({"msg": "md5_missing", "err": str(e)})
         return _resp(400, {"message": str(e)})
 
     object_key = _object_key_for_path(
@@ -198,7 +197,7 @@ def lambda_handler(event, _ctx):
         req_type=req_type,
         role_claim=role_claim,
         qs_actor=qs_actor,
-        filename=raw_name,
+        filename=raw_name or f"{uuid.uuid4().hex}.{ext}",
         ext=ext,
     )
 
@@ -210,24 +209,26 @@ def lambda_handler(event, _ctx):
         "ContentMD5": content_md5,
     }
 
-    url = s3.generate_presigned_url(
-        ClientMethod="put_object",
-        Params=params,
-        ExpiresIn=PRESIGN_TTL_SECONDS,
-    )
+    try:
+        url = s3.generate_presigned_url(
+            ClientMethod="put_object",
+            Params=params,
+            ExpiresIn=PRESIGN_TTL_SECONDS,
+        )
+    except Exception:
+        log.exception({"msg": "presign_failed", "key": object_key})
+        return _resp(500, {"message": "internal"})
 
-    log.info(
-        {
-            "msg": "issued_presign",
-            "sub": sub,
-            "type": req_type,
-            "key": object_key,
-            "ttl": PRESIGN_TTL_SECONDS,
-            "ctype": ctype,
-            "role_claim": role_claim,
-            "path": path,
-        }
-    )
+    log.info({
+        "msg": "issued_presign",
+        "sub": sub,
+        "type": req_type,
+        "key": object_key,
+        "ttl": PRESIGN_TTL_SECONDS,
+        "ctype": ctype,
+        "role_claim": role_claim,
+        "path": path,
+    })
 
     return _resp(
         200,
