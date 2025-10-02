@@ -2,10 +2,64 @@
 ## Cognito
 ################################################################################
 
+##################################################
+# User Pool
+##################################################
+
 resource "aws_cognito_user_pool" "this" {
   name = local.user_pool_name
 
+  #############################
+  # Verification & Recovery
+  #############################
+
   auto_verified_attributes = ["email"]
+
+  account_recovery_setting {
+    recovery_mechanism {
+      name     = "verified_email"
+      priority = 1
+    }
+    recovery_mechanism {
+      name     = "verified_phone_number"
+      priority = 2
+    }
+  }
+
+  #############################
+  # Password Policy
+  #############################
+
+  password_policy {
+    minimum_length    = 8
+    require_lowercase = true
+    require_numbers   = true
+    require_symbols   = false
+    require_uppercase = true
+  }
+
+  #############################
+  # Lambda Triggers
+  #############################
+
+  lambda_config {
+    pre_sign_up       = aws_lambda_function.pre_signup.arn
+    post_confirmation = aws_lambda_function.add_to_group.arn
+  }
+
+  #############################
+  # Email (SES) Configuration
+  #############################
+
+  email_configuration {
+    email_sending_account = "DEVELOPER"
+    from_email_address    = "noreply@wrestleutopia.com"
+    source_arn            = "arn:aws:ses:us-east-2:390402544450:identity/noreply@wrestleutopia.com"
+  }
+
+  #############################
+  # Custom Attributes Schema
+  #############################
 
   schema {
     attribute_data_type      = "String"
@@ -29,6 +83,7 @@ resource "aws_cognito_user_pool" "this" {
       max_length = 64
     }
   }
+
   schema {
     name                = "dob"
     attribute_data_type = "String"
@@ -95,35 +150,9 @@ resource "aws_cognito_user_pool" "this" {
     }
   }
 
-  account_recovery_setting {
-    recovery_mechanism {
-      name     = "verified_email"
-      priority = 1
-    }
-    recovery_mechanism {
-      name     = "verified_phone_number"
-      priority = 2
-    }
-  }
-
-  password_policy {
-    minimum_length    = 8
-    require_lowercase = true
-    require_numbers   = true
-    require_symbols   = false
-    require_uppercase = true
-  }
-
-  lambda_config {
-    pre_sign_up       = aws_lambda_function.pre_signup.arn
-    post_confirmation = aws_lambda_function.add_to_group.arn
-  }
-
-  email_configuration {
-    email_sending_account = "DEVELOPER"
-    from_email_address    = "noreply@wrestleutopia.com"
-    source_arn            = "arn:aws:ses:us-east-2:390402544450:identity/noreply@wrestleutopia.com"
-  }
+  #############################
+  # Lifecycle (ignore console-driven toggles)
+  #############################
 
   lifecycle {
     ignore_changes = [
@@ -133,6 +162,10 @@ resource "aws_cognito_user_pool" "this" {
     ]
   }
 }
+
+##################################################
+# Groups
+##################################################
 
 resource "aws_cognito_user_group" "wrestlers" {
   name         = "Wrestlers"
@@ -145,6 +178,10 @@ resource "aws_cognito_user_group" "promoters" {
   user_pool_id = aws_cognito_user_pool.this.id
   precedence   = 20
 }
+
+##################################################
+# App Client (Web)
+##################################################
 
 resource "aws_cognito_user_pool_client" "web" {
   name         = "${var.project_name}-web-client"
@@ -163,6 +200,7 @@ resource "aws_cognito_user_pool_client" "web" {
   refresh_token_validity        = 30
   access_token_validity         = 60
   id_token_validity             = 60
+
   token_validity_units {
     access_token  = "minutes"
     id_token      = "minutes"
@@ -186,9 +224,14 @@ resource "aws_cognito_user_pool_client" "web" {
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_scopes                 = ["email", "openid", "profile"]
-  callback_urls                        = var.callback_urls
-  logout_urls                          = var.logout_urls
+
+  callback_urls = var.callback_urls
+  logout_urls   = var.logout_urls
 }
+
+##################################################
+# Hosted UI Domain
+##################################################
 
 resource "aws_cognito_user_pool_domain" "this" {
   count        = var.enable_hosted_ui ? 1 : 0

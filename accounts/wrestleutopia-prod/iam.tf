@@ -2,28 +2,41 @@
 ## Identity and Access Management (IAM)
 ################################################################################
 
-#############################
-# S3 IAM
-#############################
+##################################################
+# Caller Identity
+##################################################
 
 data "aws_caller_identity" "current" {}
+
+#############################
+# Shared Policy Docs
+#############################
+
+# Reusable Lambda assume-role policy
+data "aws_iam_policy_document" "assume_lambda" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
 
 data "aws_iam_policy_document" "media_cf_access" {
   statement {
     sid     = "AllowCloudFrontOACRead"
     effect  = "Allow"
     actions = ["s3:GetObject"]
-
     principals {
       type        = "Service"
       identifiers = ["cloudfront.amazonaws.com"]
     }
-
     resources = [
       "${aws_s3_bucket.media_bucket.arn}/public/*",
-      "${aws_s3_bucket.media_bucket.arn}/posts/*",
+      "arn:aws:s3:::${var.s3_bucket_name}/posts/*"
     ]
-
     condition {
       test     = "StringEquals"
       variable = "AWS:SourceArn"
@@ -37,17 +50,14 @@ data "aws_iam_policy_document" "media_cf_access" {
     sid     = "DenyInsecureTransport"
     effect  = "Deny"
     actions = ["s3:*"]
-
     principals {
       type        = "*"
       identifiers = ["*"]
     }
-
     resources = [
       aws_s3_bucket.media_bucket.arn,
       "${aws_s3_bucket.media_bucket.arn}/*"
     ]
-
     condition {
       test     = "Bool"
       variable = "aws:SecureTransport"
@@ -59,14 +69,11 @@ data "aws_iam_policy_document" "media_cf_access" {
     sid     = "DenyUnencryptedObjectUploads"
     effect  = "Deny"
     actions = ["s3:PutObject"]
-
     principals {
       type        = "*"
       identifiers = ["*"]
     }
-
     resources = ["${aws_s3_bucket.media_bucket.arn}/*"]
-
     condition {
       test     = "StringNotEquals"
       variable = "s3:x-amz-server-side-encryption"
@@ -77,7 +84,6 @@ data "aws_iam_policy_document" "media_cf_access" {
   statement {
     sid    = "DenyIfNotFromOurOrg"
     effect = "Deny"
-
     actions = [
       "s3:PutObject",
       "s3:DeleteObject",
@@ -85,12 +91,10 @@ data "aws_iam_policy_document" "media_cf_access" {
       "s3:PutObjectTagging",
       "s3:DeleteObjectTagging"
     ]
-
     principals {
       type        = "*"
       identifiers = ["*"]
     }
-
     resources = ["${aws_s3_bucket.media_bucket.arn}/*"]
 
     condition {
@@ -102,37 +106,33 @@ data "aws_iam_policy_document" "media_cf_access" {
     condition {
       test     = "ArnNotEqualsIfExists"
       variable = "AWS:SourceArn"
-      values   = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_distribution.media.id}"]
+      values = [
+        "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_distribution.media.id}"
+      ]
     }
   }
-}
-
-resource "aws_s3_bucket_policy" "media_cf" {
-  bucket     = aws_s3_bucket.media_bucket.id
-  policy     = data.aws_iam_policy_document.media_cf_access.json
-  depends_on = [aws_cloudfront_distribution.media]
 }
 
 data "aws_iam_policy_document" "cloudtrail_logs" {
   statement {
-    sid    = "AWSCloudTrailAclCheck"
-    effect = "Allow"
+    sid     = "AWSCloudTrailAclCheck"
+    effect  = "Allow"
+    actions = ["s3:GetBucketAcl"]
     principals {
       type        = "Service"
       identifiers = ["cloudtrail.amazonaws.com"]
     }
-    actions   = ["s3:GetBucketAcl"]
     resources = [aws_s3_bucket.cloudtrail_logs.arn]
   }
 
   statement {
-    sid    = "AWSCloudTrailWrite"
-    effect = "Allow"
+    sid     = "AWSCloudTrailWrite"
+    effect  = "Allow"
+    actions = ["s3:PutObject"]
     principals {
       type        = "Service"
       identifiers = ["cloudtrail.amazonaws.com"]
     }
-    actions   = ["s3:PutObject"]
     resources = ["${aws_s3_bucket.cloudtrail_logs.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"]
 
     condition {
@@ -149,31 +149,34 @@ data "aws_iam_policy_document" "cloudtrail_logs" {
   }
 }
 
+##################################################
+# S3 Bucket Policies
+##################################################
+
+resource "aws_s3_bucket_policy" "media_cf" {
+  bucket     = aws_s3_bucket.media_bucket.id
+  policy     = data.aws_iam_policy_document.media_cf_access.json
+  depends_on = [aws_cloudfront_distribution.media]
+}
+
 resource "aws_s3_bucket_policy" "cloudtrail_logs" {
   bucket = aws_s3_bucket.cloudtrail_logs.id
   policy = data.aws_iam_policy_document.cloudtrail_logs.json
 }
 
-
-#############################
-## Cross-Account IAM
-#############################
+##################################################
+# Cross-Account IAM
+##################################################
 
 data "aws_iam_policy_document" "crossaccount_s3_read_role_trust" {
   statement {
     sid    = "AllowSharedServicesAssumeRole"
     effect = "Allow"
-
     principals {
-      type = "AWS"
-      identifiers = [
-        "arn:aws:iam::${var.aws_account_ids.sharedservices}:root"
-      ]
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${var.aws_account_ids.sharedservices}:root"]
     }
-
-    actions = [
-      "sts:AssumeRole"
-    ]
+    actions = ["sts:AssumeRole"]
   }
 }
 
@@ -184,11 +187,9 @@ resource "aws_iam_role" "crossaccount_s3_read_role" {
 
 data "aws_iam_policy_document" "crossaccount_s3_read_policy_doc" {
   statement {
-    sid    = "AllowGetLogo"
-    effect = "Allow"
-    actions = [
-      "s3:*"
-    ]
+    sid     = "AllowGetLogo"
+    effect  = "Allow"
+    actions = ["s3:*"]
     resources = [
       "arn:aws:s3:::prod-${var.project_name}-artifacts-bucket/*"
     ]
@@ -201,21 +202,9 @@ resource "aws_iam_role_policy" "crossaccount_s3_read_policy" {
   policy = data.aws_iam_policy_document.crossaccount_s3_read_policy_doc.json
 }
 
-#############################
-## Lambda IAM
-#############################
-
-resource "aws_iam_role" "lambda_role" {
-  name = "${var.project_name}-postconfirm-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "lambda.amazonaws.com" }
-    }]
-  })
-}
+##################################################
+# Shared Lambda Policies (logs)
+##################################################
 
 resource "aws_iam_policy" "lambda_logs" {
   name        = "${var.project_name}-lambda-logs"
@@ -228,6 +217,15 @@ resource "aws_iam_policy" "lambda_logs" {
       Resource = "*"
     }]
   })
+}
+
+#############################
+# Lambda IAM — Post Confirm
+#############################
+
+resource "aws_iam_role" "lambda_role" {
+  name               = "${var.project_name}-postconfirm-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_lambda.json
 }
 
 resource "aws_iam_policy" "lambda_cognito_admin" {
@@ -248,6 +246,23 @@ resource "aws_iam_policy" "lambda_cognito_admin" {
   })
 }
 
+resource "aws_iam_policy" "postconfirm_dynamo" {
+  name        = "${var.project_name}-postconfirm-dynamo"
+  description = "Allow post-confirm Lambda to create initial profile rows"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:GetItem"],
+      Resource = [
+        aws_dynamodb_table.wrestlers.arn,
+        aws_dynamodb_table.promoters.arn,
+        aws_dynamodb_table.profile_handles.arn
+      ]
+    }]
+  })
+}
+
 resource "aws_iam_role_policy_attachment" "logs_attach" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_logs.arn
@@ -258,6 +273,11 @@ resource "aws_iam_role_policy_attachment" "cog_attach" {
   policy_arn = aws_iam_policy.lambda_cognito_admin.arn
 }
 
+resource "aws_iam_role_policy_attachment" "postconfirm_dynamo_attach" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.postconfirm_dynamo.arn
+}
+
 resource "aws_lambda_permission" "allow_cognito_invoke" {
   statement_id  = "AllowExecutionFromCognito"
   action        = "lambda:InvokeFunction"
@@ -266,16 +286,13 @@ resource "aws_lambda_permission" "allow_cognito_invoke" {
   source_arn    = aws_cognito_user_pool.this.arn
 }
 
+#############################
+# Lambda IAM — Cleanup (Events)
+#############################
+
 resource "aws_iam_role" "cognito_cleanup_role" {
-  name = "${var.project_name}-cognito-cleanup-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Action    = "sts:AssumeRole"
-      Principal = { Service = "lambda.amazonaws.com" }
-    }]
-  })
+  name               = "${var.project_name}-cognito-cleanup-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_lambda.json
 }
 
 resource "aws_iam_policy" "cognito_cleanup_policy" {
@@ -285,21 +302,14 @@ resource "aws_iam_policy" "cognito_cleanup_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        Effect : "Allow",
-        Action : [
-          "cognito-idp:ListUsers",
-          "cognito-idp:AdminDeleteUser"
-        ],
-        Resource : aws_cognito_user_pool.this.arn
+        Effect   = "Allow",
+        Action   = ["cognito-idp:ListUsers", "cognito-idp:AdminDeleteUser"],
+        Resource = aws_cognito_user_pool.this.arn
       },
       {
-        Effect : "Allow",
-        Action : [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        Resource : "*"
+        Effect   = "Allow",
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+        Resource = "*"
       }
     ]
   })
@@ -318,12 +328,13 @@ resource "aws_lambda_permission" "allow_events_cleanup" {
   source_arn    = aws_cloudwatch_event_rule.cognito_cleanup_rule.arn
 }
 
+#############################
+# Lambda IAM — Pre Sign-Up
+#############################
+
 resource "aws_iam_role" "pre_signup_role" {
-  name = "${var.project_name}-pre-signup-role"
-  assume_role_policy = jsonencode({
-    Version   = "2012-10-17",
-    Statement = [{ Effect = "Allow", Action = "sts:AssumeRole", Principal = { Service = "lambda.amazonaws.com" } }]
-  })
+  name               = "${var.project_name}-pre-signup-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_lambda.json
 }
 
 resource "aws_iam_role_policy_attachment" "pre_signup_logs" {
@@ -339,62 +350,13 @@ resource "aws_lambda_permission" "allow_cognito_presignup" {
   source_arn    = aws_cognito_user_pool.this.arn
 }
 
-resource "aws_iam_policy" "postconfirm_dynamo" {
-  name        = "${var.project_name}-postconfirm-dynamo"
-  description = "Allow post-confirm Lambda to create initial profile rows"
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Action = [
-        "dynamodb:PutItem",
-        "dynamodb:UpdateItem",
-        "dynamodb:GetItem"
-      ],
-      Resource = [
-        aws_dynamodb_table.wrestlers.arn,
-        aws_dynamodb_table.promoters.arn,
-        aws_dynamodb_table.profile_handles.arn
-      ]
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "postconfirm_dynamo_attach" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.postconfirm_dynamo.arn
-}
-
-resource "aws_lambda_permission" "apigw_invoke_upload_url" {
-  statement_id  = "AllowAPIGwInvokeUploadUrl"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.upload_url.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "allow_eventbridge" {
-  statement_id  = "AllowExecutionFromEventBridge"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.image_processor.arn
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.s3_raw_puts.arn
-}
-
 #############################
-## Lambda IAM — API (CRUD)
+# Lambda IAM — API (CRUD)
 #############################
 
 resource "aws_iam_role" "api_lambda_role" {
-  name = "${var.project_name}-api-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "lambda.amazonaws.com" }
-    }]
-  })
+  name               = "${var.project_name}-api-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_lambda.json
 }
 
 resource "aws_iam_policy" "api_dynamo_policy" {
@@ -402,37 +364,33 @@ resource "aws_iam_policy" "api_dynamo_policy" {
   description = "CRUD on WrestlerProfiles, PromoterProfiles, Tryouts (+GSIs), Applications (+GSIs)"
   policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [
-      {
-        Sid    = "CrudOnTables",
-        Effect = "Allow",
-        Action = [
-          "dynamodb:PutItem",
-          "dynamodb:GetItem",
-          "dynamodb:BatchGetItem", # ✅ add this
-          "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:Query",
-          "dynamodb:Scan",
-          "dynamodb:TransactWriteItems",
-          "dynamodb:ConditionCheckItem"
-        ],
-        Resource = [
-          aws_dynamodb_table.wrestlers.arn,
-          aws_dynamodb_table.promoters.arn,
-          aws_dynamodb_table.tryouts.arn,
-          "${aws_dynamodb_table.tryouts.arn}/index/*",
-          aws_dynamodb_table.applications.arn,
-          "${aws_dynamodb_table.applications.arn}/index/*",
-          aws_dynamodb_table.profile_handles.arn,
-          "${aws_dynamodb_table.wrestlers.arn}/index/*"
-        ]
-      }
-    ]
+    Statement = [{
+      Sid    = "CrudOnTables",
+      Effect = "Allow",
+      Action = [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:BatchGetItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+        "dynamodb:TransactWriteItems",
+        "dynamodb:ConditionCheckItem"
+      ],
+      Resource = [
+        aws_dynamodb_table.wrestlers.arn,
+        aws_dynamodb_table.promoters.arn,
+        aws_dynamodb_table.tryouts.arn,
+        "${aws_dynamodb_table.tryouts.arn}/index/*",
+        aws_dynamodb_table.applications.arn,
+        "${aws_dynamodb_table.applications.arn}/index/*",
+        aws_dynamodb_table.profile_handles.arn,
+        "${aws_dynamodb_table.wrestlers.arn}/index/*"
+      ]
+    }]
   })
 }
-
-
 
 resource "aws_iam_policy" "api_s3_media_policy" {
   name        = "${var.project_name}-api-s3-media"
@@ -441,7 +399,7 @@ resource "aws_iam_policy" "api_s3_media_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid    = "ReadPublic"
+        Sid    = "ReadPublic",
         Effect = "Allow",
         Action = ["s3:GetObject"],
         Resource = [
@@ -451,7 +409,7 @@ resource "aws_iam_policy" "api_s3_media_policy" {
         ]
       },
       {
-        Sid    = "OptionalDeletePublic"
+        Sid    = "OptionalDeletePublic",
         Effect = "Allow",
         Action = ["s3:DeleteObject"],
         Resource = [
@@ -486,53 +444,13 @@ resource "aws_lambda_permission" "api_invoke" {
   source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
 }
 
-resource "aws_lambda_permission" "presign_invoke" {
-  statement_id  = "AllowAPIGwInvokePresign"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.presign.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
-}
-
-resource "aws_iam_policy" "presign_dynamo_policy" {
-  name        = "${var.project_name}-presign-dynamo"
-  description = "Allow presign Lambda to create/update media items in tryouts table"
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Sid    = "WriteMediaItems",
-        Effect = "Allow",
-        Action = [
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:GetItem"
-        ],
-        Resource = aws_dynamodb_table.tryouts.arn
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "presign_dynamo_attach" {
-  role       = aws_iam_role.presign_lambda_role.name
-  policy_arn = aws_iam_policy.presign_dynamo_policy.arn
-}
-
 #############################
-## Lambda IAM — Presign (S3 PUT)
+# Lambda IAM — Presign (S3 PUT)
 #############################
 
 resource "aws_iam_role" "presign_lambda_role" {
-  name = "${var.project_name}-presign-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "lambda.amazonaws.com" }
-    }]
-  })
+  name               = "${var.project_name}-presign-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_lambda.json
 }
 
 resource "aws_iam_policy" "presign_s3_policy" {
@@ -555,27 +473,24 @@ resource "aws_iam_policy" "presign_s3_policy" {
           "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/profiles/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/profiles/*"
         ],
-        Condition = {
-          StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" }
-        }
+        Condition = { StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" } }
       },
       {
-        Sid    = "AllowPutOnPublicGalleryAndHighlights"
-        Effect = "Allow"
-        Action = ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload", "s3:PutObjectTagging"]
+        Sid    = "AllowPutOnPublicGalleryAndHighlights",
+        Effect = "Allow",
+        Action = ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload", "s3:PutObjectTagging"],
         Resource = [
           "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/gallery/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/gallery/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/highlights/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/highlights/*"
-        ]
-        Condition = {
-          StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" }
-        }
+        ],
+        Condition = { StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" } }
       }
     ]
   })
 }
+
 resource "aws_iam_role_policy_attachment" "presign_logs_attach" {
   role       = aws_iam_role.presign_lambda_role.name
   policy_arn = aws_iam_policy.lambda_logs.arn
@@ -586,16 +501,21 @@ resource "aws_iam_role_policy_attachment" "presign_s3_attach" {
   policy_arn = aws_iam_policy.presign_s3_policy.arn
 }
 
+resource "aws_lambda_permission" "presign_invoke" {
+  statement_id  = "AllowAPIGwInvokePresign"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.presign.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
+}
+
+#############################
+# Lambda IAM — Image Processor
+#############################
+
 resource "aws_iam_role" "image_processor_role" {
-  name = "${var.project_name}-image-processor-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Action    = "sts:AssumeRole",
-      Effect    = "Allow",
-      Principal = { Service = "lambda.amazonaws.com" }
-    }]
-  })
+  name               = "${var.project_name}-image-processor-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_lambda.json
 }
 
 resource "aws_iam_policy" "image_processor_policy" {
@@ -620,27 +540,22 @@ resource "aws_iam_policy" "image_processor_policy" {
         ]
       },
       {
-        Sid    = "DynamoUpdateMedia",
-        Effect = "Allow",
-        Action = [
-          "dynamodb:UpdateItem",
-          "dynamodb:GetItem"
-        ],
+        Sid      = "DynamoUpdateMedia",
+        Effect   = "Allow",
+        Action   = ["dynamodb:UpdateItem", "dynamodb:GetItem"],
         Resource = aws_dynamodb_table.tryouts.arn
       },
       {
-        Sid    = "AllowPutOnPublicGalleryAndHighlights"
-        Effect = "Allow"
-        Action = ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload", "s3:PutObjectTagging"]
+        Sid    = "AllowPutOnPublicGalleryAndHighlights",
+        Effect = "Allow",
+        Action = ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload", "s3:PutObjectTagging"],
         Resource = [
           "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/gallery/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/gallery/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/highlights/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/highlights/*"
-        ]
-        Condition = {
-          StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" }
-        }
+        ],
+        Condition = { StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" } }
       }
     ]
   })
@@ -654,4 +569,24 @@ resource "aws_iam_role_policy_attachment" "image_processor_logs_attach" {
 resource "aws_iam_role_policy_attachment" "image_processor_attach" {
   role       = aws_iam_role.image_processor_role.name
   policy_arn = aws_iam_policy.image_processor_policy.arn
+}
+
+#############################
+# Lambda Invoke Permissions (misc)
+#############################
+
+resource "aws_lambda_permission" "apigw_invoke_upload_url" {
+  statement_id  = "AllowAPIGwInvokeUploadUrl"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.upload_url.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "allow_eventbridge" {
+  statement_id  = "AllowExecutionFromEventBridge"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.image_processor.arn
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.s3_raw_puts.arn
 }
