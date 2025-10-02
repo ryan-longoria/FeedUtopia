@@ -1,6 +1,10 @@
 ################################################################################
-## Cloudwatch
+## CloudWatch / EventBridge
 ################################################################################
+
+#############################
+# EventBridge Rule — Cognito Cleanup (hourly)
+#############################
 
 resource "aws_cloudwatch_event_rule" "cognito_cleanup_rule" {
   name                = "${var.project_name}-cognito-cleanup-hourly"
@@ -13,15 +17,9 @@ resource "aws_cloudwatch_event_target" "cognito_cleanup_target" {
   arn       = aws_lambda_function.cognito_cleanup.arn
 }
 
-resource "aws_cloudwatch_log_group" "api_access" {
-  name              = "/apigw/${var.project_name}/access"
-  retention_in_days = 30
-}
-
-resource "aws_cloudwatch_log_group" "lambda_imgproc" {
-  name              = "/aws/lambda/${aws_lambda_function.image_processor.function_name}"
-  retention_in_days = 30
-}
+#############################
+# EventBridge Rule — S3 raw/uploads ObjectCreated
+#############################
 
 resource "aws_cloudwatch_event_rule" "s3_raw_puts" {
   name        = "wutopia-s3-raw-puts"
@@ -49,4 +47,18 @@ resource "aws_cloudwatch_event_target" "imgproc" {
     maximum_retry_attempts       = 5
     maximum_event_age_in_seconds = 3600
   }
+}
+
+#############################
+# Log Groups
+#############################
+
+resource "aws_cloudwatch_log_group" "api_access" {
+  name              = "/apigw/${var.project_name}/access"
+  retention_in_days = 30
+}
+
+resource "aws_cloudwatch_log_group" "lambda_imgproc" {
+  name              = "/aws/lambda/${aws_lambda_function.image_processor.function_name}"
+  retention_in_days = 30
 }

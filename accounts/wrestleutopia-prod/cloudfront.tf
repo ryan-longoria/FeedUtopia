@@ -1,3 +1,7 @@
+################################################################################
+## Cloudfront
+################################################################################
+
 resource "aws_cloudfront_origin_access_control" "media" {
   name                              = "media-oac"
   description                       = "OAC for ${aws_s3_bucket.media_bucket.bucket}"

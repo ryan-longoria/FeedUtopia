@@ -2,6 +2,10 @@
 ## Lambda
 ################################################################################
 
+#############################
+# Post Confirm - Add User to Group
+#############################
+
 resource "aws_lambda_function" "add_to_group" {
   function_name    = "${var.project_name}-postconfirm-add-to-group"
   filename         = "${path.module}/artifacts/scripts/add_to_group/add_to_group.zip"
@@ -21,6 +25,10 @@ resource "aws_lambda_function" "add_to_group" {
   }
 }
 
+#############################
+# Cognito Cleanup (Events)
+#############################
+
 resource "aws_lambda_function" "cognito_cleanup" {
   function_name    = "${var.project_name}-cognito-cleanup"
   filename         = "${path.module}/artifacts/scripts/cognito_cleanup/cognito_cleanup.zip"
@@ -37,6 +45,10 @@ resource "aws_lambda_function" "cognito_cleanup" {
     }
   }
 }
+
+#############################
+# API (CRUD)
+#############################
 
 resource "aws_lambda_function" "api" {
   function_name    = "${var.project_name}-api"
@@ -59,6 +71,10 @@ resource "aws_lambda_function" "api" {
   }
 }
 
+#############################
+# Presign (S3 PUT Signer)
+#############################
+
 resource "aws_lambda_function" "presign" {
   function_name    = "${var.project_name}-presign"
   filename         = "${path.module}/artifacts/scripts/presign/presign.zip"
@@ -74,6 +90,10 @@ resource "aws_lambda_function" "presign" {
     }
   }
 }
+
+#############################
+# Upload URL (Presigned URL API)
+#############################
 
 resource "aws_lambda_function" "upload_url" {
   function_name    = "${var.project_name}-upload-url"
@@ -93,6 +113,10 @@ resource "aws_lambda_function" "upload_url" {
   }
 }
 
+#############################
+# Image Processor
+#############################
+
 resource "aws_lambda_function" "image_processor" {
   function_name    = "${var.project_name}-image-processor"
   filename         = "${path.module}/artifacts/scripts/image_processor/image_processor.zip"
@@ -102,7 +126,10 @@ resource "aws_lambda_function" "image_processor" {
   role             = aws_iam_role.image_processor_role.arn
   timeout          = 120
   memory_size      = 1024
-  ephemeral_storage { size = 1024 }
+
+  ephemeral_storage {
+    size = 1024
+  }
 
   environment {
     variables = {
@@ -115,6 +142,10 @@ resource "aws_lambda_function" "image_processor" {
     "arn:aws:lambda:us-east-2:825765422855:layer:Python_pillow:5"
   ]
 }
+
+#############################
+# Pre Sign-Up (Cognito Trigger)
+#############################
 
 resource "aws_lambda_function" "pre_signup" {
   function_name    = "${var.project_name}-pre-signup"
