@@ -156,4 +156,15 @@ resource "aws_lambda_function" "pre_signup" {
   role             = aws_iam_role.pre_signup_role.arn
   timeout          = 10
 
+  environment {
+    variables = {
+      ENVIRONMENT    = var.environment
+      LOG_LEVEL      = var.environment == "prod" ? "ERROR" : "DEBUG"
+      MIN_AGE_YEARS  = "18"
+      ALLOWED_ROLES  = "wrestler,promoter"
+    }
+  }
+
+  tracing_config { mode = "Active" }
+
 }
