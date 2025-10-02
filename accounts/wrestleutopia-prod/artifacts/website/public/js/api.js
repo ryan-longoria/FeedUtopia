@@ -13,7 +13,7 @@ async function authToken() {
       || '';
 }
 
-async function md5Base64(blob) {
+export async function md5Base64(blob) {
   if (!window.SparkMD5) {
     await new Promise((res, rej) => {
       const s = document.createElement('script');
