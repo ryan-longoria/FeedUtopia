@@ -39,16 +39,15 @@ def _role_from_actor(actor: str | None) -> str | None:
         return "promoters"
     return None
 
+
 def lambda_handler(event, _ctx):
     http = event.get("requestContext", {}).get("http", {}) or {}
     method = http.get("method", "GET")
     path   = http.get("path", "")
 
-    # CORS preflight (API GW can also do this; returning doesn't hurt)
     if method == "OPTIONS":
         return _resp(204, "")
 
-    # Auth
     claims = (event.get("requestContext",{})
                     .get("authorizer",{})
                     .get("jwt",{}) or {}).get("claims",{})
@@ -56,10 +55,17 @@ def lambda_handler(event, _ctx):
     if not sub:
         return _resp(401, {"message": "Unauthorized"})
 
-    # Inputs
     qs    = event.get("queryStringParameters") or {}
+    body  = {}
+    if event.get("body"):
+        try:
+            body = json.loads(event["body"])
+        except Exception:
+            body = {}
+
+    # 🔧 prefer body.contentType if provided, else query
+    ctype = (body.get("contentType") or qs.get("contentType") or "application/octet-stream").strip()
     raw   = (qs.get("key") or "").strip()
-    ctype = (qs.get("contentType") or "application/octet-stream").strip()
 
     # --- Dedicated avatar presign (wrestler) ---
     if path.endswith("/profiles/wrestlers/me/photo-url"):
@@ -68,8 +74,16 @@ def lambda_handler(event, _ctx):
         ext = _ext_from_ctype(ctype)
         if not ext or ext not in ALLOWED_IMAGE_EXT:
             return _resp(400, {"message": f"unsupported image type; allowed: {sorted(ALLOWED_IMAGE_EXT)}"})
-        # Canonical avatar path
-        object_key = f"public/wrestlers/profiles/{sub}/avatar.{ext if ext != 'jpeg' else 'jpg'}"
+        object_key = f"public/wrestlers/profiles/{sub}/avatar.{ 'jpg' if ext == 'jpeg' else ext }"
+
+    # 🔧 make this an elif so we don't fall through into the generic else
+    elif path.endswith('/profiles/promoters/me/logo-url'):
+        if not ctype.startswith('image/'):
+            return _resp(400, {'message':'contentType must be image/* for logo uploads'})
+        ext = _ext_from_ctype(ctype)
+        if not ext or ext not in ALLOWED_IMAGE_EXT:
+            return _resp(400, {'message': f'unsupported image type; allowed: {sorted(ALLOWED_IMAGE_EXT)}'})
+        object_key = f"public/promoters/profiles/{sub}/logo.{ 'jpg' if ext == 'jpeg' else ext }"
 
     # --- Generic presign (/s3/presign) ---
     else:
@@ -77,11 +91,9 @@ def lambda_handler(event, _ctx):
         actor    = (qs.get("actor") or "").strip().lower()     # 'wrestler' | 'promoter'
         role     = _role_from_actor(actor)
 
-        # sanitize filename from 'key'
-        base     = _safe_base((raw.rsplit("/",1)[-1]).rsplit("\\",1)[-1])
+        base = _safe_base((raw.rsplit("/",1)[-1]).rsplit("\\",1)[-1])
 
         if req_type == "logo":
-            # Promoter logo or wrestler avatar via generic route
             if not ctype.startswith("image/"):
                 return _resp(400, {"message": "contentType must be image/* for logo uploads"})
             ext = _ext_from_ctype(ctype)
@@ -92,39 +104,28 @@ def lambda_handler(event, _ctx):
             if role == "promoters":
                 object_key = f"public/promoters/profiles/{sub}/logo.{ext}"
             elif role == "wrestlers":
-                # Allow using generic route for wrestler avatar if you want parity
                 object_key = f"public/wrestlers/profiles/{sub}/avatar.{ext}"
             else:
-                # No role? fall back to raw
                 if not base:
                     return _resp(400, {"message": "key (filename) required"})
                 object_key = f"raw/uploads/{sub}/{base}"
 
         elif req_type in ("gallery", "image"):
-            # Gallery images (validate filename; allow any ctype here because your processor/CDN policy can gate)
             if not base:
                 return _resp(400, {"message": "key (filename) required"})
-            if role:
-                object_key = f"public/{role}/gallery/{sub}/{base}"
-            else:
-                object_key = f"raw/uploads/{sub}/{base}"
+            object_key = f"public/{role}/gallery/{sub}/{base}" if role else f"raw/uploads/{sub}/{base}"
 
         elif req_type in ("highlight", "video"):
-            # Highlight videos (allow any content-type; video/* common)
             if not base:
                 return _resp(400, {"message": "key (filename) required"})
-            if role:
-                object_key = f"public/{role}/highlights/{sub}/{base}"
-            else:
-                object_key = f"raw/uploads/{sub}/{base}"
+            object_key = f"public/{role}/highlights/{sub}/{base}" if role else f"raw/uploads/{sub}/{base}"
 
         else:
-            # Legacy fallback (no actor/type): raw ingest so your processor can decide
             if not base:
                 return _resp(400, {"message": "key (filename) required"})
             object_key = f"raw/uploads/{sub}/{base}"
 
-    # Sign PUT
+    # Sign PUT (same as yours)
     expires = 300
     url = s3.generate_presigned_url(
         ClientMethod="put_object",
