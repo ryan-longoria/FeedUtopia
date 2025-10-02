@@ -2,6 +2,10 @@
 ## Dynamo DB
 ################################################################################
 
+#############################
+# Wrestler Profiles
+#############################
+
 resource "aws_dynamodb_table" "wrestlers" {
   name         = "${var.project_name}-WrestlerProfiles"
   billing_mode = "PAY_PER_REQUEST"
@@ -22,7 +26,23 @@ resource "aws_dynamodb_table" "wrestlers" {
     hash_key        = "handle"
     projection_type = "ALL"
   }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  stream_enabled   = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
 }
+
+#############################
+# Profile Handles (unique handle registry)
+#############################
+
 
 resource "aws_dynamodb_table" "profile_handles" {
   name         = "${var.project_name}-ProfileHandles"
@@ -33,7 +53,22 @@ resource "aws_dynamodb_table" "profile_handles" {
     name = "handle"
     type = "S"
   }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  stream_enabled   = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
 }
+
+#############################
+# Promoter Profiles
+#############################
 
 resource "aws_dynamodb_table" "promoters" {
   name         = "${var.project_name}-PromoterProfiles"
@@ -44,7 +79,24 @@ resource "aws_dynamodb_table" "promoters" {
     name = "userId"
     type = "S"
   }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  stream_enabled   = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
 }
+
+
+#############################
+# Tryouts
+#############################
+
 
 resource "aws_dynamodb_table" "tryouts" {
   name         = "${var.project_name}-Tryouts"
@@ -80,7 +132,23 @@ resource "aws_dynamodb_table" "tryouts" {
     range_key       = "date"
     projection_type = "ALL"
   }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  stream_enabled   = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
 }
+
+#############################
+# Applications
+#############################
+
 
 resource "aws_dynamodb_table" "applications" {
   name         = "${var.project_name}-Applications"
@@ -106,4 +174,15 @@ resource "aws_dynamodb_table" "applications" {
     hash_key        = "applicantIdGsi"
     projection_type = "ALL"
   }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  stream_enabled   = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
 }
