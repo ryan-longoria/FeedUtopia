@@ -21,8 +21,14 @@ resource "aws_lambda_function" "add_to_group" {
       PROMOTER_NAME   = "Promoters"
       TABLE_WRESTLERS = aws_dynamodb_table.wrestlers.name
       TABLE_PROMOTERS = aws_dynamodb_table.promoters.name
+      ENVIRONMENT     = var.environment
+      LOG_LEVEL       = var.environment == "prod" ? "ERROR" : "DEBUG"
+      GROUP_ALLOWLIST = "Wrestlers,Promoters"
     }
   }
+
+  tracing_config { mode = "Active" }
+
 }
 
 #############################
