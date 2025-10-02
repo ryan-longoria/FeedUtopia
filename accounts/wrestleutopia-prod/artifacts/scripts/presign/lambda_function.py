@@ -26,7 +26,7 @@ def _resp(status: int, body: Any) -> Dict[str, Any]:
         "headers": {
             "content-type": "application/json",
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "authorization,content-type",
+            "Access-Control-Allow-Headers": "authorization,content-type,content-md5",
             "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
         },
         "body": json.dumps(body),
@@ -47,6 +47,14 @@ def _ext_from_ctype(ctype: str) -> Optional[str]:
     return "jpg" if ext == "jpeg" else ext
 
 
+def _require_md5(headers: Dict[str, str]) -> str:
+    """Require Content-MD5 header for integrity on presigned PUT."""
+    md5 = (headers.get("content-md5") or headers.get("Content-MD5") or "").strip()
+    if not md5:
+        raise ValueError("Content-MD5 header required")
+    return md5
+
+
 def _claims_from_event(event: Dict[str, Any]) -> Dict[str, Any]:
     """Extract JWT claims from the API Gateway event."""
     jwt = ((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt", {})
@@ -56,10 +64,8 @@ def _claims_from_event(event: Dict[str, Any]) -> Dict[str, Any]:
 def _role_from_claims(claims: Dict[str, Any]) -> Optional[str]:
     """Map app role from claims to 'wrestlers' or 'promoters'."""
     actor = (claims.get("custom:actor") or "").strip().lower()
-    if actor == "wrestler":
-        return "wrestlers"
-    if actor == "promoter":
-        return "promoters"
+    if actor in ("wrestler", "promoter"):
+        return "wrestlers" if actor == "wrestler" else "promoters"
 
     groups = claims.get("cognito:groups") or []
     if isinstance(groups, str):
@@ -117,6 +123,7 @@ def _object_key_for_path(
     ext: str
 ) -> str:
     """Produce the S3 object key according to your current routes."""
+
     if path.endswith("/profiles/wrestlers/me/photo-url"):
         return f"public/wrestlers/profiles/{sub}/avatar.{ext}"
 
@@ -180,6 +187,11 @@ def lambda_handler(event, _ctx):
     if not raw_name:
         raw_name = f"{uuid.uuid4().hex}.{ext}"
 
+    try:
+        content_md5 = _require_md5(event.get("headers") or {})
+    except ValueError as e:
+        return _resp(400, {"message": str(e)})
+
     object_key = _object_key_for_path(
         path=path,
         sub=sub,
@@ -195,6 +207,7 @@ def lambda_handler(event, _ctx):
         "Key": object_key,
         "ContentType": ctype,
         "ServerSideEncryption": "AES256",
+        "ContentMD5": content_md5,
     }
 
     url = s3.generate_presigned_url(
