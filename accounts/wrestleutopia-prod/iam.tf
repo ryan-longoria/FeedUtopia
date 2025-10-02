@@ -491,6 +491,29 @@ resource "aws_iam_policy" "presign_s3_policy" {
   })
 }
 
+resource "aws_iam_policy" "presign_dynamo_policy" {
+  name        = "${var.project_name}-presign-dynamo"
+  description = "Allow presign Lambda to create/update media items in tryouts table"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Sid    = "WriteMediaItems",
+      Effect = "Allow",
+      Action = [
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:GetItem"
+      ],
+      Resource = aws_dynamodb_table.tryouts.arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "presign_dynamo_attach" {
+  role       = aws_iam_role.presign_lambda_role.name
+  policy_arn = aws_iam_policy.presign_dynamo_policy.arn
+}
+
 resource "aws_iam_role_policy_attachment" "presign_logs_attach" {
   role       = aws_iam_role.presign_lambda_role.name
   policy_arn = aws_iam_policy.lambda_logs.arn
