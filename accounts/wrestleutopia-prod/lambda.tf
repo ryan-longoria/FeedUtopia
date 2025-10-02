@@ -86,9 +86,15 @@ resource "aws_lambda_function" "presign" {
 
   environment {
     variables = {
-      MEDIA_BUCKET = aws_s3_bucket.media_bucket.bucket
+      MEDIA_BUCKET        = aws_s3_bucket.media_bucket.bucket
+      ENVIRONMENT         = var.environment
+      LOG_LEVEL           = var.environment == "prod" ? "ERROR" : "DEBUG"
+      PRESIGN_TTL_SECONDS = "120"
     }
   }
+
+  tracing_config { mode = "Active" }
+
 }
 
 #############################
@@ -109,13 +115,13 @@ resource "aws_lambda_function" "upload_url" {
       MEDIA_BUCKET   = aws_s3_bucket.media_bucket.bucket
       TABLE_NAME     = aws_dynamodb_table.tryouts.name
       ALLOWED_ORIGIN = "https://www.wrestleutopia.com"
-      ENVIRONMENT      = var.environment
-      LOG_LEVEL        = var.environment == "prod" ? "ERROR" : "DEBUG"
+      ENVIRONMENT    = var.environment
+      LOG_LEVEL      = var.environment == "prod" ? "ERROR" : "DEBUG"
     }
   }
 
   tracing_config { mode = "Active" }
-  
+
 }
 
 #############################
@@ -163,10 +169,10 @@ resource "aws_lambda_function" "pre_signup" {
 
   environment {
     variables = {
-      ENVIRONMENT    = var.environment
-      LOG_LEVEL      = var.environment == "prod" ? "ERROR" : "DEBUG"
-      MIN_AGE_YEARS  = "18"
-      ALLOWED_ROLES  = "wrestler,promoter"
+      ENVIRONMENT   = var.environment
+      LOG_LEVEL     = var.environment == "prod" ? "ERROR" : "DEBUG"
+      MIN_AGE_YEARS = "18"
+      ALLOWED_ROLES = "wrestler,promoter"
     }
   }
 

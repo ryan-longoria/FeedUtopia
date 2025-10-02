@@ -54,7 +54,7 @@ resource "aws_s3_bucket_cors_configuration" "media" {
   cors_rule {
     allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
     allowed_origins = ["https://www.wrestleutopia.com"]
-    allowed_headers = ["authorization", "cache-control", "content-type", "x-amz-*"]
+    allowed_headers = ["authorization", "cache-control", "content-type", "x-amz-*", "Content-MD5", "content-md5"]
     expose_headers  = ["ETag"]
     max_age_seconds = 600
   }

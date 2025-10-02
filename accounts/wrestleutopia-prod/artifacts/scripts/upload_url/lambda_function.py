@@ -61,6 +61,7 @@ def _cors_headers() -> Dict[str, str]:
     return {
         "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
         "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Headers": "authorization,content-type,content-md5",
         "Vary": "Origin",
         "Content-Type": "application/json",
     }
