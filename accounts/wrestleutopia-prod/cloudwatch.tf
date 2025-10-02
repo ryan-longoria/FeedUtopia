@@ -27,11 +27,11 @@ resource "aws_cloudwatch_event_rule" "s3_raw_puts" {
   name        = "wutopia-s3-raw-puts"
   description = "S3 Object Created events for ${aws_s3_bucket.media_bucket.bucket} with key prefix raw/uploads/"
   event_pattern = jsonencode({
-    "source":      ["aws.s3"],
-    "detail-type": ["Object Created"],
-    "detail": {
-      "bucket": { "name": [aws_s3_bucket.media_bucket.bucket] },
-      "object": { "key": [ { "prefix": "raw/uploads/" } ] }
+    "source" : ["aws.s3"],
+    "detail-type" : ["Object Created"],
+    "detail" : {
+      "bucket" : { "name" : [aws_s3_bucket.media_bucket.bucket] },
+      "object" : { "key" : [{ "prefix" : "raw/uploads/" }] }
     }
   })
 }
@@ -46,7 +46,7 @@ resource "aws_cloudwatch_event_target" "imgproc" {
   }
 
   retry_policy {
-    maximum_retry_attempts = 5
+    maximum_retry_attempts       = 5
     maximum_event_age_in_seconds = 3600
   }
 }

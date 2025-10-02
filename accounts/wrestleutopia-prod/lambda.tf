@@ -106,8 +106,8 @@ resource "aws_lambda_function" "image_processor" {
 
   environment {
     variables = {
-      TABLE_NAME   = aws_dynamodb_table.tryouts.name
-      CDN_BASE     = "https://cdn.wrestleutopia.com"
+      TABLE_NAME = aws_dynamodb_table.tryouts.name
+      CDN_BASE   = "https://cdn.wrestleutopia.com"
     }
   }
 

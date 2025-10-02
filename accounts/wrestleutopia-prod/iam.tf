@@ -27,7 +27,7 @@ data "aws_iam_policy_document" "media_cf_access" {
     condition {
       test     = "StringEquals"
       variable = "AWS:SourceArn"
-      values   = [
+      values = [
         "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_distribution.media.id}"
       ]
     }
@@ -115,22 +115,22 @@ resource "aws_s3_bucket_policy" "media_cf" {
 
 data "aws_iam_policy_document" "cloudtrail_logs" {
   statement {
-    sid     = "AWSCloudTrailAclCheck"
-    effect  = "Allow"
-    principals { 
-      type = "Service"
-      identifiers = ["cloudtrail.amazonaws.com"] 
+    sid    = "AWSCloudTrailAclCheck"
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["cloudtrail.amazonaws.com"]
     }
     actions   = ["s3:GetBucketAcl"]
     resources = [aws_s3_bucket.cloudtrail_logs.arn]
   }
 
   statement {
-    sid     = "AWSCloudTrailWrite"
-    effect  = "Allow"
-    principals { 
-      type = "Service" 
-      identifiers = ["cloudtrail.amazonaws.com"] 
+    sid    = "AWSCloudTrailWrite"
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["cloudtrail.amazonaws.com"]
     }
     actions   = ["s3:PutObject"]
     resources = ["${aws_s3_bucket.cloudtrail_logs.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"]
@@ -440,14 +440,14 @@ resource "aws_iam_policy" "api_s3_media_policy" {
         ]
       },
       {
-          Sid    = "OptionalDeletePublic"
-          Effect = "Allow",
-          Action = ["s3:DeleteObject"],
-          Resource = [
-            "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/*",
-            "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/*"
-          ]
-        }
+        Sid    = "OptionalDeletePublic"
+        Effect = "Allow",
+        Action = ["s3:DeleteObject"],
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/*",
+          "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/*"
+        ]
+      }
     ]
   })
 }
@@ -537,9 +537,9 @@ resource "aws_iam_policy" "presign_s3_policy" {
         Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/uploads/*"
       },
       {
-        Sid      = "AllowPutOnPublicProfiles",
-        Effect   = "Allow",
-        Action   = ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload", "s3:PutObjectTagging"],
+        Sid    = "AllowPutOnPublicProfiles",
+        Effect = "Allow",
+        Action = ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload", "s3:PutObjectTagging"],
         Resource = [
           "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/profiles/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/profiles/*"
@@ -551,7 +551,7 @@ resource "aws_iam_policy" "presign_s3_policy" {
       {
         Sid    = "AllowPutOnPublicGalleryAndHighlights"
         Effect = "Allow"
-        Action = ["s3:PutObject","s3:GetObject","s3:AbortMultipartUpload","s3:PutObjectTagging"]
+        Action = ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload", "s3:PutObjectTagging"]
         Resource = [
           "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/gallery/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/gallery/*",
@@ -600,9 +600,9 @@ resource "aws_iam_policy" "image_processor_policy" {
         Resource = "arn:aws:s3:::${var.s3_bucket_name}/raw/uploads/*"
       },
       {
-        Sid      = "S3WritePublicImages",
-        Effect   = "Allow",
-        Action   = ["s3:PutObject"],
+        Sid    = "S3WritePublicImages",
+        Effect = "Allow",
+        Action = ["s3:PutObject"],
         Resource = [
           "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/images/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/images/*"
@@ -620,7 +620,7 @@ resource "aws_iam_policy" "image_processor_policy" {
       {
         Sid    = "AllowPutOnPublicGalleryAndHighlights"
         Effect = "Allow"
-        Action = ["s3:PutObject","s3:GetObject","s3:AbortMultipartUpload","s3:PutObjectTagging"]
+        Action = ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload", "s3:PutObjectTagging"]
         Resource = [
           "arn:aws:s3:::${var.s3_bucket_name}/public/wrestlers/gallery/*",
           "arn:aws:s3:::${var.s3_bucket_name}/public/promoters/gallery/*",

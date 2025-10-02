@@ -25,8 +25,8 @@ resource "aws_cloudtrail" "media_trail" {
       equals = ["false"]
     }
     field_selector {
-      field        = "resources.ARN"
-      starts_with  = [
+      field = "resources.ARN"
+      starts_with = [
         "${aws_s3_bucket.media_bucket.arn}/raw/uploads/",
         "${aws_s3_bucket.media_bucket.arn}/public/wrestlers/profiles/",
         "${aws_s3_bucket.media_bucket.arn}/public/promoters/profiles/",
