@@ -109,8 +109,13 @@ resource "aws_lambda_function" "upload_url" {
       MEDIA_BUCKET   = aws_s3_bucket.media_bucket.bucket
       TABLE_NAME     = aws_dynamodb_table.tryouts.name
       ALLOWED_ORIGIN = "https://www.wrestleutopia.com"
+      ENVIRONMENT      = var.environment
+      LOG_LEVEL        = var.environment == "prod" ? "ERROR" : "DEBUG"
     }
   }
+
+  tracing_config { mode = "Active" }
+  
 }
 
 #############################
