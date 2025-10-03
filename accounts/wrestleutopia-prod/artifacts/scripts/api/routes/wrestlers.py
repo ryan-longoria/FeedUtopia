@@ -1,11 +1,11 @@
 import re
 from boto3.dynamodb.conditions import Key, Attr
 
-from ..http import _resp, _log, _qs, _json, _now_iso
-from ..auth import _is_wrestler, _is_promoter
-from ..media import _normalize_media_key
-from ..config import MAX_BIO_LEN, MAX_GIMMICKS, HANDLE_RE
-from ..db.tables import T_WREST, T_HANDLES
+from http import _resp, _log, _qs, _json, _now_iso
+from auth import _is_wrestler, _is_promoter
+from media import _normalize_media_key
+from config import MAX_BIO_LEN, MAX_GIMMICKS, HANDLE_RE
+from db.tables import T_WREST, T_HANDLES
 from botocore.exceptions import ClientError
 
 def _slugify_handle(stage_name: str) -> str:

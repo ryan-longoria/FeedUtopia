@@ -1,8 +1,8 @@
 from boto3.dynamodb.conditions import Attr
-from ..http import _resp, _qs, _now_iso
-from ..auth import _is_promoter, _is_wrestler
-from ..media import _normalize_media_key
-from ..db.tables import T_PROMO
+from http import _resp, _qs, _now_iso
+from auth import _is_promoter, _is_wrestler
+from media import _normalize_media_key
+from db.tables import T_PROMO
 
 def _upsert_promoter_profile(sub: str, groups: set[str], event):
     if not _is_promoter(groups):

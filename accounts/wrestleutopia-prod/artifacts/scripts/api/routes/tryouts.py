@@ -2,10 +2,10 @@ import re
 from boto3.dynamodb.conditions import Key, Attr
 import boto3
 
-from ..http import _resp, _log, _qs, _now_iso
-from ..config import UUID_PATH, DEBUG_TRYOUTS, AWS_REGION
-from ..db.tables import T_TRY
-from ..auth import _is_promoter
+from http import _resp, _log, _qs, _now_iso
+from config import UUID_PATH, DEBUG_TRYOUTS, AWS_REGION
+from db.tables import T_TRY
+from auth import _is_promoter
 
 def _get_tryouts(event):
     _log("TABLE_TRYOUTS", T_TRY.name)

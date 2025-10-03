@@ -1,9 +1,9 @@
 from boto3.dynamodb.conditions import Key
-from ..http import _resp, _qs, _log
-from ..auth import _is_wrestler
-from ..db.tables import T_APP, T_TRY, T_WREST
-from ..db.wrestlers import _batch_get_wrestlers, _get_wrestler_pk
-from ..config import DES
+from http import _resp, _qs, _log
+from auth import _is_wrestler
+from db.tables import T_APP, T_TRY, T_WREST
+from db.wrestlers import _batch_get_wrestlers, _get_wrestler_pk
+from config import DES
 from botocore.exceptions import ClientError
 
 def _post_application(sub: str, groups: set[str], event):
