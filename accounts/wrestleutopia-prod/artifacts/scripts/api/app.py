@@ -1,10 +1,10 @@
-from .http import _resp, _path
-from .auth import _claims
-from .config import UUID_PATH, DEBUG_TRYOUTS
-from .routes import tryouts as r_tryouts
-from .routes import wrestlers as r_wrestlers
-from .routes import promoters as r_promoters
-from .routes import applications as r_apps
+from http import _resp, _path
+from auth import _claims
+from config import UUID_PATH, DEBUG_TRYOUTS
+from routes import tryouts as r_tryouts
+from routes import wrestlers as r_wrestlers
+from routes import promoters as r_promoters
+from routes import applications as r_apps
 
 def lambda_handler(event, _ctx):
     method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
