@@ -1,6 +1,6 @@
 import boto3
 from config import AWS_REGION, TABLE_WRESTLERS, TABLE_PROMOTERS, TABLE_TRYOUTS, TABLE_APPS, TABLE_HANDLES
-from http import _log
+from http_utils import _log
 
 ddb = boto3.resource("dynamodb", region_name=AWS_REGION)
 T_WREST = ddb.Table(TABLE_WRESTLERS)

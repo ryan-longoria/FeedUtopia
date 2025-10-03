@@ -1,5 +1,5 @@
 from boto3.dynamodb.conditions import Key
-from http import _resp, _qs, _log
+from http_utils import _resp, _qs, _log
 from auth import _is_wrestler
 from db.tables import T_APP, T_TRY, T_WREST
 from db.wrestlers import _batch_get_wrestlers, _get_wrestler_pk
@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 def _post_application(sub: str, groups: set[str], event):
     if not _is_wrestler(groups):
         return _resp(403, {"message": "Wrestler role required"})
-    from ..http import _json, _now_iso
+    from http_utils import _json, _now_iso
     data = _json(event)
     tryout_id = (data.get("tryoutId") or "").strip()
     if not tryout_id:

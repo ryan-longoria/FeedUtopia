@@ -1,4 +1,4 @@
-from http import _resp, _path
+from http_utils import _resp, _path
 from auth import _claims
 from config import UUID_PATH, DEBUG_TRYOUTS
 from routes import tryouts as r_tryouts
@@ -35,7 +35,7 @@ def lambda_handler(event, _ctx):
         return _resp(401, {"message": "Unauthorized"})
 
     if path == "/health":
-        from .http import _now_iso
+        from http_utils import _now_iso
         return _resp(200, {"ok": True, "time": _now_iso()})
 
     if method == "GET" and path == "/profiles/wrestlers/me":

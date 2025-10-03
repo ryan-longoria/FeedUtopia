@@ -1,5 +1,5 @@
 from boto3.dynamodb.conditions import Attr
-from http import _resp, _qs, _now_iso
+from http_utils import _resp, _qs, _now_iso
 from auth import _is_promoter, _is_wrestler
 from media import _normalize_media_key
 from db.tables import T_PROMO
@@ -7,7 +7,7 @@ from db.tables import T_PROMO
 def _upsert_promoter_profile(sub: str, groups: set[str], event):
     if not _is_promoter(groups):
         return _resp(403, {"message": "Promoter role required"})
-    from ..http import _json
+    from http_utils import _json
     data = _json(event) or {}
     org = (data.get("orgName") or "").strip()
     address = (data.get("address") or "").strip()
@@ -95,6 +95,6 @@ def _list_promoters(groups: set[str], event):
         r = T_PROMO.scan(FilterExpression=fe, Limit=limit) if fe is not None else T_PROMO.scan(Limit=limit)
         return _resp(200, r.get("Items", []))
     except Exception as e:
-        from ..http import _log
+        from http_utils import _log
         _log("promoters scan error", e, "qs=", qs)
         return _resp(500, {"message": "Server error", "where": "list_promoters"})

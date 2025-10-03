@@ -2,7 +2,7 @@ import re
 from boto3.dynamodb.conditions import Key, Attr
 import boto3
 
-from http import _resp, _log, _qs, _now_iso
+from http_utils import _resp, _log, _qs, _now_iso
 from config import UUID_PATH, DEBUG_TRYOUTS, AWS_REGION
 from db.tables import T_TRY
 from auth import _is_promoter
@@ -35,7 +35,7 @@ def _get_tryouts(event):
     return _resp(200, items)
 
 def _post_tryout(sub, groups, event):
-    from ..http import _json
+    from http_utils import _json
     if not _is_promoter(groups):
         return _resp(403, {"message": "Promoter role required"})
     data = _json(event)
