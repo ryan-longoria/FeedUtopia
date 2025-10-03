@@ -376,7 +376,8 @@ resource "aws_iam_policy" "api_dynamo_policy" {
         "dynamodb:Query",
         "dynamodb:Scan",
         "dynamodb:TransactWriteItems",
-        "dynamodb:ConditionCheckItem"
+        "dynamodb:ConditionCheckItem",
+        "dynamodb:DescribeTable"
       ],
       Resource = [
         aws_dynamodb_table.wrestlers.arn,
