@@ -1,11 +1,11 @@
 import re
 from boto3.dynamodb.conditions import Key, Attr
 
-from ..http import _resp, _log, _qs, _json, _now_iso
-from ..auth import _is_wrestler, _is_promoter
-from ..media import _normalize_media_key
-from ..config import MAX_BIO_LEN, MAX_GIMMICKS, HANDLE_RE
-from ..db.tables import T_WREST, T_HANDLES
+from http_utils import _resp, _log, _qs, _json, _now_iso
+from auth import _is_wrestler, _is_promoter
+from media import _normalize_media_key
+from config import MAX_BIO_LEN, MAX_GIMMICKS, HANDLE_RE
+from db.tables import T_WREST, T_HANDLES
 from botocore.exceptions import ClientError
 
 def _slugify_handle(stage_name: str) -> str:
@@ -24,7 +24,7 @@ def _upsert_wrestler_profile(sub: str, groups: set[str], event):
         merged["mediaKeys"] = existing.get("mediaKeys", [])
     if "highlights" not in merged or not isinstance(merged["highlights"], list):
         merged["highlights"] = existing.get("highlights", [])
-    from ..http import _now_iso
+    from http_utils import _now_iso
     merged.setdefault("role", "Wrestler")
     merged.setdefault("createdAt", existing.get("createdAt") or _now_iso())
     merged["updatedAt"] = _now_iso()

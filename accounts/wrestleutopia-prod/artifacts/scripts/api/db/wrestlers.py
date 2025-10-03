@@ -1,8 +1,8 @@
 from botocore.exceptions import ClientError
 from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
-from ..config import DES
-from .tables import ddb, T_WREST
-from ..http import _log
+from config import DES
+from db.tables import ddb, T_WREST
+from http_utils import _log
 
 WRES_PK = None
 

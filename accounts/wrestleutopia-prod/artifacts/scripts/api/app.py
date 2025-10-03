@@ -1,10 +1,10 @@
-from .http import _resp, _path
-from .auth import _claims
-from .config import UUID_PATH, DEBUG_TRYOUTS
-from .routes import tryouts as r_tryouts
-from .routes import wrestlers as r_wrestlers
-from .routes import promoters as r_promoters
-from .routes import applications as r_apps
+from http_utils import _resp, _path
+from auth import _claims
+from config import UUID_PATH, DEBUG_TRYOUTS
+from routes import tryouts as r_tryouts
+from routes import wrestlers as r_wrestlers
+from routes import promoters as r_promoters
+from routes import applications as r_apps
 
 def lambda_handler(event, _ctx):
     method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
@@ -35,11 +35,11 @@ def lambda_handler(event, _ctx):
         return _resp(401, {"message": "Unauthorized"})
 
     if path == "/health":
-        from .http import _now_iso
+        from http_utils import _now_iso
         return _resp(200, {"ok": True, "time": _now_iso()})
 
     if method == "GET" and path == "/profiles/wrestlers/me":
-        from .db.tables import T_WREST
+        from db.tables import T_WREST
         item = T_WREST.get_item(Key={"userId": sub}).get("Item") or {}
         item.setdefault("mediaKeys", [])
         item.setdefault("highlights", [])
@@ -52,8 +52,8 @@ def lambda_handler(event, _ctx):
         return r_wrestlers._upsert_wrestler_profile(sub, groups, event)
 
     if method == "GET" and path == "/profiles/wrestlers":
-        from .auth import _is_promoter, _is_wrestler
-        from .db.tables import T_WREST
+        from auth import _is_promoter, _is_wrestler
+        from db.tables import T_WREST
         if _is_promoter(groups):
             return r_wrestlers._list_wrestlers(groups, event)
         if _is_wrestler(groups):
@@ -76,11 +76,11 @@ def lambda_handler(event, _ctx):
         return r_tryouts._post_tryout(sub, groups, event)
 
     if method == "GET" and path == "/tryouts/mine":
-        from .auth import _is_promoter
+        from auth import _is_promoter
         if not _is_promoter(groups):
             return _resp(403, {"message": "Promoter role required"})
         from boto3.dynamodb.conditions import Key
-        from .db.tables import T_TRY
+        from db.tables import T_TRY
         r = T_TRY.query(
             IndexName="ByOwner",
             KeyConditionExpression=Key("ownerId").eq(sub),
