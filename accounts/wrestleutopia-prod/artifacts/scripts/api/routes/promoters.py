@@ -1,19 +1,35 @@
-from boto3.dynamodb.conditions import Attr
-from http_utils import _resp, _qs, _now_iso
-from auth import _is_promoter, _is_wrestler
-from media import _normalize_media_key
-from db.tables import T_PROMO
+from __future__ import annotations
 
-def _upsert_promoter_profile(sub: str, groups: set[str], event):
+import logging
+from typing import Any
+
+from boto3.dynamodb.conditions import Attr
+
+from auth import _is_promoter, _is_wrestler
+from db.tables import T_PROMO
+from http_utils import _now_iso, _qs, _resp
+from media import _normalize_media_key
+
+LOGGER = logging.getLogger("wrestleutopia.routes.promoters")
+
+
+def _upsert_promoter_profile(sub: str, groups: set[str], event) -> dict[str, Any]:
     if not _is_promoter(groups):
         return _resp(403, {"message": "Promoter role required"})
-    from http_utils import _json
+
+    from http_utils import _json  # local import to avoid circulars
+
     data = _json(event) or {}
+
     org = (data.get("orgName") or "").strip()
     address = (data.get("address") or "").strip()
     if not org or not address:
         return _resp(400, {"message": "Missing required fields (orgName, address)"})
+
+    # Load current so we preserve unspecified fields
     existing = T_PROMO.get_item(Key={"userId": sub}).get("Item") or {}
+
+    # Socials (optional, filtered)
     raw_socials = data.get("socials")
     if isinstance(raw_socials, dict):
         allowed = ["twitter", "instagram", "facebook", "tiktok", "youtube", "website"]
@@ -21,13 +37,17 @@ def _upsert_promoter_profile(sub: str, groups: set[str], event):
         socials = {k: v for k, v in socials.items() if v} or None
     else:
         socials = existing.get("socials") or None
+
+    # Logo (optional)
     raw_logo = (data.get("logoKey") or "").strip()
     if raw_logo:
         logo_key = _normalize_media_key(raw_logo, sub, actor="promoter", kind="logo") or existing.get("logoKey")
     else:
         logo_key = existing.get("logoKey")
+
+    # Gallery photos (optional list replace)
     if isinstance(data.get("mediaKeys"), list):
-        media_keys = []
+        media_keys: list[str] = []
         for x in data["mediaKeys"]:
             if isinstance(x, str) and x.strip():
                 nk = _normalize_media_key(x, sub, actor="promoter")
@@ -35,12 +55,15 @@ def _upsert_promoter_profile(sub: str, groups: set[str], event):
                     media_keys.append(nk)
     else:
         media_keys = existing.get("mediaKeys", [])
+
+    # Highlights (optional list replace)
     if isinstance(data.get("highlights"), list):
         highlights = [str(u).strip() for u in data["highlights"] if isinstance(u, str) and u.strip()]
     else:
         highlights = existing.get("highlights", [])
+
     item = {
-        **existing,
+        **existing,  # preserve other fields not overwritten below
         "userId": sub,
         "role": "Promoter",
         "orgName": org,
@@ -58,17 +81,22 @@ def _upsert_promoter_profile(sub: str, groups: set[str], event):
         "updatedAt": _now_iso(),
     }
     item.setdefault("createdAt", existing.get("createdAt") or _now_iso())
+
     T_PROMO.put_item(Item=item)
     return _resp(200, item)
 
-def _get_promoter_profile(sub: str):
+
+def _get_promoter_profile(sub: str) -> dict[str, Any]:
+
     item = T_PROMO.get_item(Key={"userId": sub}).get("Item") or {}
     item.setdefault("mediaKeys", [])
     item.setdefault("highlights", [])
     item.setdefault("socials", {})
     return _resp(200, item)
 
-def _get_promoter_public(user_id: str):
+
+def _get_promoter_public(user_id: str) -> dict[str, Any]:
+
     item = T_PROMO.get_item(Key={"userId": user_id}).get("Item")
     if not item:
         return _resp(404, {"message": "Not found"})
@@ -77,13 +105,17 @@ def _get_promoter_public(user_id: str):
     item.setdefault("socials", {})
     return _resp(200, item)
 
-def _list_promoters(groups: set[str], event):
+
+def _list_promoters(groups: set[str], event) -> dict[str, Any]:
+
     if not (_is_wrestler(groups) or _is_promoter(groups)):
         return _resp(403, {"message": "Wrestler or promoter role required"})
+
     qs = _qs(event)
     city = (qs.get("city") or "").strip()
-    q    = (qs.get("q") or "").strip()
+    q = (qs.get("q") or "").strip()
     limit = 100
+
     fe = None
     try:
         if city:
@@ -92,9 +124,10 @@ def _list_promoters(groups: set[str], event):
         if q:
             cond = (Attr("orgName").contains(q) | Attr("bio").contains(q))
             fe = cond if fe is None else fe & cond
+
         r = T_PROMO.scan(FilterExpression=fe, Limit=limit) if fe is not None else T_PROMO.scan(Limit=limit)
         return _resp(200, r.get("Items", []))
-    except Exception as e:
-        from http_utils import _log
-        _log("promoters scan error", e, "qs=", qs)
+
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.error("promoters_scan_error qs=%s error=%s", qs, exc)
         return _resp(500, {"message": "Server error", "where": "list_promoters"})

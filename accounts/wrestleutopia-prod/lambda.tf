@@ -73,8 +73,12 @@ resource "aws_lambda_function" "api" {
       TABLE_APPS      = aws_dynamodb_table.applications.name
       MEDIA_BUCKET    = aws_s3_bucket.media_bucket.bucket
       TABLE_HANDLES   = aws_dynamodb_table.profile_handles.name
+      ENVIRONMENT    = var.environment
+      LOG_LEVEL      = var.environment == "prod" ? "ERROR" : "DEBUG"
     }
   }
+
+  tracing_config { mode = "Active" }
 }
 
 #############################
