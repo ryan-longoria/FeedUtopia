@@ -14,7 +14,7 @@ from auth import _is_wrestler
 from config import get_config
 from db.tables import T_APP, T_TRY, T_WREST
 from db.wrestlers import batch_get_wrestlers, get_wrestler_pk
-from http_utils import _resp, _qs
+from http_utils import _json, _now_iso, _resp, _qs
 
 LOGGER = logging.getLogger("wrestleutopia.routes.applications")
 
@@ -107,7 +107,6 @@ def _post_application(sub: str, groups: set[str], event) -> dict[str, Any]:
     if READ_ONLY_MODE:
         LOGGER.warning("write_blocked_read_only requestId=%s", req_id)
         return _resp(503, {"message": "Temporarily unavailable"})
-    from http_utils import _json, _now_iso
     data = _json(event)
     tryout_id = (data.get("tryoutId") or "").strip()
     if not tryout_id:
