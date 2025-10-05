@@ -231,33 +231,54 @@ def _get_open_tryouts_by_owner(
     owner_id: str, event: Dict[str, Any] | None = None
 ):
     """Return open tryouts for a given owner with pagination."""
-    qs = _qs(event or {})
-    limit, eks = _parse_pagination(qs)
+    qs = (event or {}).get("queryStringParameters") or {}
+
+    start_key = None
+    next_token = (qs.get("nextToken") or "").strip()
+    if next_token:
+        try:
+            import base64
+            import json as _json
+
+            start_key = _json.loads(
+                base64.urlsafe_b64decode(next_token.encode("utf-8")).decode("utf-8")
+            )
+        except Exception:
+            start_key = None
+
+    params = {
+        "IndexName": "ByOwner",
+        "KeyConditionExpression": Key("ownerId").eq(owner_id),
+        "Limit": 100,
+        "ScanIndexForward": True,
+    }
+
+    if start_key:
+        params["ExclusiveStartKey"] = start_key
 
     try:
-        resp = T_TRY.query(
-            IndexName="ByOwner",
-            KeyConditionExpression=Key("ownerId").eq(owner_id),
-            Limit=limit,
-            ScanIndexForward=True,
-            ExclusiveStartKey=eks or None,
-            ProjectionExpression=_TRYOUT_PROJECTION,
-            ExpressionAttributeNames=_TRYOUT_EAN,
-        )
-        items_raw = resp.get("Items") or []
-        items = [it for it in items_raw if (it.get("status") or "open") == "open"]
-        return _resp(
-            200,
-            {
-                "items": items,
-                "cursor": _encode_cursor(resp.get("LastEvaluatedKey")),
-                "limit": limit,
-            },
-        )
-    except Exception as exc:
-        LOGGER.error("owner_tryouts_error err=%s", exc)
-        return _resp(500, {"message": "Server error"})
+        r = T_TRY.query(**params)
 
+        items = [
+            it for it in (r.get("Items") or [])
+            if (it.get("status") or "open") == "open"
+        ]
+
+        lek = r.get("LastEvaluatedKey")
+        next_out = None
+        if lek:
+            import base64
+            import json as _json
+
+            next_out = base64.urlsafe_b64encode(
+                _json.dumps(lek, separators=(",", ":")).encode("utf-8")
+            ).decode("utf-8")
+
+        return _resp(200, {"items": items, "nextToken": next_out})
+
+    except Exception as e:
+        LOGGER.error("owner_tryouts_error err=%s", e)
+        return _resp(500, {"message": "Server error"})
 
 def _debug_tryouts():
     """Return a small, non-sensitive diagnostic payload."""
