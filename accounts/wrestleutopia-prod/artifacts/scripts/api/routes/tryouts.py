@@ -76,6 +76,16 @@ def _safe_str(s: Any, max_len: int = 128) -> str:
     return (str(s or "").strip())[:max_len]
 
 
+def _normalize_tryout_item(it: dict) -> dict:
+    """Back-compat field shims for UI expectations."""
+    if it is None:
+        return {}
+    if "org" not in it and "orgName" in it:
+        it["org"] = it.get("orgName")
+    it["status"] = (it.get("status") or "open").strip().lower()
+    return it
+
+
 def _get_tryouts(event):
     """Return open tryouts with optional pagination, preferring the GSI."""
     req_id = _request_id(event)
@@ -132,6 +142,8 @@ def _get_tryouts(event):
         except Exception as exc:
             LOGGER.error("get_tryouts scan_error req_id=%s err=%s", req_id, exc)
             return _resp(500, {"message": "Server error", "where": "_get_tryouts"})
+
+    items = [ _normalize_tryout_item(it) for it in (items or []) ]
 
     return _resp(
         200,
@@ -261,16 +273,18 @@ def _get_open_tryouts_by_owner(
 
     try:
         r = T_TRY.query(**params)
-        items = [it for it in (r.get("Items") or []) if (
-            it.get("status") or "open"
-        ) == "open"]
+        items = [
+            _normalize_tryout_item(it)
+            for it in (r.get("Items") or [])
+            if ((it.get("status") or "open").strip().lower() == "open")
+        ]
         lek = r.get("LastEvaluatedKey")
         nt = None
         if lek:
             import base64, json as _json
-            nt = base64.urlsafe_b64encode(_json.dumps(
-                lek, separators=(",", ":")
-            ).encode("utf-8")).decode("utf-8")
+            nt = base64.urlsafe_b64encode(
+                _json.dumps(lek, separators=(",", ":")).encode("utf-8")
+            ).decode("utf-8")
         return _resp(200, {"items": items, "nextToken": nt})
     except Exception as e:
         LOGGER.error("owner_tryouts_error err=%s", e)
