@@ -183,11 +183,11 @@ def _get_promoter_profile(sub: str) -> Dict[str, Any]:
         res = T_PROMO.get_item(
             Key={"userId": sub},
             ProjectionExpression=(
-                "userId, role, orgName, address, city, #r, country, "
+                "userId, #role, orgName, address, city, #r, country, "
                 "website, contact, bio, logoKey, socials, mediaKeys, highlights, "
                 "createdAt, updatedAt"
             ),
-            ExpressionAttributeNames={"#r": "region"},
+            ExpressionAttributeNames={"#r": "region", "#role": "role"},
         )
         item = res.get("Item") or {}
     except (ClientError, BotoCoreError) as exc:
@@ -206,11 +206,11 @@ def _get_promoter_public(user_id: str) -> Dict[str, Any]:
         res = T_PROMO.get_item(
             Key={"userId": user_id},
             ProjectionExpression=(
-                "userId, role, orgName, city, #r, country, "
+                "userId, #role, orgName, city, #r, country, "
                 "website, bio, logoKey, socials, mediaKeys, highlights, "
                 "createdAt, updatedAt"
             ),
-            ExpressionAttributeNames={"#r": "region"},
+            ExpressionAttributeNames={"#r": "region", "#role": "role"},
         )
         item = res.get("Item")
     except (ClientError, BotoCoreError) as exc:
@@ -260,11 +260,11 @@ def _list_promoters(groups: Set[str], event) -> Dict[str, Any]:
             "Limit": limit,
             "ExclusiveStartKey": last_evaluated_key or None,
             "ProjectionExpression": (
-                "userId, role, orgName, city, #r, country, "
+                "userId, #role, orgName, city, #r, country, "
                 "website, bio, logoKey, socials, mediaKeys, highlights, "
                 "createdAt, updatedAt"
             ),
-            "ExpressionAttributeNames": {"#r": "region"},
+            "ExpressionAttributeNames": {"#r": "region", "#role": "role"},
         }
         if fe is not None:
             scan_params["FilterExpression"] = fe
