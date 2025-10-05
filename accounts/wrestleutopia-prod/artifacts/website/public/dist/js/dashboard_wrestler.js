@@ -1,5 +1,5 @@
 // /js/dashboard-wrestler.js
-import { apiFetch } from '/js/api.js';
+import { apiFetch, asItems } from '/js/api.js';
 import { getAuthState, isWrestler } from '/js/roles.js';
 
 // --- Utilities ---
@@ -98,7 +98,7 @@ async function loadRecommendedTryouts() {
       return;
     }
 
-  let profile = null, list = [];
+  let profile, list = [];
   try {
     [profile, list] = await Promise.all([
       getMyWrestlerProfile(),
@@ -113,7 +113,7 @@ async function loadRecommendedTryouts() {
   }
 
     const now = new Date();
-    const upcomingOpen = (Array.isArray(list) ? list : [])
+    const upcomingOpen = asItems(list)
       .filter(t => {
         const d = new Date(t.date);
         return (t.status || 'open') === 'open' && !isNaN(d) && d >= now;

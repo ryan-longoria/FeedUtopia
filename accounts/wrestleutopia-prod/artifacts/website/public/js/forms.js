@@ -1,5 +1,5 @@
 // forms.js
-import { apiFetch } from '/js/api.js';
+import { apiFetch, asItems } from '/js/api.js';
 import { getAuthState, isPromoter, isWrestler } from '/js/roles.js';
 
 // Read groups directly off the ID token (used in a couple places)
@@ -250,7 +250,8 @@ async function renderTryoutsListPanel() {
   if (!listEl) return;
 
   try {
-    const list = await apiFetch('/tryouts'); // public on backend
+    const resp = await apiFetch('/tryouts');
+    const list = asItems(resp);
     renderTryouts(list);
     if (location.hash) {
       const id = location.hash.substring(1);
