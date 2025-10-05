@@ -88,13 +88,16 @@ def _get_tryouts(event):
     last_key = None
 
     try:
-        resp = T_TRY.query(
-            IndexName="OpenByDate",
-            KeyConditionExpression=Key("status").eq("open"),
-            ScanIndexForward=True,
-            Limit=limit,
-            ExclusiveStartKey=eks or None,
-        )
+        query_params = {
+            "IndexName": "OpenByDate",
+            "KeyConditionExpression": Key("status").eq("open"),
+            "ScanIndexForward": True,
+            "Limit": limit,
+        }
+        if eks:
+            query_params["ExclusiveStartKey"] = eks
+
+        resp = T_TRY.query(**query_params)
         items = resp.get("Items", []) or []
         last_key = resp.get("LastEvaluatedKey")
         LOGGER.debug(
@@ -108,13 +111,16 @@ def _get_tryouts(event):
 
     if not items:
         try:
-            resp2 = T_TRY.scan(
-                FilterExpression=Attr("status").eq("open"),
-                ProjectionExpression=_TRYOUT_PROJECTION,
-                ExpressionAttributeNames=_TRYOUT_EAN,
-                Limit=limit,
-                ExclusiveStartKey=eks or None,
-            )
+            scan_params = {
+                "FilterExpression": Attr("status").eq("open"),
+                "ProjectionExpression": _TRYOUT_PROJECTION,
+                "ExpressionAttributeNames": _TRYOUT_EAN,
+                "Limit": limit,
+            }
+            if eks:
+                scan_params["ExclusiveStartKey"] = eks
+
+            resp2 = T_TRY.scan(**scan_params)
             items = resp2.get("Items", []) or []
             last_key = resp2.get("LastEvaluatedKey")
             LOGGER.warning(

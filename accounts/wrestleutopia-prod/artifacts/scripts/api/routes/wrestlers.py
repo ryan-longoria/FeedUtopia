@@ -120,10 +120,12 @@ def _list_wrestlers(groups: set[str], event) -> dict[str, Any]:
             "Limit": limit,
             "ProjectionExpression": proj,
             "ExpressionAttributeNames": ean,
-            "ExclusiveStartKey": start_key,
         }
+        if start_key:
+            scan_kwargs["ExclusiveStartKey"] = start_key
         if fe is not None:
             scan_kwargs["FilterExpression"] = fe
+
         r = T_WREST.scan(**scan_kwargs)
         items = r.get("Items", [])
         next_key = r.get("LastEvaluatedKey")

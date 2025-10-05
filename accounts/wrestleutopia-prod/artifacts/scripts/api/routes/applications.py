@@ -163,11 +163,14 @@ def _get_applications(sub: str, event) -> dict[str, Any]:
             return _resp(404, {"message": "Tryout not found"})
         if tr.get("ownerId") != sub:
             return _resp(403, {"message": "Not your tryout"})
-        r = T_APP.query(
-            KeyConditionExpression=Key("tryoutId").eq(tryout_id),
-            Limit=page_size,
-            ExclusiveStartKey=start_key,
-        )
+        kwargs = {
+            "KeyConditionExpression": Key("tryoutId").eq(tryout_id),
+            "Limit": page_size,
+        }
+        if start_key:
+            kwargs["ExclusiveStartKey"] = start_key
+
+        r = T_APP.query(**kwargs)
         apps = r.get("Items", [])
         next_token = _encode_next_token(r.get("LastEvaluatedKey"))
         if apps:
@@ -218,11 +221,14 @@ def _get_applications(sub: str, event) -> dict[str, Any]:
                 uid = a.get("applicantId")
                 a["applicantProfile"] = profiles.get(uid, {})
         return _resp(200, {"items": apps, "nextToken": next_token})
-    r = T_APP.query(
-        IndexName="ByApplicant",
-        KeyConditionExpression=Key("applicantIdGsi").eq(sub),
-        Limit=page_size,
-        ExclusiveStartKey=start_key,
-    )
+    kwargs = {
+        "IndexName": "ByApplicant",
+        "KeyConditionExpression": Key("applicantIdGsi").eq(sub),
+        "Limit": page_size,
+    }
+    if start_key:
+        kwargs["ExclusiveStartKey"] = start_key
+
+    r = T_APP.query(**kwargs)
     next_token = _encode_next_token(r.get("LastEvaluatedKey"))
     return _resp(200, {"items": r.get("Items", []), "nextToken": next_token})
