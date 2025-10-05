@@ -5,6 +5,7 @@ import re
 from time import perf_counter
 
 from boto3.dynamodb.conditions import Key
+from botocore.exceptions import BotoCoreError, ClientError
 from auth import _claims, _is_promoter, _is_wrestler
 from config import get_config
 from db.tables import T_WREST
@@ -237,13 +238,17 @@ def lambda_handler(event, _ctx):
                 _access_log(method, raw_path, err["statusCode"], t0, ids)
                 return err
             from db.tables import T_TRY
-            result = T_TRY.query(
-                IndexName="ByOwner",
-                KeyConditionExpression=Key("ownerId").eq(sub),
-                ScanIndexForward=False,
-                Limit=100,
-            )
-            resp = _resp(200, {**ids, "items": result.get("Items", [])})
+            try:
+                result = T_TRY.query(
+                    IndexName="ByOwner",
+                    KeyConditionExpression=Key("ownerId").eq(sub),
+                    ScanIndexForward=False,
+                    Limit=100,
+                )
+                resp = _resp(200, {**ids, "items": result.get("Items", [])})
+            except (ClientError, BotoCoreError) as exc:
+                LOGGER.error("tryouts.mine.query_failed err=%s", exc, extra=ids)
+                resp = _resp(500, {"message": "Server error", **ids})
             _access_log(method, raw_path, resp["statusCode"], t0, ids)
             return resp
 

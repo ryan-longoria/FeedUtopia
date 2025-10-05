@@ -260,10 +260,11 @@ def _list_promoters(groups: Set[str], event) -> Dict[str, Any]:
             "Limit": limit,
             "ExclusiveStartKey": last_evaluated_key or None,
             "ProjectionExpression": (
-                "userId, role, orgName, city, region, country, "
+                "userId, role, orgName, city, #r, country, "
                 "website, bio, logoKey, socials, mediaKeys, highlights, "
                 "createdAt, updatedAt"
             ),
+            "ExpressionAttributeNames": {"#r": "region"},
         }
         if fe is not None:
             scan_params["FilterExpression"] = fe
