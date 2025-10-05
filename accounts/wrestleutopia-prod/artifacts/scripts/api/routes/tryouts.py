@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import boto3
 from boto3.dynamodb.conditions import Attr, Key
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, ParamValidationError
 
 from auth import _is_promoter
 from config import get_config
@@ -76,6 +76,16 @@ def _safe_str(s: Any, max_len: int = 128) -> str:
     return (str(s or "").strip())[:max_len]
 
 
+def _normalize_tryout_item(it: dict) -> dict:
+    """Back-compat field shims for UI expectations."""
+    if it is None:
+        return {}
+    if "org" not in it and "orgName" in it:
+        it["org"] = it.get("orgName")
+    it["status"] = (it.get("status") or "open").strip().lower()
+    return it
+
+
 def _get_tryouts(event):
     """Return open tryouts with optional pagination, preferring the GSI."""
     req_id = _request_id(event)
@@ -87,17 +97,17 @@ def _get_tryouts(event):
     items = []
     last_key = None
 
-    try:
-        query_params = {
-            "IndexName": "OpenByDate",
-            "KeyConditionExpression": Key("status").eq("open"),
-            "ScanIndexForward": True,
-            "Limit": limit,
-        }
-        if eks:
-            query_params["ExclusiveStartKey"] = eks
+    q_kwargs = {
+        "IndexName": "OpenByDate",
+        "KeyConditionExpression": Key("status").eq("open"),
+        "ScanIndexForward": True,
+        "Limit": limit,
+    }
+    if eks:
+        q_kwargs["ExclusiveStartKey"] = eks
 
-        resp = T_TRY.query(**query_params)
+    try:
+        resp = T_TRY.query(**q_kwargs)
         items = resp.get("Items", []) or []
         last_key = resp.get("LastEvaluatedKey")
         LOGGER.debug(
@@ -106,21 +116,36 @@ def _get_tryouts(event):
             len(items),
             bool(last_key),
         )
+    except ParamValidationError as exc:
+        LOGGER.warning("get_tryouts gsi_param_err req_id=%s err=%s", req_id, exc)
+        try:
+            q_kwargs.pop("ExclusiveStartKey", None)
+            resp = T_TRY.query(**q_kwargs)
+            items = resp.get("Items", []) or []
+            last_key = resp.get("LastEvaluatedKey")
+            LOGGER.debug(
+                "get_tryouts gsi_retry_no_cursor req_id=%s count=%d has_more=%s",
+                req_id,
+                len(items),
+                bool(last_key),
+            )
+        except Exception as exc2:
+            LOGGER.error("get_tryouts gsi_retry_failed req_id=%s err=%s", req_id, exc2)
     except Exception as exc:
         LOGGER.error("get_tryouts gsi_error req_id=%s err=%s", req_id, exc)
 
     if not items:
-        try:
-            scan_params = {
-                "FilterExpression": Attr("status").eq("open"),
-                "ProjectionExpression": _TRYOUT_PROJECTION,
-                "ExpressionAttributeNames": _TRYOUT_EAN,
-                "Limit": limit,
-            }
-            if eks:
-                scan_params["ExclusiveStartKey"] = eks
+        scan_kwargs = {
+            "FilterExpression": Attr("status").eq("open"),
+            "ProjectionExpression": _TRYOUT_PROJECTION,
+            "ExpressionAttributeNames": _TRYOUT_EAN,
+            "Limit": limit,
+        }
+        if eks:
+            scan_kwargs["ExclusiveStartKey"] = eks
 
-            resp2 = T_TRY.scan(**scan_params)
+        try:
+            resp2 = T_TRY.scan(**scan_kwargs)
             items = resp2.get("Items", []) or []
             last_key = resp2.get("LastEvaluatedKey")
             LOGGER.warning(
@@ -129,9 +154,27 @@ def _get_tryouts(event):
                 len(items),
                 bool(last_key),
             )
+        except ParamValidationError as exc:
+            LOGGER.warning("get_tryouts scan_param_err req_id=%s err=%s", req_id, exc)
+            try:
+                scan_kwargs.pop("ExclusiveStartKey", None)
+                resp2 = T_TRY.scan(**scan_kwargs)
+                items = resp2.get("Items", []) or []
+                last_key = resp2.get("LastEvaluatedKey")
+                LOGGER.warning(
+                    "get_tryouts scan_retry_no_cursor req_id=%s count=%d has_more=%s",
+                    req_id,
+                    len(items),
+                    bool(last_key),
+                )
+            except Exception as exc2:
+                LOGGER.error("get_tryouts scan_retry_failed req_id=%s err=%s", req_id, exc2)
+                return _resp(500, {"message": "Server error", "where": "_get_tryouts"})
         except Exception as exc:
             LOGGER.error("get_tryouts scan_error req_id=%s err=%s", req_id, exc)
             return _resp(500, {"message": "Server error", "where": "_get_tryouts"})
+
+    items = [_normalize_tryout_item(it) for it in (items or [])]
 
     return _resp(
         200,
@@ -244,9 +287,9 @@ def _get_open_tryouts_by_owner(
     if next_token:
         try:
             import base64, json as _json
-            start_key = _json.loads(base64.urlsafe_b64decode(
-                next_token.encode("utf-8")
-            ).decode("utf-8"))
+            start_key = _json.loads(
+                base64.urlsafe_b64decode(next_token.encode("utf-8")).decode("utf-8")
+            )
         except Exception:
             start_key = None
 
@@ -256,24 +299,16 @@ def _get_open_tryouts_by_owner(
         "ScanIndexForward": True,
         "Limit": 100,
     }
+
     if start_key:
         params["ExclusiveStartKey"] = start_key
 
     try:
-        r = T_TRY.query(**params)
-        items = [it for it in (r.get("Items") or []) if (
-            it.get("status") or "open"
-        ) == "open"]
-        lek = r.get("LastEvaluatedKey")
-        nt = None
-        if lek:
-            import base64, json as _json
-            nt = base64.urlsafe_b64encode(_json.dumps(
-                lek, separators=(",", ":")
-            ).encode("utf-8")).decode("utf-8")
-        return _resp(200, {"items": items, "nextToken": nt})
-    except Exception as e:
-        LOGGER.error("owner_tryouts_error err=%s", e)
+        result = T_TRY.query(**params)
+        items = [it for it in (result.get("Items") or []) if (it.get("status") or "") == "open"]
+        return _resp(200, items)
+    except Exception as exc:
+        LOGGER.error("owner_tryouts_query_failed err=%s", exc)
         return _resp(500, {"message": "Server error"})
 
 

@@ -1,5 +1,5 @@
 // /js/dashboard_promoter_apps.js
-import { apiFetch } from '/js/api.js';
+import { apiFetch, asItems } from '/js/api.js';
 import { getAuthState, isPromoter } from '/js/roles.js';
 
 function h(s) {
@@ -133,8 +133,8 @@ async function loadTryoutOptionsAndPick() {
   sel.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
 
   try {
-    const mine = await apiFetch('/tryouts/mine'); // promoter’s tryouts
-    const items = Array.isArray(mine) ? mine : [];
+    const mine = await apiFetch('/tryouts/mine');
+    const items = asItems(mine);
 
     for (const t of items) {
       const opt = document.createElement('option');

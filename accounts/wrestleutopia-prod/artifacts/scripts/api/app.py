@@ -11,6 +11,7 @@ from config import get_config
 from db.tables import T_WREST
 from http_utils import _now_iso, _path, _qs, _resp
 from routes import applications as r_apps
+from routes.tryouts import _get_tryouts, _get_open_tryouts_by_owner
 from routes import promoters as r_promoters
 from routes import tryouts as r_tryouts
 from routes import wrestlers as r_wrestlers
@@ -20,7 +21,7 @@ LOGGER = logging.getLogger("wrestleutopia.app")
 
 SAFE_PATH_RE = re.compile(r"^[A-Za-z0-9/_\-.]+$")
 MAX_BODY_BYTES = 1_000_000
-ALLOW_PUBLIC = {("GET", "/tryouts")}
+ALLOW_PUBLIC = set()
 
 
 def _normalize_method(event: dict) -> str:
@@ -32,6 +33,13 @@ def _normalize_method(event: dict) -> str:
         .upper()
         .strip()
     )
+
+
+def _require_member(groups: set[str]):
+    """Allow either Wrestler or Promoter."""
+    if not (_is_wrestler(groups) or _is_promoter(groups)):
+        return _resp(403, {"message": "Wrestler or promoter role required"})
+    return None
 
 
 def _request_ids(event: dict) -> dict:
@@ -128,8 +136,15 @@ def lambda_handler(event, _ctx):
             _access_log(method, raw_path, resp["statusCode"], t0, ids)
             return resp
 
-        if (method, raw_path) in ALLOW_PUBLIC:
-            resp = r_tryouts._get_tryouts(event)
+        sub, groups = _claims(event)
+        if not sub:
+            resp = _resp(401, {"message": "Unauthorized", **ids})
+            _access_log(method, raw_path, resp["statusCode"], t0, ids)
+            return resp
+        
+        if method == "GET" and raw_path == "/tryouts":
+            err = _require_member(groups)
+            resp = err or r_tryouts._get_tryouts(event)
             resp.setdefault("headers", {}).update({"X-Request-Id": ids["requestId"]})
             _access_log(method, raw_path, resp["statusCode"], t0, ids)
             return resp

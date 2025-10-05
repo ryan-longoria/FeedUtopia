@@ -13,7 +13,9 @@ EXPECTED_ISS = (os.getenv("JWT_EXPECTED_ISS") or "").rstrip("/")
 EXPECTED_AUDS: FrozenSet[str] = frozenset(
     a.strip() for a in (os.getenv("JWT_EXPECTED_AUDS") or "").split(",") if a.strip()
 )
-ALLOW_ROLE_INFERENCE = (os.getenv("ALLOW_ROLE_INFERENCE") or "").lower() in {"1", "true", "yes"}
+ALLOW_ROLE_INFERENCE = (
+    os.getenv("ALLOW_ROLE_INFERENCE", "true").lower() in {"1", "true", "yes"}
+)
 MAX_GROUPS = int(os.getenv("MAX_GROUPS", "50"))
 MAX_GROUP_LEN = int(os.getenv("MAX_GROUP_LEN", "64"))
 
@@ -115,9 +117,19 @@ def _basic_token_checks(claims: Mapping[str, Any], now_epoch: int) -> Optional[s
 
 def _extract_claims(event: Dict[str, Any]) -> Mapping[str, Any]:
     """Extract and normalize claim keys from API Gateway authorizer context."""
-    jwt_ctx = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}) or {}
-    raw = jwt_ctx.get("claims") or {}
-    return {str(k).lower(): v for k, v in raw.items()}
+    rc = event.get("requestContext") or {}
+    authz = rc.get("authorizer") or {}
+
+    jwt_ctx = authz.get("jwt") or {}
+    claims: Any = jwt_ctx.get("claims") or {}
+
+    if not claims and isinstance(authz.get("claims"), dict):
+        claims = authz["claims"]
+
+    if not isinstance(claims, dict):
+        return {}
+
+    return {str(k).lower(): v for k, v in claims.items()}
 
 
 def _subject_from(claims: Mapping[str, Any]) -> Optional[str]:
@@ -128,20 +140,22 @@ def _subject_from(claims: Mapping[str, Any]) -> Optional[str]:
 def _groups_from(claims: Mapping[str, Any]) -> FrozenSet[str]:
     """Derive normalized groups from claims, with optional inference from custom role or scopes."""
     groups: Set[str] = set()
-    groups |= _parse_groups_from_claim(claims.get("cognito:groups"))
+
+    candidates: list[Any] = []
+    for k, v in claims.items():
+        kl = str(k).lower()
+        if kl == "cognito:groups" or kl == "groups" or kl.endswith("/groups") or kl.endswith(":groups"):
+            candidates.append(v)
+
+    for val in candidates:
+        groups |= _parse_groups_from_claim(val)
 
     if ALLOW_ROLE_INFERENCE:
-        role = _lc(claims.get("custom:role") or "")
+        role = _lc(claims.get("custom:role") or claims.get("role") or "")
         if role.startswith("wrestler"):
             groups.add(WRESTLERS)
         elif role.startswith("promoter"):
             groups.add(PROMOTERS)
-
-    scope_str = claims.get("scope") or ""
-    if scope_str:
-        for sc in str(scope_str).split():
-            _lc(sc)
-            pass
 
     return _clean_groups(groups)
 

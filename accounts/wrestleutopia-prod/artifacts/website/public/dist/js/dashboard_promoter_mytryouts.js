@@ -1,5 +1,5 @@
 // /js/dashboard_promoter_mytryouts.js
-import { apiFetch } from '/js/api.js';
+import { apiFetch, asItems } from '/js/api.js';
 import { getAuthState, isPromoter } from '/js/roles.js';
 
 const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString(); } catch { return iso || ''; } };
@@ -88,8 +88,8 @@ async function loadMyTryouts() {
   }
 
   try {
-    const mine = await apiFetch('/tryouts/mine'); // JWT sent by apiFetch
-    const items = Array.isArray(mine) ? mine : [];
+    const mine = await apiFetch('/tryouts/mine');
+    const items = asItems(mine);
 
     const today = new Date(); today.setHours(0,0,0,0);
     const isOpen = (t) => (t.status || 'open') === 'open';

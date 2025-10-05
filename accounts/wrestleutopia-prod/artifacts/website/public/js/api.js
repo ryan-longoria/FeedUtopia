@@ -151,6 +151,12 @@ export async function uploadToS3(filename, contentType, file, opts = {}) {
   return objectKey;
 }
 
+export function asItems(x) {
+  if (Array.isArray(x)) return x;
+  if (x && Array.isArray(x.items)) return x.items;
+  return [];
+}
+
 export const api = {
   get: (p, params) => apiFetch(params ? `${p}${qs(params)}` : p, { method: 'GET' }),
   post: (p, body) => apiFetch(p, { method: 'POST', body }),
