@@ -232,53 +232,44 @@ def _get_open_tryouts_by_owner(
 ):
     """Return open tryouts for a given owner with pagination."""
     qs = (event or {}).get("queryStringParameters") or {}
+    next_token = (qs.get("nextToken") or "").strip()
 
     start_key = None
-    next_token = (qs.get("nextToken") or "").strip()
     if next_token:
         try:
-            import base64
-            import json as _json
-
-            start_key = _json.loads(
-                base64.urlsafe_b64decode(next_token.encode("utf-8")).decode("utf-8")
-            )
+            import base64, json as _json
+            start_key = _json.loads(base64.urlsafe_b64decode(
+                next_token.encode("utf-8")
+            ).decode("utf-8"))
         except Exception:
             start_key = None
 
     params = {
         "IndexName": "ByOwner",
         "KeyConditionExpression": Key("ownerId").eq(owner_id),
-        "Limit": 100,
         "ScanIndexForward": True,
+        "Limit": 100,
     }
-
     if start_key:
         params["ExclusiveStartKey"] = start_key
 
     try:
         r = T_TRY.query(**params)
-
-        items = [
-            it for it in (r.get("Items") or [])
-            if (it.get("status") or "open") == "open"
-        ]
-
+        items = [it for it in (r.get("Items") or []) if (
+            it.get("status") or "open"
+        ) == "open"]
         lek = r.get("LastEvaluatedKey")
-        next_out = None
+        nt = None
         if lek:
-            import base64
-            import json as _json
-
-            next_out = base64.urlsafe_b64encode(
-                _json.dumps(lek, separators=(",", ":")).encode("utf-8")
-            ).decode("utf-8")
-
-        return _resp(200, {"items": items, "nextToken": next_out})
-
+            import base64, json as _json
+            nt = base64.urlsafe_b64encode(_json.dumps(
+                lek, separators=(",", ":")
+            ).encode("utf-8")).decode("utf-8")
+        return _resp(200, {"items": items, "nextToken": nt})
     except Exception as e:
         LOGGER.error("owner_tryouts_error err=%s", e)
         return _resp(500, {"message": "Server error"})
+
 
 def _debug_tryouts():
     """Return a small, non-sensitive diagnostic payload."""
