@@ -13,7 +13,9 @@ EXPECTED_ISS = (os.getenv("JWT_EXPECTED_ISS") or "").rstrip("/")
 EXPECTED_AUDS: FrozenSet[str] = frozenset(
     a.strip() for a in (os.getenv("JWT_EXPECTED_AUDS") or "").split(",") if a.strip()
 )
-ALLOW_ROLE_INFERENCE = (os.getenv("ALLOW_ROLE_INFERENCE") or "").lower() in {"1", "true", "yes"}
+ALLOW_ROLE_INFERENCE = (
+    os.getenv("ALLOW_ROLE_INFERENCE", "true").lower() in {"1", "true", "yes"}
+)
 MAX_GROUPS = int(os.getenv("MAX_GROUPS", "50"))
 MAX_GROUP_LEN = int(os.getenv("MAX_GROUP_LEN", "64"))
 
@@ -119,12 +121,15 @@ def _extract_claims(event: Dict[str, Any]) -> Mapping[str, Any]:
     authz = rc.get("authorizer") or {}
 
     jwt_ctx = authz.get("jwt") or {}
-    claims = jwt_ctx.get("claims") or {}
+    claims: Any = jwt_ctx.get("claims") or {}
 
     if not claims and isinstance(authz.get("claims"), dict):
         claims = authz["claims"]
 
-    return {str(k).lower(): v for k, v in (claims.items() if isinstance(claims, dict) else [])}
+    if not isinstance(claims, dict):
+        return {}
+
+    return {str(k).lower(): v for k, v in claims.items()}
 
 
 def _subject_from(claims: Mapping[str, Any]) -> Optional[str]:
@@ -136,19 +141,11 @@ def _groups_from(claims: Mapping[str, Any]) -> FrozenSet[str]:
     """Derive normalized groups from claims, with optional inference from custom role or scopes."""
     groups: Set[str] = set()
 
-    candidates: Iterable[Any] = []
-    if claims:
-        vals: list[Any] = []
-        for k, v in claims.items():
-            kl = str(k).lower()
-            if (
-                kl == "cognito:groups"
-                or kl == "groups"
-                or kl.endswith("/groups")
-                or kl.endswith(":groups")
-            ):
-                vals.append(v)
-        candidates = vals
+    candidates: list[Any] = []
+    for k, v in claims.items():
+        kl = str(k).lower()
+        if kl == "cognito:groups" or kl == "groups" or kl.endswith("/groups") or kl.endswith(":groups"):
+            candidates.append(v)
 
     for val in candidates:
         groups |= _parse_groups_from_claim(val)
