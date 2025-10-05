@@ -73,8 +73,8 @@ resource "aws_lambda_function" "api" {
       TABLE_APPS      = aws_dynamodb_table.applications.name
       MEDIA_BUCKET    = aws_s3_bucket.media_bucket.bucket
       TABLE_HANDLES   = aws_dynamodb_table.profile_handles.name
-      ENVIRONMENT    = var.environment
-      LOG_LEVEL      = var.environment == "prod" ? "ERROR" : "DEBUG"
+      ENVIRONMENT     = var.environment
+      LOG_LEVEL       = var.environment == "prod" ? "ERROR" : "DEBUG"
     }
   }
 
@@ -154,14 +154,14 @@ resource "aws_lambda_function" "image_processor" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.tryouts.name
-      CDN_BASE   = "https://cdn.wrestleutopia.com"
-      LOG_LEVEL  = var.environment == "prod" ? "ERROR" : "DEBUG"
-      ENV        = var.environment
-      DDB_TTL_SECS       = "7776000"
-      MAX_SRC_BYTES      = "26214400"
-      MAX_IMAGE_PIXELS   = "75000000"
-      FAILED_RETRY_SECS  = "600"
+      TABLE_NAME        = aws_dynamodb_table.tryouts.name
+      CDN_BASE          = "https://cdn.wrestleutopia.com"
+      LOG_LEVEL         = var.environment == "prod" ? "ERROR" : "DEBUG"
+      ENV               = var.environment
+      DDB_TTL_SECS      = "7776000"
+      MAX_SRC_BYTES     = "26214400"
+      MAX_IMAGE_PIXELS  = "75000000"
+      FAILED_RETRY_SECS = "600"
     }
   }
 
