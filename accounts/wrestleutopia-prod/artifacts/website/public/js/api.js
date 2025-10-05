@@ -152,6 +152,7 @@ export async function uploadToS3(filename, contentType, file, opts = {}) {
 }
 
 export function asItems(x) {
+  //unwrap {items}
   if (Array.isArray(x)) return x;
   if (x && Array.isArray(x.items)) return x.items;
   return [];
