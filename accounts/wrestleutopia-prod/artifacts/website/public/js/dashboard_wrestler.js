@@ -195,7 +195,7 @@ async function loadMyApplications() {
       '/applications'
     ].filter(Boolean);
 
-    let apps = await trySeq(urls);
+    let apps = asItems(await trySeq(urls));
 
     // Final fallback: client-filter by common fields
     if (Array.isArray(apps) && mySub) {

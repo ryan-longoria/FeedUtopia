@@ -112,7 +112,7 @@ async function openApplicantsModal(tryoutId, meta = {}) {
   try {
     const qs = tryoutId ? `?tryoutId=${encodeURIComponent(tryoutId)}` : '';
     const list = await apiFetch(`/applications${qs}`);
-    renderAppsIntoModal(list, meta);
+     renderAppsIntoModal(asItems(list), meta);
   } catch (e) {
     console.error(e);
     renderAppsIntoModal([], meta);
@@ -159,7 +159,7 @@ async function loadTryoutOptionsAndPick() {
 async function loadApplications(tryoutId = '') {
   const qs = tryoutId ? `?tryoutId=${encodeURIComponent(tryoutId)}` : '';
   const list = await apiFetch(`/applications${qs}`);
-  renderApps(list);
+  renderApps(asItems(list));
 }
 
 async function init() {

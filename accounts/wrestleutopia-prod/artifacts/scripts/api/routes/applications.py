@@ -21,7 +21,6 @@ LOGGER = logging.getLogger("wrestleutopia.routes.applications")
 MAX_NOTES_LEN = 2000
 REEL_URL_RE = re.compile(r"^https?://[^\s]{3,}$", re.IGNORECASE)
 BATCH_GET_LIMIT = 100
-READ_ONLY_MODE = (os.environ.get("READ_ONLY_MODE") or "").strip().lower() in {"1", "true", "yes"}
 
 
 def _request_id(event: dict) -> str:
@@ -104,9 +103,6 @@ def _post_application(sub: str, groups: set[str], event) -> dict[str, Any]:
     req_id = _request_id(event)
     if not _is_wrestler(groups):
         return _resp(403, {"message": "Wrestler role required"})
-    if READ_ONLY_MODE:
-        LOGGER.warning("write_blocked_read_only requestId=%s", req_id)
-        return _resp(503, {"message": "Temporarily unavailable"})
     data = _json(event)
     tryout_id = (data.get("tryoutId") or "").strip()
     if not tryout_id:
