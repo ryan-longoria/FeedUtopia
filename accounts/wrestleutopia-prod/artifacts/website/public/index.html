@@ -184,6 +184,20 @@
   <script type="module">
     import { getAuthState, isPromoter, isWrestler } from '/js/roles.js';
 
+    const renderLocked = () => `
+      <div class="card locked-card wrestler-only">
+        <div class="profile blurred">
+          <img src="https://picsum.photos/seed/tryoutlock${Math.floor(Math.random()*9999)}/200/200" alt="Locked tryout"/>
+          <div class="info">
+            <div><strong>— — —</strong> <span class="muted">(— — —)</span></div>
+            <div class="mt-2">— — • —/—/— • —, —</div>
+            <p class="mt-2 muted">Full details and one-click apply are available to wrestlers.</p>
+            <a class="btn small mt-3" href="#" data-auth="out">Create free wrestler account</a>
+          </div>
+        </div>
+      </div>
+    `;
+
     const run = async () => {
       const s = await getAuthState();
       if (isPromoter(s) || isWrestler(s)) return; // dashboards handle logged-in views
@@ -191,61 +205,16 @@
       const grid = document.querySelector('#home-tryouts');
       if (!grid) return;
 
-      const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
-      const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString(); } catch { return iso; } };
-      const renderTryoutCard = (t) => `
-        <div class="card">
-          <div class="badge">${(t.status || 'open').toString().toUpperCase()}</div>
-          <h3 style="margin:6px 0 2px">${t.org || t.organization || 'Promotion'}</h3>
-          <div class="muted">${t.city || '—'}${t.state ? ', ' + t.state : ''} • ${fmtDate(t.date)}</div>
-          <p class="mt-3">${t.requirements || 'Basic bumps, cardio, promo.'}</p>
-          <div class="mt-3">
-            <a class="btn small" href="tryouts.html#${t.id || ''}" data-requires="wrestler">Apply</a>
-            ${typeof t.slots === 'number' ? `<span class="muted" style="margin-left:10px">Slots: ${t.slots}</span>` : ''}
-          </div>
-        </div>
-      `;
-      const renderLockedThird = () => `
-        <div class="card locked-card wrestler-only">
-          <div class="profile blurred">
-            <img src="https://picsum.photos/seed/tryoutlock/200/200" alt="Locked tryout"/>
-            <div class="info">
-              <div><strong>— — —</strong> <span class="muted">(— — —)</span></div>
-              <div class="mt-2">— — • —/—/— • —, —</div>
-              <p class="mt-2 muted">Full details and one-click apply are available to wrestlers.</p>
-              <a class="btn small mt-3" href="#" data-auth="out">Create free wrestler account</a>
-            </div>
-          </div>
-        </div>
-      `;
-
-      try {
-        const res = await fetch(`${window.WU_API}/tryouts?status=open&limit=25`, { credentials: 'omit' });
-        const json = await res.json();
-        const all = Array.isArray(json?.items) ? json.items : (Array.isArray(json) ? json : []);
-        const now = new Date();
-        const upcoming = all.filter(t => {
-          const d = new Date(t.date);
-          return !isNaN(d) && d >= now;
-        });
-
-        const pick = shuffle(upcoming).slice(0, 2);
-        grid.innerHTML =
-          (pick.length ? pick.map(renderTryoutCard).join('') : `
-            <div class="card">
-              <h3>No open tryouts (yet)</h3>
-              <p class="muted">Check back soon—or <a href="#" data-auth="out">create a free account</a> to get notified.</p>
-            </div>
-          `) + renderLockedThird();
-      } catch (e) {
-        grid.innerHTML = `
-          <div class="card">
-            <h3>Tryouts are loading…</h3>
-            <p class="muted">We’re having trouble fetching the latest. Try again shortly.</p>
-          </div>` + renderLockedThird();
-        console.error('Home tryouts fetch failed', e);
-      }
+      // Show 3 blurred/locked placeholders (no real tryout details for logged-out users)
+      grid.innerHTML = renderLocked() + renderLocked() + renderLocked();
     };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', run, { once: true });
+    } else {
+      run();
+    }
+  </script>
 
     // Run when DOM is ready (we're at end of body, but keep this safe)
     if (document.readyState === 'loading') {
