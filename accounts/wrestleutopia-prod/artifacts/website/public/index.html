@@ -21,20 +21,11 @@
   <script defer src="/js/include.js"></script>
   <script type="module" src="/js/roles.js"></script>
 
-  <!-- redirect logged-in users to proper dashboard -->
-  <script type="module">
-    import { getAuthState, isPromoter, isWrestler } from '/js/roles.js';
-    (async () => {
-      const s = await getAuthState();
-      if (isPromoter(s)) location.replace('dashboard_promoter.html');
-      if (isWrestler(s)) location.replace('dashboard_wrestler.html');
-    })();
-  </script>
+  <script type="module" src="/js/home-redirect.js"></script>
 </head>
 <body>
   <div data-include="partials/nav.html"></div>
 
-  <!-- HERO -->
   <header class="hero">
     <div class="container">
       <h1>Get booked. Find verified talent.</h1>
@@ -47,7 +38,6 @@
     </div>
   </header>
 
-  <!-- 60 days free offer (removed for logged-in users) -->
   <section class="section" id="free-offer">
     <div class="container">
       <div class="offer-band">
@@ -71,22 +61,9 @@
         </div>
       </div>
     </div>
-
-    <!-- Hide this section when a user is logged in -->
-    <script type="module">
-      import { getAuthState, isPromoter, isWrestler } from '/js/roles.js';
-      (async () => {
-        const s = await getAuthState();
-        if (isPromoter(s) || isWrestler(s)) {
-          const el = document.getElementById('free-offer');
-          if (el) el.remove();
-        }
-      })();
-    </script>
   </section>
 
   <main>
-    <!-- how it works -->
     <section class="section">
       <div class="container">
         <h2>How it works</h2>
@@ -111,7 +88,6 @@
       </div>
     </section>
 
-    <!-- Upcoming Tryouts (public view, Apply requires auth) -->
     <section class="section">
       <div class="container">
         <h2>Upcoming Tryouts</h2>
@@ -122,7 +98,6 @@
       </div>
     </section>
 
-    <!-- Talent teaser (locked for public) -->
     <section class="section">
       <div class="container">
         <h2>Talent Spotlight <span class="badge">Locked</span></h2>
@@ -169,7 +144,6 @@
     </section>
   </main>
 
-  <!-- sticky bottom CTA -->
   <div class="cta-bar">
     <div class="container inner">
       <span class="muted">Ready to get started?</span>
@@ -180,97 +154,8 @@
 
   <div data-include="partials/footer.html"></div>
 
-  <!-- ===== Logged-out tryouts: 2 random + 1 locked ===== -->
-  <script type="module">
-    import { getAuthState, isPromoter, isWrestler } from '/js/roles.js';
-
-    const renderLocked = () => `
-      <div class="card locked-card wrestler-only">
-        <div class="profile blurred">
-          <img src="https://picsum.photos/seed/tryoutlock${Math.floor(Math.random()*9999)}/200/200" alt="Locked tryout"/>
-          <div class="info">
-            <div><strong>— — —</strong> <span class="muted">(— — —)</span></div>
-            <div class="mt-2">— — • —/—/— • —, —</div>
-            <p class="mt-2 muted">Full details and one-click apply are available to wrestlers.</p>
-            <a class="btn small mt-3" href="#" data-auth="out">Create free wrestler account</a>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const run = async () => {
-      const s = await getAuthState();
-      if (isPromoter(s) || isWrestler(s)) return; // dashboards handle logged-in views
-
-      const grid = document.querySelector('#home-tryouts');
-      if (!grid) return;
-
-      // Show 3 blurred/locked placeholders (no real tryout details for logged-out users)
-      grid.innerHTML = renderLocked() + renderLocked() + renderLocked();
-    };
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', run, { once: true });
-    } else {
-      run();
-    }
-  </script>
-
-    // Run when DOM is ready (we're at end of body, but keep this safe)
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', run, { once: true });
-    } else {
-      run();
-    }
-  </script>
-  <!-- ===== /Logged-out tryouts ===== -->
-
-  <script type="module">
-    import { getAuthState, isPromoter, isWrestler } from '/js/roles.js';
-
-    // Try a few ways to open your auth UI (works with most setups)
-    function openSignup(intent = 'generic') {
-      // 1) If your auth bundle exposes a global
-      if (window.Auth?.open) { window.Auth.open('signup', { intent }); return; }
-
-      // 2) If your auth listens for a custom event
-      window.dispatchEvent(new CustomEvent('auth:open', { detail: { mode: 'signup', intent } }));
-
-      // 3) Fallback: trigger the nav login button (should open the modal)
-      const loginBtn = document.getElementById('login-btn');
-      if (loginBtn) loginBtn.click();
-    }
-
-    document.addEventListener('click', async (e) => {
-      const el = e.target.closest('a,button');
-      if (!el) return;
-
-      // Any element marked as "auth out" should open signup
-      if (el.dataset.auth === 'out') {
-        e.preventDefault();
-        const intent =
-          el.id?.includes('promoter') ? 'promoter' :
-          el.id?.includes('talent')   ? 'wrestler' :
-          (el.getAttribute('aria-label')?.includes('Promoter') ? 'promoter' :
-          el.getAttribute('aria-label')?.includes('Talent')   ? 'wrestler' : 'generic');
-        openSignup(intent);
-        return;
-      }
-
-      // Role-gated actions (e.g., Apply buttons)
-      if (el.dataset.requires) {
-        const s = await getAuthState();
-        const need = el.dataset.requires;
-        const ok =
-          (need === 'wrestler' && isWrestler(s)) ||
-          (need === 'promoter' && isPromoter(s));
-        if (!ok) {
-          e.preventDefault();
-          openSignup(need);
-        }
-      }
-    });
-  </script>
-
+  <script type="module" src="/js/home-free-offer-hide.js"></script>
+  <script type="module" src="/js/home-tryouts-locked.js"></script>
+  <script type="module" src="/js/home-auth-cta.js"></script>
 </body>
 </html>
