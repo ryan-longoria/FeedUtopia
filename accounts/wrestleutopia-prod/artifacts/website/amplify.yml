@@ -10,6 +10,6 @@ applications:
       artifacts:
         baseDirectory: public
         files:
-          - '**/*'
+          - "**/*"
       cache:
         paths: []

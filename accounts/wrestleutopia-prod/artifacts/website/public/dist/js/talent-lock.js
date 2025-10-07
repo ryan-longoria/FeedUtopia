@@ -1,11 +1,11 @@
-import { getAuthState, isPromoter } from '/js/roles.js';
+import { getAuthState, isPromoter } from "/js/roles.js";
 
 const run = async () => {
   try {
     const s = await getAuthState();
     if (isPromoter(s)) return;
 
-    const sec = document.querySelector('#search');
+    const sec = document.querySelector("#search");
     if (!sec) return;
 
     sec.innerHTML = `
@@ -16,12 +16,12 @@ const run = async () => {
       </div>
     `;
   } catch (e) {
-    console.error('talent-lock failed', e);
+    console.error("talent-lock failed", e);
   }
 };
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', run, { once: true });
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", run, { once: true });
 } else {
   run();
 }

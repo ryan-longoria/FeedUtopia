@@ -1,19 +1,19 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from "vite";
 
 export default defineConfig({
-  root: '.',                 // project root
+  root: ".",
   build: {
-    outDir: 'public/dist', // emit built files where your site can serve them
-    emptyOutDir: false,      // don't wipe the rest of public/
+    outDir: "public/dist",
+    emptyOutDir: false,
     rollupOptions: {
       input: {
-        auth: 'src/auth-esm.js' // our single entry
+        auth: "src/auth-esm.js",
       },
       output: {
-        entryFileNames: '[name].js',       // -> public/assets/auth.js
-        chunkFileNames: 'chunks/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash][extname]',
-      }
-    }
-  }
+        entryFileNames: "[name].js",
+        chunkFileNames: "chunks/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+      },
+    },
+  },
 });

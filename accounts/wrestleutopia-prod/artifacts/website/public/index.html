@@ -1,161 +1,239 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <meta name="theme-color" content="#0b0b12"/>
-  <title>WrestleUtopia – Get booked. Find verified talent.</title>
-  <meta name="description" content="Profiles, tryouts, and applications in one place. Built for indie wrestling."/>
-  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"/>
-  <link rel="manifest" href="manifest.webmanifest"/>
-  <meta property="og:title" content="Wrestle Utopia"/>
-  <meta property="og:description" content="Profiles • Tryouts • Bookings for indie wrestling"/>
-  <meta property="og:image" content="/assets/logo.svg"/>
-  <link rel="stylesheet" href="/styles/styles.css"/>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b0b12" />
+    <title>WrestleUtopia – Get booked. Find verified talent.</title>
+    <meta
+      name="description"
+      content="Profiles, tryouts, and applications in one place. Built for indie wrestling."
+    />
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta property="og:title" content="Wrestle Utopia" />
+    <meta
+      property="og:description"
+      content="Profiles • Tryouts • Bookings for indie wrestling"
+    />
+    <meta property="og:image" content="/assets/logo.svg" />
+    <link rel="stylesheet" href="/styles/styles.css" />
 
-  <script src="/js/config.js"></script>
-  <script type="module" src="/js/auth-bridge.js"></script>
-  <script type="module" src="/js/api.js"></script>
-  <script type="module" src="/js/forms.js"></script>
-  <script type="module" src="/js/main.js"></script>
-  <script defer src="/js/include.js"></script>
-  <script type="module" src="/js/roles.js"></script>
+    <script src="/js/config.js"></script>
+    <script type="module" src="/js/auth-bridge.js"></script>
+    <script type="module" src="/js/api.js"></script>
+    <script type="module" src="/js/forms.js"></script>
+    <script type="module" src="/js/main.js"></script>
+    <script defer src="/js/include.js"></script>
+    <script type="module" src="/js/roles.js"></script>
 
-  <script type="module" src="/js/home-redirect.js"></script>
-</head>
-<body>
-  <div data-include="partials/nav.html"></div>
+    <script type="module" src="/js/home-redirect.js"></script>
+  </head>
+  <body>
+    <div data-include="partials/nav.html"></div>
 
-  <header class="hero">
-    <div class="container">
-      <h1>Get booked. Find verified talent.</h1>
-      <p>Profiles, tryouts, and applications in one place. Built for indie wrestling.</p>
-      <div class="mt-3">
-        <a href="#" class="btn" id="cta-join-talent" data-auth="out">Join as Talent</a>
-        <a href="#" class="btn secondary" id="cta-join-promoter" data-auth="out">Create Promoter Account</a>
-      </div>
-      <div class="mt-3 muted">Free to start • Keep your data • Cancel anytime</div>
-    </div>
-  </header>
-
-  <section class="section" id="free-offer">
-    <div class="container">
-      <div class="offer-band">
-        <div class="offer-grid">
-          <div>
-            <h2>Join today and get <strong>60 days free</strong></h2>
-            <p>Build your profile, unlock verified talent search, and manage tryouts in one place.</p>
-            <div class="chips">
-              <span class="chip">Cancel anytime</span>
-              <span class="chip">No commitment</span>
-              <span class="chip">Verified accounts</span>
-              <span class="chip">One-click applications</span>
-            </div>
-            <div class="fine">New accounts only. No commitment—cancel anytime within 60 days to avoid charges.</div>
-          </div>
-
-          <div class="cta-row">
-            <a href="#" class="btn" data-auth="out" id="offer-join-talent">Join as Talent — 60 days free</a>
-            <a href="#" class="btn secondary" data-auth="out" id="offer-join-promoter">Create Promoter Account — 60 days free</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <main>
-    <section class="section">
+    <header class="hero">
       <div class="container">
-        <h2>How it works</h2>
-        <div class="steps mt-3">
-          <div class="card step-card">
-            <h3>For Wrestlers</h3>
-            <p class="muted">Create your profile, add reel and photos, and set your rates.</p>
-            <p class="muted">Browse tryouts, apply in one click, and track application status.</p>
-            <div class="mt-3">
-              <a href="#" class="btn small" data-auth="out" data-k="sticky_join_talent">Join as Talent</a>
-            </div>
-          </div>
-          <div class="card step-card">
-            <h3>For Promoters</h3>
-            <p class="muted">Post tryouts, review applications, and shortlist talent.</p>
-            <p class="muted">Search verified profiles by style, location, and experience.</p>
-            <div class="mt-3">
-              <a href="#" class="btn small" data-auth="out" data-k="sticky_join_promoter">Create Promoter Account</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="container">
-        <h2>Upcoming Tryouts</h2>
-        <div id="home-tryouts" class="grid cols-3 mt-3"></div>
+        <h1>Get booked. Find verified talent.</h1>
+        <p>
+          Profiles, tryouts, and applications in one place. Built for indie
+          wrestling.
+        </p>
         <div class="mt-3">
-          <a class="btn" href="#" data-auth="out">Unlock Tryout Search</a>
+          <a href="#" class="btn" id="cta-join-talent" data-auth="out"
+            >Join as Talent</a
+          >
+          <a
+            href="#"
+            class="btn secondary"
+            id="cta-join-promoter"
+            data-auth="out"
+            >Create Promoter Account</a
+          >
+        </div>
+        <div class="mt-3 muted">
+          Free to start • Keep your data • Cancel anytime
         </div>
       </div>
-    </section>
+    </header>
 
-    <section class="section">
+    <section class="section" id="free-offer">
       <div class="container">
-        <h2>Talent Spotlight <span class="badge">Locked</span></h2>
-        <p class="muted">Create a free promoter account to unlock verified profiles and full search.</p>
-        <div class="grid cols-3 mt-3">
-          <div class="card locked-card">
-            <div class="profile blurred">
-              <img src="https://picsum.photos/seed/lock1/200/200" alt="Locked"/>
-              <div class="info">
-                <div><strong>— — —</strong> <span class="muted">(— — —)</span></div>
-                <div class="mt-2">— — • — yrs • —, —</div>
-                <div class="mt-2"><span class="badge">Verified account</span></div>
-                <a class="btn small mt-3" href="#">View Reel</a>
+        <div class="offer-band">
+          <div class="offer-grid">
+            <div>
+              <h2>Join today and get <strong>60 days free</strong></h2>
+              <p>
+                Build your profile, unlock verified talent search, and manage
+                tryouts in one place.
+              </p>
+              <div class="chips">
+                <span class="chip">Cancel anytime</span>
+                <span class="chip">No commitment</span>
+                <span class="chip">Verified accounts</span>
+                <span class="chip">One-click applications</span>
+              </div>
+              <div class="fine">
+                New accounts only. No commitment—cancel anytime within 60 days
+                to avoid charges.
               </div>
             </div>
-          </div>
-          <div class="card locked-card">
-            <div class="profile blurred">
-              <img src="https://picsum.photos/seed/lock2/200/200" alt="Locked"/>
-              <div class="info">
-                <div><strong>— — —</strong> <span class="muted">(— — —)</span></div>
-                <div class="mt-2">— — • — yrs • —, —</div>
-                <div class="mt-2"></div>
-                <a class="btn small mt-3" href="#">View Reel</a>
-              </div>
+
+            <div class="cta-row">
+              <a href="#" class="btn" data-auth="out" id="offer-join-talent"
+                >Join as Talent — 60 days free</a
+              >
+              <a
+                href="#"
+                class="btn secondary"
+                data-auth="out"
+                id="offer-join-promoter"
+                >Create Promoter Account — 60 days free</a
+              >
             </div>
           </div>
-          <div class="card locked-card">
-            <div class="profile blurred">
-              <img src="https://picsum.photos/seed/lock3/200/200" alt="Locked"/>
-              <div class="info">
-                <div><strong>— — —</strong> <span class="muted">(— — —)</span></div>
-                <div class="mt-2">— — • — yrs • —, —</div>
-                <div class="mt-2"><span class="badge">Verified account</span></div>
-                <a class="btn small mt-3" href="#">View Reel</a>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="mt-3">
-          <a href="#" class="btn" data-auth="out">Unlock Talent Search</a>
         </div>
       </div>
     </section>
-  </main>
 
-  <div class="cta-bar">
-    <div class="container inner">
-      <span class="muted">Ready to get started?</span>
-      <a href="#" class="btn small" data-auth="out">Join as Talent</a>
-      <a href="#" class="btn small secondary" data-auth="out">Create Promoter Account</a>
+    <main>
+      <section class="section">
+        <div class="container">
+          <h2>How it works</h2>
+          <div class="steps mt-3">
+            <div class="card step-card">
+              <h3>For Wrestlers</h3>
+              <p class="muted">
+                Create your profile, add reel and photos, and set your rates.
+              </p>
+              <p class="muted">
+                Browse tryouts, apply in one click, and track application
+                status.
+              </p>
+              <div class="mt-3">
+                <a
+                  href="#"
+                  class="btn small"
+                  data-auth="out"
+                  data-k="sticky_join_talent"
+                  >Join as Talent</a
+                >
+              </div>
+            </div>
+            <div class="card step-card">
+              <h3>For Promoters</h3>
+              <p class="muted">
+                Post tryouts, review applications, and shortlist talent.
+              </p>
+              <p class="muted">
+                Search verified profiles by style, location, and experience.
+              </p>
+              <div class="mt-3">
+                <a
+                  href="#"
+                  class="btn small"
+                  data-auth="out"
+                  data-k="sticky_join_promoter"
+                  >Create Promoter Account</a
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Upcoming Tryouts</h2>
+          <div id="home-tryouts" class="grid cols-3 mt-3"></div>
+          <div class="mt-3">
+            <a class="btn" href="#" data-auth="out">Unlock Tryout Search</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Talent Spotlight <span class="badge">Locked</span></h2>
+          <p class="muted">
+            Create a free promoter account to unlock verified profiles and full
+            search.
+          </p>
+          <div class="grid cols-3 mt-3">
+            <div class="card locked-card">
+              <div class="profile blurred">
+                <img
+                  src="https://picsum.photos/seed/lock1/200/200"
+                  alt="Locked"
+                />
+                <div class="info">
+                  <div>
+                    <strong>— — —</strong> <span class="muted">(— — —)</span>
+                  </div>
+                  <div class="mt-2">— — • — yrs • —, —</div>
+                  <div class="mt-2">
+                    <span class="badge">Verified account</span>
+                  </div>
+                  <a class="btn small mt-3" href="#">View Reel</a>
+                </div>
+              </div>
+            </div>
+            <div class="card locked-card">
+              <div class="profile blurred">
+                <img
+                  src="https://picsum.photos/seed/lock2/200/200"
+                  alt="Locked"
+                />
+                <div class="info">
+                  <div>
+                    <strong>— — —</strong> <span class="muted">(— — —)</span>
+                  </div>
+                  <div class="mt-2">— — • — yrs • —, —</div>
+                  <div class="mt-2"></div>
+                  <a class="btn small mt-3" href="#">View Reel</a>
+                </div>
+              </div>
+            </div>
+            <div class="card locked-card">
+              <div class="profile blurred">
+                <img
+                  src="https://picsum.photos/seed/lock3/200/200"
+                  alt="Locked"
+                />
+                <div class="info">
+                  <div>
+                    <strong>— — —</strong> <span class="muted">(— — —)</span>
+                  </div>
+                  <div class="mt-2">— — • — yrs • —, —</div>
+                  <div class="mt-2">
+                    <span class="badge">Verified account</span>
+                  </div>
+                  <a class="btn small mt-3" href="#">View Reel</a>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3">
+            <a href="#" class="btn" data-auth="out">Unlock Talent Search</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="cta-bar">
+      <div class="container inner">
+        <span class="muted">Ready to get started?</span>
+        <a href="#" class="btn small" data-auth="out">Join as Talent</a>
+        <a href="#" class="btn small secondary" data-auth="out"
+          >Create Promoter Account</a
+        >
+      </div>
     </div>
-  </div>
 
-  <div data-include="partials/footer.html"></div>
+    <div data-include="partials/footer.html"></div>
 
-  <script type="module" src="/js/home-free-offer-hide.js"></script>
-  <script type="module" src="/js/home-tryouts-locked.js"></script>
-  <script type="module" src="/js/home-auth-cta.js"></script>
-</body>
+    <script type="module" src="/js/home-free-offer-hide.js"></script>
+    <script type="module" src="/js/home-tryouts-locked.js"></script>
+    <script type="module" src="/js/home-auth-cta.js"></script>
+  </body>
 </html>

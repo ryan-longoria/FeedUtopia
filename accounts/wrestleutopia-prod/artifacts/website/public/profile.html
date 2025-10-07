@@ -1,189 +1,420 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <meta name="theme-color" content="#0b0b12"/>
-  <title>WrestleUtopia – My Profile</title>
-  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"/>
-  <link rel="stylesheet" href="/styles/styles.css"/>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b0b12" />
+    <title>WrestleUtopia – My Profile</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles/styles.css" />
 
-  <script src="/js/config.js"></script>
-  <script type="module" src="/js/auth-bridge.js"></script>
-  <script type="module" src="/js/api.js"></script>
-  <script defer src="/js/include.js"></script>
-  <script type="module" src="/js/roles.js"></script>
+    <script src="/js/config.js"></script>
+    <script type="module" src="/js/auth-bridge.js"></script>
+    <script type="module" src="/js/api.js"></script>
+    <script defer src="/js/include.js"></script>
+    <script type="module" src="/js/roles.js"></script>
 
-  <script type="module" src="/js/profile_me.js"></script>
-  <script type="module" src="/js/pages/profile-preview-modal.js"></script>
+    <script type="module" src="/js/profile_me.js"></script>
+    <script type="module" src="/js/pages/profile-preview-modal.js"></script>
 
-  <style>
-    .avatar { width: 120px; height: 120px; border-radius: 999px; object-fit: cover; background:#0f1224; border:1px solid #1f2546 }
-    .hint { font-size:12px; color: var(--muted); }
-    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    @media (max-width: 720px) { .grid-2 { grid-template-columns:1fr; } }
-    .chips { display:flex; flex-wrap:wrap; gap:8px; }
-    .chip { background:#121934; border:1px solid #1f2546; padding:4px 8px; border-radius:999px; }
-    .muted { color: var(--muted); }
-  </style>
-</head>
-<body>
-  <div data-include="partials/nav.html"></div>
+    <style>
+      .avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 999px;
+        object-fit: cover;
+        background: #0f1224;
+        border: 1px solid #1f2546;
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 720px) {
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip {
+        background: #121934;
+        border: 1px solid #1f2546;
+        padding: 4px 8px;
+        border-radius: 999px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div data-include="partials/nav.html"></div>
 
-  <main class="section">
-    <div class="container">
-      <h1>My Wrestler Profile</h1>
-      <p class="muted">This info appears on your public page at <code>/w/&lt;handle&gt;</code>.</p>
+    <main class="section">
+      <div class="container">
+        <h1>My Wrestler Profile</h1>
+        <p class="muted">
+          This info appears on your public page at
+          <code>/w/&lt;handle&gt;</code>.
+        </p>
 
-      <form id="profileForm" class="card mt-3" style="max-width:860px">
-        <!-- Names -->
-        <div class="grid-2">
-          <div>
-            <label for="firstName">First Name <span class="muted">(required)</span></label>
-            <input class="input" id="firstName" name="firstName" required autocomplete="given-name"/>
-          </div>
-          <div>
-            <label for="middleName">Middle Name <span class="muted">(optional)</span></label>
-            <input class="input" id="middleName" name="middleName" autocomplete="additional-name"/>
-          </div>
-        </div>
-
-        <div class="grid-2 mt-2">
-          <div>
-            <label for="lastName">Last Name <span class="muted">(required)</span></label>
-            <input class="input" id="lastName" name="lastName" required autocomplete="family-name"/>
-          </div>
-          <div>
-            <label for="stageName">Stage Name <span class="muted">(required)</span></label>
-            <input class="input" id="stageName" name="stageName" required autocomplete="nickname"/>
-          </div>
-        </div>
-
-        <!-- Vital / Location -->
-        <div class="grid-2 mt-2">
-          <div>
-            <label for="dob">Date of Birth <span class="muted">(required)</span></label>
-            <input class="input" id="dob" name="dob" type="date" required />
-          </div>
+        <form id="profileForm" class="card mt-3" style="max-width: 860px">
+          <!-- Names -->
           <div class="grid-2">
             <div>
-              <label for="city">City <span class="muted">(required)</span></label>
-              <input class="input" id="city" name="city" required autocomplete="address-level2"/>
+              <label for="firstName"
+                >First Name <span class="muted">(required)</span></label
+              >
+              <input
+                class="input"
+                id="firstName"
+                name="firstName"
+                required
+                autocomplete="given-name"
+              />
             </div>
             <div>
-              <label for="region">State/Region <span class="muted">(required)</span></label>
-              <input class="input" id="region" name="region" required autocomplete="address-level1"/>
+              <label for="middleName"
+                >Middle Name <span class="muted">(optional)</span></label
+              >
+              <input
+                class="input"
+                id="middleName"
+                name="middleName"
+                autocomplete="additional-name"
+              />
             </div>
           </div>
-        </div>
 
-        <div class="grid-2 mt-2">
-          <div>
-            <label for="country">Country <span class="muted">(required)</span></label>
-            <input class="input" id="country" name="country" value="US" required autocomplete="country-name"/>
-          </div>
-          <div class="grid-2">
-            <div>
-              <label for="heightIn">Height (inches) <span class="muted">(required)</span></label>
-              <input class="input" id="heightIn" name="heightIn" type="number" min="36" max="100" step="1" required />
-              <div class="hint">Tip: 6'0" = 72 inches.</div>
-            </div>
-            <div>
-              <label for="weightLb">Weight (lbs) <span class="muted">(required)</span></label>
-              <input class="input" id="weightLb" name="weightLb" type="number" min="50" max="600" step="1" required />
-            </div>
-          </div>
-        </div>
-
-        <!-- Optional profile content -->
-        <div class="mt-2">
-          <label for="bio">Bio <span class="muted">(optional)</span></label>
-          <textarea class="input" id="bio" name="bio" rows="4" placeholder="Short intro, accolades, schools, safety certs…"></textarea>
-          <div class="hint">Up to 1500 characters.</div>
-        </div>
-
-        <div class="mt-2">
-          <label for="gimmicks">Gimmicks <span class="muted">(optional)</span></label>
-          <input class="input" id="gimmicks" name="gimmicks" placeholder="Comma-separated (e.g., Heel, High-flyer, Hardcore)"/>
-          <div class="hint">We’ll store up to 10.</div>
-        </div>
-
-        <div class="grid-2 mt-2">
-          <div>
-            <label for="experienceYears">Experience (years) <span class="muted">(optional)</span></label>
-            <input class="input" id="experienceYears" name="experienceYears" type="number" min="0" max="60" step="1"/>
-          </div>
-          <div>
-            <label for="achievements">Achievements <span class="muted">(optional)</span></label>
-            <input class="input" id="achievements" name="achievements" placeholder="Titles, tours, tournaments…"/>
-          </div>
-        </div>
-
-        <fieldset class="mt-3">
-          <legend class="muted">Socials <span class="muted">(optional)</span></legend>
-          <div class="grid-2">
-            <label>Twitter <input class="input" id="social_twitter" name="social_twitter" placeholder="https://x.com/handle"/></label>
-            <label>Instagram <input class="input" id="social_instagram" name="social_instagram" placeholder="https://instagram.com/handle"/></label>
-          </div>
           <div class="grid-2 mt-2">
-            <label>TikTok <input class="input" id="social_tiktok" name="social_tiktok" placeholder="https://tiktok.com/@handle"/></label>
-            <label>YouTube <input class="input" id="social_youtube" name="social_youtube" placeholder="https://youtube.com/@handle"/></label>
+            <div>
+              <label for="lastName"
+                >Last Name <span class="muted">(required)</span></label
+              >
+              <input
+                class="input"
+                id="lastName"
+                name="lastName"
+                required
+                autocomplete="family-name"
+              />
+            </div>
+            <div>
+              <label for="stageName"
+                >Stage Name <span class="muted">(required)</span></label
+              >
+              <input
+                class="input"
+                id="stageName"
+                name="stageName"
+                required
+                autocomplete="nickname"
+              />
+            </div>
           </div>
+
+          <!-- Vital / Location -->
+          <div class="grid-2 mt-2">
+            <div>
+              <label for="dob"
+                >Date of Birth <span class="muted">(required)</span></label
+              >
+              <input class="input" id="dob" name="dob" type="date" required />
+            </div>
+            <div class="grid-2">
+              <div>
+                <label for="city"
+                  >City <span class="muted">(required)</span></label
+                >
+                <input
+                  class="input"
+                  id="city"
+                  name="city"
+                  required
+                  autocomplete="address-level2"
+                />
+              </div>
+              <div>
+                <label for="region"
+                  >State/Region <span class="muted">(required)</span></label
+                >
+                <input
+                  class="input"
+                  id="region"
+                  name="region"
+                  required
+                  autocomplete="address-level1"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2 mt-2">
+            <div>
+              <label for="country"
+                >Country <span class="muted">(required)</span></label
+              >
+              <input
+                class="input"
+                id="country"
+                name="country"
+                value="US"
+                required
+                autocomplete="country-name"
+              />
+            </div>
+            <div class="grid-2">
+              <div>
+                <label for="heightIn"
+                  >Height (inches) <span class="muted">(required)</span></label
+                >
+                <input
+                  class="input"
+                  id="heightIn"
+                  name="heightIn"
+                  type="number"
+                  min="36"
+                  max="100"
+                  step="1"
+                  required
+                />
+                <div class="hint">Tip: 6'0" = 72 inches.</div>
+              </div>
+              <div>
+                <label for="weightLb"
+                  >Weight (lbs) <span class="muted">(required)</span></label
+                >
+                <input
+                  class="input"
+                  id="weightLb"
+                  name="weightLb"
+                  type="number"
+                  min="50"
+                  max="600"
+                  step="1"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Optional profile content -->
           <div class="mt-2">
-            <label>Website <input class="input" id="social_website" name="social_website" placeholder="https://yoursite.com"/></label>
+            <label for="bio">Bio <span class="muted">(optional)</span></label>
+            <textarea
+              class="input"
+              id="bio"
+              name="bio"
+              rows="4"
+              placeholder="Short intro, accolades, schools, safety certs…"
+            ></textarea>
+            <div class="hint">Up to 1500 characters.</div>
           </div>
-        </fieldset>
 
-        <!-- Avatar -->
-        <div class="mt-3" style="display:flex; gap:16px; align-items:center">
-          <img id="avatarPreview" class="avatar" src="/assets/avatar-fallback.svg" alt="Profile avatar"/>
-          <div>
-            <label for="avatar">Profile Photo <span class="muted">(optional)</span></label>
-            <input class="input" id="avatar" name="avatar" type="file" accept="image/*"/>
-            <div class="hint">JPG/PNG recommended. We’ll upload directly to S3.</div>
+          <div class="mt-2">
+            <label for="gimmicks"
+              >Gimmicks <span class="muted">(optional)</span></label
+            >
+            <input
+              class="input"
+              id="gimmicks"
+              name="gimmicks"
+              placeholder="Comma-separated (e.g., Heel, High-flyer, Hardcore)"
+            />
+            <div class="hint">We’ll store up to 10.</div>
           </div>
-        </div>
 
-        <!-- Gallery (Photos) -->
-        <div class="card mt-3">
-          <h2 class="mt-0">Gallery Photos</h2>
-          <div class="hint">Upload JPG/PNG. These appear on your public page under “Photos”.</div>
-          <div class="mt-2" style="display:flex; gap:8px; align-items:center;">
-            <input id="photoFiles" type="file" accept="image/*" multiple />
-            <button class="btn" type="button" id="addPhotosBtn">Add Photos</button>
+          <div class="grid-2 mt-2">
+            <div>
+              <label for="experienceYears"
+                >Experience (years) <span class="muted">(optional)</span></label
+              >
+              <input
+                class="input"
+                id="experienceYears"
+                name="experienceYears"
+                type="number"
+                min="0"
+                max="60"
+                step="1"
+              />
+            </div>
+            <div>
+              <label for="achievements"
+                >Achievements <span class="muted">(optional)</span></label
+              >
+              <input
+                class="input"
+                id="achievements"
+                name="achievements"
+                placeholder="Titles, tours, tournaments…"
+              />
+            </div>
           </div>
-          <div id="photoGrid" class="media-grid mt-2"></div>
-        </div>
 
-        <!-- Highlights (Videos / Links) -->
-        <div class="card mt-3">
-          <h2 class="mt-0">Highlights</h2>
-          <div class="hint">Paste YouTube links or upload MP4; both will show under “Highlights”.</div>
-          <div class="mt-2" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <input id="highlightUrl" class="input" placeholder="https://youtu.be/..." style="min-width:320px;" />
-            <button class="btn" type="button" id="addHighlightUrlBtn">Add Link</button>
-            <input id="highlightFile" type="file" accept="video/*" />
-            <button class="btn" type="button" id="uploadHighlightBtn">Upload Video</button>
+          <fieldset class="mt-3">
+            <legend class="muted">
+              Socials <span class="muted">(optional)</span>
+            </legend>
+            <div class="grid-2">
+              <label
+                >Twitter
+                <input
+                  class="input"
+                  id="social_twitter"
+                  name="social_twitter"
+                  placeholder="https://x.com/handle"
+              /></label>
+              <label
+                >Instagram
+                <input
+                  class="input"
+                  id="social_instagram"
+                  name="social_instagram"
+                  placeholder="https://instagram.com/handle"
+              /></label>
+            </div>
+            <div class="grid-2 mt-2">
+              <label
+                >TikTok
+                <input
+                  class="input"
+                  id="social_tiktok"
+                  name="social_tiktok"
+                  placeholder="https://tiktok.com/@handle"
+              /></label>
+              <label
+                >YouTube
+                <input
+                  class="input"
+                  id="social_youtube"
+                  name="social_youtube"
+                  placeholder="https://youtube.com/@handle"
+              /></label>
+            </div>
+            <div class="mt-2">
+              <label
+                >Website
+                <input
+                  class="input"
+                  id="social_website"
+                  name="social_website"
+                  placeholder="https://yoursite.com"
+              /></label>
+            </div>
+          </fieldset>
+
+          <!-- Avatar -->
+          <div
+            class="mt-3"
+            style="display: flex; gap: 16px; align-items: center"
+          >
+            <img
+              id="avatarPreview"
+              class="avatar"
+              src="/assets/avatar-fallback.svg"
+              alt="Profile avatar"
+            />
+            <div>
+              <label for="avatar"
+                >Profile Photo <span class="muted">(optional)</span></label
+              >
+              <input
+                class="input"
+                id="avatar"
+                name="avatar"
+                type="file"
+                accept="image/*"
+              />
+              <div class="hint">
+                JPG/PNG recommended. We’ll upload directly to S3.
+              </div>
+            </div>
           </div>
-          <ul id="highlightList" class="mt-2"></ul>
-        </div>
 
-        <div class="mt-4" style="display:flex; gap:10px">
-          <button class="btn" type="submit" id="saveBtn">Save Profile</button>
-          <button class="btn secondary" type="button" id="viewBtn" disabled>View Public Page</button>
-        </div>
-      </form>
-    </div>
-  </main>
+          <!-- Gallery (Photos) -->
+          <div class="card mt-3">
+            <h2 class="mt-0">Gallery Photos</h2>
+            <div class="hint">
+              Upload JPG/PNG. These appear on your public page under “Photos”.
+            </div>
+            <div
+              class="mt-2"
+              style="display: flex; gap: 8px; align-items: center"
+            >
+              <input id="photoFiles" type="file" accept="image/*" multiple />
+              <button class="btn" type="button" id="addPhotosBtn">
+                Add Photos
+              </button>
+            </div>
+            <div id="photoGrid" class="media-grid mt-2"></div>
+          </div>
 
-  <dialog id="preview-modal" class="card" style="max-width:720px">
-    <div id="preview-content"></div>
-    <div class="mt-3" style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn secondary" type="button" id="preview-close">Close</button>
-    </div>
-  </dialog>
+          <!-- Highlights (Videos / Links) -->
+          <div class="card mt-3">
+            <h2 class="mt-0">Highlights</h2>
+            <div class="hint">
+              Paste YouTube links or upload MP4; both will show under
+              “Highlights”.
+            </div>
+            <div
+              class="mt-2"
+              style="
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                flex-wrap: wrap;
+              "
+            >
+              <input
+                id="highlightUrl"
+                class="input"
+                placeholder="https://youtu.be/..."
+                style="min-width: 320px"
+              />
+              <button class="btn" type="button" id="addHighlightUrlBtn">
+                Add Link
+              </button>
+              <input id="highlightFile" type="file" accept="video/*" />
+              <button class="btn" type="button" id="uploadHighlightBtn">
+                Upload Video
+              </button>
+            </div>
+            <ul id="highlightList" class="mt-2"></ul>
+          </div>
 
-  <div data-include="partials/footer.html"></div>
-  <div id="toast" class="toast"></div>
-</body>
+          <div class="mt-4" style="display: flex; gap: 10px">
+            <button class="btn" type="submit" id="saveBtn">Save Profile</button>
+            <button class="btn secondary" type="button" id="viewBtn" disabled>
+              View Public Page
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+
+    <dialog id="preview-modal" class="card" style="max-width: 720px">
+      <div id="preview-content"></div>
+      <div
+        class="mt-3"
+        style="display: flex; gap: 8px; justify-content: flex-end"
+      >
+        <button class="btn secondary" type="button" id="preview-close">
+          Close
+        </button>
+      </div>
+    </dialog>
+
+    <div data-include="partials/footer.html"></div>
+    <div id="toast" class="toast"></div>
+  </body>
 </html>
