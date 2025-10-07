@@ -7,7 +7,7 @@ export default defineConfig({
     emptyOutDir: false,
     rollupOptions: {
       input: {
-        auth: "src/auth-esm.js",
+        index: "public/index.html",
       },
       output: {
         entryFileNames: "[name].js",
