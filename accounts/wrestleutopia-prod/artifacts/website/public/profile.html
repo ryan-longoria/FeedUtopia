@@ -13,7 +13,9 @@
   <script type="module" src="/js/api.js"></script>
   <script defer src="/js/include.js"></script>
   <script type="module" src="/js/roles.js"></script>
+
   <script type="module" src="/js/profile_me.js"></script>
+  <script type="module" src="/js/pages/profile-preview-modal.js"></script>
 
   <style>
     .avatar { width: 120px; height: 120px; border-radius: 999px; object-fit: cover; background:#0f1224; border:1px solid #1f2546 }
@@ -180,11 +182,6 @@
       <button class="btn secondary" type="button" id="preview-close">Close</button>
     </div>
   </dialog>
-  <script type="module">
-    const dlg = document.getElementById('preview-modal');
-    const closeBtn = document.getElementById('preview-close');
-    closeBtn?.addEventListener('click', ()=> dlg.close());
-  </script>
 
   <div data-include="partials/footer.html"></div>
   <div id="toast" class="toast"></div>
