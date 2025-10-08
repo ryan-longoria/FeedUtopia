@@ -1,6 +1,7 @@
 {
   "name": "WrestleUtopia",
   "short_name": "WrestleUtopia",
+  "description": "Profiles, tryouts, and applications for indie wrestling.",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0b0b12",
