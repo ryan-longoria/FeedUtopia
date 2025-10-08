@@ -17,7 +17,6 @@ async function userGroups() {
   }
 }
 
-// ⚠️ renamed to avoid clashing with imports from roles.js
 const isPromoterGroup = (groups) => groups.includes("Promoters");
 const isWrestlerGroup = (groups) => groups.includes("Wrestlers");
 

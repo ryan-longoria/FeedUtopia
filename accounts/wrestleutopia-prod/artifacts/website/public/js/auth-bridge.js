@@ -1,10 +1,6 @@
 import { Amplify } from "https://esm.sh/aws-amplify@6";
 import {
-  signUp,
-  confirmSignUp,
-  resendSignUpCode,
   signIn,
-  confirmSignIn,
   signOut,
   fetchAuthSession,
 } from "https://esm.sh/aws-amplify@6/auth";
