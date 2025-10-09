@@ -8,25 +8,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const r = (p) => path.resolve(__dirname, p);
 
 export default defineConfig({
-  root: r("public"), // serve/build HTML from /public
+  root: r("public"),
   plugins: [
-    // Build-time head partials
     handlebars({
       partialDirectory: r("public/partials"),
       context(pagePath) {
         const file = path.basename(pagePath);
 
-        // Defaults applied to every page (so you don't have to list all pages)
         const base = {
           title: "WrestleUtopia – Indie Wrestling Talent & Tryouts",
           description: "Profiles • Tryouts • Bookings for indie wrestling",
           ogTitle: "WrestleUtopia",
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
-          headExtra: "" // per-page extra <script> or <style>
+          headExtra: ""
         };
 
-        // Only add pages that need overrides or extra scripts
         const overrides = {
           "index.html": {
             title: "WrestleUtopia – Get booked. Find verified talent.",
@@ -34,6 +31,7 @@ export default defineConfig({
               "Profiles, tryouts, and applications in one place. Built for indie wrestling.",
             canonical: "https://www.wrestleutopia.com/",
             headExtra: `
+              <!-- One entry script per page; inside it, import shared modules -->
               <script type="module" src="/js/main.js"></script>
               <script type="module" src="/js/home-redirect.js"></script>
             `
@@ -86,11 +84,11 @@ export default defineConfig({
       }
     }),
 
-    // Copy runtime-included files and manifest into dist/
     viteStaticCopy({
       targets: [
-        { src: r("public/partials"), dest: "" },           // -> dist/partials/**
-        { src: r("manifest.webmanifest"), dest: "" }        // -> dist/manifest.webmanifest
+        { src: r("public/partials"), dest: "" },
+        { src: r("manifest.webmanifest"), dest: "" },
+        { src: r("public/assets"), dest: "assets" }
       ]
     })
   ],
