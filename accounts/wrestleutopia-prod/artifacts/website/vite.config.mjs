@@ -2,26 +2,31 @@ import { defineConfig } from "vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import handlebars from "vite-plugin-handlebars";
+import { viteStaticCopy } from "vite-plugin-static-copy";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const r = (p) => path.resolve(__dirname, p);
 
 export default defineConfig({
-  root: r("public"),
+  root: r("public"), // serve/build HTML from /public
   plugins: [
+    // Build-time head partials
     handlebars({
       partialDirectory: r("public/partials"),
       context(pagePath) {
         const file = path.basename(pagePath);
+
+        // Defaults applied to every page (so you don't have to list all pages)
         const base = {
           title: "WrestleUtopia – Indie Wrestling Talent & Tryouts",
           description: "Profiles • Tryouts • Bookings for indie wrestling",
           ogTitle: "WrestleUtopia",
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
-          headExtra: ""
+          headExtra: "" // per-page extra <script> or <style>
         };
 
+        // Only add pages that need overrides or extra scripts
         const overrides = {
           "index.html": {
             title: "WrestleUtopia – Get booked. Find verified talent.",
@@ -79,8 +84,17 @@ export default defineConfig({
 
         return { ...base, ...(overrides[file] || {}) };
       }
+    }),
+
+    // Copy runtime-included files and manifest into dist/
+    viteStaticCopy({
+      targets: [
+        { src: r("public/partials"), dest: "" },           // -> dist/partials/**
+        { src: r("manifest.webmanifest"), dest: "" }        // -> dist/manifest.webmanifest
+      ]
     })
   ],
+
   build: {
     outDir: r("dist"),
     emptyOutDir: true,
