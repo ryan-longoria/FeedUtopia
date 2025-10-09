@@ -33,9 +33,11 @@ export default defineConfig({
               "Profiles, tryouts, and applications in one place. Built for indie wrestling.",
             canonical: "https://www.wrestleutopia.com/",
             headExtra: `
-              <!-- One entry script per page; inside it, import shared modules -->
               <script type="module" src="/js/main.js"></script>
               <script type="module" src="/js/home-redirect.js"></script>
+              <script type="module" src="/js/home-free-offer-hide.js"></script>
+              <script type="module" src="/js/home-tryouts-locked.js"></script>
+              <script type="module" src="/js/home-auth-cta.js"></script>
             `
           },
           "profile.html": {
@@ -79,7 +81,11 @@ export default defineConfig({
           "promoter/index.html": {
             title: "WrestleUtopia – My Promotion",
             headExtra: `<script type="module" src="/js/promo_me.js"></script>`
-          }
+          },
+          "partials/nav.html": {
+            title: "WrestleUtopia – My Profile",
+            headExtra: `<script type="module" src="/js/nav-myprofile.js"></script>`
+          },
         };
 
         return { ...base, ...(overrides[file] || {}) };
