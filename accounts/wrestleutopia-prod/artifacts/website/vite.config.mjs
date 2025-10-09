@@ -82,10 +82,6 @@ export default defineConfig({
             title: "WrestleUtopia – My Promotion",
             headExtra: `<script type="module" src="/js/promo_me.js"></script>`
           },
-          "partials/nav.html": {
-            title: "WrestleUtopia – My Profile",
-            headExtra: `<script type="module" src="/js/nav-myprofile.js"></script>`
-          },
         };
 
         const page = overrides[file] || {};
