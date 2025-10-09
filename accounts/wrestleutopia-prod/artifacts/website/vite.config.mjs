@@ -21,7 +21,9 @@ export default defineConfig({
           ogTitle: "WrestleUtopia",
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
-          headExtra: ""
+          headExtra: `
+            <script type="module" src="/js/core.js"></script>
+          `
         };
 
         const overrides = {
@@ -88,7 +90,7 @@ export default defineConfig({
       targets: [
         { src: r("public/partials"), dest: "" },
         { src: r("manifest.webmanifest"), dest: "" },
-        { src: r("public/assets"), dest: "assets" }
+        { src: r("public/assets/*"), dest: "assets" }
       ]
     })
   ],
