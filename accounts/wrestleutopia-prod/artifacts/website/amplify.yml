@@ -13,3 +13,12 @@ applications:
           - "**/*"
       cache:
         paths: []
+
+      redirects:
+        - source: /partials/<*>
+          target: /partials/<*>
+          status: 200
+
+        - source: /<*>
+          target: /index.html
+          status: 200

@@ -90,7 +90,12 @@ export default defineConfig({
 
         const page = overrides[file] || {};
         const headExtra = [base.headExtra, page.headExtra].filter(Boolean).join("\n");
-        return { ...base, ...(overrides[file] || {}) };
+        const o = overrides[file] || {};
+        return {
+          ...base,
+          ...o,
+          headExtra: [base.headExtra, o.headExtra].filter(Boolean).join("\n"),
+        };
       }
     }),
 
