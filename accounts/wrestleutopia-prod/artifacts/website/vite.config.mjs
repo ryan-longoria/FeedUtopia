@@ -97,6 +97,7 @@ export default defineConfig({
         { src: r("public/partials"), dest: "" },
         { src: r("manifest.webmanifest"), dest: "" },
         { src: r("public/assets/*"), dest: "assets" },
+        { src: r("public/styles/*"), dest: "styles" },
         { src: r("public/js/**/*"), dest: "js" }
       ]
     })
