@@ -93,7 +93,6 @@ export default defineConfig({
           // Single runtime entry + CSS; page-specific JS is loaded by core.js at runtime.
           headExtra: `
             <script type="module" src="/js/core.js"></script>
-            <link rel="stylesheet" href="/styles/core.css" />
           `
         };
 
