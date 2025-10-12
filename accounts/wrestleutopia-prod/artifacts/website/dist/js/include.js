@@ -92,10 +92,22 @@
 
   function preHideAuthGated(fragmentOrRoot) {
     const root = fragmentOrRoot instanceof DocumentFragment ? fragmentOrRoot : document;
-    const list = root.querySelectorAll('[data-auth], [data-role]');
-    list.forEach(el => {
+    root.querySelectorAll('[data-auth], [data-requires], [data-role], [data-myprofile]').forEach(el => {
       el.hidden = true;
       el.setAttribute('aria-hidden', 'true');
+    });
+  }
+
+  function syncHiddenWithDisplay() {
+    document.querySelectorAll('[data-auth], [data-requires]').forEach(el => {
+      const visible = el.style.display !== 'none';
+      el.hidden = !visible;
+      el.setAttribute('aria-hidden', String(!visible));
+    });
+    const signedIn = document.body?.dataset?.signedin === "true";
+    document.querySelectorAll('[data-myprofile]').forEach(el => {
+      el.hidden = !signedIn;
+      el.setAttribute('aria-hidden', String(!signedIn));
     });
   }
 
@@ -147,6 +159,30 @@
     return d;
   }
 
+  async function wireAuthButtons() {
+    const dlg = document.getElementById("auth-modal");
+    const loginBtn = document.getElementById("login-btn");
+    const logoutBtn = document.getElementById("logout-btn");
+    if (loginBtn && dlg?.showModal) {
+      loginBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        try { dlg.showModal(); } catch {}
+      });
+    }
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        try {
+          const m = await import("/js/auth-bridge.js");
+          await m.signOut();
+          location.href = "/index.html";
+        } catch (err) {
+          console.error("[auth] signOut error", err);
+        }
+      });
+    }
+  }
+
   (async () => {
     await injectPartialsRecursive();
     window.__partialsReady = true;
@@ -157,6 +193,8 @@
     } catch (e) {
       console.error("[include.js] roles.js load/apply failed", e);
     }
+    syncHiddenWithDisplay();
+    await wireAuthButtons();
     (() => {
       const here = new URL(location.href);
       document.querySelectorAll(".wu-links a[href]").forEach((a) => {
