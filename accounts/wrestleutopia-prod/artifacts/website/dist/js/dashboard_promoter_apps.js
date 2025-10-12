@@ -1,4 +1,6 @@
-import { a as apiFetch, b as asItems, g as getAuthState, i as isPromoter } from "./core.js";
+import { apiFetch, asItems } from "./api.js";
+import { getAuthState, isPromoter } from "./roles.js";
+import "./auth-bridge.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";

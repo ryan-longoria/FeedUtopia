@@ -1,8 +1,12 @@
-import { g as getAuthState, u as uploadToS3, a as apiFetch, i as isPromoter, m as md5Base64 } from "./core.js";
+import { md5Base64, apiFetch, uploadToS3 } from "./api.js";
+import { getAuthState, isPromoter } from "./roles.js";
 import { mediaUrl } from "./media.js";
+import "./auth-bridge.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const setVal = (id, v = "") => {
   const el = document.getElementById(id);
   if (el) el.value = v ?? "";
@@ -42,7 +46,7 @@ function toast(text, type = "success") {
   t.style.display = "block";
   setTimeout(() => t.style.display = "none", 2400);
 }
-(window.WU_MEDIA_BASE || "").replace(/\/+$/, "");
+const MEDIA_BASE = (window.WU_MEDIA_BASE || "").replace(/\/+$/, "");
 const setLogoImg = (el, key) => {
   if (!el) return;
   if (!key) {

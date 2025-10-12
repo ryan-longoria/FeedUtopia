@@ -1,4 +1,5 @@
-import { g as getAuthState, c as isWrestler, i as isPromoter } from "./core.js";
+import { getAuthState, isWrestler, isPromoter } from "./roles.js";
+import "./auth-bridge.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";

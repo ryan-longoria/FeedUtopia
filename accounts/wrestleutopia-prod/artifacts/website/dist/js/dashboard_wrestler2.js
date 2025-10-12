@@ -1,4 +1,6 @@
-import { g as getAuthState, c as isWrestler, a as apiFetch, b as asItems } from "./core.js";
+import { apiFetch, asItems } from "./api.js";
+import { getAuthState, isWrestler } from "./roles.js";
+import "./auth-bridge.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";

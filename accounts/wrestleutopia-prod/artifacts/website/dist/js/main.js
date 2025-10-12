@@ -1,5 +1,6 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["js/core.js","styles/core.css"])))=>i.map(i=>d[i]);
-import { _ as __vitePreload, a as apiFetch } from "./core.js";
+import { _ as __vitePreload } from "./core.js";
+import { apiFetch } from "./api.js";
+import "./auth-bridge.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";
@@ -7,9 +8,9 @@ async function userGroups() {
   var _a, _b;
   try {
     const { fetchAuthSession } = await __vitePreload(async () => {
-      const { fetchAuthSession: fetchAuthSession2 } = await import("./core.js").then((n) => n.e);
+      const { fetchAuthSession: fetchAuthSession2 } = await import("./auth-bridge.js");
       return { fetchAuthSession: fetchAuthSession2 };
-    }, true ? __vite__mapDeps([0,1]) : void 0);
+    }, true ? [] : void 0);
     const s = await fetchAuthSession();
     const id = (_b = (_a = s == null ? void 0 : s.tokens) == null ? void 0 : _a.idToken) == null ? void 0 : _b.toString();
     if (!id) return [];

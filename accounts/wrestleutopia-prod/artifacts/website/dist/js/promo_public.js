@@ -1,5 +1,6 @@
-import { a as apiFetch } from "./core.js";
+import { apiFetch } from "./api.js";
 import { mediaUrl } from "./media.js";
+import "./auth-bridge.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";

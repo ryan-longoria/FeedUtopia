@@ -1,9 +1,12 @@
-import { u as uploadToS3, a as apiFetch, g as getAuthState, c as isWrestler, d as uploadAvatar } from "./core.js";
+import { uploadAvatar, apiFetch, uploadToS3 } from "./api.js";
+import { getAuthState, isWrestler } from "./roles.js";
 import { mediaUrl } from "./media.js";
+import "./auth-bridge.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";
 const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const setVal = (id, v = "") => {
   const el = document.getElementById(id);
   if (el) el.value = v ?? "";
@@ -21,7 +24,7 @@ const setImg = (sel, key) => {
 };
 let mediaKeys = [];
 let highlights = [];
-(window.WU_MEDIA_BASE || "").replace(/\/+$/, "");
+const MEDIA_BASE = (window.WU_MEDIA_BASE || "").replace(/\/+$/, "");
 function renderPhotoGrid() {
   const wrap = document.getElementById("photoGrid");
   if (!wrap) return;
@@ -70,6 +73,9 @@ function toast(text, type = "success") {
   t.classList.toggle("error", type === "error");
   t.style.display = "block";
   setTimeout(() => t.style.display = "none", 2400);
+}
+function slugify(s) {
+  return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 async function ensureWrestler() {
   const s = await getAuthState();

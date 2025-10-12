@@ -1,4 +1,6 @@
-import { g as getAuthState, i as isPromoter, a as apiFetch, b as asItems } from "./core.js";
+import { apiFetch, asItems } from "./api.js";
+import { getAuthState, isPromoter } from "./roles.js";
+import "./auth-bridge.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";
@@ -126,6 +128,12 @@ async function loadMyTryouts() {
     console.error("loadMyTryouts failed", e);
     emptyState(activeEl, "Error", "Could not load your tryouts.");
   }
+}
+function serializeForm(form) {
+  const data = new FormData(form);
+  const out = {};
+  for (const [k, v] of data.entries()) out[k] = v;
+  return out;
 }
 function toastInline(text, type = "success") {
   const el = document.createElement("div");

@@ -144,6 +144,7 @@ export default defineConfig({
         p_index:             r("public/p/index.html"),
         promoter_index:      r("public/promoter/index.html")
       },
+      treeshake: false,
       output: {
         manualChunks: undefined,
         entryFileNames: "js/[name].js",
