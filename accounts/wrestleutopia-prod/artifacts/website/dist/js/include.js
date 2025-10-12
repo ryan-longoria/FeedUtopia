@@ -59,6 +59,8 @@
   // Run includes first
   await injectPartialsRecursive();
 
+  window.dispatchEvent(new Event("partials:ready"));
+
   // Apply role-gated UI *after* partials are in the DOM
   try {
     const { applyRoleGatedUI } = await import("/js/roles.js");

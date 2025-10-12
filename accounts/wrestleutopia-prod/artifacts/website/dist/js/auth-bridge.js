@@ -58,3 +58,14 @@ export {
   signInAndEmit as signIn,
   signOutAndEmit as signOut,
 };
+
+(async () => {
+  try {
+    const session = await fetchAuthSession();
+    if (session) {
+      emitAuthChanged({ event: "initial" });
+    }
+  } catch {
+    emitAuthChanged({ event: "initial" });
+  }
+})();
