@@ -1,4 +1,4 @@
-import { g as getAuthState, b as isWrestler, i as isPromoter } from "./core.js";
+import { g as getAuthState, b as isWrestler, i as isPromoter } from "./core-DtKmO-aM.js";
 function openSignup(intent = "generic") {
   var _a;
   try {

@@ -8,34 +8,33 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const r = (p) => path.resolve(__dirname, p);
 
-// helper to normalise / collapse .. / .
-function normalizePosix(p) {
-  const parts = [];
-  for (const seg of String(p).replace(/\\/g, "/").split("/")) {
-    if (!seg || seg === ".") continue;
-    if (seg === "..") { parts.pop(); continue; }
-    parts.push(seg);
-  }
-  return parts.join("/");
-}
+// POSIX-normalize (collapse ".." / ".")
+const norm = (p) =>
+  p
+    .replace(/\\/g, "/")
+    .split("/")
+    .reduce((acc, seg) => {
+      if (!seg || seg === ".") return acc;
+      if (seg === "..") acc.pop();
+      else acc.push(seg);
+      return acc;
+    }, [])
+    .join("/");
 
 export default defineConfig({
   root: r("public"),
 
+  /* ───────────────────────── plugins ───────────────────────── */
   plugins: [
     handlebars({
       partialDirectory: r("public/partials"),
-      context(pagePath) {
-        // ---------- figure out which override ----------
-        const norm = String(pagePath).replace(/\\/g, "/");
-        const afterPublic = norm.includes("/public/")
-          ? norm.split(/\/public\//i).pop()
-          : norm;
-        const relClean = normalizePosix(afterPublic.replace(/^(\.\.\/)+/, ""));
-        const segs = relClean.split("/");
-        const last2 = segs.slice(-2).join("/");
-        const file  = segs.at(-1);
 
+      context(pagePath) {
+        const rel   = norm(pagePath.split(/\/public\//i).pop() || "");
+        const last2 = rel.split("/").slice(-2).join("/");
+        const file  = rel.split("/").pop();
+
+        /* ───────── page-specific overrides ───────── */
         const overrides = {
           "index.html": {
             title: "WrestleUtopia – Get booked. Find verified talent.",
@@ -101,13 +100,11 @@ export default defineConfig({
           }
         };
 
+        /* decide which override applies */
         const pageOverride =
-          overrides[relClean] ??
-          overrides[last2]   ??
-          overrides[file]    ??
-          null;
+          overrides[rel] ?? overrides[last2] ?? overrides[file] ?? null;
 
-        // ---------- base that ALL pages get ----------
+        /* ───────── base applied to every page ───────── */
         const base = {
           title: "WrestleUtopia – Indie Wrestling Talent & Tryouts",
           description: "Profiles • Tryouts • Bookings for indie wrestling",
@@ -115,12 +112,12 @@ export default defineConfig({
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
           headExtra: `
-            <!-- define API base before any bundles -->
+            <!-- defines window.WU_API before page bundle executes -->
             <script type="module" src="/js/config.js"></script>
           `
         };
 
-        // ---------- merge, APPENDING headExtra ----------
+        /* merge, appending headExtra */
         return pageOverride
           ? {
               ...base,
@@ -131,15 +128,15 @@ export default defineConfig({
       }
     }),
 
-    // copy static folders 1-for-1
+    /* ───────── copy static folders verbatim ───────── */
     viteStaticCopy({
       targets: [
-        ...(fs.existsSync(r("public/js"))       ? [{ src: r("public/js/**/*"),       dest: "js"       }] : []),
-        ...(fs.existsSync(r("public/styles"))   ? [{ src: r("public/styles/**/*"),   dest: "styles"   }] : []),
-        ...(fs.existsSync(r("public/assets"))   ? [{ src: r("public/assets/**/*"),   dest: "assets"   }] : []),
+        ...(fs.existsSync(r("public/js"))       ? [{ src: r("public/js/**/*"),       dest: "js" }]       : []),
+        ...(fs.existsSync(r("public/styles"))   ? [{ src: r("public/styles/**/*"),   dest: "styles" }]   : []),
+        ...(fs.existsSync(r("public/assets"))   ? [{ src: r("public/assets/**/*"),   dest: "assets" }]   : []),
         ...(fs.existsSync(r("public/partials")) ? [{ src: r("public/partials/**/*"), dest: "partials" }] : []),
-        ...(fs.existsSync(r("public/w"))        ? [{ src: r("public/w/**/*"),        dest: "w"        }] : []),
-        ...(fs.existsSync(r("public/p"))        ? [{ src: r("public/p/**/*"),        dest: "p"        }] : []),
+        ...(fs.existsSync(r("public/w"))        ? [{ src: r("public/w/**/*"),        dest: "w" }]        : []),
+        ...(fs.existsSync(r("public/p"))        ? [{ src: r("public/p/**/*"),        dest: "p" }]        : []),
         ...(fs.existsSync(r("public/promoter")) ? [{ src: r("public/promoter/**/*"), dest: "promoter" }] : []),
         ...(fs.existsSync(r("public/manifest.webmanifest"))
           ? [{ src: r("public/manifest.webmanifest"), dest: "" }]
@@ -148,6 +145,7 @@ export default defineConfig({
     })
   ],
 
+  /* ───────────────────────── build ───────────────────────── */
   build: {
     outDir: r("dist"),
     emptyOutDir: true,
@@ -157,6 +155,7 @@ export default defineConfig({
     minify: false,
 
     rollupOptions: {
+      /* each HTML file = entry (one bundle per page) */
       input: {
         index:               r("public/index.html"),
         privacy:             r("public/privacy.html"),
@@ -170,18 +169,22 @@ export default defineConfig({
         p_index:             r("public/p/index.html"),
         promoter_index:      r("public/promoter/index.html")
       },
+
       output: {
-        entryFileNames:  "js/[name].js",
-        chunkFileNames:  "js/chunks/[name].js",
-        assetFileNames: (assetInfo) => {
-          const name = (assetInfo.name || "").toLowerCase();
-          if (name.endsWith(".css")) return "styles/[name][extname]";
-          const img   = [".png",".jpg",".jpeg",".gif",".webp",".avif",".svg"];
-          if (img.some(e => name.endsWith(e))) return "assets/[name][extname]";
-          const fonts = [".woff",".woff2",".ttf",".otf",".eot"];
-          if (fonts.some(e => name.endsWith(e))) return "assets/fonts/[name][extname]";
-          const media = [".mp4",".webm",".mp3",".wav",".ogg"];
-          if (media.some(e => name.endsWith(e))) return "assets/media/[name][extname]";
+        /* disable shared chunks */
+        manualChunks: undefined,
+
+        entryFileNames: "js/[name].js",
+
+        assetFileNames(info) {
+          const n = (info.name || "").toLowerCase();
+          if (n.endsWith(".css")) return "styles/[name][extname]";
+          const img = [".png",".jpg",".jpeg",".gif",".webp",".avif",".svg"];
+          if (img.some(e => n.endsWith(e))) return "assets/[name][extname]";
+          const fts = [".woff",".woff2",".ttf",".otf",".eot"];
+          if (fts.some(e => n.endsWith(e))) return "assets/fonts/[name][extname]";
+          const med = [".mp4",".webm",".mp3",".wav",".ogg"];
+          if (med.some(e => n.endsWith(e))) return "assets/media/[name][extname]";
           return "assets/[name][extname]";
         }
       }
