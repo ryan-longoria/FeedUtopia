@@ -1,58 +1,87 @@
-import { getAuthState, isPromoter, isWrestler } from "/js/roles.js";
+const INTENTS = new Set(["generic", "promoter", "wrestler"]);
+const CLICK_DEBOUNCE_MS = 300;
+
+let lastClickAt = 0;
+let queuedOpen = null;
+
+const logErr = (where, err, extra = {}) =>
+  console.error(`[auth-cta] ${where}`, { message: String(err), ...extra });
+
+const isAllowedIntent = (val) => (val && INTENTS.has(val) ? val : "generic");
 
 function openSignup(intent = "generic") {
+  const allowed = isAllowedIntent(intent);
   try {
     if (window.Auth?.open) {
-      window.Auth.open("signup", { intent });
-      return;
+      window.Auth.open("signup", { intent: allowed });
+    } else {
+      queuedOpen = { intent: allowed };
+      window.dispatchEvent(
+        new CustomEvent("auth:open", { detail: { mode: "signup", intent: allowed } })
+      );
     }
-
-    window.dispatchEvent(
-      new CustomEvent("auth:open", { detail: { mode: "signup", intent } }),
-    );
-
-    const loginBtn = document.getElementById("login-btn");
-    if (loginBtn) loginBtn.click();
   } catch (e) {
-    console.error("openSignup failed", e);
+    logErr("openSignup", e, { intent: allowed });
   }
 }
 
-document.addEventListener("click", async (e) => {
-  const el = e.target.closest("a,button");
-  if (!el) return;
-
-  if (el.dataset.auth === "out") {
-    e.preventDefault();
-    const intent = el.id?.includes("promoter")
-      ? "promoter"
-      : el.id?.includes("talent")
-        ? "wrestler"
-        : el.getAttribute("aria-label")?.includes("Promoter")
-          ? "promoter"
-          : el.getAttribute("aria-label")?.includes("Talent")
-            ? "wrestler"
-            : "generic";
-    openSignup(intent);
-    return;
-  }
-
-  if (el.dataset.requires) {
-    e.preventDefault();
+window.addEventListener("auth:ready", () => {
+  if (queuedOpen && window.Auth?.open) {
     try {
-      const s = await getAuthState();
-      const need = el.dataset.requires;
-      const ok =
-        (need === "wrestler" && isWrestler(s)) ||
-        (need === "promoter" && isPromoter(s));
-      if (!ok) {
-        openSignup(need);
-      } else {
-        window.location.href = el.getAttribute("href") || "#";
-      }
-    } catch (err) {
-      console.error("auth-cta role check failed", err);
-      openSignup(el.dataset.requires || "generic");
+      window.Auth.open("signup", { intent: queuedOpen.intent });
+    } catch (e) {
+      logErr("auth:ready", e, { intent: queuedOpen.intent });
+    } finally {
+      queuedOpen = null;
     }
   }
 });
+
+const safeNavigate = (href) => {
+  if (!href) return;
+  try {
+    if (href.startsWith("/")) {
+      window.location.href = href;
+      return;
+    }
+    const url = new URL(href, window.location.origin);
+    if (url.origin === window.location.origin) {
+      window.location.href = url.href;
+    }
+  } catch (e) {
+    logErr("safeNavigate", e, { href });
+  }
+};
+
+document.addEventListener(
+  "click",
+  (e) => {
+    const el = e.target?.closest?.("a,button");
+    if (!el) return;
+
+    const now = performance?.now?.() ?? Date.now();
+    if (now - lastClickAt < CLICK_DEBOUNCE_MS) return;
+    lastClickAt = now;
+
+    if (el.dataset.auth === "out") {
+      e.preventDefault();
+      openSignup(isAllowedIntent(el.dataset.intent));
+      return;
+    }
+
+    if (el.dataset.requires) {
+      e.preventDefault();
+      openSignup(isAllowedIntent(el.dataset.requires));
+      return;
+    }
+
+    if (el.tagName === "A") {
+      const href = el.getAttribute("href");
+      if (href && !/^https?:\/\//i.test(href)) {
+        e.preventDefault();
+        safeNavigate(href);
+      }
+    }
+  },
+  { passive: false }
+);

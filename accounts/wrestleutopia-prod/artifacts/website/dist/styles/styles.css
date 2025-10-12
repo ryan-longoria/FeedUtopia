@@ -831,3 +831,10 @@ label {
   padding: 4px 8px;
   border-radius: 999px;
 }
+.is-hidden { display: none !important; }
+
+.locked-card .profile.blurred img { filter: blur(2px) saturate(80%); }
+@media (prefers-reduced-motion:no-preference){
+  .locked-card { transition: box-shadow .2s ease, transform .2s ease; }
+  .locked-card:hover { transform: translateY(-1px); }
+}
