@@ -8,7 +8,6 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const r = (p) => path.resolve(__dirname, p);
 
-// Collapse "a/b/../c" -> "a/c" on POSIX-like strings
 function normalizePosix(p) {
   const parts = [];
   for (const seg of String(p).replace(/\\/g, "/").split("/")) {
@@ -113,9 +112,17 @@ export default defineConfig({
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
           headExtra: `
-            <!-- config must load first (non-module) -->
+            <!-- Make the API base available synchronously -->
+            <meta name="wu-api" content="${process.env.VITE_WU_API ?? "https://go2gft4394.execute-api.us-east-2.amazonaws.com/prod"}">
+            <script>
+              // Mirror to window for scripts that check window.WU_API
+              window.WU_API = document.querySelector('meta[name="wu-api"]')?.content || "";
+            </script>
+
+            <!-- Your optional file-based config (safe to keep) -->
             <script src="/js/config.js"></script>
-            <!-- then the shared module that imports api.js, etc. -->
+
+            <!-- Then your app modules -->
             <script type="module" src="/js/core.js"></script>
           `
         };
@@ -124,7 +131,6 @@ export default defineConfig({
       }
     }),
 
-    // Copy only existing static folders/files; keep original directory structure.
     viteStaticCopy({
       targets: [
         ...(fs.existsSync(r("public/js")) ? [{ src: r("public/js/**/*"), dest: "js" }] : []),
@@ -149,7 +155,6 @@ export default defineConfig({
     sourcemap: false,
     minify: false,
 
-    // Let Vite emit only the HTML files; keep any emitted assets out of the root.
     rollupOptions: {
       input: {
         index: r("public/index.html"),
@@ -165,10 +170,8 @@ export default defineConfig({
         promoter_index: r("public/promoter/index.html")
       },
       output: {
-        // Keep any JS Vite might still emit out of root:
         entryFileNames: "js/[name].js",
         chunkFileNames: "js/chunks/[name].js",
-        // Route any emitted assets into folders; no hashing:
         assetFileNames: (assetInfo) => {
           const name = (assetInfo.name || "").toLowerCase();
           if (name.endsWith(".css")) return "styles/[name][extname]";

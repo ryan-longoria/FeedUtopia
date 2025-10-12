@@ -21,7 +21,6 @@
     </button>
   </div>
 
-  <!-- Login -->
   <form id="form-login" class="mt-3">
     <label>Email</label>
     <input
@@ -46,7 +45,6 @@
     </p>
   </form>
 
-  <!-- Sign Up -->
   <form id="form-signup" class="mt-3 hidden">
     <label>Email</label>
     <input
@@ -72,7 +70,6 @@
       <option value="Promoter">Promoter</option>
     </select>
 
-    <!-- Wrestler fields -->
     <fieldset id="wrestler-fields" class="mt-3">
       <legend class="muted" style="margin-bottom: 6px">Wrestler details</legend>
       <label>First name</label>
@@ -88,7 +85,7 @@
         type="date"
         required
         pattern="\d{4}-\d{2}-\d{2}"
-        max="<?= new Date().toISOString().slice(0,10) /* or hard-code for static site */ ?>"
+        max="<?= new Date().toISOString().slice(0,10) ?>"
       />
       <div class="grid cols-3" style="gap: 8px">
         <div>
@@ -106,7 +103,6 @@
       </div>
     </fieldset>
 
-    <!-- Promoter fields -->
     <fieldset id="promoter-fields" class="mt-3 hidden">
       <legend class="muted" style="margin-bottom: 6px">
         Promotion details
@@ -123,7 +119,6 @@
     </p>
   </form>
 
-  <!-- Confirm -->
   <form id="form-confirm" class="mt-3 hidden">
     <label>Confirmation Code</label>
     <input
@@ -145,7 +140,6 @@
 </dialog>
 
 <script type="module">
-  // Use your bridge so config is centralized
   import {
     signIn,
     confirmSignIn,
@@ -155,9 +149,7 @@
     signOut,
   } from "/js/auth-bridge.js";
 
-  // ---- one-time wiring guard (prevents double event listeners) ----
   if (window._wuAuthWired) {
-    // already initialized (avoids duplicate handlers that spam MFA)
     console.debug("[auth] already wired, skipping");
   } else {
     window._wuAuthWired = true;
@@ -173,10 +165,9 @@
     const wf = document.getElementById("wrestler-fields");
     const pf = document.getElementById("promoter-fields");
 
-    // keep minimal in-memory state
     let signupEmailForConfirm = "";
     let signupPasswordCache = "";
-    let submitLock = false; // debounce to avoid double calls
+    let submitLock = false;
     const withSubmitLock =
       (fn) =>
       async (...args) => {
@@ -189,7 +180,6 @@
         }
       };
 
-    // small helpers
     const show = (el) => el && el.classList.remove("hidden");
     const hide = (el) => el && el.classList.add("hidden");
     const toast = (msg) => {
@@ -235,7 +225,6 @@
       const isW = roleSel.value === "Wrestler";
       wf.classList.toggle("hidden", !isW);
       pf.classList.toggle("hidden", isW);
-      // toggle requireds so the browser helps you (Lambda still enforces server-side)
       wf.querySelectorAll("input").forEach((i) => (i.required = isW));
       pf.querySelectorAll("input").forEach((i) => (i.required = !isW));
     }
@@ -243,20 +232,16 @@
     roleSel?.addEventListener("change", onRoleChange);
     onRoleChange();
 
-    // Tabs
     tabLogin?.addEventListener("click", showLogin);
     tabSignup?.addEventListener("click", () => showSignup());
 
-    // Close dialog
     document.getElementById("auth-close")?.addEventListener("click", () => {
       dlg.close();
-      // clear ephemeral state on close
       signupEmailForConfirm = "";
       signupPasswordCache = "";
       fConfirm?.reset?.();
     });
 
-    // Public hook: open modal with optional intent
     window.addEventListener("auth:open", (e) => {
       dlg.showModal();
       const intent = (e?.detail?.intent || "").toString().toLowerCase();
@@ -264,16 +249,12 @@
       else showLogin();
     });
 
-    // Also wire your nav “Log In” button
     document.getElementById("login-btn")?.addEventListener("click", (e) => {
       e.preventDefault();
       dlg.showModal();
       showLogin();
     });
 
-    // --------------------------
-    // Sign Up
-    // --------------------------
     fSignup?.addEventListener(
       "submit",
       withSubmitLock(async (e) => {
@@ -285,7 +266,6 @@
 
         const isW = role === "Wrestler";
 
-        // Collect attributes, but never send empty strings for optional ones
         const ua = {
           email,
           "custom:role": role,
@@ -295,7 +275,7 @@
           const given = String(fd.get("given_name") || "").trim();
           const family = String(fd.get("family_name") || "").trim();
           const stage = String(fd.get("stageName") || "").trim();
-          const dob = String(fd.get("dob") || "").trim(); // <input type="date"> gives YYYY-MM-DD
+          const dob = String(fd.get("dob") || "").trim();
           const city = String(fd.get("city") || "").trim();
           const region = String(fd.get("region") || "").trim();
           const country = String(fd.get("country") || "").trim();
@@ -312,7 +292,7 @@
           const orgName = String(fd.get("orgName") || "").trim();
           const address = String(fd.get("address") || "").trim();
           if (orgName) ua["custom:orgName"] = orgName;
-          if (address) ua["custom:address"] = address; // don’t send empty string (avoids min-length schema errors)
+          if (address) ua["custom:address"] = address;
         }
 
         try {
@@ -322,7 +302,6 @@
             options: { userAttributes: ua },
           });
 
-          // remember for confirm + possible auto sign-in
           signupEmailForConfirm = email;
           signupPasswordCache = password;
 
@@ -330,7 +309,6 @@
           toast("We emailed you a verification code.");
         } catch (err) {
           console.error("[auth] signUp error", err);
-          // Friendly messages for common cases
           const msg =
             err?.name === "UsernameExistsException"
               ? "An account with this email already exists."
@@ -340,9 +318,6 @@
       }),
     );
 
-    // --------------------------
-    // Resend sign-up code
-    // --------------------------
     document.getElementById("resend-code")?.addEventListener(
       "click",
       withSubmitLock(async () => {
@@ -361,20 +336,15 @@
       }),
     );
 
-    // --------------------------
-    // Confirm (sign-up OR MFA)
-    // --------------------------
     fConfirm?.addEventListener(
       "submit",
       withSubmitLock(async (e) => {
         e.preventDefault();
         const code = String(new FormData(fConfirm).get("code") || "").trim();
 
-        // MFA branch
         if (fConfirm.dataset.mfa === "true") {
           try {
             await confirmSignIn({ challengeResponse: code });
-            // done – user is signed in now
             fConfirm.dataset.mfa = "";
             dlg.close();
             toast("You are signed in.");
@@ -386,7 +356,6 @@
           }
         }
 
-        // Sign-up confirmation branch
         if (!signupEmailForConfirm) {
           toast(
             "We lost the email for confirmation; please sign up or log in again.",
@@ -401,7 +370,6 @@
           });
           toast("Email confirmed! Signing you in…");
 
-          // Auto sign-in after confirming (optional)
           if (signupPasswordCache) {
             try {
               await signIn({
@@ -409,7 +377,6 @@
                 password: signupPasswordCache,
               });
             } catch (e2) {
-              /* ignore – user can click Log In */
             }
           }
           dlg.close();
@@ -423,9 +390,6 @@
       }),
     );
 
-    // --------------------------
-    // Log In (handles Amplify v6 nextStep cleanly)
-    // --------------------------
     fLogin?.addEventListener(
       "submit",
       withSubmitLock(async (e) => {
@@ -440,7 +404,7 @@
             password,
             options: {
               authFlowType: "USER_SRP_AUTH",
-              preferredChallenge: "EMAIL_OTP", // ask Cognito to use email codes
+              preferredChallenge: "EMAIL_OTP",
             },
           });
 
@@ -452,19 +416,16 @@
             }
 
             case "CONFIRM_SIGN_UP": {
-              // account exists but not verified
               showConfirmFor(email, { mode: "signup" });
               toast("Enter the verification code we just emailed you.");
               break;
             }
 
             case "CONTINUE_SIGN_IN_WITH_MFA_SELECTION": {
-              // choose EMAIL once; this triggers a **single** OTP email
               const choice = nextStep.allowedMFATypes?.includes("EMAIL")
                 ? "EMAIL"
                 : nextStep.allowedMFATypes?.[0];
               await confirmSignIn({ challengeResponse: choice });
-              // show the MFA code form
               showConfirmFor(email, { mode: "" });
               fConfirm.dataset.mfa = "true";
               toast("Enter the code we emailed you.");
@@ -474,7 +435,6 @@
             case "CONFIRM_SIGN_IN_WITH_EMAIL_CODE":
             case "CONFIRM_SIGN_IN_WITH_SMS_CODE":
             case "CONFIRM_SIGN_IN_WITH_TOTP_CODE": {
-              // code already sent by Cognito; just collect it
               showConfirmFor(email, { mode: "" });
               fConfirm.dataset.mfa = "true";
               toast("Enter the code we emailed you.");
@@ -482,7 +442,6 @@
             }
 
             case "CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION": {
-              // choose PASSWORD; Cognito will follow with an EMAIL_OTP challenge
               await confirmSignIn({ challengeResponse: "PASSWORD_SRP" });
               showConfirmFor(email, { mode: "" });
               fConfirm.dataset.mfa = "true";
@@ -510,9 +469,6 @@
       }),
     );
 
-    // --------------------------
-    // Log Out
-    // --------------------------
     document.addEventListener("click", async (e) => {
       const btn = e.target.closest("#logout-btn");
       if (!btn) return;

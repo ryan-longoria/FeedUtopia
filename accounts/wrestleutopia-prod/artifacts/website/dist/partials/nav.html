@@ -13,7 +13,6 @@
       </a>
 
       <div class="wu-actions">
-        <!-- Show only the Log In button when logged out -->
         <a class="wu-login" id="login-btn" href="#" data-auth="out">Log In</a>
         <a href="#" id="logout-btn" data-auth="in" style="display: none"
           >Log out</a
@@ -31,11 +30,9 @@
     </div>
   </div>
 
-  <!-- Links: visible only when logged IN -->
   <div class="wu-links-wrap" data-auth="in">
     <div class="container">
       <div class="wu-links" id="nav-links">
-        <!-- Dashboards first by role -->
         <a href="/dashboard_wrestler.html" data-requires="wrestler"
           >My Dashboard</a
         >
@@ -44,7 +41,6 @@
         >
         <a href="/tryouts.html" data-requires="wrestler">Tryouts</a>
 
-        <!-- Promoter-only -->
         <a href="/talent.html#search" data-requires="promoter">Talent</a>
 
         <a id="nav-my-profile" href="#">My profile</a>
@@ -53,5 +49,4 @@
   </div>
 </nav>
 
-<!-- Use relative include here too -->
 <div data-include="/partials/auth.html"></div>
