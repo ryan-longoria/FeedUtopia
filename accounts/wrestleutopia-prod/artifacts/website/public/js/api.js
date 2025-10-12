@@ -1,18 +1,67 @@
+// /public/js/api.js
 import { fetchAuthSession } from "/js/auth-bridge.js";
 
-function joinUrl(base, path) {
-  if (!base) throw new Error("WU_API base URL missing");
-  if (!path) return base;
-  return base.replace(/\/+$/, "") + "/" + String(path).replace(/^\/+/, "");
+/** ------- API base resolution (no import-time throws) ------- */
+function resolveApiBase() {
+  // 1) Explicit global from config.js (your current setup)
+  if (typeof window !== "undefined" && window.WU_API) return window.WU_API;
+
+  // 2) Optional global config object, if you ever use it
+  if (typeof window !== "undefined" && window.__CONFIG?.WU_API) {
+    return window.__CONFIG.WU_API;
+  }
+
+  // 3) Optional <meta name="wu-api" content="...">
+  if (typeof document !== "undefined") {
+    const meta = document.querySelector('meta[name="wu-api"]');
+    if (meta?.content) return meta.content;
+  }
+
+  // 4) Fallback disabled intentionally to avoid surprises:
+  // return location.origin + "/api";
+
+  return "";
 }
 
+// current base (lazily read at first call)
+let __API_BASE = "";
+
+/** Get the API base. If `strict` is true and base is empty, throws at *call time* */
+export function getApiBase(strict = false) {
+  if (!__API_BASE) __API_BASE = resolveApiBase();
+  if (!__API_BASE && strict) throw new Error("WU_API base URL missing");
+  return __API_BASE;
+}
+
+/** Allow runtime override (handy for tests or env switches) */
+export function setApiBase(url) {
+  __API_BASE = url || "";
+}
+
+/** Safe URL join that preserves protocol and collapses duplicate slashes */
+export function joinUrl(...parts) {
+  const filtered = parts.filter(Boolean).map((p) => String(p));
+  if (filtered.length === 0) return "";
+  let out = filtered[0];
+  for (let i = 1; i < filtered.length; i++) {
+    const seg = filtered[i];
+    out = out.replace(/\/+$/, "") + "/" + seg.replace(/^\/+/, "");
+  }
+  // collapse duplicate slashes except after protocol (e.g., https://)
+  return out.replace(/([^:]\/)\/+/g, "$1");
+}
+
+/** ------- Auth helpers ------- */
 async function authToken() {
   const s = await fetchAuthSession();
   return (
-    s?.tokens?.idToken?.toString() || s?.tokens?.accessToken?.toString() || ""
+    s?.tokens?.idToken?.toString() ||
+    s?.tokens?.accessToken?.toString() ||
+    ""
   );
 }
 
+/** ------- MD5 (S3 Content-MD5) ------- */
 export async function md5Base64(blob) {
   if (!window.SparkMD5) {
     await new Promise((res, rej) => {
@@ -41,6 +90,7 @@ export async function md5Base64(blob) {
   return btoa(bin);
 }
 
+/** ------- Query string helper ------- */
 export function qs(params = {}) {
   const u = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -52,21 +102,31 @@ export function qs(params = {}) {
   return s ? `?${s}` : "";
 }
 
+/** ------- Core fetch wrapper (now lazy-reads base) ------- */
 export async function apiFetch(
   path,
   { method = "GET", body = null, headers: extraHeaders = {} } = {},
 ) {
+  const base = getApiBase(false);
+  if (!base) {
+    console.error("WU_API base URL missing");
+    throw new Error("WU_API base URL missing");
+  }
+
   const token = await authToken();
   const headers = { ...extraHeaders };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body != null) headers["content-type"] = "application/json";
 
   const hasBody = body !== null && body !== undefined;
-  const res = await fetch(joinUrl(window.WU_API, path), {
+  const url = joinUrl(base, path);
+
+  const res = await fetch(url, {
     method,
     headers,
     body: hasBody ? JSON.stringify(body) : null,
   });
+
   if (!res.ok) {
     let msg = res.statusText;
     try {
@@ -92,12 +152,14 @@ export async function apiFetch(
   return res.json();
 }
 
+/** ------- S3 upload helpers ------- */
 export async function uploadAvatar(file) {
-  // Keep your POST-as-query approach if you like; Lambda reads the querystring.
   const md5b64 = await md5Base64(file);
 
   const presign = await apiFetch(
-    `/profiles/wrestlers/me/photo-url?contentType=${encodeURIComponent(file.type || "application/octet-stream")}`,
+    `/profiles/wrestlers/me/photo-url?contentType=${encodeURIComponent(
+      file.type || "application/octet-stream",
+    )}`,
     { method: "POST", headers: { "Content-MD5": md5b64 } },
   );
 
@@ -120,7 +182,9 @@ export async function uploadAvatar(file) {
 
   if (!putRes.ok) {
     throw new Error(
-      `S3 upload failed ${putRes.status}: ${await putRes.text().catch(() => putRes.statusText)}`,
+      `S3 upload failed ${putRes.status}: ${
+        (await putRes.text().catch(() => putRes.statusText)) || putRes.statusText
+      }`,
     );
   }
   return objectKey;
@@ -147,9 +211,7 @@ export async function uploadToS3(filename, contentType, file, opts = {}) {
 
   if (!uploadUrl || !objectKey) {
     console.error("presign response:", presign);
-    throw new Error(
-      "Failed to get presigned URL (missing uploadUrl/objectKey)",
-    );
+    throw new Error("Failed to get presigned URL (missing uploadUrl/objectKey)");
   }
 
   const putRes = await fetch(uploadUrl, {
@@ -164,16 +226,14 @@ export async function uploadToS3(filename, contentType, file, opts = {}) {
 
   if (!putRes.ok) {
     const text = await putRes.text().catch(() => "");
-    throw new Error(
-      `S3 upload failed ${putRes.status}: ${text || putRes.statusText}`,
-    );
+    throw new Error(`S3 upload failed ${putRes.status}: ${text || putRes.statusText}`);
   }
 
   return objectKey;
 }
 
+/** ------- misc helpers ------- */
 export function asItems(x) {
-  //unwrap {items}
   if (Array.isArray(x)) return x;
   if (x && Array.isArray(x.items)) return x.items;
   return [];
@@ -188,4 +248,5 @@ export const api = {
   delete: (p) => apiFetch(p, { method: "DELETE" }),
 };
 
+// Optional flag some of your code checks
 window.WU_API_READY = true;

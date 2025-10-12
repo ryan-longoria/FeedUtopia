@@ -75,10 +75,33 @@ const authBridge = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePr
   __proto__: null,
   fetchAuthSession
 }, Symbol.toStringTag, { value: "Module" }));
-function joinUrl(base, path) {
-  if (!base) throw new Error("WU_API base URL missing");
-  if (!path) return base;
-  return base.replace(/\/+$/, "") + "/" + String(path).replace(/^\/+/, "");
+function resolveApiBase() {
+  var _a;
+  if (typeof window !== "undefined" && window.WU_API) return window.WU_API;
+  if (typeof window !== "undefined" && ((_a = window.__CONFIG) == null ? void 0 : _a.WU_API)) {
+    return window.__CONFIG.WU_API;
+  }
+  if (typeof document !== "undefined") {
+    const meta = document.querySelector('meta[name="wu-api"]');
+    if (meta == null ? void 0 : meta.content) return meta.content;
+  }
+  return "";
+}
+let __API_BASE = "";
+function getApiBase(strict = false) {
+  if (!__API_BASE) __API_BASE = resolveApiBase();
+  if (!__API_BASE && strict) throw new Error("WU_API base URL missing");
+  return __API_BASE;
+}
+function joinUrl(...parts) {
+  const filtered = parts.filter(Boolean).map((p) => String(p));
+  if (filtered.length === 0) return "";
+  let out = filtered[0];
+  for (let i = 1; i < filtered.length; i++) {
+    const seg = filtered[i];
+    out = out.replace(/\/+$/, "") + "/" + seg.replace(/^\/+/, "");
+  }
+  return out.replace(/([^:]\/)\/+/g, "$1");
 }
 async function authToken() {
   var _a, _b, _c, _d;
@@ -111,12 +134,18 @@ async function md5Base64(blob) {
   return btoa(bin);
 }
 async function apiFetch(path, { method = "GET", body = null, headers: extraHeaders = {} } = {}) {
+  const base = getApiBase(false);
+  if (!base) {
+    console.error("WU_API base URL missing");
+    throw new Error("WU_API base URL missing");
+  }
   const token = await authToken();
   const headers = { ...extraHeaders };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body != null) headers["content-type"] = "application/json";
   const hasBody = body !== null && body !== void 0;
-  const res = await fetch(joinUrl(window.WU_API, path), {
+  const url = joinUrl(base, path);
+  const res = await fetch(url, {
     method,
     headers,
     body: hasBody ? JSON.stringify(body) : null
@@ -148,7 +177,9 @@ async function apiFetch(path, { method = "GET", body = null, headers: extraHeade
 async function uploadAvatar(file) {
   const md5b64 = await md5Base64(file);
   const presign = await apiFetch(
-    `/profiles/wrestlers/me/photo-url?contentType=${encodeURIComponent(file.type || "application/octet-stream")}`,
+    `/profiles/wrestlers/me/photo-url?contentType=${encodeURIComponent(
+      file.type || "application/octet-stream"
+    )}`,
     { method: "POST", headers: { "Content-MD5": md5b64 } }
   );
   const uploadUrl = presign == null ? void 0 : presign.uploadUrl;
@@ -166,7 +197,7 @@ async function uploadAvatar(file) {
   });
   if (!putRes.ok) {
     throw new Error(
-      `S3 upload failed ${putRes.status}: ${await putRes.text().catch(() => putRes.statusText)}`
+      `S3 upload failed ${putRes.status}: ${await putRes.text().catch(() => putRes.statusText) || putRes.statusText}`
     );
   }
   return objectKey;
@@ -188,9 +219,7 @@ async function uploadToS3(filename, contentType, file, opts = {}) {
   const signedCT = (presign == null ? void 0 : presign.contentType) || contentType || "application/octet-stream";
   if (!uploadUrl || !objectKey) {
     console.error("presign response:", presign);
-    throw new Error(
-      "Failed to get presigned URL (missing uploadUrl/objectKey)"
-    );
+    throw new Error("Failed to get presigned URL (missing uploadUrl/objectKey)");
   }
   const putRes = await fetch(uploadUrl, {
     method: "PUT",
@@ -203,9 +232,7 @@ async function uploadToS3(filename, contentType, file, opts = {}) {
   });
   if (!putRes.ok) {
     const text = await putRes.text().catch(() => "");
-    throw new Error(
-      `S3 upload failed ${putRes.status}: ${text || putRes.statusText}`
-    );
+    throw new Error(`S3 upload failed ${putRes.status}: ${text || putRes.statusText}`);
   }
   return objectKey;
 }

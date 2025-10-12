@@ -112,18 +112,7 @@ export default defineConfig({
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
           headExtra: `
-            <!-- Make the API base available synchronously -->
-            <meta name="wu-api" content="${process.env.VITE_WU_API ?? "https://go2gft4394.execute-api.us-east-2.amazonaws.com/prod"}">
-            <script>
-              // Mirror to window for scripts that check window.WU_API
-              window.WU_API = document.querySelector('meta[name="wu-api"]')?.content || "";
-            </script>
-
-            <!-- Your optional file-based config (safe to keep) -->
-            <script src="/js/config.js"></script>
-
-            <!-- Then your app modules -->
-            <script type="module" src="/js/core.js"></script>
+              <script type="module" src="/js/core.js"></script>
           `
         };
 
