@@ -58,21 +58,33 @@
     const tpl = document.createElement("template");
     tpl.innerHTML = html;
 
-    const walker = document.createTreeWalker(tpl.content, NodeFilter.SHOW_ELEMENT, null);
-    const SAFE_URL_ATTRS = new Set(["href","src"]);
+    const walker = document.createTreeWalker(
+      tpl.content,
+      NodeFilter.SHOW_ELEMENT,
+      null
+    );
+
+    const SAFE_URL_ATTRS = new Set(["href", "src"]);
     const SAFE_ATTRS = new Set([
-      "id","class","role","aria-*","alt","title","rel","target","type","for","value",
-      "name","placeholder","width","height"
+      "id", "class", "role", "alt", "title", "rel", "target", "type",
+      "for", "value", "name", "placeholder", "width", "height"
     ]);
 
     for (let node = walker.currentNode; node; node = walker.nextNode()) {
+      if (!(node instanceof Element)) continue;
+
       if (node.tagName === "SCRIPT") {
         node.remove();
         continue;
       }
+
       for (const attr of Array.from(node.attributes)) {
         const n = attr.name;
-        if (n.startsWith("on")) node.removeAttribute(n);
+
+        if (n.startsWith("on")) {
+          node.removeAttribute(n);
+          continue;
+        }
 
         if (n.startsWith("aria-")) continue;
 
@@ -85,9 +97,13 @@
           }
           continue;
         }
-        if (!SAFE_ATTRS.has(n)) node.removeAttribute(n);
+
+        if (!SAFE_ATTRS.has(n)) {
+          node.removeAttribute(n);
+        }
       }
     }
+
     return tpl.content;
   }
 
