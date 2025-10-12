@@ -112,7 +112,12 @@ export default defineConfig({
           ogTitle: "WrestleUtopia",
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
-          headExtra: `<script type="module" src="/js/core.js"></script>`
+          headExtra: `
+            <!-- config must load first (non-module) -->
+            <script src="/js/config.js"></script>
+            <!-- then the shared module that imports api.js, etc. -->
+            <script type="module" src="/js/core.js"></script>
+          `
         };
 
         return { ...base, ...(pageOverride ?? {}) };
