@@ -13,7 +13,7 @@ export default defineConfig({
     handlebars({
       partialDirectory: r("public/partials"),
       context(pagePath) {
-        const file = path.basename(pagePath);
+        const rel = path.relative(r("public"), pagePath).replace(/\\/g, "/");
 
         const base = {
           title: "WrestleUtopia – Indie Wrestling Talent & Tryouts",
@@ -21,9 +21,7 @@ export default defineConfig({
           ogTitle: "WrestleUtopia",
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
-          headExtra: `
-            <script type="module" src="/js/core.js"></script>
-          `
+          headExtra: `<script type="module" src="/js/core.js"></script>`
         };
 
         const overrides = {
@@ -40,6 +38,7 @@ export default defineConfig({
               <script type="module" src="/js/home-auth-cta.js"></script>
             `
           },
+
           "profile.html": {
             title: "WrestleUtopia – My Profile",
             headExtra: `
@@ -47,6 +46,7 @@ export default defineConfig({
               <script type="module" src="/js/profile-preview-modal.js"></script>
             `
           },
+
           "talent.html": {
             headExtra: `
               <script type="module" src="/js/talent-lock.js"></script>
@@ -54,6 +54,7 @@ export default defineConfig({
               <script type="module" src="/js/home-auth-cta.js"></script>
             `
           },
+
           "dashboard_wrestler.html": {
             title: "WrestleUtopia – Wrestler Dashboard",
             headExtra: `
@@ -61,6 +62,7 @@ export default defineConfig({
               <script type="module" src="/js/wrestler-guard-and-progress.js"></script>
             `
           },
+
           "dashboard_promoter.html": {
             title: "WrestleUtopia – Promoter Dashboard",
             headExtra: `
@@ -70,27 +72,28 @@ export default defineConfig({
               <script type="module" src="/js/promoter-apps-modal.js"></script>
             `
           },
+
           "w/index.html": {
             title: "WrestleUtopia – Wrestler",
             headExtra: `<script type="module" src="/js/wrestler_public.js"></script>`
           },
+
           "p/index.html": {
             title: "Promotion – WrestleUtopia",
             headExtra: `<script type="module" src="/js/promo_public.js"></script>`
           },
+
           "promoter/index.html": {
             title: "WrestleUtopia – My Promotion",
             headExtra: `<script type="module" src="/js/promo_me.js"></script>`
-          },
+          }
         };
 
-        const page = overrides[file] || {};
-        const headExtra = [base.headExtra, page.headExtra].filter(Boolean).join("\n");
-        const o = overrides[file] || {};
+        const o = overrides[rel] || {};
         return {
           ...base,
           ...o,
-          headExtra: [base.headExtra, o.headExtra].filter(Boolean).join("\n"),
+          headExtra: [base.headExtra, o.headExtra].filter(Boolean).join("\n")
         };
       }
     }),
