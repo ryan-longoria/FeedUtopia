@@ -1,5 +1,7 @@
+// public/js/main.js
 import { apiFetch } from "/js/api.js";
 
+/* ---------- auth helpers ---------- */
 async function userGroups() {
   try {
     const { fetchAuthSession } = await import("/js/auth-bridge.js");
@@ -14,6 +16,7 @@ async function userGroups() {
   }
 }
 
+/* ---------- nav highlight (home only) ---------- */
 function highlightNav() {
   const path = location.pathname.split("/").pop() || "index.html";
   document.querySelectorAll(".nav-links a").forEach((a) => {
@@ -21,6 +24,7 @@ function highlightNav() {
   });
 }
 
+/* ---------- HOME: tryouts strip ---------- */
 async function renderHomeTryouts(groups) {
   const tryoutList = document.querySelector("#home-tryouts");
   if (!tryoutList) return;
@@ -40,6 +44,7 @@ async function renderHomeTryouts(groups) {
       }
       throw e;
     }
+
     const top = (list || []).slice(0, 6);
     tryoutList.innerHTML = "";
     if (top.length === 0) {
@@ -72,6 +77,7 @@ async function renderHomeTryouts(groups) {
   }
 }
 
+/* ---------- HOME: talent spotlight ---------- */
 async function renderHomeTalentSpotlight(groups) {
   const spot = document.querySelector("#home-talent");
   if (!spot) return;
@@ -122,15 +128,109 @@ async function renderHomeTalentSpotlight(groups) {
   }
 }
 
+/* ---------- TRYOUTS PAGE: full list ---------- */
+async function renderTryoutsPage() {
+  const grid = document.querySelector("#tryout-list");
+  if (!grid) return; // not on this page
+
+  try {
+    let list = [];
+    try {
+      list = await apiFetch("/tryouts");
+    } catch (e) {
+      if (String(e).includes("API 401")) {
+        grid.innerHTML =
+          '<p class="muted">Sign in to see current tryouts.</p>';
+        return;
+      }
+      throw e;
+    }
+
+    grid.innerHTML = "";
+    if (!Array.isArray(list) || list.length === 0) {
+      grid.innerHTML = '<p class="muted">No open tryouts yet.</p>';
+      return;
+    }
+
+    list.forEach((t) => {
+      const id = t.tryoutId || t.id || "";
+      const org = t.orgName || t.org || "";
+      const city = t.city || "";
+      const date = t.date ? new Date(t.date).toLocaleDateString() : "";
+      const reqs = t.requirements || "";
+      const status = (t.status || "open").toUpperCase();
+
+      const el = document.createElement("div");
+      el.className = "card";
+      el.innerHTML = `
+        <div class="badge">${status}</div>
+        <h3 style="margin:6px 0 2px">${org}</h3>
+        <div class="muted">${city} • ${date}</div>
+        <p class="mt-3">${reqs}</p>
+        <div class="mt-3">
+          <button class="btn small" data-apply="${id}">Apply</button>
+        </div>
+      `;
+      grid.appendChild(el);
+    });
+
+    // (Optional) wire up the Apply modal if your HTML includes it
+    const modal = document.querySelector("#apply-modal");
+    const form = document.querySelector("#apply-form");
+    grid.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-apply]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-apply");
+      if (modal) {
+        modal.querySelector('input[name="tryout_id"]').value = id;
+        modal.showModal();
+      }
+    });
+
+    if (form) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const tryoutId = fd.get("tryout_id");
+        const payload = {
+          ring: fd.get("ring") || "",
+          name: fd.get("name") || "",
+          reel: fd.get("reel") || "",
+          notes: fd.get("notes") || "",
+        };
+        try {
+          await apiFetch(`/tryouts/${encodeURIComponent(tryoutId)}/apply`, {
+            method: "POST",
+            body: payload,
+          });
+          alert("Application submitted!");
+          modal?.close();
+        } catch (err) {
+          alert("Failed to submit application: " + (err?.message || err));
+        }
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    grid.innerHTML = '<p class="muted">Could not load tryouts.</p>';
+  }
+}
+
+/* ---------- Entrypoints ---------- */
 async function renderHome() {
   highlightNav();
   const groups = await userGroups();
-  await Promise.all([
-    renderHomeTryouts(groups),
-    renderHomeTalentSpotlight(groups),
-  ]);
+  await Promise.all([renderHomeTryouts(groups), renderHomeTalentSpotlight(groups)]);
 }
 
-document.addEventListener("DOMContentLoaded", renderHome);
+document.addEventListener("DOMContentLoaded", async () => {
+  await Promise.all([renderHome(), renderTryoutsPage()]);
+});
 
-window.addEventListener("auth:changed", renderHome);
+window.addEventListener("auth:changed", async () => {
+  await Promise.all([renderHome(), renderTryoutsPage()]);
+});
+
+// debug hook you were using
+window.__mainLoaded = true;
+console.debug("[main] loaded");
