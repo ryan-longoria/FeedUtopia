@@ -1,8 +1,5 @@
-import { getAuthState, isWrestler } from "./roles.js";
-import "./auth-bridge.js";
-import "https://esm.sh/aws-amplify@6";
-import "https://esm.sh/aws-amplify@6/auth";
-import "https://esm.sh/aws-amplify@6/utils";
+import { getAuthState, isWrestler } from "/js/roles.js";
+
 const run = async () => {
   try {
     const s = await getAuthState();
@@ -10,7 +7,9 @@ const run = async () => {
       location.replace("index.html");
       return;
     }
+
     const pct = 60;
+
     const bar = document.getElementById("profile-pct");
     const label = document.getElementById("profile-pct-label");
     if (bar) bar.style.width = pct + "%";
@@ -19,6 +18,7 @@ const run = async () => {
     console.error("wrestler-guard-and-progress failed", e);
   }
 };
+
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", run, { once: true });
 } else {

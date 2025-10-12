@@ -1,40 +1,50 @@
-import { getAuthState, isWrestler, isPromoter } from "./roles.js";
-import "./auth-bridge.js";
-import "https://esm.sh/aws-amplify@6";
-import "https://esm.sh/aws-amplify@6/auth";
-import "https://esm.sh/aws-amplify@6/utils";
+import { getAuthState, isPromoter, isWrestler } from "/js/roles.js";
+
 function openSignup(intent = "generic") {
-  var _a;
   try {
-    if ((_a = window.Auth) == null ? void 0 : _a.open) {
+    if (window.Auth?.open) {
       window.Auth.open("signup", { intent });
       return;
     }
+
     window.dispatchEvent(
-      new CustomEvent("auth:open", { detail: { mode: "signup", intent } })
+      new CustomEvent("auth:open", { detail: { mode: "signup", intent } }),
     );
+
     const loginBtn = document.getElementById("login-btn");
     if (loginBtn) loginBtn.click();
   } catch (e) {
     console.error("openSignup failed", e);
   }
 }
+
 document.addEventListener("click", async (e) => {
-  var _a, _b, _c, _d;
   const el = e.target.closest("a,button");
   if (!el) return;
+
   if (el.dataset.auth === "out") {
     e.preventDefault();
-    const intent = ((_a = el.id) == null ? void 0 : _a.includes("promoter")) ? "promoter" : ((_b = el.id) == null ? void 0 : _b.includes("talent")) ? "wrestler" : ((_c = el.getAttribute("aria-label")) == null ? void 0 : _c.includes("Promoter")) ? "promoter" : ((_d = el.getAttribute("aria-label")) == null ? void 0 : _d.includes("Talent")) ? "wrestler" : "generic";
+    const intent = el.id?.includes("promoter")
+      ? "promoter"
+      : el.id?.includes("talent")
+        ? "wrestler"
+        : el.getAttribute("aria-label")?.includes("Promoter")
+          ? "promoter"
+          : el.getAttribute("aria-label")?.includes("Talent")
+            ? "wrestler"
+            : "generic";
     openSignup(intent);
     return;
   }
+
   if (el.dataset.requires) {
     e.preventDefault();
     try {
       const s = await getAuthState();
       const need = el.dataset.requires;
-      const ok = need === "wrestler" && isWrestler(s) || need === "promoter" && isPromoter(s);
+      const ok =
+        (need === "wrestler" && isWrestler(s)) ||
+        (need === "promoter" && isPromoter(s));
       if (!ok) {
         openSignup(need);
       } else {

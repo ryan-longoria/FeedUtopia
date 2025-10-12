@@ -5,6 +5,7 @@ const run = () => {
     closeBtn.addEventListener("click", () => dlg.close());
   }
 };
+
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", run, { once: true });
 } else {

@@ -1,51 +1,71 @@
-import "./auth-bridge.js";
-import { fetchAuthSession } from "https://esm.sh/aws-amplify@6/auth";
-import "https://esm.sh/aws-amplify@6";
-import "https://esm.sh/aws-amplify@6/utils";
-async function getAuthState() {
-  var _a, _b;
+import { fetchAuthSession } from "/js/auth-bridge.js";
+
+export async function getAuthState() {
   try {
     const s = await fetchAuthSession();
-    const id = (_b = (_a = s == null ? void 0 : s.tokens) == null ? void 0 : _a.idToken) == null ? void 0 : _b.toString();
+    const id = s?.tokens?.idToken?.toString();
     if (!id) return { signedIn: false, groups: [], role: null, sub: null };
     const payload = JSON.parse(atob(id.split(".")[1]));
-    const groups = Array.isArray(payload["cognito:groups"]) ? payload["cognito:groups"] : payload["cognito:groups"] ? String(payload["cognito:groups"]).split(/[,\s]+/) : [];
+    const groups = Array.isArray(payload["cognito:groups"])
+      ? payload["cognito:groups"]
+      : payload["cognito:groups"]
+        ? String(payload["cognito:groups"]).split(/[,\s]+/)
+        : [];
     const roleClaim = (payload["custom:role"] || "").toLowerCase();
-    const role = roleClaim.startsWith("promo") ? "Promoter" : roleClaim.startsWith("wrestl") ? "Wrestler" : null;
+    const role = roleClaim.startsWith("promo")
+      ? "Promoter"
+      : roleClaim.startsWith("wrestl")
+        ? "Wrestler"
+        : null;
     const sub = payload["sub"] || null;
     return { signedIn: true, groups, role, sub };
   } catch {
     return { signedIn: false, groups: [], role: null, sub: null };
   }
 }
-const isPromoter = (s) => {
-  var _a;
-  return ((_a = s.groups) == null ? void 0 : _a.includes("Promoters")) || s.role === "Promoter";
-};
-const isWrestler = (s) => {
-  var _a;
-  return ((_a = s.groups) == null ? void 0 : _a.includes("Wrestlers")) || s.role === "Wrestler";
-};
-async function applyRoleGatedUI() {
+
+export const isPromoter = (s) =>
+  s.groups?.includes("Promoters") || s.role === "Promoter";
+export const isWrestler = (s) =>
+  s.groups?.includes("Wrestlers") || s.role === "Wrestler";
+
+export async function applyRoleGatedUI() {
   const s = await getAuthState();
   document.body.dataset.role = s.role || "";
   document.body.dataset.signedin = s.signedIn ? "true" : "false";
-  document.querySelectorAll('[data-auth="in"]').forEach((el) => el.style.display = s.signedIn ? "" : "none");
-  document.querySelectorAll('[data-auth="out"]').forEach((el) => el.style.display = s.signedIn ? "none" : "");
+
+  document
+    .querySelectorAll('[data-auth="in"]')
+    .forEach((el) => (el.style.display = s.signedIn ? "" : "none"));
+  document
+    .querySelectorAll('[data-auth="out"]')
+    .forEach((el) => (el.style.display = s.signedIn ? "none" : ""));
+
   const showForPromoter = isPromoter(s);
   const showForWrestler = isWrestler(s);
-  document.querySelectorAll('[data-requires="promoter"]').forEach((el) => el.style.display = showForPromoter ? "" : "none");
-  document.querySelectorAll('[data-requires="wrestler"]').forEach((el) => el.style.display = showForWrestler ? "" : "none");
+  document
+    .querySelectorAll('[data-requires="promoter"]')
+    .forEach((el) => (el.style.display = showForPromoter ? "" : "none"));
+  document
+    .querySelectorAll('[data-requires="wrestler"]')
+    .forEach((el) => (el.style.display = showForWrestler ? "" : "none"));
+
   return s;
 }
-async function guardPage({
+
+export async function guardPage({
   requireRole,
   redirect = "index.html",
-  replace = null
+  replace = null,
 } = {}) {
   const s = await getAuthState();
-  const ok = !requireRole || requireRole === "Promoter" && isPromoter(s) || requireRole === "Wrestler" && isWrestler(s);
+  const ok =
+    !requireRole ||
+    (requireRole === "Promoter" && isPromoter(s)) ||
+    (requireRole === "Wrestler" && isWrestler(s));
+
   if (ok) return s;
+
   if (replace) {
     const target = document.querySelector(replace);
     if (target)
@@ -55,16 +75,10 @@ async function guardPage({
   location.href = redirect;
   return s;
 }
+
 (async () => {
   const s = await getAuthState();
   if (isPromoter(s) || isWrestler(s)) {
     document.body.classList.add("authenticated");
   }
 })();
-export {
-  applyRoleGatedUI,
-  getAuthState,
-  guardPage,
-  isPromoter,
-  isWrestler
-};

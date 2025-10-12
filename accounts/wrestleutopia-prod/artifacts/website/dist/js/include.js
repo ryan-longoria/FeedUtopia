@@ -1,21 +1,27 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["js/roles.js","js/auth-bridge.js"])))=>i.map(i=>d[i]);
-import { _ as __vitePreload } from "./core.js";
-(async function() {
+// js/include.js
+(async function () {
   async function fetchHTML(url) {
     const res = await fetch(url, { cache: "no-cache" });
     if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
     return await res.text();
   }
+
   function executeScripts(container) {
+    // Reinsert <script> tags so the browser executes them
     const scripts = container.querySelectorAll("script");
     scripts.forEach((old) => {
       const s = document.createElement("script");
+      // copy attrs
       for (const { name, value } of old.attributes) s.setAttribute(name, value);
+      // copy inline JS
       s.text = old.text;
+      // replace
       old.parentNode.replaceChild(s, old);
     });
   }
+
   async function injectPartialsRecursive(root = document) {
+    // Keep resolving until there are no data-include elements left
     let pass = 0;
     while (true) {
       const nodes = root.querySelectorAll("[data-include]");
@@ -26,34 +32,44 @@ import { _ as __vitePreload } from "./core.js";
           const url = el.getAttribute("data-include");
           try {
             const html = await fetchHTML(url);
+            // Create a wrapper to parse
             const wrapper = document.createElement("div");
             wrapper.innerHTML = html;
+
+            // Replace placeholder
             el.replaceWith(...Array.from(wrapper.childNodes));
+
+            // Execute any scripts from the fetched HTML
             executeScripts(document);
           } catch (e) {
             console.error("Include failed for", url, e);
           }
-        })
+        }),
       );
+      // loop again in case the included HTML had more data-include nodes
       if (pass > 10) {
         console.warn(
-          "include.js: stopping after 10 recursive passes to avoid loops"
+          "include.js: stopping after 10 recursive passes to avoid loops",
         );
         break;
       }
     }
   }
+
+  // Run includes first
   await injectPartialsRecursive();
+
   window.dispatchEvent(new Event("partials:ready"));
+
+  // Apply role-gated UI *after* partials are in the DOM
   try {
-    const { applyRoleGatedUI } = await __vitePreload(async () => {
-      const { applyRoleGatedUI: applyRoleGatedUI2 } = await import("./roles.js");
-      return { applyRoleGatedUI: applyRoleGatedUI2 };
-    }, true ? __vite__mapDeps([0,1]) : void 0);
+    const { applyRoleGatedUI } = await import("/js/roles.js");
     await applyRoleGatedUI();
   } catch (e) {
     console.error("roles.js load/apply failed", e);
   }
+
+  // Active nav highlighting: match by file (ignore hash)
   (function highlightNav() {
     const path = location.pathname.split("/").pop() || "index.html";
     document.querySelectorAll(".wu-links a").forEach((a) => {
@@ -62,6 +78,8 @@ import { _ as __vitePreload } from "./core.js";
       if (targetPath === path) a.classList.add("active");
     });
   })();
+
+  // Mobile menu toggle (unchanged)
   const btn = document.getElementById("nav-toggle");
   const links = document.getElementById("nav-links");
   if (btn && links) {
@@ -70,6 +88,8 @@ import { _ as __vitePreload } from "./core.js";
       btn.setAttribute("aria-expanded", open ? "true" : "false");
     });
   }
+
+  // Footer year (unchanged)
   const y = document.getElementById("year");
-  if (y) y.textContent = (/* @__PURE__ */ new Date()).getFullYear();
+  if (y) y.textContent = new Date().getFullYear();
 })();

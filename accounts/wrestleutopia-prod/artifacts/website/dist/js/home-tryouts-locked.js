@@ -1,8 +1,5 @@
-import { getAuthState, isPromoter, isWrestler } from "./roles.js";
-import "./auth-bridge.js";
-import "https://esm.sh/aws-amplify@6";
-import "https://esm.sh/aws-amplify@6/auth";
-import "https://esm.sh/aws-amplify@6/utils";
+import { getAuthState, isPromoter, isWrestler } from "/js/roles.js";
+
 const renderLocked = () => `
   <div class="card locked-card wrestler-only">
     <div class="profile blurred">
@@ -16,17 +13,21 @@ const renderLocked = () => `
     </div>
   </div>
 `;
+
 const run = async () => {
   try {
     const s = await getAuthState();
     if (isPromoter(s) || isWrestler(s)) return;
+
     const grid = document.querySelector("#home-tryouts");
     if (!grid) return;
+
     grid.innerHTML = renderLocked() + renderLocked() + renderLocked();
   } catch (e) {
     console.error("home-tryouts-locked failed", e);
   }
 };
+
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", run, { once: true });
 } else {

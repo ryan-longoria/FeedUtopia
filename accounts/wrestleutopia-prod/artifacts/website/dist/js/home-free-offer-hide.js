@@ -1,8 +1,5 @@
-import { getAuthState, isPromoter, isWrestler } from "./roles.js";
-import "./auth-bridge.js";
-import "https://esm.sh/aws-amplify@6";
-import "https://esm.sh/aws-amplify@6/auth";
-import "https://esm.sh/aws-amplify@6/utils";
+import { getAuthState, isPromoter, isWrestler } from "/js/roles.js";
+
 const run = async () => {
   try {
     const s = await getAuthState();
@@ -14,6 +11,7 @@ const run = async () => {
     console.error("home-free-offer-hide failed", e);
   }
 };
+
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", run, { once: true });
 } else {
