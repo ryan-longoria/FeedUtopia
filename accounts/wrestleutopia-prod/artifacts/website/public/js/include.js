@@ -90,6 +90,15 @@
     return tpl.content;
   }
 
+  function preHideAuthGated(fragmentOrRoot) {
+    const root = fragmentOrRoot instanceof DocumentFragment ? fragmentOrRoot : document;
+    const list = root.querySelectorAll('[data-auth], [data-role]');
+    list.forEach(el => {
+      el.hidden = true;
+      el.setAttribute('aria-hidden', 'true');
+    });
+  }
+
   async function injectPartialsRecursive(root = document) {
     perf.start("partials-total");
     let pass = 0;
@@ -115,6 +124,7 @@
           try {
             const html = await fetchWithRetry(url);
             const frag = sanitizeHTMLToFragment(html);
+            preHideAuthGated(frag);
             el.replaceWith(frag);
           } catch (e) {
             console.error("[include.js] include failed", { url, error: String(e) });
