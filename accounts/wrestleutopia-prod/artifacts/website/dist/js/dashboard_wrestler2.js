@@ -6,43 +6,14 @@ import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";
 const PAGE_CORR_ID = (((_b = (_a = globalThis.crypto) == null ? void 0 : _a.randomUUID) == null ? void 0 : _b.call(_a)) || `${Date.now()}-${Math.random()}`).toString();
-function sendMetric(evt, data = {}) {
-  try {
-    const payload = JSON.stringify({
-      evt,
-      t: Date.now(),
-      corr: PAGE_CORR_ID,
-      ...data
-    });
-    if (navigator.sendBeacon) {
-      const blob = new Blob([payload], { type: "application/json" });
-      navigator.sendBeacon("/rum/dashboard", blob);
-    } else {
-      fetch("/rum/dashboard", { method: "POST", headers: { "Content-Type": "application/json" }, body: payload }).catch(() => {
-      });
-    }
-  } catch {
-  }
-}
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
-async function robustFetch(path, {
-  method = "GET",
-  body,
-  headers = {},
-  timeoutMs = 8e3,
-  retries = 2
-} = {}) {
+async function robustFetch(path, { method = "GET", body, headers = {}, timeoutMs = 8e3, retries = 2 } = {}) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(new Error("client-timeout")), timeoutMs);
   try {
-    const res = await apiFetch(path, {
-      method,
-      body,
-      headers: { "x-corr-id": PAGE_CORR_ID, ...headers },
-      signal: ac.signal
-    });
+    const res = await apiFetch(path, { method, body, headers, signal: ac.signal });
     return res;
   } catch (err) {
     const msg = String(err || "");
@@ -142,24 +113,14 @@ function renderTryoutCard(t) {
   const status = String(t.status ?? "open").toUpperCase();
   const card = el("div", { className: "card" }, [
     el("div", { className: "badge", text: status }),
-    el("h3", { className: "mt-1" }, [
-      ownerId ? el("a", { href: `/p/#${encodeURIComponent(ownerId)}`, text: org }) : el("span", { text: org })
-    ]),
+    el("h3", { className: "mt-1" }, [ownerId ? el("a", { href: `/p/#${encodeURIComponent(ownerId)}`, text: org }) : el("span", { text: org })]),
     el("div", { className: "muted", text: `${city} • ${date}` }),
     el("p", { className: "mt-3", text: reqs })
   ]);
   const cta = el("div", { className: "mt-3" }, [
-    el("a", {
-      className: "btn small",
-      href: `tryouts.html#${encodeURIComponent(id)}`,
-      "data-requires": "wrestler",
-      text: "Apply",
-      "aria-label": `Apply to ${org}`
-    })
+    el("a", { className: "btn small", href: `tryouts.html#${encodeURIComponent(id)}`, "data-requires": "wrestler", text: "Apply", "aria-label": `Apply to ${org}` })
   ]);
-  if (typeof t.slots === "number") {
-    cta.appendChild(el("span", { className: "muted ml-10", text: `Slots: ${t.slots}` }));
-  }
+  if (typeof t.slots === "number") cta.appendChild(el("span", { className: "muted ml-10", text: `Slots: ${t.slots}` }));
   card.appendChild(cta);
   return card;
 }
@@ -168,9 +129,7 @@ function renderEmptyTryouts(target, opts = {}) {
   const card = el("div", { className: "card" }, [
     el("h3", { text: opts.title || "No recommended tryouts yet" }),
     el("p", { className: "muted", text: opts.desc || "We couldn’t find any upcoming open tryouts right now. Check back soon or browse all tryouts." }),
-    el("div", { className: "mt-3" }, [
-      el("a", { className: "btn small secondary", href: "tryouts.html", text: "Browse all tryouts" })
-    ])
+    el("div", { className: "mt-3" }, [el("a", { className: "btn small secondary", href: "tryouts.html", text: "Browse all tryouts" })])
   ]);
   target.appendChild(card);
 }
@@ -193,12 +152,7 @@ async function loadRecommendedTryouts() {
   const target = document.getElementById("dash-tryouts");
   if (!target) return;
   clearNode(target);
-  target.appendChild(
-    el("div", { className: "card" }, [
-      el("h3", { text: "Loading recommended tryouts…" }),
-      el("p", { className: "muted", text: "Fetching the latest openings for you." })
-    ])
-  );
+  target.appendChild(el("div", { className: "card" }, [el("h3", { text: "Loading recommended tryouts…" }), el("p", { className: "muted", text: "Fetching the latest openings for you." })]));
   try {
     const s = await getAuthState().catch(() => null);
     if (!isWrestler(s)) {
@@ -208,28 +162,17 @@ async function loadRecommendedTryouts() {
     const cacheK = cacheKey("/tryouts", (s == null ? void 0 : s.sub) || "anon");
     const cached = getCachedJson(cacheK, 90 * 1e3);
     let profile, list;
-    const start = performance.now();
     if (cached) {
-      [profile, list] = await Promise.all([
-        getMyWrestlerProfile(),
-        Promise.resolve(cached)
-      ]);
+      [profile, list] = await Promise.all([getMyWrestlerProfile(), Promise.resolve(cached)]);
     } else {
       try {
-        [profile, list] = await Promise.all([
-          getMyWrestlerProfile(),
-          robustFetch("/tryouts")
-        ]);
+        [profile, list] = await Promise.all([getMyWrestlerProfile(), robustFetch("/tryouts")]);
         setCachedJson(cacheK, list);
       } catch (e) {
         const msg = String(e);
         if (msg.includes("API 401")) {
           clearNode(target);
-          target.appendChild(
-            el("div", { className: "card" }, [
-              el("p", { className: "muted", text: "Please sign in to view recommended tryouts." })
-            ])
-          );
+          target.appendChild(el("div", { className: "card" }, [el("p", { className: "muted", text: "Please sign in to view recommended tryouts." })]));
           return;
         }
         throw e;
@@ -242,33 +185,22 @@ async function loadRecommendedTryouts() {
     });
     if (!upcomingOpen.length) {
       renderEmptyTryouts(target);
-      sendMetric("dash_tryouts_empty", { dur: Math.round(performance.now() - start) });
       return;
     }
     const ranked = upcomingOpen.map((t) => ({ t, score: scoreTryout(t, profile) })).sort((a, b) => b.score - a.score).slice(0, 6).map((x) => x.t);
     clearNode(target);
     for (const t of ranked) target.appendChild(renderTryoutCard(t));
-    sendMetric("dash_tryouts_ok", {
-      dur: Math.round(performance.now() - start),
-      count: ranked.length
-    });
   } catch (e) {
     const msg = String(e || "");
     console.error("dash recommended tryouts error", { corr: PAGE_CORR_ID, msg });
     const transient = /client-timeout|5\d\d|NetworkError|fetch failed/i.test(msg);
-    renderEmptyTryouts(
-      target,
-      transient ? { title: "We’re having trouble loading tryouts", desc: "This might be a temporary issue. Please refresh in a moment." } : void 0
-    );
-    sendMetric("dash_tryouts_err", { msg });
+    const corsy = /CORS|TypeError: NetworkError|Failed to fetch|Access-Control-Allow-Origin/i.test(msg);
+    renderEmptyTryouts(target, corsy ? { title: "We can’t reach the API (CORS blocked)", desc: "If you’re the site owner, ensure the API returns the correct CORS headers and avoids 204 on GET." } : transient ? { title: "We’re having trouble loading tryouts", desc: "This might be a temporary issue. Please refresh in a moment." } : void 0);
   }
 }
 function renderEmptyApps(target) {
   clearNode(target);
-  const card = el("div", { className: "card" }, [
-    el("h3", { text: "No applications yet" }),
-    el("p", { className: "muted", text: "When you apply to a tryout, it will show up here." })
-  ]);
+  const card = el("div", { className: "card" }, [el("h3", { text: "No applications yet" }), el("p", { className: "muted", text: "When you apply to a tryout, it will show up here." })]);
   target.appendChild(card);
 }
 function renderAppCard(a) {
@@ -279,15 +211,9 @@ function renderAppCard(a) {
   const card = el("div", { className: "card" }, [
     el("div", { className: "badge", text: status }),
     el("div", { className: "mt-1" }, [el("strong", { text: String(org) })]),
-    el("div", { className: "mt-2" }, [
-      safeLink(reel, "Reel"),
-      document.createTextNode(" • "),
-      el("span", { className: "muted", text: new Date(when).toLocaleString() })
-    ])
+    el("div", { className: "mt-2" }, [safeLink(reel, "Reel"), document.createTextNode(" • "), el("span", { className: "muted", text: new Date(when).toLocaleString() })])
   ]);
-  if (a.notes) {
-    card.appendChild(el("div", { className: "mt-2", text: String(a.notes) }));
-  }
+  if (a.notes) card.appendChild(el("div", { className: "mt-2", text: String(a.notes) }));
   return card;
 }
 async function loadMyApplications() {
@@ -334,20 +260,15 @@ async function loadMyApplications() {
       return;
     }
     clearNode(target);
-    apps.sort(
-      (a, b) => new Date(b.timestamp || b.createdAt || b.created_at || 0) - new Date(a.timestamp || a.createdAt || a.created_at || 0)
-    ).slice(0, 6).forEach((a) => target.appendChild(renderAppCard(a)));
+    apps.sort((a, b) => new Date(b.timestamp || b.createdAt || b.created_at || 0) - new Date(a.timestamp || a.createdAt || a.created_at || 0)).slice(0, 6).forEach((a) => target.appendChild(renderAppCard(a)));
   } catch (e) {
     const msg = String(e || "");
     console.error("dash apps error", { corr: PAGE_CORR_ID, msg });
     renderEmptyApps(target);
-    sendMetric("dash_apps_err", { msg });
   }
 }
 async function init() {
-  const t0 = performance.now();
   await Promise.all([loadRecommendedTryouts(), loadMyApplications()]);
-  sendMetric("dash_loaded", { dur: Math.round(performance.now() - t0) });
 }
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init, { once: true });
