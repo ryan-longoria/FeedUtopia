@@ -1,1 +1,0 @@
-const e=(window.WU_MEDIA_BASE||"").replace(/\/+$/,"");function n(t,a="/assets/avatar-fallback.svg"){if(!t)return a;const r=String(t).trim();return/^https?:\/\//i.test(r)?r:e?`${e}/${r.replace(/^\/+/,"")}`:r.replace(/^\/+/,"")}export{n as m};

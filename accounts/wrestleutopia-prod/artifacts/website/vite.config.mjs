@@ -1,6 +1,8 @@
 import { defineConfig } from "vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
+import { createHash } from "node:crypto";
 import handlebars from "vite-plugin-handlebars";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 
@@ -16,6 +18,22 @@ function normalizePosix(p) {
     parts.push(seg);
   }
   return parts.join("/");
+}
+
+// Compute 8-char content hash for a file
+function fileHash(fullPath) {
+  const buf = fs.readFileSync(fullPath);
+  return createHash("sha256").update(buf).digest("hex").slice(0, 8);
+}
+
+// Build a hashed /js/ URL for a source under public/js/
+// Example: hashSrc("wrestler_public.js") -> "/js/wrestler_public-1a2b3c4d.js"
+function hashSrc(relFromJsRoot) {
+  const full = r(`public/js/${relFromJsRoot}`);
+  const ext = path.extname(full);                  // ".js"
+  const base = path.basename(full, ext);           // "wrestler_public"
+  const h = fileHash(full);                        // "1a2b3c4d"
+  return `/js/${base}-${h}${ext}`;
 }
 
 export default defineConfig({
@@ -41,77 +59,69 @@ export default defineConfig({
               "Profiles, tryouts, and applications in one place. Built for indie wrestling.",
             canonical: "https://www.wrestleutopia.com/",
             headExtra: `
-              <script type="module" src="/js/main.js"></script>
-              <script type="module" src="/js/home-redirect.js"></script>
-              <script type="module" src="/js/home-free-offer-hide.js"></script>
-              <script type="module" src="/js/home-tryouts-locked.js"></script>
-              <script type="module" src="/js/home-auth-cta.js"></script>
+              <script type="module" src="${hashSrc("main.js")}"></script>
+              <script type="module" src="${hashSrc("home-redirect.js")}"></script>
+              <script type="module" src="${hashSrc("home-free-offer-hide.js")}"></script>
+              <script type="module" src="${hashSrc("home-tryouts-locked.js")}"></script>
+              <script type="module" src="${hashSrc("home-auth-cta.js")}"></script>
             `
           },
 
           "profile.html": {
             title: "WrestleUtopia – My Profile",
             headExtra: `
-              <script type="module" src="/js/profile_me.js"></script>
-              <script type="module" src="/js/profile-preview-modal.js"></script>
+              <script type="module" src="${hashSrc("profile_me.js")}"></script>
+              <script type="module" src="${hashSrc("profile-preview-modal.js")}"></script>
             `
           },
 
           "talent.html": {
             headExtra: `
-              <script type="module" src="/js/talent-lock.js"></script>
-              <script type="module" src="/js/talent-modal.js"></script>
-              <script type="module" src="/js/home-auth-cta.js"></script>
+              <script type="module" src="${hashSrc("talent-lock.js")}"></script>
+              <script type="module" src="${hashSrc("talent-modal.js")}"></script>
+              <script type="module" src="${hashSrc("home-auth-cta.js")}"></script>
             `
           },
 
           "dashboard_wrestler.html": {
             title: "WrestleUtopia – Wrestler Dashboard",
             headExtra: `
-              <script type="module" src="/js/dashboard_wrestler.js"></script>
-              <script type="module" src="/js/wrestler-guard-and-progress.js"></script>
+              <script type="module" src="${hashSrc("dashboard_wrestler.js")}"></script>
+              <script type="module" src="${hashSrc("wrestler-guard-and-progress.js")}"></script>
             `
           },
 
           "dashboard_promoter.html": {
             title: "WrestleUtopia – Promoter Dashboard",
             headExtra: `
-              <script type="module" src="/js/dashboard_promoter_mytryouts.js"></script>
-              <script type="module" src="/js/dashboard_promoter_apps.js"></script>
-              <script type="module" src="/js/promoter-guard.js"></script>
-              <script type="module" src="/js/promoter-apps-modal.js"></script>
+              <script type="module" src="${hashSrc("dashboard_promoter_mytryouts.js")}"></script>
+              <script type="module" src="${hashSrc("dashboard_promoter_apps.js")}"></script>
+              <script type="module" src="${hashSrc("promoter-guard.js")}"></script>
+              <script type="module" src="${hashSrc("promoter-apps-modal.js")}"></script>
             `
           },
 
           "w/index.html": {
             title: "WrestleUtopia – Wrestler",
-            headExtra: `<script type="module" src="/js/wrestler_public.js"></script>`
+            headExtra: `<script type="module" src="${hashSrc("wrestler_public.js")}"></script>`
           },
 
           "p/index.html": {
             title: "Promotion – WrestleUtopia",
-            headExtra: `<script type="module" src="/js/promo_public.js"></script>`
+            headExtra: `<script type="module" src="${hashSrc("promo_public.js")}"></script>`
           },
 
           "promoter/index.html": {
             title: "WrestleUtopia – My Promotion",
-            headExtra: `<script type="module" src="/js/promo_me.js"></script>`
+            headExtra: `<script type="module" src="${hashSrc("promo_me.js")}"></script>`
           }
         };
 
-        // ✅ Resolve the OVERRIDE OBJECT, not a string key
         const pageOverride =
           overrides[relClean] ??
           overrides[last2] ??
           overrides[file] ??
           null;
-
-        // Debug
-        console.log("\n[handlebars-debug]");
-        console.log("pagePath: ", pagePath);
-        console.log("relClean: ", relClean, " last2:", last2, " file:", file);
-        console.log("Resolved override exists:", Boolean(pageOverride));
-        console.log("--------------------------");
 
         const base = {
           title: "WrestleUtopia – Indie Wrestling Talent & Tryouts",
@@ -119,21 +129,33 @@ export default defineConfig({
           ogTitle: "WrestleUtopia",
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
-          headExtra: `<script type="module" src="/js/core.js"></script>`
+          // core as hashed raw copy
+          headExtra: `<script type="module" src="${hashSrc("core.js")}"></script>`
         };
 
-        // ⬇️ Spread the object directly
         return { ...base, ...(pageOverride ?? {}) };
       }
     }),
 
+    // Copy only what you need at runtime:
+    // - partials/ (for your include.js loader)
+    // - manifest.webmanifest
+    // - public/js/**/* (hashed filenames, preserving folders)
     viteStaticCopy({
       targets: [
         { src: r("public/partials"), dest: "" },
         { src: r("manifest.webmanifest"), dest: "" },
-        { src: r("public/assets/*"), dest: "assets" },
-        { src: r("public/styles/*"), dest: "styles" },
-        { src: r("public/js/**/*"), dest: "js" }
+        {
+          src: r("public/js/**/*"),
+          dest: "js",
+          flatten: false,
+          rename: (fileName, fileExt, fullPath) => {
+            const base = path.basename(fullPath, fileExt ? `.${fileExt}` : "");
+            const extWithDot = fileExt ? `.${fileExt}` : "";
+            const h = fileHash(fullPath);
+            return `${base}-${h}${extWithDot}`;
+          }
+        }
       ]
     })
   ],
@@ -141,6 +163,7 @@ export default defineConfig({
   build: {
     outDir: r("dist"),
     emptyOutDir: true,
+
     rollupOptions: {
       input: {
         index: r("public/index.html"),
@@ -155,11 +178,32 @@ export default defineConfig({
         p_index: r("public/p/index.html"),
         promoter_index: r("public/promoter/index.html")
       },
+
+      // ✅ Treat absolute /js/... URLs as external so Rollup/Vite doesn't try to resolve them
+      external: (id) => id.startsWith("/js/"),
+
       output: {
+        // Leave Vite’s own outputs alone; your copied /js/* files are independent
         entryFileNames: "[name].js",
         chunkFileNames: "chunks/[name]-[hash].js",
-        assetFileNames: "assets/[name]-[hash][extname]"
+        assetFileNames: (assetInfo) => {
+          const name = assetInfo.name || "";
+          const ext = name.split(".").pop()?.toLowerCase();
+
+          if (ext === "css") return "styles/[name]-[hash][extname]";
+
+          const img = new Set(["png","jpg","jpeg","gif","webp","avif","svg"]);
+          if (img.has(ext)) return "assets/[name]-[hash][extname]";
+
+          const fonts = new Set(["woff","woff2","ttf","otf","eot"]);
+          if (fonts.has(ext)) return "assets/fonts/[name]-[hash][extname]";
+
+          const media = new Set(["mp4","webm","mp3","wav","ogg"]);
+          if (media.has(ext)) return "assets/media/[name]-[hash][extname]";
+
+          return "assets/[name]-[hash][extname]";
+        }
+      }
       }
     }
-  }
 });
