@@ -89,14 +89,33 @@ export default defineConfig({
 
     // copy static folders verbatim
     viteStaticCopy({
+      // ✅ copy before Rollup writes HTML so built HTML wins
+      hook: 'buildStart',
       targets: [
         ...(fs.existsSync(r("public/js"))       ? [{ src: r("public/js/**/*"),       dest: "js" }]       : []),
         ...(fs.existsSync(r("public/styles"))   ? [{ src: r("public/styles/**/*"),   dest: "styles" }]   : []),
         ...(fs.existsSync(r("public/assets"))   ? [{ src: r("public/assets/**/*"),   dest: "assets" }]   : []),
         ...(fs.existsSync(r("public/partials")) ? [{ src: r("public/partials/**/*"), dest: "partials" }] : []),
-        ...(fs.existsSync(r("public/w"))        ? [{ src: r("public/w/**/*"),        dest: "w" }]        : []),
-        ...(fs.existsSync(r("public/p"))        ? [{ src: r("public/p/**/*"),        dest: "p" }]        : []),
-        ...(fs.existsSync(r("public/promoter")) ? [{ src: r("public/promoter/**/*"), dest: "promoter" }] : []),
+
+        // ✅ exclude HTML so processed files aren't overwritten
+        ...(fs.existsSync(r("public/w")) ? [{
+          src: r("public/w/**/*"),
+          dest: "w",
+          globOptions: { ignore: ["**/*.html"] }
+        }] : []),
+
+        ...(fs.existsSync(r("public/p")) ? [{
+          src: r("public/p/**/*"),
+          dest: "p",
+          globOptions: { ignore: ["**/*.html"] }
+        }] : []),
+
+        ...(fs.existsSync(r("public/promoter")) ? [{
+          src: r("public/promoter/**/*"),
+          dest: "promoter",
+          globOptions: { ignore: ["**/*.html"] }
+        }] : []),
+
         ...(fs.existsSync(r("public/manifest.webmanifest"))
           ? [{ src: r("public/manifest.webmanifest"), dest: "" }]
           : [])
