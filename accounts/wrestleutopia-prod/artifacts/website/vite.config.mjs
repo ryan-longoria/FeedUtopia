@@ -112,11 +112,20 @@ export default defineConfig({
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
           headExtra: `
+              <script type="module" src="/js/config.js"></script>
               <script type="module" src="/js/core.js"></script>
           `
         };
 
-        return { ...base, ...(pageOverride ?? {}) };
+        const merged = pageOverride
+          ? {
+              ...base,
+              ...pageOverride,
+              headExtra: `${base.headExtra || ""}\n${pageOverride.headExtra || ""}`
+            }
+          : base;
+
+        return merged;
       }
     }),
 
