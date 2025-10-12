@@ -14,15 +14,7 @@ export default defineConfig({
       partialDirectory: r("public/partials"),
       context(pagePath) {
         const rel = path.relative(r("public"), pagePath).replace(/\\/g, "/");
-
-        const base = {
-          title: "WrestleUtopia – Indie Wrestling Talent & Tryouts",
-          description: "Profiles • Tryouts • Bookings for indie wrestling",
-          ogTitle: "WrestleUtopia",
-          ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
-          ogImage: "/assets/logo.svg",
-          headExtra: `<script type="module" src="/js/core.js"></script>`
-        };
+        const file = path.basename(pagePath);
 
         const overrides = {
           "index.html": {
@@ -88,13 +80,27 @@ export default defineConfig({
             headExtra: `<script type="module" src="/js/promo_me.js"></script>`
           }
         };
+        
+        const key =
+          overrides[rel] ??
+          overrides[rel.replace(/^public\//, "")] ??
+          overrides[file] ??
+          null;
 
-        const o = overrides[rel] || {};
-        return {
-          ...base,
-          ...o,
-          headExtra: [base.headExtra, o.headExtra].filter(Boolean).join("\n")
+        const base = {
+          title: "WrestleUtopia – Indie Wrestling Talent & Tryouts",
+          description: "Profiles • Tryouts • Bookings for indie wrestling",
+          ogTitle: "WrestleUtopia",
+          ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
+          ogImage: "/assets/logo.svg",
+          headExtra: `<script type="module" src="/js/core.js"></script>`
         };
+
+        if (!key) {
+          console.warn(`[vite-plugin-handlebars] No override for: ${rel} (${file})`);
+        }
+
+        return { ...base, ...(key ? overrides[key] : {}) };
       }
     }),
 
