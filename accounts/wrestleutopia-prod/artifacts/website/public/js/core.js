@@ -1,4 +1,4 @@
-// public/js/core.js — single entry for all pages
+// public/js/core.js — single entry for all pages (Vite-friendly)
 
 // 1) Define globals first (WU_API, WU_MEDIA_BASE)
 import "/js/config.js";
@@ -11,7 +11,15 @@ import "/js/roles.js";
 import "/js/include.js";       // handles data-include="/partials/*.html"
 import "/js/nav-myprofile.js";
 
-// 3) Page router: use <meta name="wu-page" content="...">
+/**
+ * KEY CHANGE:
+ * Tell Vite about every page module that might be loaded at runtime so it
+ * actually emits them into dist/. We keep it lazy (code-split) by default.
+ * Adjust the pattern (e.g. to '/js/*.js') if you only keep top-level files.
+ */
+const MODULES = import.meta.glob('/js/**/*.js'); // { [path]: () => Promise<Module> }
+
+/** Determine the current page id (meta preferred, path fallback). */
 function getPageId() {
   const meta = document.querySelector('meta[name="wu-page"]');
   if (meta?.content) return meta.content.trim();
@@ -26,10 +34,11 @@ function getPageId() {
   return (file || "").replace(/\.html$/i, "");
 }
 
-// 4) Map page ids -> page module(s)
-// NOTE: list ONLY files that actually exist in public/js.
-// If you’re unsure a file exists, it’s safe to keep it here; we’ll ignore
-// missing ones at runtime using @vite-ignore + try/catch.
+/**
+ * Declarative routes: page id -> array of JS module paths.
+ * IMPORTANT: Paths here must match the keys Vite generates in MODULES.
+ * e.g. '/js/dashboard_wrestler.js' (leading slash, same as in import.meta.glob).
+ */
 const ROUTES = {
   index: [
     "/js/main.js",
@@ -38,6 +47,7 @@ const ROUTES = {
     "/js/home-tryouts-locked.js",
     "/js/home-auth-cta.js",
   ],
+
   privacy: [],
   terms: [],
   tryouts: [],
@@ -70,26 +80,30 @@ const ROUTES = {
   promoter_index: ["/js/promo_me.js"],
 };
 
-// 5) Loader that tolerates missing files
+/** Load an array of module paths using the MODULES manifest Vite created. */
 async function loadModules(paths = []) {
   for (const p of paths) {
+    const loader = MODULES[p]; // this exists only if the path matched the glob
+    if (!loader) {
+      // Helps catch typos or mismatches between ROUTES and the glob pattern
+      console.warn("[core] no module registered for", p, "(check path/case)");
+      continue;
+    }
     try {
-      // @vite-ignore prevents build-time resolution so optional files don’t break the build
-      await import(/* @vite-ignore */ p);
+      await loader();
     } catch (err) {
-      // Only log if it 404’d or wasn’t found; other errors you might want to surface
-      console.debug("[core] optional module not loaded:", p, err?.message || err);
+      console.error("[core] failed to load module:", p, err);
     }
   }
 }
 
-// 6) Kick off the page
-const page = getPageId();
-const toLoad = ROUTES[page];
-if (toLoad) {
-  loadModules(toLoad).catch((e) =>
-    console.error("[core] page init failed:", page, e)
-  );
-} else {
-  console.debug("[core] no route for page:", page);
-}
+/** Boot the current page. */
+(async () => {
+  const page = getPageId();
+  const toLoad = ROUTES[page];
+  if (!toLoad) {
+    console.debug("[core] no route for page:", page);
+    return;
+  }
+  await loadModules(toLoad);
+})();
