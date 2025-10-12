@@ -1,5 +1,5 @@
 // public/js/main.js
-import { apiFetch } from "/js/api.js";
+import { apiFetch, asItems } from "/js/api.js";
 
 /* ---------- auth helpers ---------- */
 async function userGroups() {
@@ -33,9 +33,9 @@ async function renderHomeTryouts(groups) {
   if (!isWrestler) return;
 
   try {
-    let list = [];
+    let listObj;
     try {
-      list = await apiFetch("/tryouts");
+      listObj = await apiFetch("/tryouts");
     } catch (e) {
       if (String(e).includes("API 401")) {
         tryoutList.innerHTML =
@@ -45,12 +45,15 @@ async function renderHomeTryouts(groups) {
       throw e;
     }
 
-    const top = (list || []).slice(0, 6);
+    const list = asItems(listObj);
+    const top = list.slice(0, 6);
+
     tryoutList.innerHTML = "";
     if (top.length === 0) {
       tryoutList.innerHTML = '<p class="muted">No open tryouts yet.</p>';
       return;
     }
+
     top.forEach((t) => {
       const id = t.tryoutId || t.id || "";
       const org = t.orgName || t.org || "";
@@ -90,13 +93,16 @@ async function renderHomeTalentSpotlight(groups) {
   }
 
   try {
-    const list = await apiFetch("/profiles/wrestlers");
-    const top = (list || []).slice(0, 8);
+    const listObj = await apiFetch("/profiles/wrestlers");
+    const list = asItems(listObj);
+    const top = list.slice(0, 8);
+
     spot.innerHTML = "";
     if (top.length === 0) {
       spot.innerHTML = '<p class="muted">No talent to show yet.</p>';
       return;
     }
+
     top.forEach((p) => {
       const ring = p.ring || p.ringName || p.name || "Wrestler";
       const name = p.name || "";
@@ -134,9 +140,9 @@ async function renderTryoutsPage() {
   if (!grid) return;
 
   try {
-    let list = [];
+    let listObj;
     try {
-      list = await apiFetch("/tryouts");
+      listObj = await apiFetch("/tryouts");
     } catch (e) {
       if (String(e).includes("API 401")) {
         grid.innerHTML = '<p class="muted">Sign in to see current tryouts.</p>';
@@ -145,8 +151,10 @@ async function renderTryoutsPage() {
       throw e;
     }
 
+    const list = asItems(listObj);
+
     grid.innerHTML = "";
-    if (!Array.isArray(list) || list.length === 0) {
+    if (!list.length) {
       grid.innerHTML = '<p class="muted">No open tryouts yet.</p>';
       return;
     }
@@ -176,7 +184,7 @@ async function renderTryoutsPage() {
     const modal = document.querySelector("#apply-modal");
     const form = document.querySelector("#apply-form");
 
-    grid.addEventListener("click", async (e) => {
+    grid.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-apply]");
       if (!btn) return;
       const id = btn.getAttribute("data-apply");
@@ -215,23 +223,19 @@ async function renderTryoutsPage() {
   }
 }
 
-/* ---------- Boot (works even if imported after DOMContentLoaded) ---------- */
+/* ---------- Boot (runs even if imported after DOM is ready) ---------- */
 async function start() {
   const groups = await userGroups();
-  // Home sections (no-ops if elements aren’t present)
   await Promise.all([renderHomeTryouts(groups), renderHomeTalentSpotlight(groups)]);
-  // Tryouts page list (no-op if #tryout-list not present)
   await renderTryoutsPage();
 }
 
-// Run now or on DOMContentLoaded, whichever is applicable
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", start, { once: true });
 } else {
   start();
 }
 
-// Still re-run on auth changes (e.g., after sign-in)
 window.addEventListener("auth:changed", start);
 
 // debug hook
