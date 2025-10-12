@@ -4,22 +4,11 @@
   const FETCH_TIMEOUT_MS = 5000;
   const MAX_RETRIES = 2;
 
-  const perf = {
-    start(label) { performance.mark(label + ":start"); },
-    end(label) {
-      performance.mark(label + ":end");
-      performance.measure(label, label + ":start", label + ":end");
-      const entries = performance.getEntriesByName(label);
-      const m = entries[entries.length - 1];
-      console.info(`[include.js] ${label} ${m?.duration?.toFixed?.(1) ?? "?"}ms`);
-    },
-  };
-
   function ensureGateStyle() {
     if (document.getElementById("gate-style")) return;
     const s = document.createElement("style");
     s.id = "gate-style";
-    s.textContent = ".gated,[data-gated='true']{display:none!important}";
+    s.textContent = "[data-auth='in'],[data-requires],[data-myprofile],.gated,[data-gated='true']{display:none!important}";
     document.head.appendChild(s);
   }
 
@@ -45,7 +34,7 @@
             cache: "no-cache",
             credentials: "same-origin",
             referrerPolicy: "same-origin",
-            signal: controller.signal,
+            signal: controller.signal
           }),
           FETCH_TIMEOUT_MS,
           controller
@@ -65,31 +54,20 @@
     const tpl = document.createElement("template");
     tpl.innerHTML = html;
     const walker = document.createTreeWalker(tpl.content, NodeFilter.SHOW_ELEMENT, null);
-    const SAFE_URL_ATTRS = new Set(["href", "src"]);
-    const SAFE_ATTRS = new Set([
-      "id","class","role","alt","title","rel","target","type",
-      "for","value","name","placeholder","width","height"
-    ]);
+    const SAFE_URL_ATTRS = new Set(["href","src"]);
+    const SAFE_ATTRS = new Set(["id","class","role","alt","title","rel","target","type","for","value","name","placeholder","width","height"]);
     for (let node = walker.currentNode; node; node = walker.nextNode()) {
       if (!(node instanceof Element)) continue;
-      if (node.tagName === "SCRIPT") {
-        node.remove();
-        continue;
-      }
+      if (node.tagName === "SCRIPT") { node.remove(); continue; }
       for (const attr of Array.from(node.attributes)) {
         const n = attr.name;
-        if (n.startsWith("on")) {
-          node.removeAttribute(n);
-          continue;
-        }
+        if (n.startsWith("on")) { node.removeAttribute(n); continue; }
         if (n.startsWith("aria-")) continue;
         if (SAFE_URL_ATTRS.has(n)) {
           try {
             const u = new URL(attr.value, location.origin);
             if (u.origin !== location.origin) node.removeAttribute(n);
-          } catch {
-            node.removeAttribute(n);
-          }
+          } catch { node.removeAttribute(n); }
           continue;
         }
         if (!SAFE_ATTRS.has(n)) node.removeAttribute(n);
@@ -100,63 +78,45 @@
 
   function gateFragment(root) {
     const scope = root instanceof DocumentFragment ? root : document;
-    scope.querySelectorAll('[data-auth="auth"], [data-role], [data-requires], [data-myprofile]').forEach(el => {
+    scope.querySelectorAll("[data-auth='in'],[data-requires],[data-myprofile]").forEach(el => {
       el.classList.add("gated");
-      el.setAttribute("data-gated", "true");
+      el.setAttribute("data-gated","true");
       el.hidden = true;
-      el.setAttribute("aria-hidden", "true");
+      el.setAttribute("aria-hidden","true");
     });
-    scope.querySelectorAll('[data-auth="anon"]').forEach(el => {
+    scope.querySelectorAll("[data-auth='out']").forEach(el => {
       el.classList.remove("gated");
       el.removeAttribute("data-gated");
       el.hidden = false;
-      el.setAttribute("aria-hidden", "false");
+      el.setAttribute("aria-hidden","false");
     });
   }
 
   async function injectPartialsRecursive(root = document) {
-    perf.start("partials-total");
     let pass = 0;
-    const visited = new Set();
-    while (pass < MAX_PASSES) {
+    while (pass < 10) {
       const nodes = root.querySelectorAll("[data-include]");
       if (nodes.length === 0) break;
       pass++;
-      await Promise.all(
-        Array.from(nodes).map(async (el) => {
-          const raw = el.getAttribute("data-include");
-          const signature = `${pass}:${raw}:${Math.random().toString(36).slice(2)}`;
-          if (visited.has(signature)) return;
-          visited.add(signature);
-          let url;
-          try {
-            url = sameOriginUrl(raw);
-          } catch (e) {
-            console.error("[include.js] blocked include", raw, e.message);
-            el.replaceWith(fallbackBox(`Include blocked: ${raw}`));
-            return;
-          }
-          try {
-            const html = await fetchWithRetry(url);
-            const frag = sanitizeHTMLToFragment(html);
-            gateFragment(frag);
-            el.replaceWith(frag);
-          } catch (e) {
-            console.error("[include.js] include failed", { url, error: String(e) });
-            el.replaceWith(fallbackBox(`Failed to load: ${url}`));
-          }
-        })
-      );
+      await Promise.all(Array.from(nodes).map(async (el) => {
+        const raw = el.getAttribute("data-include");
+        let url;
+        try { url = sameOriginUrl(raw); } catch (e) { el.replaceWith(fallbackBox(`Include blocked: ${raw}`)); return; }
+        try {
+          const html = await fetchWithRetry(url);
+          const frag = sanitizeHTMLToFragment(html);
+          gateFragment(frag);
+          el.replaceWith(frag);
+        } catch (e) {
+          el.replaceWith(fallbackBox(`Failed to load: ${url}`));
+        }
+      }));
     }
-    if (pass === MAX_PASSES) {
-      console.warn("[include.js] stopped after max passes, possible include loop");
-    }
-    perf.end("partials-total");
   }
 
   function fallbackBox(text) {
     const d = document.createElement("div");
-    d.setAttribute("role", "status");
+    d.setAttribute("role","status");
     d.className = "include-fallback muted";
     d.textContent = text;
     return d;
@@ -171,21 +131,22 @@
     try {
       const { applyRoleGatedUI } = await import("/js/roles.js");
       await applyRoleGatedUI();
-    } catch (e) {
-      console.error("[include.js] roles.js load/apply failed", e);
-    }
+    } catch {}
+    try {
+      if (document.getElementById("auth-modal")) {
+        await import("/js/auth-modal.js");
+      }
+    } catch {}
     (() => {
       const here = new URL(location.href);
       document.querySelectorAll(".wu-links a[href]").forEach((a) => {
         const target = new URL(a.getAttribute("href"), location.origin);
-        if (normalizePath(target.pathname) === normalizePath(here.pathname)) {
+        const np = (p) => p.endsWith("/") ? p + "index.html" : p;
+        if (np(target.pathname) === np(here.pathname)) {
           a.classList.add("active");
-          a.setAttribute("aria-current", "page");
+          a.setAttribute("aria-current","page");
         }
       });
-      function normalizePath(p) {
-        return p.endsWith("/") ? p + "index.html" : p;
-      }
     })();
     const btn = document.getElementById("nav-toggle");
     const links = document.getElementById("nav-links");
@@ -198,7 +159,7 @@
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && links.classList.contains("open")) {
           links.classList.remove("open");
-          btn.setAttribute("aria-expanded", "false");
+          btn.setAttribute("aria-expanded","false");
           btn.focus();
         }
       });
