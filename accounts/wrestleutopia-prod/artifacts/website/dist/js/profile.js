@@ -1,5 +1,5 @@
-import { u as uploadToS3, a as apiFetch, g as getAuthState, b as isWrestler, c as uploadAvatar } from "../assets/core-DtKmO-aM.js";
-import { m as mediaUrl } from "../assets/media-BETuqxV2.js";
+import { u as uploadToS3, a as apiFetch, g as getAuthState, b as isWrestler, c as uploadAvatar } from "./core.js";
+import { m as mediaUrl } from "./media.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";

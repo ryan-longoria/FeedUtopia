@@ -8,8 +8,8 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const r = (p) => path.resolve(__dirname, p);
 
-// POSIX-normalize (collapse ".." / ".")
-const norm = (p) =>
+/* POSIX-normalise a path string (collapse "..", ".") */
+const posix = (p) =>
   p
     .replace(/\\/g, "/")
     .split("/")
@@ -24,17 +24,17 @@ const norm = (p) =>
 export default defineConfig({
   root: r("public"),
 
-  /* ───────────────────────── plugins ───────────────────────── */
+  /* ────────────── plugins ────────────── */
   plugins: [
     handlebars({
       partialDirectory: r("public/partials"),
 
       context(pagePath) {
-        const rel   = norm(pagePath.split(/\/public\//i).pop() || "");
+        const rel   = posix(pagePath.split(/\/public\//i).pop() || "");
         const last2 = rel.split("/").slice(-2).join("/");
         const file  = rel.split("/").pop();
 
-        /* ───────── page-specific overrides ───────── */
+        /* per-page overrides (unchanged) */
         const overrides = {
           "index.html": {
             title: "WrestleUtopia – Get booked. Find verified talent.",
@@ -100,11 +100,10 @@ export default defineConfig({
           }
         };
 
-        /* decide which override applies */
         const pageOverride =
           overrides[rel] ?? overrides[last2] ?? overrides[file] ?? null;
 
-        /* ───────── base applied to every page ───────── */
+        /* base injected into EVERY <head> */
         const base = {
           title: "WrestleUtopia – Indie Wrestling Talent & Tryouts",
           description: "Profiles • Tryouts • Bookings for indie wrestling",
@@ -112,12 +111,12 @@ export default defineConfig({
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
           headExtra: `
-            <!-- defines window.WU_API before page bundle executes -->
+            <!-- Set window.WU_API before page bundle executes -->
             <script type="module" src="/js/config.js"></script>
           `
         };
 
-        /* merge, appending headExtra */
+        /* merge, APPENDING headExtra */
         return pageOverride
           ? {
               ...base,
@@ -128,7 +127,7 @@ export default defineConfig({
       }
     }),
 
-    /* ───────── copy static folders verbatim ───────── */
+    /* copy static folders verbatim */
     viteStaticCopy({
       targets: [
         ...(fs.existsSync(r("public/js"))       ? [{ src: r("public/js/**/*"),       dest: "js" }]       : []),
@@ -145,7 +144,7 @@ export default defineConfig({
     })
   ],
 
-  /* ───────────────────────── build ───────────────────────── */
+  /* ────────────── build ────────────── */
   build: {
     outDir: r("dist"),
     emptyOutDir: true,
@@ -155,7 +154,7 @@ export default defineConfig({
     minify: false,
 
     rollupOptions: {
-      /* each HTML file = entry (one bundle per page) */
+      /* every HTML file is its own entry (one bundle per page) */
       input: {
         index:               r("public/index.html"),
         privacy:             r("public/privacy.html"),
@@ -171,20 +170,23 @@ export default defineConfig({
       },
 
       output: {
-        /* disable shared chunks */
+        /* Disable shared-chunk hashing */
         manualChunks: undefined,
 
+        /* Place *all* JS — entries and chunks — in /js with original names */
         entryFileNames: "js/[name].js",
+        chunkFileNames: "js/[name].js",
 
+        /* Route non-JS assets by extension */
         assetFileNames(info) {
-          const n = (info.name || "").toLowerCase();
-          if (n.endsWith(".css")) return "styles/[name][extname]";
-          const img = [".png",".jpg",".jpeg",".gif",".webp",".avif",".svg"];
-          if (img.some(e => n.endsWith(e))) return "assets/[name][extname]";
-          const fts = [".woff",".woff2",".ttf",".otf",".eot"];
-          if (fts.some(e => n.endsWith(e))) return "assets/fonts/[name][extname]";
-          const med = [".mp4",".webm",".mp3",".wav",".ogg"];
-          if (med.some(e => n.endsWith(e))) return "assets/media/[name][extname]";
+          const ext = path.extname(info.name || "").toLowerCase();
+          if (ext === ".css")                       return "styles/[name][extname]";
+          if ([".png",".jpg",".jpeg",".gif",".webp",".avif",".svg"].includes(ext))
+                                                    return "assets/[name][extname]";
+          if ([".woff",".woff2",".ttf",".otf",".eot"].includes(ext))
+                                                    return "assets/fonts/[name][extname]";
+          if ([".mp4",".webm",".mp3",".wav",".ogg"].includes(ext))
+                                                    return "assets/media/[name][extname]";
           return "assets/[name][extname]";
         }
       }

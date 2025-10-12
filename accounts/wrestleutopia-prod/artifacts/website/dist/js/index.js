@@ -1,6 +1,6 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/core-DtKmO-aM.js","styles/core.css"])))=>i.map(i=>d[i]);
-import { _ as __vitePreload, a as apiFetch, g as getAuthState, i as isPromoter, b as isWrestler } from "../assets/core-DtKmO-aM.js";
-import "../assets/home-auth-cta-CKuosgkk.js";
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["js/core.js","styles/core.css"])))=>i.map(i=>d[i]);
+import { _ as __vitePreload, a as apiFetch, g as getAuthState, i as isPromoter, b as isWrestler } from "./core.js";
+import "./home-auth-cta.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";
@@ -8,7 +8,7 @@ async function userGroups() {
   var _a, _b;
   try {
     const { fetchAuthSession } = await __vitePreload(async () => {
-      const { fetchAuthSession: fetchAuthSession2 } = await import("../assets/core-DtKmO-aM.js").then((n) => n.e);
+      const { fetchAuthSession: fetchAuthSession2 } = await import("./core.js").then((n) => n.e);
       return { fetchAuthSession: fetchAuthSession2 };
     }, true ? __vite__mapDeps([0,1]) : void 0);
     const s = await fetchAuthSession();

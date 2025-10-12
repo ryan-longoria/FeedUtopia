@@ -1,5 +1,5 @@
-import { a as apiFetch } from "../assets/core-DtKmO-aM.js";
-import { m as mediaUrl } from "../assets/media-BETuqxV2.js";
+import { a as apiFetch } from "./core.js";
+import { m as mediaUrl } from "./media.js";
 import "https://esm.sh/aws-amplify@6";
 import "https://esm.sh/aws-amplify@6/auth";
 import "https://esm.sh/aws-amplify@6/utils";
