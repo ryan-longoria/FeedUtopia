@@ -131,7 +131,7 @@ async function renderHomeTalentSpotlight(groups) {
 /* ---------- TRYOUTS PAGE: full list ---------- */
 async function renderTryoutsPage() {
   const grid = document.querySelector("#tryout-list");
-  if (!grid) return; // not on this page
+  if (!grid) return;
 
   try {
     let list = [];
@@ -139,8 +139,7 @@ async function renderTryoutsPage() {
       list = await apiFetch("/tryouts");
     } catch (e) {
       if (String(e).includes("API 401")) {
-        grid.innerHTML =
-          '<p class="muted">Sign in to see current tryouts.</p>';
+        grid.innerHTML = '<p class="muted">Sign in to see current tryouts.</p>';
         return;
       }
       throw e;
@@ -174,9 +173,9 @@ async function renderTryoutsPage() {
       grid.appendChild(el);
     });
 
-    // (Optional) wire up the Apply modal if your HTML includes it
     const modal = document.querySelector("#apply-modal");
     const form = document.querySelector("#apply-form");
+
     grid.addEventListener("click", async (e) => {
       const btn = e.target.closest("[data-apply]");
       if (!btn) return;
@@ -216,21 +215,25 @@ async function renderTryoutsPage() {
   }
 }
 
-/* ---------- Entrypoints ---------- */
-async function renderHome() {
-  highlightNav();
+/* ---------- Boot (works even if imported after DOMContentLoaded) ---------- */
+async function start() {
   const groups = await userGroups();
+  // Home sections (no-ops if elements aren’t present)
   await Promise.all([renderHomeTryouts(groups), renderHomeTalentSpotlight(groups)]);
+  // Tryouts page list (no-op if #tryout-list not present)
+  await renderTryoutsPage();
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  await Promise.all([renderHome(), renderTryoutsPage()]);
-});
+// Run now or on DOMContentLoaded, whichever is applicable
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", start, { once: true });
+} else {
+  start();
+}
 
-window.addEventListener("auth:changed", async () => {
-  await Promise.all([renderHome(), renderTryoutsPage()]);
-});
+// Still re-run on auth changes (e.g., after sign-in)
+window.addEventListener("auth:changed", start);
 
-// debug hook you were using
+// debug hook
 window.__mainLoaded = true;
 console.debug("[main] loaded");

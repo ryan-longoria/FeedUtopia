@@ -154,18 +154,9 @@ const ROUTES = {
   ],
   privacy: [],
   terms: [],
-  tryouts: [
-    "/js/main.js"
-  ],
-  profile: [
-    "/js/profile_me.js",
-    "/js/profile-preview-modal.js"
-  ],
-  talent: [
-    "/js/talent-lock.js",
-    "/js/talent-modal.js",
-    "/js/home-auth-cta.js"
-  ],
+  tryouts: ["/js/main.js"],
+  profile: ["/js/profile_me.js", "/js/profile-preview-modal.js"],
+  talent: ["/js/talent-lock.js", "/js/talent-modal.js", "/js/home-auth-cta.js"],
   dashboard_wrestler: [
     "/js/dashboard_wrestler.js",
     "/js/wrestler-guard-and-progress.js"
@@ -184,7 +175,8 @@ async function loadModules(paths = []) {
   for (const p of paths) {
     const loader = MODULES[p];
     if (!loader) {
-      if (WU_DEBUG) console.warn("[core] no module registered for", p, "(check path/case)");
+      if (WU_DEBUG)
+        console.warn("[core] no module registered for", p, "(check path/case)");
       continue;
     }
     try {
