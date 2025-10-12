@@ -1,35 +1,12 @@
-// forms.js
 import { apiFetch, asItems } from "/js/api.js";
 import { getAuthState, isPromoter, isWrestler } from "/js/roles.js";
-
-// Read groups directly off the ID token (used in a couple places)
-async function userGroups() {
-  try {
-    const { fetchAuthSession } = await import("/js/auth-bridge.js");
-    const s = await fetchAuthSession();
-    const id = s?.tokens?.idToken?.toString();
-    if (!id) return [];
-    const payload = JSON.parse(atob(id.split(".")[1]));
-    const g = payload["cognito:groups"];
-    return Array.isArray(g) ? g : typeof g === "string" && g ? [g] : [];
-  } catch {
-    return [];
-  }
-}
-
-const isPromoterGroup = (groups) => groups.includes("Promoters");
-const isWrestlerGroup = (groups) => groups.includes("Wrestlers");
 
 function serializeForm(form) {
   const data = new FormData(form);
   const obj = {};
   for (const [k, v] of data.entries()) {
-    if (obj[k]) {
-      if (Array.isArray(obj[k])) obj[k].push(v);
-      else obj[k] = [obj[k], v];
-    } else {
-      obj[k] = v;
-    }
+    if (obj[k]) obj[k] = Array.isArray(obj[k]) ? [...obj[k], v] : [obj[k], v];
+    else obj[k] = v;
   }
   return obj;
 }
@@ -37,8 +14,7 @@ function serializeForm(form) {
 function toast(text, type = "success") {
   const t = document.querySelector("#toast");
   if (!t) {
-    if (type === "error") console.error(text);
-    else console.log(text);
+    (type === "error" ? console.error : console.log)(text);
     return;
   }
   t.textContent = text;
@@ -46,122 +22,336 @@ function toast(text, type = "success") {
   t.style.display = "block";
   setTimeout(() => (t.style.display = "none"), 2600);
 }
-window.toast = toast;
+
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null) continue;
+    if (k === "text") node.textContent = v;
+    else if (k === "class") node.className = v;
+    else if (k === "dataset" && v && typeof v === "object") {
+      Object.entries(v).forEach(([dk, dv]) => (node.dataset[dk] = dv));
+    } else if (k === "props" && v && typeof v === "object") {
+      Object.assign(node, v);
+    } else {
+      node.setAttribute(k, String(v));
+    }
+  }
+  for (const c of [].concat(children)) {
+    if (c instanceof Node) node.appendChild(c);
+    else if (typeof c === "string") node.appendChild(document.createTextNode(c));
+  }
+  return node;
+}
+
+function toNum(v, { min = 0, max = 999999 } = {}) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return min;
+  return Math.min(Math.max(n, min), max);
+}
+function clean(s, max = 200) {
+  return (s ?? "").toString().trim().slice(0, max);
+}
+function cleanLong(s, max = 2000) {
+  return (s ?? "").toString().trim().slice(0, max);
+}
+
+function isSafeHttpUrl(u) {
+  try {
+    const url = new URL(u, location.origin);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedImageUrl(u) {
+  try {
+    const url = new URL(u, location.origin);
+    const allowed = [location.origin];
+    if (window.WU_MEDIA_BASE) {
+      const base = new URL(window.WU_MEDIA_BASE, location.origin);
+      allowed.push(base.origin);
+    }
+    return (url.protocol === "http:" || url.protocol === "https:") &&
+           allowed.includes(url.origin);
+  } catch {
+    return false;
+  }
+}
+
+function debounce(fn, ms = 350) {
+  let t;
+  return (...a) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...a), ms);
+  };
+}
+
+function parseJwtPayload(b64url) {
+  const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+  const json = decodeURIComponent(
+    atob(b64)
+      .split("")
+      .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+      .join("")
+  );
+  return JSON.parse(json);
+}
+
+async function userGroups() {
+  try {
+    const { fetchAuthSession } = await import("/js/auth-bridge.js");
+    const s = await fetchAuthSession();
+    const id = s?.tokens?.idToken?.toString();
+    if (!id) return [];
+    const [, payloadB64] = id.split(".");
+    const payload = parseJwtPayload(payloadB64);
+    const expOk = typeof payload.exp === "number" && Date.now() / 1000 < payload.exp;
+    if (!expOk) return [];
+    const g = payload["cognito:groups"];
+    return Array.isArray(g) ? g : g ? [g] : [];
+  } catch {
+    return [];
+  }
+}
 
 function renderTalent(list) {
   const target = document.querySelector("#talent-list");
   if (!target) return;
 
   const items = Array.isArray(list) ? list : list ? [list] : [];
-  target.innerHTML = "";
+  target.replaceChildren();
+  const frag = document.createDocumentFragment();
 
   const fallback = (ring) =>
     `https://picsum.photos/seed/${encodeURIComponent(ring)}/200/200`;
 
-  items.forEach((p, idx) => {
-    const ring = p.ring || p.ringName || p.stageName || p.name || "Wrestler";
-    const name = p.name || "";
-    const yrs = p.years ?? p.yearsExperience ?? 0;
+  for (const p of items) {
+    const ring = clean(p.ring || p.ringName || p.stageName || p.name || "Wrestler", 80);
+    const name = clean(p.name || "", 120);
+    const yrs = toNum(p.years ?? p.yearsExperience ?? 0, { min: 0, max: 80 });
     const styles = Array.isArray(p.styles)
       ? p.styles
       : Array.isArray(p.gimmicks)
-        ? p.gimmicks
-        : [];
-    const city = [p.city, p.region, p.country].filter(Boolean).join(", ");
-    const rateMin = p.rate_min ?? p.rateMin ?? 0;
-    const rateMax = p.rate_max ?? p.rateMax ?? 0;
+      ? p.gimmicks
+      : [];
+    const safeStyles = styles.map((g) => clean(g, 40)).filter(Boolean);
+
+    const city = [p.city, p.region, p.country].map((s) => clean(s, 60)).filter(Boolean).join(", ");
+    const rateMin = toNum(p.rate_min ?? p.rateMin ?? 0, { min: 0, max: 1_000_000 });
+    const rateMax = toNum(p.rate_max ?? p.rateMax ?? 0, { min: 0, max: 1_000_000 });
     const verified = !!p.verified_school || !!p.verifiedSchool;
-    const reel = p.reel || p.reelLink || "#";
-    const avatar =
-      (p.photoKey && window.WU_MEDIA_BASE
-        ? `${window.WU_MEDIA_BASE}/${p.photoKey}`
-        : p.avatar) || fallback(ring);
+    const reel = clean(p.reel || p.reelLink || "", 1000);
+    const photoKey = p.photoKey && window.WU_MEDIA_BASE ? `${window.WU_MEDIA_BASE}/${p.photoKey}` : "";
+    const avatar = (p.avatar && clean(p.avatar, 1000)) || photoKey || fallback(ring);
 
-    const el = document.createElement("div");
-    el.className = "card";
-    el.innerHTML = `<div class="profile">
-      <img src="${avatar}" alt="${ring} profile"/>
-      <div class="info">
-        <div><strong>${ring}</strong> <span class="muted">(${name})</span></div>
-        <div class="mt-2">${city || "—"} • ${yrs} yrs • ${styles.join(", ")}</div>
-        <div class="mt-2">${verified ? '<span class="badge">Verified school</span>' : ""}</div>
-        <div class="mt-2 muted">Rate: $${rateMin}-${rateMax}</div>
-        <div class="mt-3" style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn small view-profile-btn" type="button">View Profile</button>
-          ${p.handle ? `<a class="btn small secondary" href="/w/#${encodeURIComponent(p.handle)}">See Full Profile</a>` : ""}
-        </div>
-      </div>
-    </div>`;
+    const card = el("div", { class: "card" });
 
-    // Open modal with full profile details
-    el.querySelector(".view-profile-btn")?.addEventListener("click", () => {
-      const html = `
-        <div style="display:grid;grid-template-columns:120px 1fr;gap:16px">
-          <img src="${avatar}" alt="Avatar" style="width:120px;height:120px;border-radius:999px;object-fit:cover;background:#0f1224;border:1px solid #1f2546"/>
-          <div>
-            <h2 style="margin:0">${ring}</h2>
-            <div class="muted">${city || ""}</div>
-            <div class="chips mt-2">${styles.map((g) => `<span class="chip">${g}</span>`).join("")}</div>
-          </div>
-        </div>
-        <div class="mt-3">
-          ${p.bio ? `<p>${String(p.bio).replace(/\n/g, "<br/>")}</p>` : '<p class="muted">No bio yet.</p>'}
-        </div>
-        <dl class="mt-3">
-          <dt class="muted">Name</dt><dd>${name}</dd>
-          ${p.dob ? `<dt class="muted mt-2">DOB</dt><dd>${p.dob}</dd>` : ""}
-          ${verified ? `<dt class="muted mt-2">School</dt><dd>Verified</dd>` : ""}
-        </dl>
-        ${reel && reel !== "#" ? `<div class="mt-3"><a class="btn small secondary" href="${reel}" target="_blank" rel="noopener">Watch Reel</a></div>` : ""}
-      `;
+    const profile = el("div", { class: "profile" });
+
+    const img = el("img", {
+      alt: `${ring} profile`,
+      class: "avatar"
+    });
+    if (isAllowedImageUrl(avatar)) {
+      img.src = avatar;
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.referrerPolicy = "no-referrer";
+    } else {
+      const fb = fallback(ring);
+      img.src = fb;
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.referrerPolicy = "no-referrer";
+    }
+
+    const info = el("div", { class: "info" });
+
+    const nameRow = el("div", {}, [
+      el("strong", { text: ring }),
+      " ",
+      el("span", { class: "muted", text: name ? `(${name})` : "" })
+    ]);
+
+    const meta = el("div", { class: "mt-2" }, [
+      el("span", { text: city || "—" }),
+      " • ",
+      el("span", { text: `${yrs} yrs` }),
+      " • ",
+      el("span", { text: safeStyles.join(", ") })
+    ]);
+
+    const school = verified
+      ? el("div", { class: "mt-2" }, [el("span", { class: "badge", text: "Verified school" })])
+      : el("div");
+
+    const rate = el("div", { class: "mt-2 muted", text: `Rate: $${rateMin}-${rateMax}` });
+
+    const actions = el("div", { class: "mt-3 actions-row" });
+    const viewBtn = el("button", {
+      class: "btn small view-profile-btn",
+      type: "button",
+      text: "View Profile",
+      props: { ariaLabel: `View profile for ${ring}` }
+    });
+    actions.appendChild(viewBtn);
+
+    if (p.handle) {
+      const handleUrl = `/w/#${encodeURIComponent(p.handle)}`;
+      const seeFull = el("a", {
+        class: "btn small secondary",
+        href: handleUrl,
+        text: "See Full Profile",
+        rel: "noopener noreferrer"
+      });
+      actions.appendChild(seeFull);
+    }
+
+    info.appendChild(nameRow);
+    info.appendChild(meta);
+    info.appendChild(school);
+    info.appendChild(rate);
+    info.appendChild(actions);
+
+    profile.appendChild(img);
+    profile.appendChild(info);
+    card.appendChild(profile);
+
+    viewBtn.addEventListener("click", () => {
       const box = document.getElementById("wm-content");
-      if (box) box.innerHTML = html;
+      if (box) {
+        const wrap = document.createDocumentFragment();
+
+        const top = el("div", { class: "profile-top" });
+        const big = el("img", {
+          alt: "Avatar",
+          class: "avatar-lg",
+          props: { loading: "lazy", decoding: "async", referrerPolicy: "no-referrer" }
+        });
+        big.src = isAllowedImageUrl(avatar) ? avatar : fallback(ring);
+
+        const topInfo = el("div");
+        topInfo.appendChild(el("h2", { text: ring }));
+        topInfo.appendChild(el("div", { class: "muted", text: city || "" }));
+        const chips = el("div", { class: "chips mt-2" }, safeStyles.map((g) => el("span", { class: "chip", text: g })));
+        topInfo.appendChild(chips);
+
+        top.appendChild(big);
+        top.appendChild(topInfo);
+
+        const bioEl = el("div", { class: "mt-3" });
+        const bioText = (p.bio ?? "").toString();
+        const bioP = el("p", { class: bioText ? "" : "muted" });
+        bioP.style.whiteSpace = "pre-line";
+        bioP.textContent = bioText || "No bio yet.";
+        bioEl.appendChild(bioP);
+
+        const dl = el("dl", { class: "mt-3" });
+        dl.appendChild(el("dt", { class: "muted", text: "Name" }));
+        dl.appendChild(el("dd", { text: name || "—" }));
+        if (p.dob) {
+          dl.appendChild(el("dt", { class: "muted mt-2", text: "DOB" }));
+          dl.appendChild(el("dd", { text: String(p.dob) }));
+        }
+        if (verified) {
+          dl.appendChild(el("dt", { class: "muted mt-2", text: "School" }));
+          dl.appendChild(el("dd", { text: "Verified" }));
+        }
+
+        wrap.appendChild(top);
+        wrap.appendChild(bioEl);
+        wrap.appendChild(dl);
+
+        if (reel && isSafeHttpUrl(reel)) {
+          wrap.appendChild(
+            el("div", { class: "mt-3" }, [
+              el("a", {
+                class: "btn small secondary",
+                href: reel,
+                target: "_blank",
+                rel: "noopener noreferrer",
+                text: "Watch Reel"
+              })
+            ])
+          );
+        }
+
+        box.replaceChildren(wrap);
+      }
       document.getElementById("wrestler-modal")?.showModal();
     });
 
-    target.appendChild(el);
-  });
+    frag.appendChild(card);
+  }
+
+  target.appendChild(frag);
 }
 
 function renderTryouts(list) {
   const target = document.querySelector("#tryout-list");
   if (!target) return;
-  target.innerHTML = "";
 
+  target.replaceChildren();
   const items = Array.isArray(list) ? list : list ? [list] : [];
+
   if (items.length === 0) {
-    target.innerHTML = '<p class="muted">No open tryouts yet.</p>';
+    target.appendChild(el("p", { class: "muted", text: "No open tryouts yet." }));
     return;
   }
 
-  items.forEach((t) => {
-    const id = t.tryoutId || t.id;
-    const org = t.orgName || t.org || "";
-    const ownerId = t.ownerId || "";
-    const city = t.city || "";
-    const dateStr = t.date ? new Date(t.date).toLocaleDateString() : "";
-    const reqs = t.requirements || "";
-    const slots = t.slots ?? 0;
-    const status = (t.status || "open").toUpperCase();
+  const frag = document.createDocumentFragment();
 
-    const el = document.createElement("div");
-    el.className = "card";
-    el.dataset.tryoutId = id;
-    el.innerHTML = `<div class="badge">${status}</div>
-      <h3 style="margin:6px 0 2px">
-        ${ownerId ? `<a href="/p/#${encodeURIComponent(ownerId)}">${org}</a>` : org}
-      </h3>
-      <div class="muted">${city} • ${dateStr}</div>
-      <p class="mt-3">${reqs}</p>
-      <div class="mt-3">
-        <button class="btn small apply-btn" data-id="${id}" data-org="${org}">Apply</button>
-        <span class="muted" style="margin-left:10px">Slots: ${slots}</span>
-      </div>`;
-    target.appendChild(el);
-  });
+  for (const t of items) {
+    const id = clean(t.tryoutId || t.id || "", 128);
+    const org = clean(t.orgName || t.org || "", 140);
+    const ownerId = clean(t.ownerId || "", 140);
+    const city = clean(t.city || "", 120);
+    const dateStr = t.date ? new Date(t.date).toLocaleDateString() : "";
+    const reqs = cleanLong(t.requirements || "", 2000);
+    const slots = toNum(t.slots ?? 0, { min: 0, max: 100000 });
+    const status = String(t.status || "open").toUpperCase();
+
+    const card = el("div", { class: "card", dataset: { tryoutId: id } });
+    const badge = el("div", { class: "badge", text: status });
+    card.appendChild(badge);
+
+    const h3 = el("h3", { class: "mt-1 mb-0" });
+    if (ownerId) {
+      const a = el("a", {
+        href: `/p/#${encodeURIComponent(ownerId)}`,
+        text: org || "Organization",
+        rel: "noopener noreferrer"
+      });
+      h3.appendChild(a);
+    } else {
+      h3.textContent = org || "Organization";
+    }
+    card.appendChild(h3);
+
+    card.appendChild(el("div", { class: "muted", text: `${city}${city && dateStr ? " • " : ""}${dateStr}` }));
+    card.appendChild(el("p", { class: "mt-3", text: reqs }));
+
+    const actions = el("div", { class: "mt-3" });
+    const applyBtn = el("button", {
+      class: "btn small apply-btn",
+      text: "Apply",
+      dataset: { id, org }
+    });
+    const slotsEl = el("span", { class: "muted ml-2", text: `Slots: ${slots}` });
+
+    actions.appendChild(applyBtn);
+    actions.appendChild(slotsEl);
+    card.appendChild(actions);
+
+    frag.appendChild(card);
+  }
+
+  target.appendChild(frag);
 
   getAuthState().then((s) => {
-    const allow = isWrestler(s); // from roles.js (state-based)
+    const allow = isWrestler(s);
     document.querySelectorAll(".apply-btn").forEach((btn) => {
       if (!allow) {
         btn.textContent = "Log in as Wrestler to apply";
@@ -171,12 +361,12 @@ function renderTryouts(list) {
             e.preventDefault();
             document.querySelector("#login-btn")?.click();
           },
-          { once: true },
+          { once: true }
         );
       } else {
         btn.addEventListener("click", (e) => {
           const b = e.currentTarget;
-          window.openApply(b.dataset.id, b.dataset.org);
+          openApply(b.dataset.id, b.dataset.org);
         });
       }
     });
@@ -186,32 +376,50 @@ function renderTryouts(list) {
 function renderApps(list) {
   const target = document.querySelector("#app-list");
   if (!target) return;
-  target.innerHTML = "";
-  (list || []).forEach((a) => {
-    const reel = a.reelLink || a.reel || "#";
-    const when =
-      a.timestamp || a.created_at || a.createdAt || new Date().toISOString();
-    const notes = a.notes || "";
-    const who = a.applicantId ? `Applicant: ${a.applicantId}` : "";
-    const el = document.createElement("div");
-    el.className = "card";
-    el.innerHTML = `<div><strong>${who}</strong></div>
-      <div class="mt-2"><a href="${reel}" target="_blank" rel="noopener">Reel</a> • <span class="muted">${new Date(when).toLocaleString()}</span></div>
-      <div class="mt-2">${notes}</div>`;
-    target.appendChild(el);
-  });
+  target.replaceChildren();
+
+  const frag = document.createDocumentFragment();
+  for (const a of list || []) {
+    const reel = clean(a.reelLink || a.reel || "", 1000);
+    const when = a.timestamp || a.created_at || a.createdAt || new Date().toISOString();
+    const notes = cleanLong(a.notes || "", 2000);
+    const who = a.applicantId ? `Applicant: ${clean(a.applicantId, 160)}` : "";
+
+    const card = el("div", { class: "card" });
+    card.appendChild(el("div", {}, [el("strong", { text: who })]));
+
+    const line = el("div", { class: "mt-2" });
+    if (reel && isSafeHttpUrl(reel)) {
+      const link = el("a", {
+        href: reel,
+        text: "Reel",
+        target: "_blank",
+        rel: "noopener noreferrer"
+      });
+      line.appendChild(link);
+      line.appendChild(document.createTextNode(" • "));
+    }
+    line.appendChild(el("span", { class: "muted", text: new Date(when).toLocaleString() }));
+    card.appendChild(line);
+
+    card.appendChild(el("div", { class: "mt-2", text: notes }));
+    frag.appendChild(card);
+  }
+
+  target.appendChild(frag);
 }
 
 function openApply(id, org) {
   const f = document.querySelector("#apply-form");
   if (!f) return;
-  f.tryout_id.value = id;
+  if (id) f.tryout_id.value = id;
   const title = document.querySelector("#apply-title");
-  if (title) title.textContent = "Apply to " + org;
+  if (title) title.textContent = "Apply to " + (org || "Tryout");
   const modal = document.querySelector("#apply-modal");
-  if (modal) modal.showModal();
+  modal?.showModal();
 }
-window.openApply = openApply;
+
+let searchAbort;
 
 async function renderTalentSearchPanel() {
   const searchForm = document.querySelector("#talent-search");
@@ -222,46 +430,48 @@ async function renderTalentSearchPanel() {
 
   const s = await getAuthState();
   if (!isPromoter(s)) {
-    // Clear and show locked state
     if (resultsWrap) {
-      resultsWrap.innerHTML = `
-        <div class="card">
-          <h2>Talent Search <span class="badge">Locked</span></h2>
-          <p class="muted">Only promoters can search wrestler profiles. 
-          <a href="#" data-auth="out" id="become-promoter">Create a free promoter account</a>.</p>
-        </div>`;
+      const card = el("div", { class: "card" }, [
+        el("h2", {}, [document.createTextNode("Talent Search "), el("span", { class: "badge", text: "Locked" })]),
+        el("p", {
+          class: "muted",
+          text: "Only promoters can search wrestler profiles. Create a free promoter account."
+        })
+      ]);
+      resultsWrap.replaceChildren(card);
     } else {
-      (
-        searchForm.closest("section, .card, .panel") || searchForm
-      ).style.display = "none";
+      (searchForm.closest("section, .card, .panel") || searchForm).style.display = "none";
     }
     return;
   }
 
-  // Promoter allowed → wire live filtering
-  const onFilter = async () => {
+  const doFilter = async () => {
     try {
       const o = serializeForm(searchForm);
       const qs = new URLSearchParams();
-      if (o.style && o.style !== "any") qs.set("style", o.style);
-      if (o.city) qs.set("city", o.city);
+      if (o.style && o.style !== "any") qs.set("style", clean(o.style, 40));
+      if (o.city) qs.set("city", clean(o.city, 120));
       if (o.verified === "true") qs.set("verified", "true");
-      if (o.q) qs.set("q", o.q);
+      if (o.q) qs.set("q", clean(o.q, 160));
 
       const path = `/profiles/wrestlers${qs.toString() ? "?" + qs.toString() : ""}`;
-      const list = await apiFetch(path);
+
+      searchAbort?.abort();
+      searchAbort = new AbortController();
+
+      const list = await apiFetch(path, { signal: searchAbort.signal });
       renderTalent(list);
     } catch (err) {
+      if (err?.name === "AbortError") return;
       console.error(err);
       toast("You must be a promoter to view talent profiles.", "error");
       renderTalent([]);
     }
   };
 
-  ["input", "change"].forEach((evt) =>
-    searchForm.addEventListener(evt, onFilter),
-  );
-  onFilter();
+  const onFilter = debounce(doFilter, 350);
+  ["input", "change"].forEach((evt) => searchForm.addEventListener(evt, onFilter));
+  doFilter();
 }
 
 async function renderTryoutsListPanel() {
@@ -272,18 +482,22 @@ async function renderTryoutsListPanel() {
     const resp = await apiFetch("/tryouts");
     const list = asItems(resp);
     renderTryouts(list);
+
     if (location.hash) {
       const id = location.hash.substring(1);
-      const el = document.querySelector(`[data-tryout-id="${id}"]`);
-      if (el) el.scrollIntoView({ behavior: "smooth" });
+      if (/^[a-zA-Z0-9_\-:]{1,128}$/.test(id)) {
+        requestAnimationFrame(() => {
+          document.querySelector(`[data-tryout-id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: "smooth" });
+        });
+      }
     }
   } catch (err) {
     if (String(err).includes("API 401")) {
-      listEl.innerHTML = '<p class="muted">Please sign in to view tryouts.</p>';
+      listEl.replaceChildren(el("p", { class: "muted", text: "Please sign in to view tryouts." }));
       return;
     }
     console.error(err);
-    listEl.innerHTML = '<p class="muted">Could not load tryouts.</p>';
+    listEl.replaceChildren(el("p", { class: "muted", text: "Could not load tryouts." }));
   }
 }
 
@@ -294,9 +508,7 @@ async function renderAppsPanel() {
   try {
     const url = new URL(location.href);
     const tId = url.searchParams.get("tryout");
-    const path = tId
-      ? `/applications?tryoutId=${encodeURIComponent(tId)}`
-      : "/applications";
+    const path = tId ? `/applications?tryoutId=${encodeURIComponent(clean(tId, 128))}` : "/applications";
     const list = await apiFetch(path);
     renderApps(list);
   } catch (err) {
@@ -305,97 +517,147 @@ async function renderAppsPanel() {
   }
 }
 
+function disableWhileRunning(btn, fn) {
+  return async (...args) => {
+    if (!btn) return fn(...args);
+    if (btn.dataset.locked === "1") return;
+    btn.dataset.locked = "1";
+    btn.disabled = true;
+    try {
+      return await fn(...args);
+    } finally {
+      btn.disabled = false;
+      btn.dataset.locked = "";
+    }
+  };
+}
+
 async function wireForms() {
   const talentForm = document.querySelector("#talent-form");
   if (talentForm) {
-    talentForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      try {
-        const o = serializeForm(talentForm);
-        const styles = (Array.isArray(o.styles) ? o.styles : [o.styles]).filter(
-          Boolean,
-        );
+    const submitBtn = talentForm.querySelector('button[type="submit"]');
+    talentForm.addEventListener(
+      "submit",
+      disableWhileRunning(submitBtn, async (e) => {
+        e.preventDefault();
+        try {
+          const o = serializeForm(talentForm);
+          const styles = (Array.isArray(o.styles) ? o.styles : [o.styles]).filter(Boolean).map((s) => clean(s, 40));
 
-        const body = {
-          name: o.name,
-          ring: o.ring,
-          city: o.city,
-          travel: Number(o.travel || 0),
-          height_cm: Number(o.height_cm || 0),
-          weight_kg: Number(o.weight_kg || 0),
-          years: Number(o.years || 0),
-          school: o.school || "",
-          styles,
-          reel: o.reel || "",
-          rate_min: Number(o.rate_min || 0),
-          rate_max: Number(o.rate_max || 0),
-          verified_school: false,
-        };
+          const body = {
+            name: clean(o.name, 120),
+            ring: clean(o.ring, 80),
+            city: clean(o.city, 120),
+            travel: toNum(o.travel, { min: 0, max: 20000 }),
+            height_cm: toNum(o.height_cm, { min: 0, max: 300 }),
+            weight_kg: toNum(o.weight_kg, { min: 0, max: 400 }),
+            years: toNum(o.years, { min: 0, max: 80 }),
+            school: clean(o.school, 160),
+            styles,
+            reel: (o.reel && isSafeHttpUrl(o.reel)) ? clean(o.reel, 1000) : "",
+            rate_min: toNum(o.rate_min, { min: 0, max: 1_000_000 }),
+            rate_max: toNum(o.rate_max, { min: 0, max: 1_000_000 }),
+            verified_school: false
+          };
 
-        await apiFetch("/profiles/wrestlers", { method: "POST", body });
-        toast("Talent profile saved!");
-        talentForm.reset();
-      } catch (err) {
-        console.error(err);
-        toast("Could not save profile", "error");
-      }
-    });
+          if (body.rate_max < body.rate_min) {
+            toast("Max rate cannot be less than min rate.", "error");
+            return;
+          }
+
+          await apiFetch("/profiles/wrestlers", {
+            method: "POST",
+            body,
+            headers: { "Idempotency-Key": crypto.randomUUID() }
+          });
+          toast("Talent profile saved!");
+          talentForm.reset();
+        } catch (err) {
+          console.error(err);
+          toast("Could not save profile", "error");
+        }
+      })
+    );
   }
 
   const tryoutForm = document.querySelector("#tryout-form");
   if (tryoutForm) {
-    tryoutForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      try {
-        const o = serializeForm(tryoutForm);
-        const body = {
-          orgName: o.org || "",
-          city: o.city || "",
-          date: o.date || "",
-          slots: Number(o.slots || 0),
-          requirements: o.requirements || "",
-          contact: o.contact || "",
-          status: "open",
-        };
-        await apiFetch("/tryouts", { method: "POST", body });
-        toast("Tryout posted!");
-        tryoutForm.reset();
-        await renderTryoutsListPanel();
-      } catch (err) {
-        console.error(err);
-        toast("Could not post tryout", "error");
-      }
-    });
+    const submitBtn = tryoutForm.querySelector('button[type="submit"]');
+    tryoutForm.addEventListener(
+      "submit",
+      disableWhileRunning(submitBtn, async (e) => {
+        e.preventDefault();
+        try {
+          const o = serializeForm(tryoutForm);
+          const dateIso = o.date ? new Date(o.date).toISOString() : "";
+          const today = new Date();
+          if (dateIso && new Date(dateIso) < new Date(today.toDateString())) {
+            toast("Date must be today or later.", "error");
+            return;
+          }
+          const slots = toNum(o.slots, { min: 0, max: 100000 });
+
+          const body = {
+            orgName: clean(o.org, 140),
+            city: clean(o.city, 120),
+            date: dateIso,
+            slots,
+            requirements: cleanLong(o.requirements, 2000),
+            contact: clean(o.contact, 200),
+            status: "open"
+          };
+
+          await apiFetch("/tryouts", {
+            method: "POST",
+            body,
+            headers: { "Idempotency-Key": crypto.randomUUID() }
+          });
+          toast("Tryout posted!");
+          tryoutForm.reset();
+          await renderTryoutsListPanel();
+        } catch (err) {
+          console.error(err);
+          toast("Could not post tryout", "error");
+        }
+      })
+    );
   }
 
   const appForm = document.querySelector("#apply-form");
   if (appForm) {
-    appForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      try {
-        const o = serializeForm(appForm);
-        const body = {
-          tryoutId: o.tryout_id,
-          notes: o.notes || "",
-          reelLink: o.reel || "",
-        };
-        await apiFetch("/applications", { method: "POST", body });
-        toast("Application sent!");
-        appForm.reset();
-        const modal = document.querySelector("#apply-modal");
-        if (modal) modal.close();
-        await renderAppsPanel();
-      } catch (err) {
-        console.error(err);
-        toast("Could not submit application", "error");
-      }
-    });
+    const submitBtn = appForm.querySelector('button[type="submit"]');
+    appForm.addEventListener(
+      "submit",
+      disableWhileRunning(submitBtn, async (e) => {
+        e.preventDefault();
+        try {
+          const o = serializeForm(appForm);
+          const body = {
+            tryoutId: clean(o.tryout_id, 128),
+            notes: cleanLong(o.notes, 2000),
+            reelLink: (o.reel && isSafeHttpUrl(o.reel)) ? clean(o.reel, 1000) : ""
+          };
+          await apiFetch("/applications", {
+            method: "POST",
+            body,
+            headers: { "Idempotency-Key": crypto.randomUUID() }
+          });
+          toast("Application sent!");
+          appForm.reset();
+          document.querySelector("#apply-modal")?.close();
+          await renderAppsPanel();
+        } catch (err) {
+          console.error(err);
+          toast("Could not submit application", "error");
+        }
+      })
+    );
   }
 
   await Promise.all([
     renderTalentSearchPanel(),
     renderTryoutsListPanel(),
-    renderAppsPanel(),
+    renderAppsPanel()
   ]);
 }
 
