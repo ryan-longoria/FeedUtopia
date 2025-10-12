@@ -8,7 +8,7 @@ async function resolveMyProfileUrl() {
   if (isWrestler(state)) {
     try {
       const me = await apiFetch("/profiles/wrestlers/me");
-      if (me?.handle) return `/w/#${encodeURIComponent(me.handle)}`;
+      if (me?.handle) return `/w/${encodeURIComponent(me.handle)}`;
     } catch {}
     return "/dashboard_wrestler.html";
   }
@@ -17,9 +17,9 @@ async function resolveMyProfileUrl() {
     try {
       const me = await apiFetch("/profiles/promoters/me");
       const id = me?.handle || me?.id || me?.sub || state.sub;
-      if (id) return `/p/#${encodeURIComponent(id)}`;
+      if (id) return `/p/${encodeURIComponent(id)}`;
     } catch {}
-    if (state.sub) return `/p/#${encodeURIComponent(state.sub)}`;
+    if (state.sub) return `/p/${encodeURIComponent(state.sub)}`;
     return "/dashboard_promoter.html";
   }
 
@@ -28,7 +28,7 @@ async function resolveMyProfileUrl() {
 
 function getAllMyProfileLinks() {
   return Array.from(
-    document.querySelectorAll("#nav-my-profile, #my-profile-link, [data-myprofile]")
+    document.querySelectorAll("#nav-my-profile, #my-profile-link, [data-myprofile]"),
   );
 }
 
@@ -82,8 +82,8 @@ try {
   if (cached && cached.handle) {
     const optimisticUrl =
       cached.role === "promoter"
-        ? `/p/#${encodeURIComponent(cached.handle)}`
-        : `/w/#${encodeURIComponent(cached.handle)}`;
+        ? `/p/${encodeURIComponent(cached.handle)}`
+        : `/w/${encodeURIComponent(cached.handle)}`;
     getAllMyProfileLinks().forEach((a) => a.setAttribute("href", optimisticUrl));
   }
 } catch {}

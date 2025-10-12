@@ -1,20 +1,34 @@
-// /js/public_profile.js
 import { apiFetch } from "/js/api.js";
 import { mediaUrl } from "/js/media.js";
 
 const needsBust = (k) =>
   /^public\/wrestlers\/profiles\//.test(String(k)) ||
-  /^profiles\//.test(String(k)); // legacy keys
+  /^profiles\//.test(String(k));
 
 function getHandleFromUrl() {
-  // supports /w/<handle> and /w/index.html?handle=<handle>
-  const path = location.pathname.replace(/\/+$/, "");
-  const parts = path.split("/");
-  let handle = parts.length >= 3 ? parts[2] : "";
+  const { pathname, search, hash } = location;
+
+  const parts = pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+  let handle = "";
+
+  if (parts[0] === "w" && parts[1] && parts[1] !== "index.html") {
+    handle = parts[1];
+  }
+
   if (!handle) {
-    const q = new URLSearchParams(location.search);
+    const q = new URLSearchParams(search);
     handle = q.get("handle") || "";
   }
+
+  if (!handle && hash) {
+    handle = hash.slice(1);
+  }
+
+  try {
+    handle = decodeURIComponent(handle || "");
+  } catch {
+  }
+
   return handle;
 }
 
@@ -51,10 +65,8 @@ async function init() {
       `/profiles/wrestlers/${encodeURIComponent(handle)}`,
     );
 
-    // Title
     document.title = `${p.stageName || "Wrestler"} – WrestleUtopia`;
 
-    // Hero avatar (via mediaUrl + selective cache-bust for profile keys)
     const img = document.getElementById("ph-avatar");
     if (img) {
       const base = p?.photoKey
@@ -64,14 +76,12 @@ async function init() {
         p?.photoKey && needsBust(p.photoKey) ? `${base}?v=${Date.now()}` : base;
     }
 
-    // Headline fields
     set("ph-stage", p.stageName || "Wrestler");
     const loc = [p.city, p.region, p.country].filter(Boolean).join(", ");
     set("ph-loc", loc);
     set("ph-name", p.name || "");
     set("ph-dob", p.dob || "");
 
-    // Bio
     html(
       "ph-bio",
       p.bio
@@ -79,11 +89,8 @@ async function init() {
         : '<p class="muted">No bio yet.</p>',
     );
 
-    // Gimmicks
     const gimmicks = Array.isArray(p.gimmicks) ? p.gimmicks : [];
-    const chips = gimmicks
-      .map((g) => `<span class="chip">${g}</span>`)
-      .join("");
+    const chips = gimmicks.map((g) => `<span class="chip">${g}</span>`).join("");
     html("ph-gimmicks", chips || "");
   } catch (e) {
     if (String(e).includes("API 401")) {

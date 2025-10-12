@@ -1,4 +1,4 @@
-import{g as r,c as a}from"./chunks/core-BWuJOSjP.js";import"./chunks/home-auth-cta-DdK50cuY.js";import"https://esm.sh/aws-amplify@6";import"https://esm.sh/aws-amplify@6/auth";import"https://esm.sh/aws-amplify@6/utils";const o=async()=>{try{const e=await r();if(a(e))return;const t=document.querySelector("#search");if(!t)return;t.innerHTML=`
+import{g as r,c as a}from"./chunks/core-B_mg_Rmh.js";import"./chunks/home-auth-cta-CLUSZzny.js";import"https://esm.sh/aws-amplify@6";import"https://esm.sh/aws-amplify@6/auth";import"https://esm.sh/aws-amplify@6/utils";const o=async()=>{try{const e=await r();if(a(e))return;const t=document.querySelector("#search");if(!t)return;t.innerHTML=`
       <h2>Talent Search <span class="badge">Locked</span></h2>
       <div class="mt-2">
         <p class="muted">Only promoters can search wrestler profiles.</p>
