@@ -7,14 +7,32 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const r = (p) => path.resolve(__dirname, p);
 
+// Collapse "a/b/../c" -> "a/c" on POSIX-like strings
+function normalizePosix(p) {
+  const parts = [];
+  for (const seg of p.split("/")) {
+    if (!seg || seg === ".") continue;
+    if (seg === "..") { parts.pop(); continue; }
+    parts.push(seg);
+  }
+  return parts.join("/");
+}
+
 export default defineConfig({
   root: r("public"),
+
   plugins: [
     handlebars({
       partialDirectory: r("public/partials"),
       context(pagePath) {
-        const rel = path.relative(r("public"), pagePath).replace(/\\/g, "/");
-        const file = path.basename(pagePath);
+        const norm = String(pagePath).replace(/\\/g, "/");
+        const afterPublic = norm.includes("/public/")
+          ? norm.split(/\/public\//i).pop()
+          : norm;
+        const relClean = normalizePosix(afterPublic.replace(/^(\.\.\/)+/g, ""));
+        const segs = relClean.split("/");
+        const last2 = segs.slice(-2).join("/");
+        const file = segs[segs.length - 1];
 
         const overrides = {
           "index.html": {
@@ -80,12 +98,20 @@ export default defineConfig({
             headExtra: `<script type="module" src="/js/promo_me.js"></script>`
           }
         };
-        
-        const key =
-          overrides[rel] ??
-          overrides[rel.replace(/^public\//, "")] ??
+
+        // ✅ Resolve the OVERRIDE OBJECT, not a string key
+        const pageOverride =
+          overrides[relClean] ??
+          overrides[last2] ??
           overrides[file] ??
           null;
+
+        // Debug
+        console.log("\n[handlebars-debug]");
+        console.log("pagePath: ", pagePath);
+        console.log("relClean: ", relClean, " last2:", last2, " file:", file);
+        console.log("Resolved override exists:", Boolean(pageOverride));
+        console.log("--------------------------");
 
         const base = {
           title: "WrestleUtopia – Indie Wrestling Talent & Tryouts",
@@ -96,11 +122,8 @@ export default defineConfig({
           headExtra: `<script type="module" src="/js/core.js"></script>`
         };
 
-        if (!key) {
-          console.warn(`[vite-plugin-handlebars] No override for: ${rel} (${file})`);
-        }
-
-        return { ...base, ...(key ? overrides[key] : {}) };
+        // ⬇️ Spread the object directly
+        return { ...base, ...(pageOverride ?? {}) };
       }
     }),
 
