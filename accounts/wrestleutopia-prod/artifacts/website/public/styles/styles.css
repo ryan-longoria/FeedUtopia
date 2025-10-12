@@ -112,25 +112,6 @@ nav {
   backdrop-filter: saturate(140%) blur(6px);
   border-bottom: 1px solid var(--border);
 }
-.nav-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 0;
-}
-.brand {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.brand img {
-  height: 34px;
-  width: auto;
-}
-.brand .name {
-  font-weight: 800;
-  letter-spacing: 0.3px;
-}
 .nav-links {
   display: flex;
   gap: 18px;
@@ -160,11 +141,15 @@ nav {
   min-height: var(--tap);
 }
 .btn:hover {
-  background: linear-gradient(90deg, var(--accent1-400), var(--accent2-400));
+  background: linear-gradient(90deg,
+  var(--accent1-400, var(--accent1)),
+  var(--accent2-400, var(--accent2)));
   filter: saturate(110%);
 }
 .btn:active {
-  background: linear-gradient(90deg, var(--accent1-600), var(--accent2-600));
+  background: linear-gradient(90deg,
+  var(--accent1-600, var(--accent1)),
+  var(--accent2-600, var(--accent2)));
   transform: translateY(1px);
 }
 .btn.secondary {
@@ -202,9 +187,6 @@ nav {
 }
 .grid.cols-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.grid.cols-4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .card {
@@ -261,49 +243,6 @@ label {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.table th,
-.table td {
-  padding: 10px;
-  border-bottom: 1px solid #1f2546;
-  text-align: left;
-}
-
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-.kpi {
-  background: #111735;
-  border: 1px solid #1b2146;
-  padding: 14px;
-  border-radius: 12px;
-}
-.kpi .label {
-  color: #9aa0b6;
-  font-size: 12px;
-}
-.kpi .value {
-  font-size: 22px;
-  font-weight: 800;
-  margin-top: 6px;
-}
-
-.tag {
-  display: inline-block;
-  padding: 4px 8px;
-  border: 1px solid #2a2f55;
-  background: #121836;
-  border-radius: 999px;
-  font-size: 12px;
-  color: #cbd0e3;
-  margin: 2px;
-}
 .profile {
   display: flex;
   gap: 16px;
@@ -347,9 +286,6 @@ label {
 .mt-4 {
   margin-top: 16px;
 }
-.mt-6 {
-  margin-top: 24px;
-}
 .center {
   text-align: center;
 }
@@ -358,8 +294,7 @@ label {
 }
 
 @media (max-width: 900px) {
-  .grid.cols-3,
-  .grid.cols-4 {
+  .grid.cols-3 {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -371,15 +306,11 @@ label {
   body {
     font-size: 17px;
   }
-  .grid.cols-3,
-  .grid.cols-4 {
+  .grid.cols-3 {
     grid-template-columns: 1fr;
   }
   .hero h1 {
     font-size: 32px;
-  }
-  .nav-inner {
-    padding: 10px 0;
   }
   .nav-links {
     gap: 10px;
@@ -498,11 +429,6 @@ label {
   }
 }
 
-.wu-search,
-.wu-search-input {
-  display: none !important;
-}
-
 .wu-footer {
   border-top: 1px solid var(--border);
   background: var(--panel-2, #0b0b12);
@@ -608,17 +534,6 @@ label {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
-.step-card .num {
-  display: inline-block;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  text-align: center;
-  line-height: 28px;
-  margin-right: 8px;
-}
 @media (max-width: 900px) {
   .steps {
     grid-template-columns: 1fr;
@@ -639,22 +554,6 @@ label {
   align-items: center;
   justify-content: center;
   padding: 10px;
-}
-.logo-row {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 16px;
-  opacity: 0.9;
-}
-@media (max-width: 900px) {
-  .logo-row {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-@media (max-width: 640px) {
-  .logo-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 #free-offer .offer-band {
@@ -763,16 +662,6 @@ label {
   color: var(--muted);
   font-size: 14px;
 }
-.badge-verified {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  font-size: 12px;
-  background: #121934;
-  border: 1px solid #2a2f5a;
-  padding: 4px 8px;
-  border-radius: 999px;
-}
 
 .stats-bar {
   display: flex;
@@ -786,21 +675,6 @@ label {
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 13px;
-}
-
-.action-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-.btn.ghost {
-  background: transparent;
-  border: 1px solid var(--border);
-}
-.btn.primary {
-  background: var(--accent2);
-  border: 1px solid var(--accent2-600, #9a0060);
 }
 
 .tabs {
