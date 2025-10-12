@@ -1,83 +1,176 @@
 import { apiFetch } from "/js/api.js";
 import { getAuthState, isWrestler, isPromoter } from "/js/roles.js";
 
+const FALLBACK_URL = "/profile.html";
+const RESOLVE_TIMEOUT_MS = 8000;
+const CACHE_TTL_MS = 5 * 60 * 1000
+const CACHE_KEY = "wu.myprofile.url.v1";
+
+const isProd = !!(import.meta?.env?.PROD);
+const buildId = (import.meta?.env?.VITE_BUILD_ID ?? "dev").toString();
+
+function safeSetHref(a, url) {
+  try {
+    const u = new URL(url, location.origin);
+    const ok =
+      u.origin === location.origin &&
+      (u.pathname === "/profile.html" ||
+        /^\/(w|p)\/?$/.test(u.pathname) ||
+        /^\/(w|p)\/$/.test(u.pathname));
+    if (ok) a.setAttribute("href", u.pathname + (u.hash || ""));
+    else a.setAttribute("href", FALLBACK_URL);
+  } catch {
+    a.setAttribute("href", FALLBACK_URL);
+  }
+}
+
 function toHashUrl(kind, slug) {
-  // kind: "w" | "p"
   if (!slug) return "#";
   return `/${kind}/#${encodeURIComponent(slug)}`;
 }
 
+function now() { return Date.now(); }
+
+function readCache() {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (typeof obj?.url !== "string" || typeof obj?.t !== "number") return null;
+    if (now() - obj.t > CACHE_TTL_MS) return null;
+    return obj.url;
+  } catch { return null; }
+}
+
+function writeCache(url) {
+  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ url, t: now(), b: buildId })); } catch {}
+}
+
+function clearCache() {
+  try { sessionStorage.removeItem(CACHE_KEY); } catch {}
+}
+
+function beacon(kind, payload) {
+  if (!isProd) return;
+  try {
+    const body = JSON.stringify({ kind, build: buildId, ts: now(), ...payload });
+    const ok = navigator.sendBeacon?.("/telemetry", new Blob([body], { type: "application/json" }));
+    if (!ok) fetch("/telemetry", { method: "POST", mode: "no-cors", keepalive: true, body });
+  } catch {}
+}
+
+async function withTimeout(promise, ms, label) {
+  let id;
+  const t = new Promise((_, rej) => { id = setTimeout(() => rej(new Error(label || "timeout")), ms); });
+  try { return await Promise.race([promise, t]); }
+  finally { clearTimeout(id); }
+}
+
 async function resolveMyProfileUrl() {
-  const state = await getAuthState();
+  const cached = readCache();
+  if (cached) return cached;
+
+  const state = await withTimeout(getAuthState(), RESOLVE_TIMEOUT_MS, "auth state timeout").catch(() => null);
   if (!state) return "#";
 
   if (isWrestler(state)) {
     try {
-      const me = await apiFetch("/profiles/wrestlers/me");
-      if (me?.handle) return toHashUrl("w", me.handle);
+      const me = await withTimeout(apiFetch("/profiles/wrestlers/me"), RESOLVE_TIMEOUT_MS, "wrestler resolve timeout");
+      if (me?.handle) {
+        const url = toHashUrl("w", me.handle);
+        writeCache(url);
+        return url;
+      }
     } catch {}
-    // Signed-in wrestler but no handle yet—send to dashboard
     return "/dashboard_wrestler.html";
   }
 
   if (isPromoter(state)) {
     try {
-      const me = await apiFetch("/profiles/promoters/me");
+      const me = await withTimeout(apiFetch("/profiles/promoters/me"), RESOLVE_TIMEOUT_MS, "promoter resolve timeout");
       const id = me?.handle || me?.id || me?.sub || state.sub;
-      if (id) return toHashUrl("p", id);
+      if (id) {
+        const url = toHashUrl("p", id);
+        writeCache(url);
+        return url;
+      }
     } catch {}
-    if (state.sub) return toHashUrl("p", state.sub);
-    // Signed-in promoter but no handle—send to dashboard
+    if (state.sub) {
+      const url = toHashUrl("p", state.sub);
+      writeCache(url);
+      return url;
+    }
     return "/dashboard_promoter.html";
   }
 
-  // Unknown role or not signed in
   return "#";
 }
 
 function getAllMyProfileLinks() {
-  return Array.from(
-    document.querySelectorAll("#nav-my-profile, #my-profile-link, [data-myprofile]")
-  );
+  return Array.from(document.querySelectorAll("#nav-my-profile, #my-profile-link, [data-myprofile]"));
+}
+
+let inflight = null;
+async function singleFlightResolve() {
+  if (!inflight) {
+    inflight = (async () => {
+      try { return await resolveMyProfileUrl(); }
+      finally { inflight = null; }
+    })();
+  }
+  return inflight;
 }
 
 async function upgradeMyProfileLinks() {
   const links = getAllMyProfileLinks();
   if (!links.length) return;
 
-  // Always attach a resilient click handler that resolves at click time.
-  links.forEach((a) => {
-    const fallback = a.getAttribute("data-fallback") || "/profile.html";
+  for (const a of links) {
+    if (!a.getAttribute("href") || a.getAttribute("href") === "#") {
+      const fb = a.getAttribute("data-fallback") || FALLBACK_URL;
+      safeSetHref(a, fb);
+    }
 
-    const clickHandler = async (e) => {
-      // Intercept to compute latest destination just-in-time
-      e.preventDefault();
+    const handler = async (e) => {
+      if (a.__busy) { e.preventDefault(); return; }
+      a.__busy = true;
+      a.setAttribute("aria-busy", "true");
+
       let url = "#";
-      try {
-        url = await resolveMyProfileUrl();
-      } catch {}
+      try { url = await singleFlightResolve(); } catch {}
 
-      if (url && url !== "#") {
-        // Set href once so middle-click/open-in-new-tab work subsequently
-        a.setAttribute("href", url);
-        location.href = url;
-      } else {
-        // Deterministic, always-valid fallback
-        a.setAttribute("href", fallback);
-        location.href = fallback;
-      }
+      const dest = (url && url !== "#") ? url : (a.getAttribute("data-fallback") || FALLBACK_URL);
+
+      if (url === "#") beacon("myprofile_unresolved", { reason: "no-url", href: a.getAttribute("href") || "" });
+
+      e.preventDefault();
+      safeSetHref(a, dest);
+      location.href = a.getAttribute("href") || dest;
+
+      a.removeAttribute("aria-busy");
+      a.__busy = false;
     };
 
     a.removeEventListener("click", a.__myprofileHandler);
-    a.addEventListener("click", clickHandler);
-    a.__myprofileHandler = clickHandler;
-  });
+    a.addEventListener("click", handler, { passive: false });
+    a.__myprofileHandler = handler;
 
-  // Opportunistically pre-set href once we have a resolved URL (helps hover previews)
+    const warmup = async () => {
+      try {
+        const url = await singleFlightResolve();
+        if (url && url !== "#") safeSetHref(a, url);
+      } catch {}
+      a.removeEventListener("mouseenter", warmup);
+      a.removeEventListener("focus", warmup, true);
+    };
+    a.addEventListener("mouseenter", warmup, { once: true });
+    a.addEventListener("focus", warmup, { once: true, capture: true });
+  }
+
   try {
-    const resolved = await resolveMyProfileUrl();
-    if (resolved && resolved !== "#") {
-      links.forEach((a) => a.setAttribute("href", resolved));
+    const url = await singleFlightResolve();
+    if (url && url !== "#") {
+      links.forEach((a) => safeSetHref(a, url));
     }
   } catch {}
 }
@@ -87,22 +180,18 @@ if (document.readyState === "loading") {
 } else {
   upgradeMyProfileLinks();
 }
-window.addEventListener("auth:changed", upgradeMyProfileLinks);
+window.addEventListener("auth:changed", () => { clearCache(); upgradeMyProfileLinks(); });
 
-// Optimistic first paint: if we have cached user with handle, set an initial href
 try {
   const cached = window.WU_USER || JSON.parse(localStorage.getItem("wuUser") || "null");
   if (cached?.handle) {
-    const optimistic =
-      cached.role === "promoter"
-        ? toHashUrl("p", cached.handle)
-        : toHashUrl("w", cached.handle);
-    getAllMyProfileLinks().forEach((a) => a.setAttribute("href", optimistic));
+    const optimistic = cached.role === "promoter" ? toHashUrl("p", cached.handle) : toHashUrl("w", cached.handle);
+    getAllMyProfileLinks().forEach((a) => safeSetHref(a, optimistic));
+    writeCache(optimistic);
   } else {
-    // Ensure a safe fallback early if no cache present
     getAllMyProfileLinks().forEach((a) => {
       if (!a.getAttribute("href") || a.getAttribute("href") === "#") {
-        a.setAttribute("href", a.getAttribute("data-fallback") || "/profile.html");
+        safeSetHref(a, a.getAttribute("data-fallback") || FALLBACK_URL);
       }
     });
   }
