@@ -8,126 +8,86 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const r = (p) => path.resolve(__dirname, p);
 
-/* POSIX-normalise a path string (collapse "..", ".") */
 const posix = (p) =>
-  p
-    .replace(/\\/g, "/")
-    .split("/")
-    .reduce((acc, seg) => {
-      if (!seg || seg === ".") return acc;
-      if (seg === "..") acc.pop();
-      else acc.push(seg);
-      return acc;
-    }, [])
-    .join("/");
+  p.replace(/\\/g, "/").split("/").reduce((acc, seg) => {
+    if (!seg || seg === ".") return acc;
+    if (seg === "..") acc.pop(); else acc.push(seg);
+    return acc;
+  }, []).join("/");
 
 export default defineConfig({
   root: r("public"),
-
-  /* ────────────── plugins ────────────── */
   plugins: [
     handlebars({
       partialDirectory: r("public/partials"),
-
       context(pagePath) {
         const rel   = posix(pagePath.split(/\/public\//i).pop() || "");
         const last2 = rel.split("/").slice(-2).join("/");
         const file  = rel.split("/").pop();
 
-        /* per-page overrides (unchanged) */
+        // page id helper
+        const pageId = (id) => `<meta name="wu-page" content="${id}">`;
+
         const overrides = {
           "index.html": {
             title: "WrestleUtopia – Get booked. Find verified talent.",
             description:
               "Profiles, tryouts, and applications in one place. Built for indie wrestling.",
             canonical: "https://www.wrestleutopia.com/",
-            headExtra: `
-              <script type="module" src="/js/main.js"></script>
-              <script type="module" src="/js/home-redirect.js"></script>
-              <script type="module" src="/js/home-free-offer-hide.js"></script>
-              <script type="module" src="/js/home-tryouts-locked.js"></script>
-              <script type="module" src="/js/home-auth-cta.js"></script>
-            `
+            headExtra: `${pageId("index")}`
           },
-
-          "profile.html": {
-            title: "WrestleUtopia – My Profile",
-            headExtra: `
-              <script type="module" src="/js/profile_me.js"></script>
-              <script type="module" src="/js/profile-preview-modal.js"></script>
-            `
-          },
-
-          "talent.html": {
-            headExtra: `
-              <script type="module" src="/js/talent-lock.js"></script>
-              <script type="module" src="/js/talent-modal.js"></script>
-              <script type="module" src="/js/home-auth-cta.js"></script>
-            `
-          },
+          "privacy.html":   { headExtra: `${pageId("privacy")}` },
+          "terms.html":     { headExtra: `${pageId("terms")}` },
+          "tryouts.html":   { headExtra: `${pageId("tryouts")}` },
+          "profile.html":   { title: "WrestleUtopia – My Profile", headExtra: `${pageId("profile")}` },
+          "talent.html":    { headExtra: `${pageId("talent")}` },
 
           "dashboard_wrestler.html": {
             title: "WrestleUtopia – Wrestler Dashboard",
-            headExtra: `
-              <script type="module" src="/js/dashboard_wrestler.js"></script>
-              <script type="module" src="/js/wrestler-guard-and-progress.js"></script>
-            `
+            headExtra: `${pageId("dashboard_wrestler")}`
           },
 
           "dashboard_promoter.html": {
             title: "WrestleUtopia – Promoter Dashboard",
-            headExtra: `
-              <script type="module" src="/js/dashboard_promoter_mytryouts.js"></script>
-              <script type="module" src="/js/dashboard_promoter_apps.js"></script>
-              <script type="module" src="/js/promoter-guard.js"></script>
-              <script type="module" src="/js/promoter-apps-modal.js"></script>
-            `
+            headExtra: `${pageId("dashboard_promoter")}`
           },
 
           "w/index.html": {
             title: "WrestleUtopia – Wrestler",
-            headExtra: `<script type="module" src="/js/wrestler_public.js"></script>`
+            headExtra: `${pageId("w_index")}`
           },
 
           "p/index.html": {
             title: "Promotion – WrestleUtopia",
-            headExtra: `<script type="module" src="/js/promo_public.js"></script>`
+            headExtra: `${pageId("p_index")}`
           },
 
           "promoter/index.html": {
             title: "WrestleUtopia – My Promotion",
-            headExtra: `<script type="module" src="/js/promo_me.js"></script>`
+            headExtra: `${pageId("promoter_index")}`
           }
         };
 
         const pageOverride =
           overrides[rel] ?? overrides[last2] ?? overrides[file] ?? null;
 
-        /* base injected into EVERY <head> */
         const base = {
           title: "WrestleUtopia – Indie Wrestling Talent & Tryouts",
           description: "Profiles • Tryouts • Bookings for indie wrestling",
           ogTitle: "WrestleUtopia",
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
-          headExtra: `
-            <!-- Set window.WU_API before page bundle executes -->
-            <script type="module" src="/js/config.js"></script>
-          `
+          headExtra: "" // no scripts here; core.js is hardcoded in head.hbs
         };
 
-        /* merge, APPENDING headExtra */
         return pageOverride
-          ? {
-              ...base,
-              ...pageOverride,
-              headExtra: `${base.headExtra}\n${pageOverride.headExtra || ""}`
-            }
+          ? { ...base, ...pageOverride,
+              headExtra: `${base.headExtra}\n${pageOverride.headExtra || ""}` }
           : base;
       }
     }),
 
-    /* copy static folders verbatim */
+    // copy static folders verbatim
     viteStaticCopy({
       targets: [
         ...(fs.existsSync(r("public/js"))       ? [{ src: r("public/js/**/*"),       dest: "js" }]       : []),
@@ -144,7 +104,6 @@ export default defineConfig({
     })
   ],
 
-  /* ────────────── build ────────────── */
   build: {
     outDir: r("dist"),
     emptyOutDir: true,
@@ -152,9 +111,7 @@ export default defineConfig({
     cssCodeSplit: true,
     sourcemap: false,
     minify: false,
-
     rollupOptions: {
-      /* every HTML file is its own entry (one bundle per page) */
       input: {
         index:               r("public/index.html"),
         privacy:             r("public/privacy.html"),
@@ -168,25 +125,19 @@ export default defineConfig({
         p_index:             r("public/p/index.html"),
         promoter_index:      r("public/promoter/index.html")
       },
-
       output: {
-        /* Disable shared-chunk hashing */
         manualChunks: undefined,
-
-        /* Place *all* JS — entries and chunks — in /js with original names */
         entryFileNames: "js/[name].js",
         chunkFileNames: "js/[name].js",
-
-        /* Route non-JS assets by extension */
         assetFileNames(info) {
           const ext = path.extname(info.name || "").toLowerCase();
-          if (ext === ".css")                       return "styles/[name][extname]";
+          if (ext === ".css") return "styles/[name][extname]";
           if ([".png",".jpg",".jpeg",".gif",".webp",".avif",".svg"].includes(ext))
-                                                    return "assets/[name][extname]";
+            return "assets/[name][extname]";
           if ([".woff",".woff2",".ttf",".otf",".eot"].includes(ext))
-                                                    return "assets/fonts/[name][extname]";
+            return "assets/fonts/[name][extname]";
           if ([".mp4",".webm",".mp3",".wav",".ogg"].includes(ext))
-                                                    return "assets/media/[name][extname]";
+            return "assets/media/[name][extname]";
           return "assets/[name][extname]";
         }
       }
