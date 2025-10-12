@@ -1,3 +1,52 @@
+const __waitForAuthModal = () =>
+  new Promise((resolve) => {
+    const resolveIfReady = () => {
+      const dlg = document.getElementById("auth-modal");
+      if (dlg) resolve(dlg);
+    };
+
+    // 1) immediate check
+    resolveIfReady();
+
+    // 2) after DOM ready
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", resolveIfReady, { once: true });
+    } else {
+      // already loaded; still keep the next hooks just in case partial arrives later
+    }
+
+    // 3) after partials injection
+    window.addEventListener("partials:ready", resolveIfReady, { once: true });
+
+    // 4) MutationObserver fallback (covers late insertion)
+    const mo = new MutationObserver(() => {
+      const dlg = document.getElementById("auth-modal");
+      if (dlg) {
+        mo.disconnect();
+        resolve(dlg);
+      }
+    });
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  });
+
+(async () => {
+  // Wait until the auth dialog is actually in the DOM
+  const dlg = await __waitForAuthModal();
+
+  // Re-bind all element refs AFTER the dialog exists
+  const tabLogin  = document.getElementById("tab-login");
+  const tabSignup = document.getElementById("tab-signup");
+  const fLogin    = document.getElementById("form-login");
+  const fSignup   = document.getElementById("form-signup");
+  const fConfirm  = document.getElementById("form-confirm");
+  const roleSel   = document.getElementById("signup-role");
+  const wf        = document.getElementById("wrestler-fields");
+  const pf        = document.getElementById("promoter-fields");
+
+  // >>> KEEP the rest of your existing auth-modal.js code here, unchanged <<<
+  // Everything that previously expected `const dlg = document.getElementById("auth-modal");`
+  // can now use the `dlg` defined above.
+})();
 import {
   signIn,
   confirmSignIn,

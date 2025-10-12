@@ -219,9 +219,6 @@ function sendTelemetry(kind, payload) {
       ts: Date.now(),
       ...payload
     });
-    if (!navigator.sendBeacon || !navigator.sendBeacon("/telemetry", new Blob([body], { type: "application/json" }))) {
-      fetch("/telemetry", { method: "POST", mode: "no-cors", keepalive: true, body });
-    }
   } catch {
   }
 }

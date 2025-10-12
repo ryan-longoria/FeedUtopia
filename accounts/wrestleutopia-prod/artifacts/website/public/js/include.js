@@ -126,6 +126,9 @@
     ensureGateStyle();
     gateFragment(document);
     await injectPartialsRecursive();
+    if (document.getElementById("auth-modal")) {
+      await import("/js/auth-modal.js");
+    }
     window.__partialsReady = true;
     window.dispatchEvent(new Event("partials:ready"));
     try {
