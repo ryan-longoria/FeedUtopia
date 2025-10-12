@@ -1,8 +1,22 @@
-const MODULES = import.meta.glob('/js/**/*.js'); // { "/js/foo.js": () => import(...) }
+// public/js/core.js — single entry for all pages
 
-/** Boot sequence (order matters) — each becomes its own chunk/file */
+// Build-time discovery: find every JS module under the same folder as core.js
+// (i.e., /public/js/**). Then remap the keys to '/js/...' so our ROUTES match.
+const RAW_MODULES = import.meta.glob('./**/*.js'); // keys like './dashboard_wrestler.js'
+const MODULES = Object.fromEntries(
+  Object.entries(RAW_MODULES).map(([k, loader]) => {
+    const abs = '/js/' + k.replace(/^\.\//, ''); // './foo.js' -> '/js/foo.js'
+    return [abs, loader];
+  })
+);
+
+console.debug('[core] discovered modules:', Object.keys(MODULES));
+
+// 1) Define globals first (WU_API, WU_MEDIA_BASE)
+import './config.js';
+
+// 2) Shared boot (order preserved)
 const BOOT = [
-  '/js/config.js',        // defines window.WU_API, window.WU_MEDIA_BASE
   '/js/auth-bridge.js',
   '/js/api.js',
   '/js/forms.js',
@@ -11,7 +25,7 @@ const BOOT = [
   '/js/nav-myprofile.js',
 ];
 
-/** Determine current page id */
+// 3) Page id (from <meta name="wu-page"> or inferred from pathname)
 function getPageId() {
   const meta = document.querySelector('meta[name="wu-page"]');
   if (meta?.content) return meta.content.trim();
@@ -25,7 +39,7 @@ function getPageId() {
   return (file || '').replace(/\.html$/i, '');
 }
 
-/** Page-specific modules (paths must match MODULES keys exactly) */
+// 4) Page-specific modules (paths must match MODULES keys: '/js/....js')
 const ROUTES = {
   index: [
     '/js/main.js',
@@ -66,7 +80,7 @@ const ROUTES = {
   promoter_index: ['/js/promo_me.js'],
 };
 
-/** Helper to load a list of module paths *in order*, tolerating missing files */
+// 5) Loader that tolerates missing files & logs what happens
 async function loadModules(paths = []) {
   for (const p of paths) {
     const loader = MODULES[p];
@@ -75,20 +89,28 @@ async function loadModules(paths = []) {
       continue;
     }
     try {
-      await loader();
+      const mod = await loader();
+      // optional breadcrumb for quick checks:
+      try { window[p] = true; } catch {}
+      console.debug('[core] loaded', p, mod ? Object.keys(mod) : '');
     } catch (err) {
       console.error('[core] failed to load module:', p, err);
     }
   }
 }
 
-/** Boot the page */
+// 6) Kick off the page
 (async () => {
-  // 1) load shared boot (ensures window.WU_API is set before api.js uses it)
-  await loadModules(BOOT);
+  console.debug('[core] page boot starting');
 
-  // 2) load page bundle(s)
+  // shared boot (ensures config runs before api.js uses it)
+  await loadModules([
+    '/js/config.js',     // include explicitly so it’s in the graph
+    ...BOOT,
+  ]);
+
   const page = getPageId();
+  console.debug('[core] page:', page, 'routes:', ROUTES[page]);
   const toLoad = ROUTES[page];
   if (toLoad?.length) {
     await loadModules(toLoad);
