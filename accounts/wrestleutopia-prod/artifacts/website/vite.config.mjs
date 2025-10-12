@@ -20,7 +20,22 @@ const posix = (p) =>
     }, [])
     .join("/");
 
-// simple copy report so you can verify outputs
+// ── util: does a folder contain any non-HTML files?
+function hasNonHtmlFiles(dir) {
+  if (!fs.existsSync(dir)) return false;
+  const stack = [dir];
+  while (stack.length) {
+    const cur = stack.pop();
+    for (const e of fs.readdirSync(cur, { withFileTypes: true })) {
+      const full = path.join(cur, e.name);
+      if (e.isDirectory()) stack.push(full);
+      else if (!/\.html?$/i.test(e.name)) return true;
+    }
+  }
+  return false;
+}
+
+// ── tiny copy report so you can verify outputs in logs
 function copyReportPlugin() {
   return {
     name: "copy-report",
@@ -75,7 +90,7 @@ export default defineConfig({
           ogTitle: "WrestleUtopia",
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
-          // Single runtime entry and CSS; page-specific JS is loaded by core.js at runtime.
+          // Single runtime entry + CSS; page-specific JS is loaded by core.js at runtime.
           headExtra: `
             <script type="module" src="/js/core.js"></script>
             <link rel="stylesheet" href="/styles/core.css" />
@@ -91,22 +106,28 @@ export default defineConfig({
     // Copy runtime files verbatim (so /js/* and /partials/* actually exist in dist)
     viteStaticCopy({
       targets: [
-        { src: r("public/js/**/*"),       dest: "js" },
-        { src: r("public/styles/**/*"),   dest: "styles" },
-        { src: r("public/assets/**/*"),   dest: "assets" },
-        { src: r("public/partials/**/*"), dest: "partials" },
-
-        { src: r("public/w/**/*"),        dest: "w" },
-        { src: r("public/p/**/*"),        dest: "p" },
-        { src: r("public/promoter/**/*"), dest: "promoter" },
-
+        ...(fs.existsSync(r("public/js"))       ? [{ src: r("public/js/**/*"),       dest: "js" }]       : []),
+        ...(fs.existsSync(r("public/styles"))   ? [{ src: r("public/styles/**/*"),   dest: "styles" }]   : []),
+        ...(fs.existsSync(r("public/assets"))   ? [{ src: r("public/assets/**/*"),   dest: "assets" }]   : []),
+        ...(fs.existsSync(r("public/partials")) ? [{ src: r("public/partials/**/*"), dest: "partials" }] : []),
         ...(fs.existsSync(r("public/manifest.webmanifest"))
           ? [{ src: r("public/manifest.webmanifest"), dest: "" }]
-          : [])
-      ]
+          : []),
+
+        // Only add these targets if there are non-HTML files to copy.
+        ...(hasNonHtmlFiles(r("public/w"))
+          ? [{ src: r("public/w/**/*"), dest: "w", globOptions: { ignore: ["**/*.html"] } }]
+          : []),
+        ...(hasNonHtmlFiles(r("public/p"))
+          ? [{ src: r("public/p/**/*"), dest: "p", globOptions: { ignore: ["**/*.html"] } }]
+          : []),
+        ...(hasNonHtmlFiles(r("public/promoter"))
+          ? [{ src: r("public/promoter/**/*"), dest: "promoter", globOptions: { ignore: ["**/*.html"] } }]
+          : []),
+      ],
     }),
 
-    copyReportPlugin()
+    copyReportPlugin(),
   ],
 
   build: {
@@ -118,7 +139,6 @@ export default defineConfig({
     minify: false,
 
     rollupOptions: {
-      // ⬅️ Multi-page: this makes Vite emit the HTML files again
       input: {
         index:               r("public/index.html"),
         privacy:             r("public/privacy.html"),
@@ -130,14 +150,13 @@ export default defineConfig({
         dashboard_promoter:  r("public/dashboard_promoter.html"),
         w_index:             r("public/w/index.html"),
         p_index:             r("public/p/index.html"),
-        promoter_index:      r("public/promoter/index.html")
+        promoter_index:      r("public/promoter/index.html"),
       },
 
-      // don’t prune imports reachable from core.js
+      // Keep everything reachable from core.js
       treeshake: false,
 
       output: {
-        // keep filenames simple; we’re not relying on Vite’s JS bundling here
         entryFileNames: "js/[name].js",
         chunkFileNames: "js/[name].js",
         assetFileNames(info) {
@@ -147,8 +166,8 @@ export default defineConfig({
           if ([".woff",".woff2",".ttf",".otf",".eot"].includes(ext)) return "assets/fonts/[name][extname]";
           if ([".mp4",".webm",".mp3",".wav",".ogg"].includes(ext)) return "assets/media/[name][extname]";
           return "assets/[name][extname]";
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 });
