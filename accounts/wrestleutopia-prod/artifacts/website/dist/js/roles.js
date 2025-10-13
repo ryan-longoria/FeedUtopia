@@ -30,28 +30,46 @@ export const isWrestler = (s) =>
   s.groups?.includes("Wrestlers") || s.role === "Wrestler";
 
 export async function applyRoleGatedUI() {
-  const s = await getAuthState();
-  document.body.dataset.role = s.role || "";
-  document.body.dataset.signedin = s.signedIn ? "true" : "false";
+  const state = await getAuthState?.();
+  const signedIn = !!state?.signedIn;
+  const role = (state?.role || "").toString().trim().toLowerCase();
 
-  document
-    .querySelectorAll('[data-auth="in"]')
-    .forEach((el) => (el.style.display = s.signedIn ? "" : "none"));
-  document
-    .querySelectorAll('[data-auth="out"]')
-    .forEach((el) => (el.style.display = s.signedIn ? "none" : ""));
+  document.body.dataset.signedin = String(signedIn);
+  document.body.dataset.role = role || "";
 
-  const showForPromoter = isPromoter(s);
-  const showForWrestler = isWrestler(s);
-  document
-    .querySelectorAll('[data-requires="promoter"]')
-    .forEach((el) => (el.style.display = showForPromoter ? "" : "none"));
-  document
-    .querySelectorAll('[data-requires="wrestler"]')
-    .forEach((el) => (el.style.display = showForWrestler ? "" : "none"));
+  const show = (el) => {
+    if (!el) return;
+    el.hidden = false;
+    el.removeAttribute("aria-hidden");
+    // reset any inline display we might have set earlier
+    if (el.style && el.style.display === "none") el.style.display = "";
+  };
 
-  return s;
+  const hide = (el) => {
+    if (!el) return;
+    el.hidden = true;
+    el.setAttribute("aria-hidden", "true");
+    if (el.style) el.style.display = "none";
+  };
+
+  // Auth-gated wrappers and items
+  document.querySelectorAll('[data-auth="out"]').forEach(el => signedIn ? hide(el) : show(el));
+  document.querySelectorAll('[data-auth="in"]').forEach(el => signedIn ? show(el) : hide(el));
+
+  // Role-gated items
+  const requiresSel = '[data-requires]';
+  document.querySelectorAll(requiresSel).forEach(el => {
+    const req = (el.getAttribute("data-requires") || "").toLowerCase();
+    // allow comma/space separated lists e.g. "wrestler promoter"
+    const tokens = req.split(/[\s,]+/).filter(Boolean);
+    const ok = signedIn && (tokens.length === 0 || tokens.includes(role));
+    ok ? show(el) : hide(el);
+  });
+
+  // My profile visibility follows signed-in
+  document.querySelectorAll("[data-myprofile]").forEach(el => signedIn ? show(el) : hide(el));
 }
+
 
 export async function guardPage({
   requireRole,
