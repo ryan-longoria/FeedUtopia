@@ -39,6 +39,7 @@ const BOOT = Object.freeze([
   "/js/include.js",
   "/js/nav-myprofile.js",
   "/js/auth-modal.js",
+  "/js/auth-modal-boot.js",
 ]);
 
 function getPageId() {
