@@ -53,29 +53,58 @@
   function sanitizeHTMLToFragment(html) {
     const tpl = document.createElement("template");
     tpl.innerHTML = html;
+
     const walker = document.createTreeWalker(tpl.content, NodeFilter.SHOW_ELEMENT, null);
-    const SAFE_URL_ATTRS = new Set(["href","src"]);
-    const SAFE_ATTRS = new Set(["id","class","role","alt","title","rel","target","type","for","value","name","placeholder","width","height"]);
+
+    const SAFE_URL_ATTRS = new Set(["href", "src"]);
+    const SAFE_ATTRS = new Set([
+      "id","class","role","alt","title","rel","target","type",
+      "for","value","name","placeholder","width","height",
+      "hidden" // keep boolean hidden so default-deny works
+    ]);
+
     for (let node = walker.currentNode; node; node = walker.nextNode()) {
       if (!(node instanceof Element)) continue;
-      if (node.tagName === "SCRIPT") { node.remove(); continue; }
+
+      if (node.tagName === "SCRIPT") {
+        node.remove();
+        continue;
+      }
+
       for (const attr of Array.from(node.attributes)) {
         const n = attr.name;
-        if (n.startsWith("on")) { node.removeAttribute(n); continue; }
+
+        // always drop inline handlers
+        if (n.startsWith("on")) {
+          node.removeAttribute(n);
+          continue;
+        }
+
+        // keep aria-*
         if (n.startsWith("aria-")) continue;
+
+        // KEEP any data-* (used for gating)
+        if (n.startsWith("data-")) continue;
+
+        // restrict URL-bearing attrs to same-origin
         if (SAFE_URL_ATTRS.has(n)) {
           try {
             const u = new URL(attr.value, location.origin);
             if (u.origin !== location.origin) node.removeAttribute(n);
-          } catch { node.removeAttribute(n); }
+          } catch {
+            node.removeAttribute(n);
+          }
           continue;
         }
-        if (!SAFE_ATTRS.has(n)) node.removeAttribute(n);
+
+        // keep only safe known attributes (and 'hidden' above)
+        if (!SAFE_ATTRS.has(n)) {
+          node.removeAttribute(n);
+        }
       }
     }
     return tpl.content;
   }
-
   function gateFragment(root) {
     const scope = root instanceof DocumentFragment ? root : document;
     scope.querySelectorAll("[data-auth='in'],[data-requires],[data-myprofile]").forEach(el => {
