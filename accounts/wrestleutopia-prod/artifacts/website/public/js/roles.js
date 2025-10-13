@@ -39,35 +39,33 @@ export async function applyRoleGatedUI() {
 
   const show = (el) => {
     if (!el) return;
+    el.classList.remove("gated");
+    el.removeAttribute("data-gated");
     el.hidden = false;
     el.removeAttribute("aria-hidden");
-    // reset any inline display we might have set earlier
-    if (el.style && el.style.display === "none") el.style.display = "";
+    el.style.removeProperty("display");
   };
-
   const hide = (el) => {
     if (!el) return;
+    el.classList.add("gated");
+    el.setAttribute("data-gated","true");
     el.hidden = true;
-    el.setAttribute("aria-hidden", "true");
-    if (el.style) el.style.display = "none";
+    el.setAttribute("aria-hidden","true");
+    el.style.display = "none";
   };
 
-  // Auth-gated wrappers and items
   document.querySelectorAll('[data-auth="out"]').forEach(el => signedIn ? hide(el) : show(el));
   document.querySelectorAll('[data-auth="in"]').forEach(el => signedIn ? show(el) : hide(el));
 
-  // Role-gated items
-  const requiresSel = '[data-requires]';
-  document.querySelectorAll(requiresSel).forEach(el => {
+  document.querySelectorAll("[data-requires]").forEach(el => {
     const req = (el.getAttribute("data-requires") || "").toLowerCase();
-    // allow comma/space separated lists e.g. "wrestler promoter"
-    const tokens = req.split(/[\s,]+/).filter(Boolean);
-    const ok = signedIn && (tokens.length === 0 || tokens.includes(role));
+    const ok = signedIn && req.split(/[\s,]+/).filter(Boolean).includes(role);
     ok ? show(el) : hide(el);
   });
 
-  // My profile visibility follows signed-in
   document.querySelectorAll("[data-myprofile]").forEach(el => signedIn ? show(el) : hide(el));
+
+  document.getElementById("gate-style")?.remove();
 }
 
 
