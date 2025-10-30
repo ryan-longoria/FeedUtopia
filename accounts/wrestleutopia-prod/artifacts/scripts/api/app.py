@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 from time import perf_counter
@@ -276,6 +277,40 @@ def lambda_handler(event, _ctx):
             resp = r_tryouts._delete_tryout(sub, tryout_id)
             _access_log(method, raw_path, resp["statusCode"], t0, ids)
             return resp
+        
+        if method == "POST" and raw_path.startswith("/tryouts/") and raw_path.endswith("/apply"):
+            parts = raw_path.split("/")
+            if len(parts) == 4:
+                tryout_id = parts[2]
+            else:
+                tryout_id = None
+
+            if not tryout_id:
+                resp = _resp(400, {"message": "tryoutId required", **ids})
+                _access_log(method, raw_path, resp["statusCode"], t0, ids)
+                return resp
+
+            err = _require_wrestler(groups)
+            if err:
+                _access_log(method, raw_path, err["statusCode"], t0, ids)
+                return err
+
+            body = event.get("body")
+            if body and isinstance(body, str):
+                try:
+                    data = json.loads(body)
+                except Exception:
+                    data = {}
+            else:
+                data = {}
+
+            data.setdefault("tryoutId", tryout_id)
+            event = {**event, "body": json.dumps(data)}
+
+            resp = r_apps._post_application(sub, groups, event)
+            _access_log(method, raw_path, resp["statusCode"], t0, ids)
+            return resp
+
 
         if raw_path == "/applications":
             if method == "POST":
