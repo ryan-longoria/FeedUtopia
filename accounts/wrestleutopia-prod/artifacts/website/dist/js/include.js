@@ -60,7 +60,7 @@
     const SAFE_ATTRS = new Set([
       "id","class","role","alt","title","rel","target","type",
       "for","value","name","placeholder","width","height",
-      "hidden" // keep boolean hidden so default-deny works
+      "hidden"
     ]);
 
     for (let node = walker.currentNode; node; node = walker.nextNode()) {
@@ -74,19 +74,15 @@
       for (const attr of Array.from(node.attributes)) {
         const n = attr.name;
 
-        // always drop inline handlers
         if (n.startsWith("on")) {
           node.removeAttribute(n);
           continue;
         }
 
-        // keep aria-*
         if (n.startsWith("aria-")) continue;
 
-        // KEEP any data-* (used for gating)
         if (n.startsWith("data-")) continue;
 
-        // restrict URL-bearing attrs to same-origin
         if (SAFE_URL_ATTRS.has(n)) {
           try {
             const u = new URL(attr.value, location.origin);
@@ -97,7 +93,6 @@
           continue;
         }
 
-        // keep only safe known attributes (and 'hidden' above)
         if (!SAFE_ATTRS.has(n)) {
           node.removeAttribute(n);
         }
