@@ -70,6 +70,28 @@ const setLogoImg = (el, key) => {
 let mediaKeys = []; // array of S3 object keys (images)
 let highlights = []; // array of URLs (YouTube or absolute video URLs)
 
+function wrap(tag, className, children) {
+  const el = document.createElement(tag);
+  if (className) el.className = className;
+
+  if (children != null) {
+    if (Array.isArray(children)) {
+      children.forEach((c) => {
+        if (c == null) return;
+        el.appendChild(
+          typeof c === "string" ? document.createTextNode(c) : c
+        );
+      });
+    } else {
+      el.appendChild(
+        typeof children === "string" ? document.createTextNode(children) : children
+      );
+    }
+  }
+
+  return el;
+}
+
 function renderPhotoGrid() {
   const wrap = document.getElementById("photoGrid");
   if (!wrap) return;
