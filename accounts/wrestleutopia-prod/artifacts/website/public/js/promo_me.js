@@ -122,12 +122,7 @@ function renderHighlightList() {
   `,
     )
     .join("");
-  wrap.querySelectorAll(".media-remove").forEach((btn) => {
-    btn.onclick = () => {
-      mediaKeys.splice(Number(btn.dataset.i), 1);
-      renderPhotoGrid();
-    };
-  });
+
   ul.querySelectorAll("button").forEach((btn) => {
     btn.onclick = () => {
       highlights.splice(Number(btn.dataset.i), 1);
@@ -135,7 +130,7 @@ function renderHighlightList() {
     };
   });
 }
-
+  
 async function uploadLogoIfAny() {
   const file = document.getElementById("logo")?.files?.[0];
   if (!file) return null;
