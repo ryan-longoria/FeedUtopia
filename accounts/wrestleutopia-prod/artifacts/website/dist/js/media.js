@@ -1,12 +1,17 @@
 const RAW_BASE = (window.WU_MEDIA_BASE || "").trim();
 
+const ALLOWED_ORIGINS = [
+  window.location.origin,
+  "https://d178p8k1vmj1zs.cloudfront.net",
+];
+
 const BASE = (() => {
   if (!RAW_BASE) return "";
   try {
     const url = new URL(RAW_BASE, window.location.origin);
 
-    if (url.origin !== window.location.origin) {
-      console.warn("WU_MEDIA_BASE origin mismatch, ignoring:", RAW_BASE);
+    if (!ALLOWED_ORIGINS.includes(url.origin)) {
+      console.warn("WU_MEDIA_BASE origin not allowed, ignoring:", RAW_BASE);
       return "";
     }
 
