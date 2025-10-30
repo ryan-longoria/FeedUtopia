@@ -249,6 +249,14 @@ resource "aws_apigatewayv2_route" "post_promoter_logo_presign" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+resource "aws_apigatewayv2_route" "post_tryout_apply" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "POST /tryouts/{tryoutId}/apply"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 #############################
 # Stage
 #############################
