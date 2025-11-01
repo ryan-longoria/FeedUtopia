@@ -1,3 +1,4 @@
+// /js/profile_me.js
 import { apiFetch, uploadToS3, uploadAvatar } from "/js/api.js";
 import { getAuthState, isWrestler } from "/js/roles.js";
 import { mediaUrl } from "/js/media.js";
@@ -11,9 +12,8 @@ import { mediaUrl } from "/js/media.js";
   };
 
   const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
-
-  const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
-  const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+  const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
   const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
   const VIDEO_TYPES = new Set([
     "video/mp4",
@@ -90,27 +90,6 @@ import { mediaUrl } from "/js/media.js";
     }
   }
 
-  function normalizeHighlightFromBackend(item) {
-    if (typeof item !== "string") return null;
-
-    if (/^https?:\/\//i.test(item)) {
-      return item;
-    }
-
-    if (
-      item.startsWith("public/") ||
-      item.startsWith("profiles/") ||
-      item.startsWith("raw/")
-    ) {
-      if (item.startsWith("public/")) {
-        return mediaUrl(item);
-      }
-      return item;
-    }
-
-    return item;
-  }
-
   function isKeyLike(val) {
     return (
       typeof val === "string" &&
@@ -168,7 +147,6 @@ import { mediaUrl } from "/js/media.js";
   function renderPhotoGrid() {
     const wrap = document.getElementById("photoGrid");
     if (!wrap) return;
-
     wrap.innerHTML = (mediaKeys || [])
       .map((k, i) => {
         const raw = typeof k === "string" && k.startsWith("raw/");
@@ -181,7 +159,6 @@ import { mediaUrl } from "/js/media.js";
         `;
       })
       .join("");
-
     wrap.onclick = (ev) => {
       const btn = ev.target.closest(".media-remove");
       if (!btn) return;
@@ -215,7 +192,6 @@ import { mediaUrl } from "/js/media.js";
         `;
       })
       .join("");
-
     ul.onclick = (ev) => {
       const btn = ev.target.closest("button");
       if (!btn) return;
@@ -236,19 +212,15 @@ import { mediaUrl } from "/js/media.js";
     const fd = new FormData(form);
     const o = {};
     for (const [k, v] of fd.entries()) o[k] = v;
-
     o.heightIn = Number(o.heightIn);
     if (!Number.isFinite(o.heightIn)) delete o.heightIn;
-
     o.weightLb = Number(o.weightLb);
     if (!Number.isFinite(o.weightLb)) delete o.weightLb;
-
     o.bio = (o.bio || "").trim() || null;
     o.gimmicks = (o.gimmicks || "")
       .split(",")
       .map((x) => x.trim())
       .filter(Boolean);
-
     o.socials = {
       twitter: (o.social_twitter || "").trim() || null,
       instagram: (o.social_instagram || "").trim() || null,
@@ -259,7 +231,6 @@ import { mediaUrl } from "/js/media.js";
     Object.keys(o.socials).forEach((k) => {
       if (!o.socials[k]) delete o.socials[k];
     });
-
     const exp = (o.experienceYears || "").toString().trim();
     if (exp === "") {
       o.experienceYears = null;
@@ -267,9 +238,7 @@ import { mediaUrl } from "/js/media.js";
       const n = Number(exp);
       o.experienceYears = Number.isFinite(n) ? n : null;
     }
-
     o.achievements = (o.achievements || "").trim() || null;
-
     return o;
   }
 
@@ -291,13 +260,11 @@ import { mediaUrl } from "/js/media.js";
     const fileInput = document.getElementById("avatar");
     const file = fileInput?.files?.[0];
     if (!file) return null;
-
     const err = assertFileAllowed(file, "image");
     if (err) {
       toast(err, "error");
       return null;
     }
-
     return await uploadAvatar(file);
   }
 
@@ -307,15 +274,10 @@ import { mediaUrl } from "/js/media.js";
       if (!me || !me.userId) return;
 
       mediaKeys = Array.isArray(me.mediaKeys) ? [...me.mediaKeys] : [];
+      highlights = Array.isArray(me.highlights) ? [...me.highlights] : [];
 
-      highlights = Array.isArray(me.highlights)
-        ? me.highlights
-            .map((item) => normalizeHighlightFromBackend(item))
-            .filter(Boolean)
-        : [];
-
-      renderHighlightList();
       renderPhotoGrid();
+      renderHighlightList();
 
       window.profile = me;
 
@@ -456,7 +418,6 @@ import { mediaUrl } from "/js/media.js";
         const input = document.getElementById("photoFiles");
         const files = Array.from(input?.files || []);
         if (!files.length) return;
-
         for (const f of files) {
           const err = assertFileAllowed(f, "image");
           if (err) {
@@ -471,7 +432,6 @@ import { mediaUrl } from "/js/media.js";
             mediaKeys.push(key);
           }
         }
-
         renderPhotoGrid();
         if (input) input.value = "";
       });
@@ -529,19 +489,16 @@ import { mediaUrl } from "/js/media.js";
 
     form?.addEventListener("submit", async (e) => {
       e.preventDefault();
-
       const now = Date.now();
       if (now - lastSaveAt < SAVE_COOLDOWN_MS) {
         toast("Saving too fast. Try again.", "error");
         return;
       }
       lastSaveAt = now;
-
       setDisabled(saveBtn, true, "Saving…");
 
       try {
         const data = formToObj(form);
-
         const key = await uploadAvatarIfAny().catch(() => null);
         if (key) {
           data.photoKey = key;
