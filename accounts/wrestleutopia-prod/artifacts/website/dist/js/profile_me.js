@@ -72,20 +72,43 @@ import { mediaUrl } from "/js/media.js";
     // Facebook
     "www.facebook.com",
     "facebook.com",
-    // Twitch
-    "www.twitch.tv",
-    "twitch.tv",
-    // Kick
-    "kick.com",
-    "www.kick.com",
-    // LinkedIn
-    "www.linkedin.com",
-    "linkedin.com",
   ]);
 
   if (MEDIA_BASE) {
     const h = getHostFromUrl(MEDIA_BASE);
     if (h) ALLOWED_HIGHLIGHT_HOSTS.add(h);
+  }
+
+  function safeHighlightUrlFromUser(raw) {
+    try {
+      const url = new URL(raw, location.origin);
+      if (url.protocol !== "https:") return null;
+      if (!ALLOWED_HIGHLIGHT_HOSTS.has(url.host)) return null;
+      return url.toString();
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeHighlightFromBackend(item) {
+    if (typeof item !== "string") return null;
+
+    if (/^https?:\/\//i.test(item)) {
+      return item;
+    }
+
+    if (
+      item.startsWith("public/") ||
+      item.startsWith("profiles/") ||
+      item.startsWith("raw/")
+    ) {
+      if (item.startsWith("public/")) {
+        return mediaUrl(item);
+      }
+      return item;
+    }
+
+    return item;
   }
 
   function isKeyLike(val) {
@@ -140,17 +163,6 @@ import { mediaUrl } from "/js/media.js";
     if (!typeSet.has(file.type)) return "Unsupported file type";
     if (file.size > max) return "File too large";
     return null;
-  }
-
-  function safeHighlightUrl(raw) {
-    try {
-      const url = new URL(raw, location.origin);
-      if (url.protocol !== "https:") return null;
-      if (!ALLOWED_HIGHLIGHT_HOSTS.has(url.host)) return null;
-      return url.toString();
-    } catch {
-      return null;
-    }
   }
 
   function renderPhotoGrid() {
@@ -298,23 +310,12 @@ import { mediaUrl } from "/js/media.js";
 
       highlights = Array.isArray(me.highlights)
         ? me.highlights
-            .map((item) => {
-              if (typeof item !== "string") return null;
-
-              if (/^https?:\/\//i.test(item)) {
-                const safe = safeHighlightUrl(item);
-                return safe;
-              }
-
-              if (isKeyLike(item)) return item;
-
-              return null;
-            })
+            .map((item) => normalizeHighlightFromBackend(item))
             .filter(Boolean)
         : [];
 
-      renderPhotoGrid();
       renderHighlightList();
+      renderPhotoGrid();
 
       window.profile = me;
 
@@ -481,7 +482,7 @@ import { mediaUrl } from "/js/media.js";
         const el = document.getElementById("highlightUrl");
         const u = (el?.value || "").trim();
         if (!u) return;
-        const safe = safeHighlightUrl(u);
+        const safe = safeHighlightUrlFromUser(u);
         if (!safe) {
           toast(
             "Highlight URL must be https and from an allowed social/video site",
