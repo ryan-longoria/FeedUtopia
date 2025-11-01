@@ -17,6 +17,8 @@ const ALLOWED_PATHS = new Set([
   "/p",
   "/w/",
   "/p/",
+  "/dashboard_wrestler.html",
+  "/dashboard_promoter.html",
 ]);
 
 const HASH_RE = /^#[a-zA-Z0-9._~%-]{0,200}$/;
@@ -165,12 +167,19 @@ async function resolveMyProfileUrl() {
         "wrestler resolve timeout"
       );
 
-      const handle = normalizeHandle(me?.handle);
-      if (handle) {
-        const url = toHashUrl("w", handle);
+      const wrestlerId =
+        normalizeHandle(me?.handle) ||
+        normalizeHandle(me?.slug) ||
+        normalizeHandle(me?.id) ||
+        normalizeHandle(me?.sub) ||
+        normalizeHandle(state.sub);
+
+      if (wrestlerId) {
+        const url = toHashUrl("w", wrestlerId);
         writeCache(url, state.sub);
         return url;
       }
+
       return "/dashboard_wrestler.html";
     }
 
@@ -338,4 +347,5 @@ try {
     });
   }
 } catch {
+  // ignore
 }
