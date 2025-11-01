@@ -1,372 +1,603 @@
-// /js/promo_me.js
-import { apiFetch, uploadToS3, md5Base64 } from "/js/api.js";
-import { getAuthState, isPromoter } from "/js/roles.js";
+import { apiFetch, uploadToS3, uploadAvatar } from "/js/api.js";
+import { getAuthState, isWrestler } from "/js/roles.js";
 import { mediaUrl } from "/js/media.js";
 
-// ---------- tiny DOM helpers ----------
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-const setVal = (id, v = "") => {
-  const el = document.getElementById(id);
-  if (el) el.value = v ?? "";
-};
-const getVal = (id) => (document.getElementById(id)?.value ?? "").trim();
-const setDisabled = (el, on, labelBusy = "Saving…") => {
-  if (!el) return;
-  el.disabled = !!on;
-  if (on) {
-    el.dataset.prevText = el.textContent;
-    el.textContent = labelBusy;
-  } else {
-    el.textContent = el.dataset.prevText || el.textContent;
+(() => {
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const setVal = (id, v = "") => {
+    const el = document.getElementById(id);
+    if (el) el.value = v ?? "";
+  };
+
+  const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
+
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+  const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+  const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+  const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
+
+  let mediaKeys = [];
+  let highlights = [];
+
+  function safeMediaBase(raw) {
+    if (typeof raw !== "string" || !raw) return "";
+    try {
+      const url = new URL(raw, location.origin);
+      if (url.origin !== location.origin) return "";
+      return url.toString().replace(/\/+$/, "");
+    } catch {
+      return "";
+    }
   }
-};
+  const MEDIA_BASE = safeMediaBase(window.WU_MEDIA_BASE);
 
-function normalizeS3Key(uriOrKey, sub) {
-  if (!uriOrKey) return null;
-  let raw = String(uriOrKey).trim();
-
-  // Strip "s3://bucket/" → leave just the key
-  if (raw.startsWith("s3://")) {
-    raw = raw.slice("s3://".length);
-    const firstSlash = raw.indexOf("/");
-    raw = firstSlash >= 0 ? raw.slice(firstSlash + 1) : raw; // remove "<bucket>/"
-  }
-
-  if (/^(public\/(wrestlers|promoters)\/|raw\/uploads\/)/.test(raw)) return raw;
-
-  if (/^user\//.test(raw)) return raw;
-
-  // Fallback: force "user/<sub>/<filename>"
-  const fname = raw.split("/").pop() || `file-${Date.now()}`;
-  return sub ? `user/${sub}/${fname}` : `user/unknown/${fname}`;
-}
-
-function toast(text, type = "success") {
-  const t = document.querySelector("#toast");
-  if (!t) return console[type === "error" ? "error" : "log"](text);
-  t.textContent = text;
-  t.classList.toggle("error", type === "error");
-  t.style.display = "block";
-  setTimeout(() => (t.style.display = "none"), 2400);
-}
-
-// ---------- media helpers (logos/photos/videos) ----------
-const MEDIA_BASE = (window.WU_MEDIA_BASE || "").replace(/\/+$/, "");
-const setLogoImg = (el, key) => {
-  if (!el) return;
-  if (!key) {
-    el.src = "/assets/avatar-fallback.svg";
-    return;
-  }
-  const url = mediaUrl(String(key));
-  const needsBust =
-    /^public\/promoters\/profiles\//.test(String(key)) ||
-    /^profiles\//.test(String(key)); // legacy
-  el.src = needsBust ? `${url}?v=${Date.now()}` : url;
-};
-
-// State for gallery (photos) + highlights (video links or absolute URLs)
-let mediaKeys = []; // array of S3 object keys (images)
-let highlights = []; // array of URLs (YouTube or absolute video URLs)
-
-function wrap(tag, className, children) {
-  const el = document.createElement(tag);
-  if (className) el.className = className;
-
-  if (children != null) {
-    if (Array.isArray(children)) {
-      children.forEach((c) => {
-        if (c == null) return;
-        el.appendChild(
-          typeof c === "string" ? document.createTextNode(c) : c
-        );
-      });
-    } else {
-      el.appendChild(
-        typeof children === "string" ? document.createTextNode(children) : children
-      );
+  function getHostFromUrl(u) {
+    try {
+      return new URL(u).host;
+    } catch {
+      return null;
     }
   }
 
-  return el;
-}
+  const ALLOWED_HIGHLIGHT_HOSTS = new Set([
+    location.host,
+    // YouTube
+    "www.youtube.com",
+    "youtube.com",
+    "youtu.be",
+    // Vimeo
+    "vimeo.com",
+    "www.vimeo.com",
+    // TikTok
+    "www.tiktok.com",
+    "tiktok.com",
+    "vm.tiktok.com",
+    // Instagram
+    "www.instagram.com",
+    "instagram.com",
+    // Threads
+    "www.threads.net",
+    "threads.net",
+    // X / Twitter
+    "x.com",
+    "www.x.com",
+    "twitter.com",
+    "www.twitter.com",
+    // Facebook
+    "www.facebook.com",
+    "facebook.com",
+    // Snapchat
+    "www.snapchat.com",
+    "snapchat.com",
+  ]);
 
-function renderPhotoGrid() {
-  const wrap = document.getElementById("photoGrid");
-  if (!wrap) return;
-  wrap.innerHTML = (mediaKeys || [])
-    .map((k, i) => {
-      const raw = typeof k === "string" && k.startsWith("raw/");
-      const imgSrc = raw ? "/assets/image-processing.svg" : mediaUrl(k);
-      return `
-      <div class="media-card">
-        <img src="${imgSrc}" alt="">
-        <button class="btn secondary media-remove" type="button" data-i="${i}">Remove</button>
-      </div>
-    `;
-    })
-    .join("");
-}
-
-function renderHighlightList() {
-  const ul = document.getElementById("highlightList");
-  if (!ul) return;
-  ul.innerHTML = (highlights || [])
-    .map(
-      (u, i) => `
-    <li>
-      <span style="flex:1; word-break:break-all">${u}</span>
-      <button class="btn secondary" type="button" data-i="${i}">Remove</button>
-    </li>
-  `,
-    )
-    .join("");
-
-  ul.querySelectorAll("button").forEach((btn) => {
-    btn.onclick = () => {
-      highlights.splice(Number(btn.dataset.i), 1);
-      renderHighlightList();
-    };
-  });
-}
-  
-async function uploadLogoIfAny() {
-  const file = document.getElementById("logo")?.files?.[0];
-  if (!file) return null;
-  try {
-    const md5b64 = await md5Base64(file);
-
-    if (typeof apiFetch === "function") {
-      // If you add a route like POST /profiles/promoters/me/logo-url (mirroring wrestlers)
-      const presign = await apiFetch("/profiles/promoters/me/logo-url", {
-        method: "POST",
-        headers: { "Content-MD5": md5b64 },
-        body: { contentType: file.type || "image/jpeg" },
-      });
-      if (presign?.uploadUrl && presign?.objectKey) {
-        await fetch(presign.uploadUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": presign.contentType || file.type || "image/jpeg",
-            "x-amz-server-side-encryption": "AES256",
-            "Content-MD5": md5b64,
-          },
-          body: file,
-        });
-        return presign.objectKey; // e.g., public/promoters/profiles/<sub>/logo.png
-      }
-    }
-  } catch (_) {
-    /* fall through to generic */
+  if (MEDIA_BASE) {
+    const h = getHostFromUrl(MEDIA_BASE);
+    if (h) ALLOWED_HIGHLIGHT_HOSTS.add(h);
   }
 
-  // Fallback: generic presign (likely lands in raw/uploads or legacy user/<sub>/)
-  return await uploadToS3(file.name, file.type || "image/jpeg", file);
-}
+  function setImg(sel, key) {
+    const el = $(sel);
+    if (!el) return;
+    if (!key) {
+      el.src = "/assets/avatar-fallback.svg";
+      return;
+    }
+    const url = mediaUrl(String(key));
+    const needsBust =
+      /^public\/wrestlers\/profiles\//.test(String(key)) ||
+      /^profiles\//.test(String(key));
+    el.src = needsBust ? `${url}?v=${AVATAR_BUST}` : url;
+  }
 
-// ---------- auth gate ----------
-async function ensurePromoter() {
-  const state = await getAuthState();
-  if (!state || !isPromoter(state)) {
-    toast("Please sign in as a promoter.", "error");
+  function toast(text, type = "success") {
+    const t = $("#toast");
+    if (!t) {
+      console.log(`[toast:${type}]`, text);
+      return;
+    }
+    t.textContent = text;
+    t.classList.toggle("error", type === "error");
+    t.style.display = "block";
+    setTimeout(() => (t.style.display = "none"), 2400);
+  }
+
+  function slugify(s) {
+    return String(s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+  }
+
+  async function ensureWrestler() {
+    const s = await getAuthState();
+    if (!isWrestler(s)) {
+      toast("Wrestler role required", "error");
+      location.replace("index.html");
+      return null;
+    }
+    return s;
+  }
+
+  function assertFileAllowed(file, kind = "image") {
+    if (!file) return "No file selected";
+    const typeSet = kind === "video" ? VIDEO_TYPES : IMAGE_TYPES;
+    const max = kind === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    if (!typeSet.has(file.type)) return "Unsupported file type";
+    if (file.size > max) return "File too large";
     return null;
   }
-  document.body.classList.add("authenticated");
-  return state;
-}
 
-// ---------- load existing profile ----------
-async function loadMe() {
-  try {
-    const me = await apiFetch("/profiles/promoters/me", { method: "GET" });
+  function safeHighlightUrl(raw) {
+    try {
+      const url = new URL(raw, location.origin);
+      if (url.protocol !== "https:") return null;
+      if (!ALLOWED_HIGHLIGHT_HOSTS.has(url.host)) return null;
+      return url.toString();
+    } catch {
+      return null;
+    }
+  }
 
-    // Core fields
-    setVal("orgName", me.orgName);
-    setVal("address", me.address);
-    setVal("city", me.city);
-    setVal("region", me.region);
-    setVal("country", me.country);
-    setVal("website", me.website);
-    setVal("contact", me.contact);
-    setVal("bio", me.bio);
+  function isKeyLike(val) {
+    return (
+      typeof val === "string" &&
+      (val.startsWith("public/") ||
+        val.startsWith("profiles/") ||
+        val.startsWith("raw/"))
+    );
+  }
 
-    // Socials (if your inputs exist)
-    if (me.socials && typeof me.socials === "object") {
-      for (const [k, v] of Object.entries(me.socials)) {
-        setVal(`social_${k}`, v);
-      }
+  function renderPhotoGrid() {
+    const wrap = document.getElementById("photoGrid");
+    if (!wrap) return;
+
+    wrap.innerHTML = (mediaKeys || [])
+      .map((k, i) => {
+        const raw = typeof k === "string" && k.startsWith("raw/");
+        const imgSrc = raw ? "/assets/image-processing.svg" : mediaUrl(k);
+        return `
+          <div class="media-card" data-i="${i}">
+            <img src="${imgSrc}" alt="Profile media ${i}">
+            <button class="btn secondary media-remove" type="button">Remove</button>
+          </div>
+        `;
+      })
+      .join("");
+
+    wrap.onclick = (ev) => {
+      const btn = ev.target.closest(".media-remove");
+      if (!btn) return;
+      const card = btn.closest("[data-i]");
+      if (!card) return;
+      const idx = Number(card.dataset.i);
+      if (!Number.isFinite(idx)) return;
+      mediaKeys.splice(idx, 1);
+      renderPhotoGrid();
+    };
+  }
+
+  function renderHighlightList() {
+    const ul = document.getElementById("highlightList");
+    if (!ul) return;
+    ul.innerHTML = (highlights || [])
+      .map((item, i) => {
+        const display =
+          isKeyLike(item) && typeof item === "string"
+            ? mediaUrl(item)
+            : String(item);
+        return `
+          <li data-i="${i}">
+            <span style="flex:1; word-break:break-all">${display}</span>
+            <button class="btn secondary" type="button">Remove</button>
+          </li>
+        `;
+      })
+      .join("");
+
+    ul.onclick = (ev) => {
+      const btn = ev.target.closest("button");
+      if (!btn) return;
+      const li = btn.closest("[data-i]");
+      if (!li) return;
+      const idx = Number(li.dataset.i);
+      if (!Number.isFinite(idx)) return;
+      highlights.splice(idx, 1);
+      renderHighlightList();
+    };
+  }
+
+  function photoUrlFromKey(key) {
+    return key ? mediaUrl(String(key)) : "/assets/avatar-fallback.svg";
+  }
+
+  function formToObj(form) {
+    const fd = new FormData(form);
+    const o = {};
+    for (const [k, v] of fd.entries()) o[k] = v;
+
+    o.heightIn = Number(o.heightIn);
+    if (!Number.isFinite(o.heightIn)) delete o.heightIn;
+
+    o.weightLb = Number(o.weightLb);
+    if (!Number.isFinite(o.weightLb)) delete o.weightLb;
+
+    o.bio = (o.bio || "").trim() || null;
+    o.gimmicks = (o.gimmicks || "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+    o.socials = {
+      twitter: (o.social_twitter || "").trim() || null,
+      instagram: (o.social_instagram || "").trim() || null,
+      tiktok: (o.social_tiktok || "").trim() || null,
+      youtube: (o.social_youtube || "").trim() || null,
+      website: (o.social_website || "").trim() || null,
+    };
+    Object.keys(o.socials).forEach((k) => {
+      if (!o.socials[k]) delete o.socials[k];
+    });
+
+    const exp = (o.experienceYears || "").toString().trim();
+    if (exp === "") {
+      o.experienceYears = null;
+    } else {
+      const n = Number(exp);
+      o.experienceYears = Number.isFinite(n) ? n : null;
     }
 
-    // Logo preview
-    const logoImg = document.getElementById("logoPreview");
-    if (logoImg) setLogoImg(logoImg, me.logoKey);
+    o.achievements = (o.achievements || "").trim() || null;
 
-    // Gallery + Highlights
-    const { sub } = (await getAuthState()) || {};
-    mediaKeys = Array.isArray(me.mediaKeys)
-      ? me.mediaKeys.map((k) => normalizeS3Key(k, sub))
-      : [];
-    highlights = Array.isArray(me.highlights) ? [...me.highlights] : [];
-    renderPhotoGrid();
-    renderHighlightList();
-  } catch (e) {
-    // 404/empty is fine for first-time users
-    console.debug("loadMe:", e.message || e);
+    return o;
   }
-}
 
-// ---------- init & events ----------
-async function init() {
-  const state = await ensurePromoter();
-  if (!state) return;
-
-  // Live logo preview
-  const logoInput = document.getElementById("logo");
-  const logoPreview = document.getElementById("logoPreview");
-  logoInput?.addEventListener("change", () => {
-    const f = logoInput.files?.[0];
-    if (!f || !logoPreview) return;
-    logoPreview.src = URL.createObjectURL(f);
-  });
-
-  // Add gallery photos (multi-upload)
-  document
-    .getElementById("addPhotosBtn")
-    ?.addEventListener("click", async () => {
-      const input = document.getElementById("photoFiles");
-      const files = Array.from(input?.files || []);
-      if (!files.length) return;
-
-      try {
-        const { sub } = (await getAuthState()) || {};
-        for (const f of files) {
-          const key = await uploadToS3(f.name, f.type || "image/jpeg", f, {
-            actor: "promoter",
-            type: "gallery",
-          });
-          mediaKeys.push(key);
-        }
-        renderPhotoGrid();
-        input.value = "";
-      } catch (err) {
-        console.error(err);
-        toast("Photo upload failed", "error");
+  function setDisabled(el, on, labelBusy) {
+    if (!el) return;
+    el.disabled = !!on;
+    if (labelBusy) {
+      const prev = el.dataset.prevText || el.textContent;
+      if (on) {
+        el.dataset.prevText = prev;
+        el.textContent = labelBusy;
+      } else {
+        el.textContent = el.dataset.prevText || el.textContent;
       }
-    });
+    }
+  }
 
-  // Add highlight by URL
-  document
-    .getElementById("addHighlightUrlBtn")
-    ?.addEventListener("click", () => {
-      const el = document.getElementById("highlightUrl");
-      const u = (el?.value || "").trim();
-      if (!u) return;
-      highlights.push(u);
-      renderHighlightList();
-      el.value = "";
-    });
+  async function uploadAvatarIfAny() {
+    const fileInput = document.getElementById("avatar");
+    const file = fileInput?.files?.[0];
+    if (!file) return null;
 
-  // Upload highlight video file
-  document
-    .getElementById("uploadHighlightBtn")
-    ?.addEventListener("click", async () => {
-      const input = document.getElementById("highlightFile");
-      const f = input?.files?.[0];
-      if (!f) return;
-      try {
-        const { sub } = (await getAuthState()) || {};
-        const key = await uploadToS3(f.name, f.type || "video/mp4", f, {
-          actor: "promoter",
-          type: "highlight",
-        });
-        const val =
-          typeof key === "string" && key.startsWith("public/")
-            ? mediaUrl(key)
-            : key;
-        highlights.push(val);
-        renderHighlightList();
-        input.value = "";
-      } catch (err) {
-        console.error(err);
-        toast("Video upload failed", "error");
-      }
-    });
+    const err = assertFileAllowed(file, "image");
+    if (err) {
+      toast(err, "error");
+      return null;
+    }
 
-  // Save handler
-  const form = document.getElementById("promoForm");
-  const saveBtn = document.getElementById("saveBtn");
+    return await uploadAvatar(file);
+  }
 
-  form?.addEventListener("submit", async (evt) => {
-    evt.preventDefault();
-    setDisabled(saveBtn, true);
-
+  async function loadMe() {
     try {
-      // collect core fields
-      const data = {
-        orgName: getVal("orgName"),
-        address: getVal("address"),
-        city: getVal("city"),
-        region: getVal("region"),
-        country: getVal("country"),
-        website: getVal("website"),
-        contact: getVal("contact"),
-        bio: getVal("bio"),
-        mediaKeys,
-        highlights,
+      const me = await apiFetch("/profiles/wrestlers/me");
+      if (!me || !me.userId) return;
+
+      mediaKeys = Array.isArray(me.mediaKeys) ? [...me.mediaKeys] : [];
+
+      highlights = Array.isArray(me.highlights)
+        ? me.highlights
+            .map((item) => {
+              if (typeof item !== "string") return null;
+              if (isKeyLike(item)) return item;
+              const safe = safeHighlightUrl(item);
+              return safe;
+            })
+            .filter(Boolean)
+        : [];
+
+      renderPhotoGrid();
+      renderHighlightList();
+
+      window.profile = me;
+
+      const map = {
+        firstName: "firstName",
+        middleName: "middleName",
+        lastName: "lastName",
+        stageName: "stageName",
+        dob: "dob",
+        city: "city",
+        region: "region",
+        country: "country",
+        heightIn: "heightIn",
+        weightLb: "weightLb",
+        bio: "bio",
+        experienceYears: "experienceYears",
+        achievements: "achievements",
       };
 
-      // socials if present
-      const socialKeys = [
-        "twitter",
-        "instagram",
-        "facebook",
-        "tiktok",
-        "youtube",
-        "website",
-      ];
-      const socials = {};
-      for (const key of socialKeys) {
-        const v = getVal(`social_${key}`);
-        if (v) socials[key] = v;
+      if (me.socials) {
+        const s = me.socials;
+        if (s.twitter) setVal("social_twitter", s.twitter);
+        if (s.instagram) setVal("social_instagram", s.instagram);
+        if (s.tiktok) setVal("social_tiktok", s.tiktok);
+        if (s.youtube) setVal("social_youtube", s.youtube);
+        if (s.website) setVal("social_website", s.website);
       }
-      if (Object.keys(socials).length) data.socials = socials;
 
-      // upload logo if provided
-      const logoKey = await uploadLogoIfAny();
-      if (logoKey) data.logoKey = logoKey;
+      for (const [field, id] of Object.entries(map)) {
+        if (me[field] !== undefined && me[field] !== null) setVal(id, me[field]);
+      }
 
-      // attach gallery + highlights
-      data.mediaKeys = mediaKeys;
-      data.highlights = highlights;
+      if (Array.isArray(me.gimmicks) && me.gimmicks.length) {
+        setVal("gimmicks", me.gimmicks.join(", "));
+      }
 
-      // Save
-      const saved = await apiFetch("/profiles/promoters", {
-        method: "PUT",
-        body: data,
+      setImg(
+        "#avatarPreview",
+        me.photoKey ||
+          me.avatar_key ||
+          me.avatarKey ||
+          me.photo_key ||
+          null,
+      );
+
+      const vb = document.getElementById("viewBtn");
+      if (vb) {
+        vb.disabled = !me.handle;
+        if (me.handle) vb.dataset.handle = me.handle;
+      }
+    } catch (e) {
+      const status = e?.status || e?.response?.status;
+      if (status === 401 || status === 403) {
+        location.replace("/login.html?next=/profile_me.html");
+        return;
+      }
+      console.debug("loadMe:", e?.message || e);
+    }
+  }
+
+  function safeHandle(h) {
+    const s = String(h || "");
+    return /^[a-zA-Z0-9_-]+$/.test(s) ? s : null;
+  }
+
+  async function init() {
+    const state = await ensureWrestler();
+    if (!state) return;
+
+    const form = document.getElementById("profileForm");
+    const saveBtn = document.getElementById("saveBtn");
+    const viewBtn = document.getElementById("viewBtn");
+    const avatarInput = document.getElementById("avatar");
+    const avatarPreview = document.getElementById("avatarPreview");
+
+    avatarInput?.addEventListener("change", () => {
+      const f = avatarInput.files?.[0];
+      if (f && avatarPreview) {
+        const err = assertFileAllowed(f, "image");
+        if (err) {
+          toast(err, "error");
+          avatarInput.value = "";
+          return;
+        }
+        avatarPreview.src = URL.createObjectURL(f);
+      }
+    });
+
+    viewBtn?.addEventListener("click", () => {
+      const handle = safeHandle(viewBtn?.dataset?.handle);
+      if (handle) {
+        location.href = `/w/#${handle}`;
+        return;
+      }
+
+      const stageName = $("#stageName")?.value || "Wrestler";
+      const first = $("#firstName")?.value || "";
+      const middle = $("#middleName")?.value || "";
+      const last = $("#lastName")?.value || "";
+      const fullName = [first, middle, last].filter(Boolean).join(" ");
+
+      const dob = $("#dob")?.value || "";
+      const city = $("#city")?.value || "";
+      const region = $("#region")?.value || "";
+      const country = $("#country")?.value || "";
+      const bio = $("#bio")?.value || "";
+      const gimmicks = ($("#gimmicks")?.value || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const imgSrc = avatarPreview?.src || "/assets/avatar-fallback.svg";
+      const loc = [city, region, country].filter(Boolean).join(", ");
+
+      const html = `
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:16px">
+          <img src="${imgSrc}" alt="Avatar" style="width:120px;height:120px;border-radius:999px;object-fit:cover;background:#0f1224;border:1px solid #1f2546"/>
+          <div>
+            <h2 style="margin:0">${stageName}</h2>
+            <div class="muted">${loc}</div>
+            <div class="chips mt-2">${gimmicks.map((g) => `<span class="chip">${g}</span>`).join("")}</div>
+          </div>
+        </div>
+        <div class="mt-3">${bio ? `<p>${bio.replace(/\n/g, "<br/>")}</p>` : '<p class="muted">No bio yet.</p>'}</div>
+        <dl class="mt-3">
+          <dt class="muted">Name</dt><dd>${fullName}</dd>
+          <dt class="muted mt-2">DOB</dt><dd>${dob}</dd>
+        </dl>
+      `;
+      const box = document.getElementById("preview-content");
+      if (box) box.innerHTML = html;
+      document.getElementById("preview-modal")?.showModal();
+    });
+
+    document
+      .getElementById("addPhotosBtn")
+      ?.addEventListener("click", async () => {
+        const input = document.getElementById("photoFiles");
+        const files = Array.from(input?.files || []);
+        if (!files.length) return;
+        for (const f of files) {
+          const err = assertFileAllowed(f, "image");
+          if (err) {
+            toast(err, "error");
+            continue;
+          }
+          const key = await uploadToS3(f.name, f.type || "image/jpeg", f, {
+            actor: "wrestler",
+            type: "gallery",
+          });
+          if (key) {
+            mediaKeys.push(key);
+          }
+        }
+        renderPhotoGrid();
+        if (input) input.value = "";
       });
 
-      toast("Promotion saved!");
-      // refresh preview/preview button if you have one
-      // (no-op by default)
+    document
+      .getElementById("addHighlightUrlBtn")
+      ?.addEventListener("click", () => {
+        const el = document.getElementById("highlightUrl");
+        const u = (el?.value || "").trim();
+        if (!u) return;
+        const safe = safeHighlightUrl(u);
+        if (!safe) {
+          toast("Highlight URL must be https and from an allowed site", "error");
+          return;
+        }
+        highlights.push(safe);
+        renderHighlightList();
+        el.value = "";
+      });
 
-      // Ensure preview reflects any new logo immediately
-      if (saved?.logoKey && logoPreview) {
-        setLogoImg(logoPreview, saved.logoKey);
+    document
+      .getElementById("uploadHighlightBtn")
+      ?.addEventListener("click", async () => {
+        const input = document.getElementById("highlightFile");
+        const f = input?.files?.[0];
+        if (!f) return;
+
+        const err = assertFileAllowed(f, "video");
+        if (err) {
+          toast(err, "error");
+          return;
+        }
+
+        const key = await uploadToS3(f.name, f.type || "video/mp4", f, {
+          actor: "wrestler",
+          type: "highlight",
+        });
+
+        if (key) {
+          highlights.push(key);
+          renderHighlightList();
+        }
+        if (input) input.value = "";
+      });
+
+    let lastSaveAt = 0;
+    const SAVE_COOLDOWN_MS = 3000;
+
+    form?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const now = Date.now();
+      if (now - lastSaveAt < SAVE_COOLDOWN_MS) {
+        toast("Saving too fast. Try again.", "error");
+        return;
       }
-    } catch (err) {
-      console.error(err);
-      toast(err?.message || "Save failed", "error");
-    } finally {
-      setDisabled(saveBtn, false);
-    }
-  });
+      lastSaveAt = now;
 
-  await loadMe();
-}
+      setDisabled(saveBtn, true, "Saving…");
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init, { once: true });
-} else {
-  init();
-}
+      try {
+        const data = formToObj(form);
+
+        const key = await uploadAvatarIfAny().catch(() => null);
+        if (key) {
+          data.photoKey = key;
+          data.avatarKey = key;
+          data.photo_key = key;
+          data.avatar_key = key;
+        }
+
+        const payload = {
+          stageName: data.stageName,
+          firstName: data.firstName,
+          middleName: data.middleName || null,
+          lastName: data.lastName,
+          dob: data.dob,
+          city: data.city,
+          region: data.region,
+          country: data.country,
+          heightIn: data.heightIn,
+          weightLb: data.weightLb,
+
+          bio: data.bio,
+          gimmicks: data.gimmicks,
+          socials: data.socials,
+          experienceYears: data.experienceYears,
+          achievements: data.achievements,
+
+          photoKey: data.photoKey || null,
+          avatarKey: data.avatarKey || null,
+          photo_key: data.photo_key || null,
+          avatar_key: data.avatar_key || null,
+
+          mediaKeys,
+          highlights,
+        };
+
+        const saved = await apiFetch("/profiles/wrestlers/me", {
+          method: "PUT",
+          body: payload,
+        });
+
+        toast("Profile saved!");
+
+        if (saved?.handle && viewBtn) {
+          const handle = safeHandle(saved.handle);
+          if (handle) {
+            viewBtn.disabled = false;
+            viewBtn.dataset.handle = handle;
+            viewBtn.onclick = () => {
+              location.href = `/w/#${handle}`;
+            };
+          }
+        }
+
+        const newKey =
+          saved?.photoKey ||
+          saved?.avatarKey ||
+          saved?.avatar_key ||
+          saved?.photo_key ||
+          data.photoKey ||
+          data.avatarKey ||
+          data.avatar_key ||
+          data.photo_key;
+
+        if (newKey && avatarPreview) {
+          avatarPreview.src = photoUrlFromKey(newKey);
+        }
+      } catch (err) {
+        console.error("profile save failed", err);
+        toast("Save failed. Try again in a moment.", "error");
+      } finally {
+        setDisabled(saveBtn, false);
+      }
+    });
+
+    await loadMe();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+})();
