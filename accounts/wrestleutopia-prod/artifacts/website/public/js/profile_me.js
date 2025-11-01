@@ -415,19 +415,22 @@ import { mediaUrl } from "/js/media.js";
     });
 
     {
-      const photosSection = document.getElementById("photosSection");
-      const videosSection = document.getElementById("videosSection");
+      const photoGrid = document.getElementById("photoGrid");
+      const highlightList = document.getElementById("highlightList");
 
-      if (
-        photosSection &&
-        videosSection &&
-        (photosSection.compareDocumentPosition(videosSection) &
-          Node.DOCUMENT_POSITION_PRECEDING)
-      ) {
-        videosSection.after(photosSection);
+      const photosWrap =
+        photoGrid?.closest("#photosSection, .section, section, .card, .panel, .block") || null;
+      const videosWrap =
+        highlightList?.closest("#videosSection, .section, section, .card, .panel, .block") || null;
+
+      if (photosWrap && videosWrap) {
+        const photosAfterVideos =
+          !!(photosWrap.compareDocumentPosition(videosWrap) & Node.DOCUMENT_POSITION_PRECEDING);
+        if (photosAfterVideos) {
+          videosWrap.before(photosWrap);
+        }
       }
     }
-
     document
       .getElementById("addPhotosBtn")
       ?.addEventListener("click", async () => {
