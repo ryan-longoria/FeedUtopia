@@ -1,4 +1,3 @@
-// /js/profile_me.js
 import { apiFetch, uploadToS3, uploadAvatar } from "/js/api.js";
 import { getAuthState, isWrestler } from "/js/roles.js";
 import { mediaUrl } from "/js/media.js";
@@ -24,6 +23,7 @@ import { mediaUrl } from "/js/media.js";
 
   let mediaKeys = [];
   let highlights = [];
+  let originalHighlightsJSON = "[]";
 
   function safeMediaBase(raw) {
     if (typeof raw !== "string" || !raw) return "";
@@ -275,6 +275,7 @@ import { mediaUrl } from "/js/media.js";
 
       mediaKeys = Array.isArray(me.mediaKeys) ? [...me.mediaKeys] : [];
       highlights = Array.isArray(me.highlights) ? [...me.highlights] : [];
+      originalHighlightsJSON = JSON.stringify(highlights);
 
       renderPhotoGrid();
       renderHighlightList();
@@ -409,7 +410,8 @@ import { mediaUrl } from "/js/media.js";
       `;
       const box = document.getElementById("preview-content");
       if (box) box.innerHTML = html;
-      document.getElementById("preview-modal")?.showModal();
+      document.getElementById("preview-modal")?.showDialog?.() ||
+        document.getElementById("preview-modal")?.showModal();
     });
 
     document
@@ -528,8 +530,12 @@ import { mediaUrl } from "/js/media.js";
           photo_key: data.photo_key || null,
           avatar_key: data.avatar_key || null,
           mediaKeys,
-          highlights,
         };
+
+        const currentHighlightsJSON = JSON.stringify(highlights || []);
+        if (currentHighlightsJSON !== originalHighlightsJSON) {
+          payload.highlights = highlights;
+        }
 
         const saved = await apiFetch("/profiles/wrestlers/me", {
           method: "PUT",
@@ -562,6 +568,8 @@ import { mediaUrl } from "/js/media.js";
         if (newKey && avatarPreview) {
           avatarPreview.src = photoUrlFromKey(newKey);
         }
+
+        originalHighlightsJSON = currentHighlightsJSON;
       } catch (err) {
         console.error("profile save failed", err);
         toast("Save failed. Try again in a moment.", "error");
