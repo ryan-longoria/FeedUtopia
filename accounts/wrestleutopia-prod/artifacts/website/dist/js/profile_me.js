@@ -414,6 +414,20 @@ import { mediaUrl } from "/js/media.js";
         document.getElementById("preview-modal")?.showModal();
     });
 
+    {
+      const photosSection = document.getElementById("photosSection");
+      const videosSection = document.getElementById("videosSection");
+
+      if (
+        photosSection &&
+        videosSection &&
+        (photosSection.compareDocumentPosition(videosSection) &
+          Node.DOCUMENT_POSITION_PRECEDING)
+      ) {
+        videosSection.after(photosSection);
+      }
+    }
+
     document
       .getElementById("addPhotosBtn")
       ?.addEventListener("click", async () => {
