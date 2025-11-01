@@ -12,10 +12,15 @@ import { mediaUrl } from "/js/media.js";
 
   const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
 
-  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-  const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+  const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
   const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-  const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
+  const VIDEO_TYPES = new Set([
+    "video/mp4",
+    "video/quicktime",
+    "video/webm",
+    "video/ogg",
+  ]);
 
   let mediaKeys = [];
   let highlights = [];
@@ -67,14 +72,29 @@ import { mediaUrl } from "/js/media.js";
     // Facebook
     "www.facebook.com",
     "facebook.com",
-    // Snapchat
-    "www.snapchat.com",
-    "snapchat.com",
+    // Twitch
+    "www.twitch.tv",
+    "twitch.tv",
+    // Kick
+    "kick.com",
+    "www.kick.com",
+    // LinkedIn
+    "www.linkedin.com",
+    "linkedin.com",
   ]);
 
   if (MEDIA_BASE) {
     const h = getHostFromUrl(MEDIA_BASE);
     if (h) ALLOWED_HIGHLIGHT_HOSTS.add(h);
+  }
+
+  function isKeyLike(val) {
+    return (
+      typeof val === "string" &&
+      (val.startsWith("public/") ||
+        val.startsWith("profiles/") ||
+        val.startsWith("raw/"))
+    );
   }
 
   function setImg(sel, key) {
@@ -101,13 +121,6 @@ import { mediaUrl } from "/js/media.js";
     t.classList.toggle("error", type === "error");
     t.style.display = "block";
     setTimeout(() => (t.style.display = "none"), 2400);
-  }
-
-  function slugify(s) {
-    return String(s || "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
   }
 
   async function ensureWrestler() {
@@ -138,15 +151,6 @@ import { mediaUrl } from "/js/media.js";
     } catch {
       return null;
     }
-  }
-
-  function isKeyLike(val) {
-    return (
-      typeof val === "string" &&
-      (val.startsWith("public/") ||
-        val.startsWith("profiles/") ||
-        val.startsWith("raw/"))
-    );
   }
 
   function renderPhotoGrid() {
@@ -183,10 +187,14 @@ import { mediaUrl } from "/js/media.js";
     if (!ul) return;
     ul.innerHTML = (highlights || [])
       .map((item, i) => {
-        const display =
-          isKeyLike(item) && typeof item === "string"
-            ? mediaUrl(item)
-            : String(item);
+        let display;
+        if (typeof item === "string" && /^https?:\/\//i.test(item)) {
+          display = item;
+        } else if (isKeyLike(item)) {
+          display = mediaUrl(item);
+        } else {
+          display = String(item);
+        }
         return `
           <li data-i="${i}">
             <span style="flex:1; word-break:break-all">${display}</span>
@@ -292,9 +300,15 @@ import { mediaUrl } from "/js/media.js";
         ? me.highlights
             .map((item) => {
               if (typeof item !== "string") return null;
+
+              if (/^https?:\/\//i.test(item)) {
+                const safe = safeHighlightUrl(item);
+                return safe;
+              }
+
               if (isKeyLike(item)) return item;
-              const safe = safeHighlightUrl(item);
-              return safe;
+
+              return null;
             })
             .filter(Boolean)
         : [];
@@ -330,7 +344,9 @@ import { mediaUrl } from "/js/media.js";
       }
 
       for (const [field, id] of Object.entries(map)) {
-        if (me[field] !== undefined && me[field] !== null) setVal(id, me[field]);
+        if (me[field] !== undefined && me[field] !== null) {
+          setVal(id, me[field]);
+        }
       }
 
       if (Array.isArray(me.gimmicks) && me.gimmicks.length) {
@@ -401,7 +417,6 @@ import { mediaUrl } from "/js/media.js";
       const middle = $("#middleName")?.value || "";
       const last = $("#lastName")?.value || "";
       const fullName = [first, middle, last].filter(Boolean).join(" ");
-
       const dob = $("#dob")?.value || "";
       const city = $("#city")?.value || "";
       const region = $("#region")?.value || "";
@@ -411,7 +426,6 @@ import { mediaUrl } from "/js/media.js";
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-
       const imgSrc = avatarPreview?.src || "/assets/avatar-fallback.svg";
       const loc = [city, region, country].filter(Boolean).join(", ");
 
@@ -441,6 +455,7 @@ import { mediaUrl } from "/js/media.js";
         const input = document.getElementById("photoFiles");
         const files = Array.from(input?.files || []);
         if (!files.length) return;
+
         for (const f of files) {
           const err = assertFileAllowed(f, "image");
           if (err) {
@@ -455,6 +470,7 @@ import { mediaUrl } from "/js/media.js";
             mediaKeys.push(key);
           }
         }
+
         renderPhotoGrid();
         if (input) input.value = "";
       });
@@ -467,7 +483,10 @@ import { mediaUrl } from "/js/media.js";
         if (!u) return;
         const safe = safeHighlightUrl(u);
         if (!safe) {
-          toast("Highlight URL must be https and from an allowed site", "error");
+          toast(
+            "Highlight URL must be https and from an allowed social/video site",
+            "error",
+          );
           return;
         }
         highlights.push(safe);
@@ -494,7 +513,11 @@ import { mediaUrl } from "/js/media.js";
         });
 
         if (key) {
-          highlights.push(key);
+          const val =
+            typeof key === "string" && key.startsWith("public/")
+              ? mediaUrl(key)
+              : key;
+          highlights.push(val);
           renderHighlightList();
         }
         if (input) input.value = "";
@@ -537,18 +560,15 @@ import { mediaUrl } from "/js/media.js";
           country: data.country,
           heightIn: data.heightIn,
           weightLb: data.weightLb,
-
           bio: data.bio,
           gimmicks: data.gimmicks,
           socials: data.socials,
           experienceYears: data.experienceYears,
           achievements: data.achievements,
-
           photoKey: data.photoKey || null,
           avatarKey: data.avatarKey || null,
           photo_key: data.photo_key || null,
           avatar_key: data.avatar_key || null,
-
           mediaKeys,
           highlights,
         };
