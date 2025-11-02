@@ -321,18 +321,33 @@ import { mediaUrl } from "/js/media.js";
       highlights = Array.isArray(me.highlights)
         ? me.highlights
             .map((item) => {
-              if (typeof item !== "string") return null;
-
-              // if backend gave full URL, keep it if allowed
-              if (/^https?:\/\//i.test(item)) {
-                const safe = safeHighlightUrl(item);
-                return safe;
+              // plain string
+              if (typeof item === "string") {
+                const s = item.trim();
+                if (!s) return null;
+                // try to keep any https
+                try {
+                  const u = new URL(s);
+                  if (u.protocol === "https:") return u.toString();
+                } catch {
+                  // maybe it was a key like "public/..."
+                  if (
+                    s.startsWith("public/") ||
+                    s.startsWith("profiles/") ||
+                    s.startsWith("raw/")
+                  ) {
+                    return s;
+                  }
+                  return null;
+                }
               }
-
-              // if backend gave a key, keep it
-              if (isKeyLike(item)) return item;
-
-              // unknown shape -> drop
+              // object shapes
+              if (item && typeof item === "object") {
+                if (typeof item.url === "string") return item.url;
+                if (typeof item.href === "string") return item.href;
+                if (typeof item.src === "string") return item.src;
+                if (typeof item.key === "string") return item.key;
+              }
               return null;
             })
             .filter(Boolean)

@@ -2,17 +2,13 @@
 import { apiFetch } from "/js/api.js";
 import { mediaUrl } from "/js/media.js";
 
-// ------------------------------------------------------
-// config
-// ------------------------------------------------------
+// --- config -------------------------------------------------
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_HIGHLIGHTS = 12;
 const MAX_PHOTOS = 24;
 const PROFILE_HANDLE_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
-// ------------------------------------------------------
-// utils
-// ------------------------------------------------------
+// --- tiny utils ---------------------------------------------
 const h = (str) =>
   String(str ?? "").replace(
     /[&<>"]/g,
@@ -21,8 +17,9 @@ const h = (str) =>
 
 const needsBust = (k) =>
   /^public\/wrestlers\/profiles\//.test(String(k)) ||
-  /^profiles\//.test(String(k)); // legacy
+  /^profiles\//.test(String(k));
 
+// key -> usable <img src="">
 function imgSrcFromKey(key) {
   if (!key) return "/assets/avatar-fallback.svg";
   const s = String(key);
@@ -57,7 +54,7 @@ function safeLink(url, label) {
   )}</a>`;
 }
 
-// only allow real youtube for iframe
+// allow only real youtube for embed
 function toYoutubeEmbed(url) {
   if (!url) return "";
   let u;
@@ -75,19 +72,86 @@ function toYoutubeEmbed(url) {
 
   if (!isYT) return "";
 
-  // /watch?v=XYZ
+  // https://youtube.com/watch?v=ID
   if (u.searchParams.has("v")) {
     const id = u.searchParams.get("v");
     return `https://www.youtube.com/embed/${encodeURIComponent(id)}`;
   }
 
-  // https://youtu.be/XYZ
+  // https://youtu.be/ID
   if (host === "youtu.be") {
     const id = u.pathname.replace(/^\/+/, "");
     if (id) return `https://www.youtube.com/embed/${encodeURIComponent(id)}`;
   }
 
   return "";
+}
+
+// lenient highlight normalizer: supports strings, objects, keys
+function normalizeHighlight(item) {
+  if (!item) return null;
+
+  // 1) plain string
+  if (typeof item === "string") {
+    const s = item.trim();
+    if (!s) return null;
+    return s;
+  }
+
+  // 2) object shapes we saw in older saves
+  if (typeof item === "object") {
+    if (typeof item.url === "string") return item.url;
+    if (typeof item.href === "string") return item.href;
+    if (typeof item.src === "string") return item.src;
+    if (typeof item.key === "string") return item.key;
+  }
+
+  return null;
+}
+
+// turn a normalized highlight string into HTML
+function renderHighlightCard(vRaw) {
+  const v = normalizeHighlight(vRaw);
+  if (!v) {
+    return `<div class="media-card"><p class="muted">Invalid highlight</p></div>`;
+  }
+
+  // YouTube first
+  const yt = toYoutubeEmbed(v);
+  if (yt) {
+    return `<div class="media-card"><iframe width="100%" height="220" src="${h(
+      yt,
+    )}" title="Highlight" frameborder="0" allowfullscreen></iframe></div>`;
+  }
+
+  // key-like (previous uploads)
+  if (/^(public|profiles|raw)\//.test(v)) {
+    // raw -> still processing
+    if (v.startsWith("raw/")) {
+      return `<div class="media-card"><img src="/assets/image-processing.svg" alt="Processing video"></div>`;
+    }
+    const src = mediaUrl(v);
+    return `<div class="media-card"><video src="${h(
+      src,
+    )}" controls preload="metadata"></video></div>`;
+  }
+
+  // absolute URL (CDN, CloudFront, S3 website, whatever)
+  try {
+    const parsed = new URL(v, location.origin);
+    // if it's https, let's just try to show it
+    if (parsed.protocol === "https:" || parsed.origin === location.origin) {
+      return `<div class="media-card"><video src="${h(
+        parsed.href,
+      )}" controls preload="metadata"></video></div>`;
+    }
+    // anything else -> link
+    return `<div class="media-card"><p><a href="${h(
+      parsed.href,
+    )}" target="_blank" rel="noopener nofollow">View highlight</a></p></div>`;
+  } catch {
+    return `<div class="media-card"><p class="muted">Invalid highlight</p></div>`;
+  }
 }
 
 async function fetchWithTimeout(url, ms) {
@@ -98,16 +162,14 @@ async function fetchWithTimeout(url, ms) {
 }
 
 // ------------------------------------------------------
-// 1) Non-destructive fill of an existing page
-//    (what your current ~500 line file does)
+// 1) Non-destructive fill (when page already has markup)
 // ------------------------------------------------------
 function fillExistingSlots(p, handle) {
   let touched = false;
 
-  // ------------ hero / avatar / name ------------
+  // avatar + name
   const avatarEl = document.getElementById("wp-avatar");
   const nameEl = document.getElementById("wp-stage");
-  const coverEl = document.getElementById("wp-cover");
 
   const avatarBase = p?.photoKey
     ? mediaUrl(p.photoKey)
@@ -133,159 +195,45 @@ function fillExistingSlots(p, handle) {
     nameEl.textContent = stage;
     touched = true;
   }
-  if (coverEl && p.coverKey) {
-    coverEl.src = mediaUrl(p.coverKey);
-    coverEl.style.display = "";
-    touched = true;
-  }
 
-  // ------------ about ------------
-  // we support BOTH the old "single element" (#wp-about) style
-  // AND the new, split style (#wp-about-meta + #wp-about)
+  // about slot
   const aboutEl = document.getElementById("wp-about");
-  const aboutMetaEl = document.getElementById("wp-about-meta");
-
-  // common fields
-  const realName = [p.firstName, p.middleName, p.lastName]
-    .filter(Boolean)
-    .join(" ");
-  const loc = [p.city, p.region, p.country].filter(Boolean).join(", ");
-  const htStr = fmtHeight(p.heightIn);
-  const wtStr = fmtWeight(p.weightLb);
-
-  const metaRows = [];
-
-  if (realName) metaRows.push(`<dt>Name</dt><dd>${h(realName)}</dd>`);
-  if (p.dob) metaRows.push(`<dt>DOB</dt><dd>${h(p.dob)}</dd>`);
-  if (loc) metaRows.push(`<dt>Location</dt><dd>${h(loc)}</dd>`);
-  if (htStr) metaRows.push(`<dt>Height</dt><dd>${h(htStr)}</dd>`);
-  if (wtStr) metaRows.push(`<dt>Weight</dt><dd>${h(wtStr)}</dd>`);
-  if (p.styles) metaRows.push(`<dt>Style</dt><dd>${h(p.styles)}</dd>`);
-  if (Array.isArray(p.gimmicks) && p.gimmicks.length) {
-    metaRows.push(
-      `<dt>Gimmicks</dt><dd>${p.gimmicks
-        .map((c) => `<span class="chip">${h(c)}</span>`)
-        .join(" ")}</dd>`,
-    );
-  }
-  if (p.emailPublic) metaRows.push(`<dt>Email</dt><dd>${h(p.emailPublic)}</dd>`);
-  if (p.phonePublic) metaRows.push(`<dt>Phone</dt><dd>${h(p.phonePublic)}</dd>`);
-
-  // new style: fill the <dl> and put bio last
-  if (aboutMetaEl) {
-    aboutMetaEl.innerHTML = metaRows.join("");
-  }
-
   if (aboutEl) {
-    if (aboutMetaEl) {
-      // we have a separate meta <dl>, so this is just the bio
-      if (p.bio) {
-        aboutEl.innerHTML = h(p.bio).replace(/\n/g, "<br/>");
-        aboutEl.classList.remove("muted");
-      } else {
-        aboutEl.textContent = "No bio yet.";
-        aboutEl.classList.add("muted");
-      }
-    } else {
-      // old style: a single container
-      let html = p.bio
-        ? `<p>${h(p.bio).replace(/\n/g, "<br/>")}</p>`
-        : `<p class="muted">No bio yet.</p>`;
-      if (metaRows.length) {
-        html += `<dl class="meta-list mt-2">${metaRows.join("")}</dl>`;
-      }
-      aboutEl.innerHTML = html;
-    }
-    touched = true;
-  }
-
-  // ------------ stats bar (if the page has it) ------------
-  const statsEl = document.getElementById("wp-stats");
-  if (statsEl) {
-    const pills = [];
-    if (loc) pills.push(`<span class="pill">${h(loc)}</span>`);
-    if (htStr) pills.push(`<span class="pill">${h(htStr)}</span>`);
-    if (wtStr) pills.push(`<span class="pill">${h(wtStr)}</span>`);
-    if (Number.isFinite(+p.experienceYears)) {
-      pills.push(`<span class="pill">${p.experienceYears} yr experience</span>`);
-    }
-    if (Array.isArray(p.gimmicks) && p.gimmicks.length) {
-      pills.push(
-        `<span class="pill">${h(p.gimmicks.slice(0, 3).join(" • "))}</span>`,
-      );
-    }
-    statsEl.innerHTML = pills.join("");
-    touched = true;
-  }
-
-  // ------------ socials ------------
-  const socialsEl = document.getElementById("wp-socials");
-  if (socialsEl) {
-    const socials = p.socials || {};
-    const socialLinks = [
-      socials.website && safeLink(socials.website, "Website"),
-      socials.twitter && safeLink(socials.twitter, "Twitter"),
-      socials.instagram && safeLink(socials.instagram, "Instagram"),
-      socials.tiktok && safeLink(socials.tiktok, "TikTok"),
-      socials.youtube && safeLink(socials.youtube, "YouTube"),
-    ]
+    const realName = [p.firstName, p.middleName, p.lastName]
       .filter(Boolean)
-      .join(" • ");
-    socialsEl.innerHTML = socialLinks;
-    touched = true;
-  }
+      .join(" ");
+    const loc = [p.city, p.region, p.country].filter(Boolean).join(", ");
+    const htStr = fmtHeight(p.heightIn);
+    const wtStr = fmtWeight(p.weightLb);
 
-  // ------------ highlights / videos ------------
-  const highlightsEl = document.getElementById("wp-highlights");
-  if (highlightsEl) {
-    const highlights = Array.isArray(p.highlights)
-      ? p.highlights.slice(0, MAX_HIGHLIGHTS)
-      : [];
-    if (highlights.length) {
-      highlightsEl.innerHTML = `
-        <div class="media-grid">
-          ${highlights
-            .map((vRaw) => {
-              const v = String(vRaw || "");
-              const yt = toYoutubeEmbed(v);
-              if (yt) {
-                return `<div class="media-card"><iframe width="100%" height="220" src="${h(
-                  yt,
-                )}" title="Highlight" frameborder="0" allowfullscreen></iframe></div>`;
-              }
-
-              // NEW: restore old behavior -> render <video> even for https absolute
-              if (/^https?:\/\//i.test(v)) {
-                return `<div class="media-card"><video src="${h(
-                  v,
-                )}" controls></video></div>`;
-              }
-
-              // try to treat as same-origin link
-              try {
-                const parsed = new URL(v, location.origin);
-                if (parsed.origin === location.origin) {
-                  return `<div class="media-card"><video src="${h(
-                    parsed.href,
-                  )}" controls></video></div>`;
-                }
-                return `<div class="media-card"><p><a href="${h(
-                  parsed.href,
-                )}" target="_blank" rel="noopener nofollow">View highlight</a></p></div>`;
-              } catch {
-                return `<div class="media-card"><p class="muted">Invalid highlight</p></div>`;
-              }
-            })
-            .join("")}
-        </div>
-      `;
-    } else {
-      highlightsEl.innerHTML = `<p class="muted">No highlight videos yet.</p>`;
+    let html = `<h2 class="mt-0">About</h2>`;
+    html += `<dl class="meta-list mt-2">`;
+    if (realName) html += `<dt>Name</dt><dd>${h(realName)}</dd>`;
+    if (p.dob) html += `<dt>DOB</dt><dd>${h(p.dob)}</dd>`;
+    if (loc) html += `<dt>Location</dt><dd>${h(loc)}</dd>`;
+    if (htStr) html += `<dt>Height</dt><dd>${h(htStr)}</dd>`;
+    if (wtStr) html += `<dt>Weight</dt><dd>${h(wtStr)}</dd>`;
+    if (p.emailPublic) html += `<dt>Email</dt><dd>${h(p.emailPublic)}</dd>`;
+    if (p.phonePublic) html += `<dt>Phone</dt><dd>${h(p.phonePublic)}</dd>`;
+    if (p.styles) html += `<dt>Style</dt><dd>${h(p.styles)}</dd>`;
+    if (p.gimmicks?.length) {
+      html += `<dt>Gimmicks</dt><dd>${p.gimmicks
+        .map((c) => `<span class="chip">${h(c)}</span>`)
+        .join(" ")}</dd>`;
     }
+    html += `</dl>`;
+    // bio LAST
+    if (p.bio) {
+      html += `<p class="mt-3">${h(p.bio).replace(/\n/g, "<br/>")}</p>`;
+    } else {
+      html += `<p class="muted mt-3">No bio yet.</p>`;
+    }
+
+    aboutEl.innerHTML = html;
     touched = true;
   }
 
-  // ------------ photos ------------
+  // photos slot
   const photosEl = document.getElementById("wp-photos");
   if (photosEl) {
     const mediaKeys = Array.isArray(p.mediaKeys)
@@ -293,6 +241,7 @@ function fillExistingSlots(p, handle) {
       : [];
     if (mediaKeys.length) {
       photosEl.innerHTML = `
+        <h2>Photos</h2>
         <div class="media-grid">
           ${mediaKeys
             .map(
@@ -305,21 +254,39 @@ function fillExistingSlots(p, handle) {
         </div>
       `;
     } else {
-      photosEl.innerHTML = `<p class="muted">No photos yet.</p>`;
+      photosEl.innerHTML = `<h2>Photos</h2><div class="card"><p class="muted">No photos yet.</p></div>`;
     }
     touched = true;
   }
 
-  // ------------ achievements ------------
+  // highlights slot (videos)
+  const highlightsEl = document.getElementById("wp-highlights");
+  if (highlightsEl) {
+    const highlights = Array.isArray(p.highlights)
+      ? p.highlights.map(normalizeHighlight).filter(Boolean).slice(0, MAX_HIGHLIGHTS)
+      : [];
+    if (highlights.length) {
+      highlightsEl.innerHTML = `
+        <h2>Videos</h2>
+        <div class="media-grid">
+          ${highlights.map((v) => renderHighlightCard(v)).join("")}
+        </div>
+      `;
+    } else {
+      highlightsEl.innerHTML = `<h2>Videos</h2><div class="card"><p class="muted">No highlight videos yet.</p></div>`;
+    }
+    touched = true;
+  }
+
+  // achievements slot
   const achEl = document.getElementById("wp-achievements");
-  const achTab = document.getElementById("tab-achievements");
   if (achEl) {
     if (p.achievements) {
-      achEl.innerHTML = `<p>${h(p.achievements).replace(/\n/g, "<br/>")}</p>`;
-      if (achEl.style) achEl.style.display = "";
-      if (achTab) achTab.style.display = "";
+      achEl.innerHTML = `<h2 class="mt-0">Achievements</h2><p>${h(
+        p.achievements,
+      ).replace(/\n/g, "<br/>")}</p>`;
     } else {
-      achEl.innerHTML = `<p class="muted">No achievements listed.</p>`;
+      achEl.innerHTML = `<h2 class="mt-0">Achievements</h2><p class="muted">No achievements listed.</p>`;
     }
     touched = true;
   }
@@ -328,17 +295,15 @@ function fillExistingSlots(p, handle) {
 }
 
 // ------------------------------------------------------
-// 2) Full render (for empty containers or explicit public)
-//    *** THIS is where we change order to:
-//    About -> Photos -> Videos -> Achievements
+// 2) full render (for totally empty/public container)
 // ------------------------------------------------------
 function renderFullPage(wrap, p, handle) {
   const stage = p.stageName || p.ring || p.name || handle;
   const name = [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ");
   const loc = [p.city, p.region, p.country].filter(Boolean).join(", ");
+  const chips = Array.isArray(p.gimmicks) ? p.gimmicks : [];
   const htStr = fmtHeight(p.heightIn);
   const wtStr = fmtWeight(p.weightLb);
-  const dob = p.dob ? String(p.dob) : null;
 
   const avatarBase = p?.photoKey
     ? mediaUrl(p.photoKey)
@@ -365,7 +330,7 @@ function renderFullPage(wrap, p, handle) {
     .join(" • ");
 
   const highlights = Array.isArray(p.highlights)
-    ? p.highlights.slice(0, MAX_HIGHLIGHTS)
+    ? p.highlights.map(normalizeHighlight).filter(Boolean).slice(0, MAX_HIGHLIGHTS)
     : [];
   const mediaKeys = Array.isArray(p.mediaKeys)
     ? p.mediaKeys.slice(0, MAX_PHOTOS)
@@ -373,27 +338,6 @@ function renderFullPage(wrap, p, handle) {
 
   document.title = `${stage} – WrestleUtopia`;
 
-  // build <dl> for About (bio last)
-  const aboutRows = [];
-  if (name) aboutRows.push(`<dt>Name</dt><dd>${h(name)}</dd>`);
-  if (dob) aboutRows.push(`<dt>DOB</dt><dd>${h(dob)}</dd>`);
-  if (loc) aboutRows.push(`<dt>Location</dt><dd>${h(loc)}</dd>`);
-  if (htStr) aboutRows.push(`<dt>Height</dt><dd>${h(htStr)}</dd>`);
-  if (wtStr) aboutRows.push(`<dt>Weight</dt><dd>${h(wtStr)}</dd>`);
-  if (p.styles) aboutRows.push(`<dt>Style</dt><dd>${h(p.styles)}</dd>`);
-  if (Array.isArray(p.gimmicks) && p.gimmicks.length) {
-    aboutRows.push(
-      `<dt>Gimmicks</dt><dd>${p.gimmicks
-        .map((c) => `<span class="chip">${h(c)}</span>`)
-        .join(" ")}</dd>`,
-    );
-  }
-  if (p.emailPublic)
-    aboutRows.push(`<dt>Email</dt><dd>${h(p.emailPublic)}</dd>`);
-  if (p.phonePublic)
-    aboutRows.push(`<dt>Phone</dt><dd>${h(p.phonePublic)}</dd>`);
-
-  // NOTE: order is About -> Photos -> Videos -> Achievements
   wrap.innerHTML = `
     <section class="hero card" style="max-width:980px;margin-inline:auto;overflow:hidden">
       ${p.coverKey ? `<img class="cover" src="${h(mediaUrl(p.coverKey))}" alt="">` : ""}
@@ -406,11 +350,7 @@ function renderFullPage(wrap, p, handle) {
             ${htStr ? `<span class="pill">${htStr}</span>` : ""}
             ${wtStr ? `<span class="pill">${wtStr}</span>` : ""}
             ${Number.isFinite(+p.experienceYears) ? `<span class="pill">${p.experienceYears} yr experience</span>` : ""}
-            ${
-              Array.isArray(p.gimmicks) && p.gimmicks.length
-                ? `<span class="pill">${h(p.gimmicks.slice(0, 3).join(" • "))}</span>`
-                : ""
-            }
+            ${chips.length ? `<span class="pill">${h(chips.slice(0,3).join(" • "))}</span>` : ""}
           </div>
           ${socialLinks ? `<div class="social-row mt-2">${socialLinks}</div>` : ""}
         </div>
@@ -427,98 +367,58 @@ function renderFullPage(wrap, p, handle) {
         </div>
       </nav>
 
-      <!-- ABOUT -->
       <div id="about" class="mt-3 card" style="scroll-margin-top: 90px;">
         <h2 class="mt-0">About</h2>
-        ${
-          aboutRows.length
-            ? `<dl class="meta-list mt-2">${aboutRows.join("")}</dl>`
-            : ""
-        }
+        <dl class="meta-list mt-2">
+          ${name ? `<dt>Name</dt><dd>${h(name)}</dd>` : ""}
+          ${p.dob ? `<dt>DOB</dt><dd>${h(p.dob)}</dd>` : ""}
+          ${loc ? `<dt>Location</dt><dd>${h(loc)}</dd>` : ""}
+          ${htStr ? `<dt>Height</dt><dd>${h(htStr)}</dd>` : ""}
+          ${wtStr ? `<dt>Weight</dt><dd>${h(wtStr)}</dd>` : ""}
+          ${p.emailPublic ? `<dt>Email</dt><dd>${h(p.emailPublic)}</dd>` : ""}
+          ${p.phonePublic ? `<dt>Phone</dt><dd>${h(p.phonePublic)}</dd>` : ""}
+          ${p.styles ? `<dt>Style</dt><dd>${h(p.styles)}</dd>` : ""}
+          ${p.gimmicks?.length ? `<dt>Gimmicks</dt><dd>${p.gimmicks
+            .map((c) => `<span class="chip">${h(c)}</span>`)
+            .join(" ")}</dd>` : ""}
+        </dl>
         ${
           p.bio
-            ? `<p>${h(p.bio).replace(/\n/g, "<br/>")}</p>`
-            : `<p class="muted">No bio yet.</p>`
+            ? `<p class="mt-3">${h(p.bio).replace(/\n/g, "<br/>")}</p>`
+            : `<p class="muted mt-3">No bio yet.</p>`
         }
       </div>
 
-      <!-- PHOTOS -->
       <div id="photos" class="mt-3" style="scroll-margin-top: 90px;">
+        <h2>Photos</h2>
         ${
           mediaKeys.length
             ? `
-          <div class="card" style="padding:1.25rem;">
-            <h2 class="mt-0">Photos</h2>
-            <div class="media-grid">
-              ${mediaKeys
-                .map(
-                  (k) =>
-                    `<div class="media-card"><img src="${h(
-                      imgSrcFromKey(k),
-                    )}" alt=""></div>`,
-                )
-                .join("")}
-            </div>
+          <div class="media-grid">
+            ${mediaKeys
+              .map(
+                (k) =>
+                  `<div class="media-card"><img src="${h(
+                    imgSrcFromKey(k),
+                  )}" alt=""></div>`,
+              )
+              .join("")}
           </div>
         `
-            : `
-          <div class="card" style="padding:1.25rem;">
-            <h2 class="mt-0">Photos</h2>
-            <p class="muted">No photos yet.</p>
-          </div>
-        `
+            : `<div class="card"><p class="muted">No photos yet.</p></div>`
         }
       </div>
 
-      <!-- VIDEOS -->
       <div id="videos" class="mt-3" style="scroll-margin-top: 90px;">
+        <h2>Videos</h2>
         ${
           highlights.length
             ? `
-          <div class="card" style="padding:1.25rem;">
-            <h2 class="mt-0">Videos</h2>
-            <div class="media-grid">
-              ${highlights
-                .map((vRaw) => {
-                  const v = String(vRaw || "");
-                  const yt = toYoutubeEmbed(v);
-                  if (yt) {
-                    return `<div class="media-card"><iframe width="100%" height="220" src="${h(
-                      yt,
-                    )}" title="Highlight" frameborder="0" allowfullscreen></iframe></div>`;
-                  }
-
-                  // restore old behavior -> render video even for absolute
-                  if (/^https?:\/\//i.test(v)) {
-                    return `<div class="media-card"><video src="${h(
-                      v,
-                    )}" controls></video></div>`;
-                  }
-
-                  try {
-                    const parsed = new URL(v, location.origin);
-                    if (parsed.origin === location.origin) {
-                      return `<div class="media-card"><video src="${h(
-                        parsed.href,
-                      )}" controls></video></div>`;
-                    }
-                    return `<div class="media-card"><p><a href="${h(
-                      parsed.href,
-                    )}" target="_blank" rel="noopener nofollow">View highlight</a></p></div>`;
-                  } catch {
-                    return `<div class="media-card"><p class="muted">Invalid highlight</p></div>`;
-                  }
-                })
-                .join("")}
-            </div>
+          <div class="media-grid">
+            ${highlights.map((v) => renderHighlightCard(v)).join("")}
           </div>
         `
-            : `
-          <div class="card" style="padding:1.25rem;">
-            <h2 class="mt-0">Videos</h2>
-            <p class="muted">No highlight videos yet.</p>
-          </div>
-        `
+            : `<div class="card"><p class="muted">No highlight videos yet.</p></div>`
         }
       </div>
 
@@ -535,17 +435,14 @@ function renderFullPage(wrap, p, handle) {
     </section>
   `;
 
-  // --- Smooth scrolling + active link state (same as before) ---
+  // --- Smooth scrolling + active link state ---
   const nav = wrap.querySelector(".tab-nav");
   if (nav) {
     const links = Array.from(nav.querySelectorAll("a"));
     const sections = links
-      .map((a) =>
-        document.getElementById(a.getAttribute("href").replace("#", "")),
-      )
+      .map((a) => document.getElementById(a.getAttribute("href").replace("#", "")))
       .filter(Boolean);
 
-    // Smooth scroll on click
     links.forEach((a) => {
       a.addEventListener("click", (e) => {
         e.preventDefault();
@@ -561,7 +458,6 @@ function renderFullPage(wrap, p, handle) {
       });
     });
 
-    // Highlight active link while scrolling
     if ("IntersectionObserver" in window) {
       const io = new IntersectionObserver(
         (entries) => {
@@ -588,6 +484,7 @@ function renderFullPage(wrap, p, handle) {
         },
         { rootMargin: "-40% 0px -55% 0px", threshold: [0, 1] },
       );
+
       sections.forEach((sec) => io.observe(sec));
     }
   }
@@ -600,16 +497,15 @@ async function run() {
   const wrap = document.getElementById("wp-wrap");
   if (!wrap) return;
 
-  // track if page already had content (non-destructive mode)
   const hadChildrenAtStart = wrap.children.length > 0;
 
-  // get handle from hash or from data-handle
+  // get handle from hash or data-handle
   const hashHandle = (location.hash || "").replace(/^#/, "").trim();
   const dataHandle = wrap.dataset?.handle?.trim();
   const handle = hashHandle || dataHandle || "";
 
   if (!handle || !PROFILE_HANDLE_RE.test(handle)) {
-    // no valid handle -> leave layout as-is
+    // no valid handle -> just leave existing layout alone
     return;
   }
 
@@ -620,19 +516,11 @@ async function run() {
     );
 
     if (!p || typeof p !== "object") {
-      // if page already has stuff, don't nuke it
-      if (!hadChildrenAtStart) {
-        wrap.innerHTML = `<div class="card"><h2>Profile not found</h2><p class="muted">We couldn’t load ${h(
-          handle,
-        )}.</p></div>`;
-      }
       return;
     }
 
-    // 1) Try filling existing slots (non-destructive)
     const filled = fillExistingSlots(p, handle);
 
-    // 2) If we didn't fill, and there was no initial content, or page opted in -> full render
     const wantsPublic = wrap.dataset?.public === "1";
     if (!filled && (!hadChildrenAtStart || wantsPublic)) {
       renderFullPage(wrap, p, handle);
@@ -641,7 +529,6 @@ async function run() {
     const msg = String(e || "");
     console.error("wrestler_public: fetch failed", { handle, error: msg });
 
-    // if page already had content, don't wipe it
     if (hadChildrenAtStart) {
       return;
     }
