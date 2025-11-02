@@ -34,120 +34,80 @@
   <body>
     <div data-include="/partials/nav.html"></div>
 
-    <!--
-      This is the public profile wrapper.
-      JS will look at /w/#handle and fetch that wrestler.
-      We prebuild the same structure the old JS used to write via innerHTML.
-    -->
-    <main class="section" style="padding-inline: 0;">
+    <main class="section" style="padding-inline:0;">
+      <!-- the public profile container -->
       <div id="wp-wrap">
-        <!-- HERO (same order as before) -->
+        <!-- HERO -->
         <section
           class="hero card"
           style="max-width:980px;margin-inline:auto;overflow:hidden"
         >
-          <!-- cover (optional, JS will show if p.coverKey) -->
-          <img
-            id="wp-cover"
-            class="cover"
-            src=""
-            alt=""
-            style="display:none"
-          />
+          <!-- cover (hidden until JS sets it) -->
+          <img id="wp-cover" class="cover" src="" alt="" style="display:none" />
 
           <div class="hero-inner container">
-            <!-- avatar -->
             <img
               id="wp-avatar"
               class="avatar-ring"
               src="/assets/avatar-fallback.svg"
               alt="Wrestler avatar"
             />
-
             <div class="hero-meta">
-              <!-- stage name -->
               <h1 id="wp-stage">Loading…</h1>
-
-              <!-- pills: location, height, weight, exp, gimmicks -->
-              <div class="stats-bar" id="wp-stats">
-                <!-- JS will drop: <span class="pill">San Antonio - TX</span> -->
-              </div>
-
-              <!-- socials -->
-              <div class="social-row mt-2" id="wp-socials"></div>
+              <div id="wp-stats" class="stats-bar" style="display:flex;gap:.5rem;flex-wrap:wrap;"></div>
+              <div id="wp-socials" class="social-row mt-2"></div>
             </div>
           </div>
         </section>
 
-        <!-- MAIN CONTENT -->
-        <section
-          class="container"
-          style="max-width:980px;margin-inline:auto"
-        >
-          <!-- tabs (same hrefs + same order) -->
+        <!-- BODY -->
+        <section class="container" style="max-width:980px;margin-inline:auto">
+          <!-- TABS: About -> Photos -> Videos -> Achievements -->
           <nav class="tabs">
             <div class="tab-nav" id="wp-tabs">
               <a href="#about" aria-current="page">About</a>
-              <a href="#highlights">Highlights</a>
               <a href="#photos">Photos</a>
-              <!-- shown only if achievements exist -->
+              <a href="#videos">Videos</a>
               <a href="#achievements" id="tab-achievements" style="display:none">Achievements</a>
             </div>
           </nav>
 
           <!-- ABOUT -->
-          <div
-            id="about"
-            class="mt-3 card"
-            style="scroll-margin-top: 90px;"
-          >
+          <div id="about" class="mt-3 card" style="scroll-margin-top:90px;">
             <h2 class="mt-0">About</h2>
-            <!-- old JS did: p.bio ? ... : "No bio yet." -->
+            <dl class="meta-list mt-2" id="wp-about-meta"></dl>
+            <!-- bio should be LAST -->
             <p id="wp-about" class="muted">No bio yet.</p>
-
-            <!-- old JS rendered a <dl> with Name / Email / Phone / Style / Gimmicks -->
-            <dl class="meta-list mt-2" id="wp-about-meta">
-              <!-- JS will fill -->
-            </dl>
           </div>
 
-          <!-- HIGHLIGHTS -->
-          <div
-            id="highlights"
-            class="mt-3"
-            style="scroll-margin-top: 90px;"
-          >
-            <!-- old JS: if no highlights -> card with muted text -->
-            <div class="card" id="wp-highlights-wrap">
-              <div id="wp-highlights" class="media-grid">
-                <p class="muted">No highlight videos yet.</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- PHOTOS -->
-          <div
-            id="photos"
-            class="mt-3"
-            style="scroll-margin-top: 90px;"
-          >
-            <div class="card" id="wp-photos-wrap">
+          <!-- PHOTOS (ABOVE videos) -->
+          <div id="photos" class="mt-3" style="scroll-margin-top:90px;">
+            <div class="card" style="padding:1.25rem;">
+              <h2 class="mt-0">Photos</h2>
               <div id="wp-photos" class="media-grid">
                 <p class="muted">No photos yet.</p>
               </div>
             </div>
           </div>
 
-          <!-- ACHIEVEMENTS (optional) -->
+          <!-- VIDEOS -->
+          <div id="videos" class="mt-3" style="scroll-margin-top:90px;">
+            <div class="card" style="padding:1.25rem;">
+              <h2 class="mt-0">Videos</h2>
+              <div id="wp-highlights" class="media-grid">
+                <p class="muted">No highlight videos yet.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACHIEVEMENTS (hidden until profile has it) -->
           <div
             id="achievements"
             class="mt-3 card"
-            style="scroll-margin-top: 90px; display:none;"
+            style="scroll-margin-top:90px;display:none;"
           >
             <h2 class="mt-0">Achievements</h2>
-            <div id="wp-achievements">
-              <!-- JS will insert p with <br/> -->
-            </div>
+            <div id="wp-achievements"></div>
           </div>
         </section>
       </div>
@@ -155,6 +115,5 @@
 
     <div data-include="/partials/footer.html"></div>
 
-    <!-- public viewer -->
   </body>
 </html>
