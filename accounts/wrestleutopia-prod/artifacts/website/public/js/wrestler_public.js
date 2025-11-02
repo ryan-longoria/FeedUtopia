@@ -206,17 +206,14 @@ function fillExistingSlots(p, handle) {
     touched = true;
   }
 
-  // ABOUT
-  const aboutEl = getSlot(["wp-about", "about"]);
+  const aboutEl = document.getElementById("wp-about");
   if (aboutEl) {
-    const realName = [p.firstName, p.middleName, p.lastName]
-      .filter(Boolean)
-      .join(" ");
-    const loc = [p.city, p.region, p.country].filter(Boolean).join(", ");
+    const realName = [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ");
+    const loc = [p.city, p.region, p.country].filter(Boolean).join(" • ");
     const htStr = fmtHeight(p.heightIn);
     const wtStr = fmtWeight(p.weightLb);
 
-    let html = `<h2 class="mt-0">About</h2>`;
+    let html = "";
     html += `<dl class="meta-list mt-2">`;
     if (realName) html += `<dt>Name</dt><dd>${h(realName)}</dd>`;
     if (p.dob) html += `<dt>DOB</dt><dd>${h(p.dob)}</dd>`;
@@ -232,16 +229,16 @@ function fillExistingSlots(p, handle) {
         .join(" ")}</dd>`;
     }
     html += `</dl>`;
+
     if (p.bio) {
       html += `<p class="mt-3">${h(p.bio).replace(/\n/g, "<br/>")}</p>`;
     } else {
-      html += `<p class="muted mt-3">No bio yet.</p>`;
+      html += `<p class="mt-3 muted">No bio yet.</p>`;
     }
 
     aboutEl.innerHTML = html;
     touched = true;
   }
-
   // PHOTOS (your HTML used `photosSection`, older version used `wp-photos`)
   const photosEl = getSlot(["wp-photos", "photosSection", "photos"]);
   if (photosEl) {
@@ -544,7 +541,6 @@ async function run() {
 
     const filled = fillExistingSlots(p, handle);
     const wantsPublic = wrap.dataset?.public === "1";
-
     if (!filled && (!hadChildrenAtStart || wantsPublic)) {
       renderFullPage(wrap, p, handle);
     }

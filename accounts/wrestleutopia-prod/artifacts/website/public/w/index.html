@@ -2,83 +2,57 @@
 <html lang="en">
   <head>
     {{> head}}
-    <title>WrestleUtopia – Wrestler Profile</title>
   </head>
   <body>
     <div data-include="/partials/nav.html"></div>
 
-    <main class="section" style="padding-inline:0;">
-      <!-- the public profile container -->
-      <div id="wp-wrap">
-        <!-- HERO -->
-        <section
-          class="hero card"
-          style="max-width:980px;margin-inline:auto;overflow:hidden"
-        >
-          <!-- cover (hidden until JS sets it) -->
-          <img id="wp-cover" class="cover" src="" alt="" style="display:none" />
-
+    <main class="section container" style="max-width:980px;margin-inline:auto">
+      <!-- this is the container wrestler_public.js targets -->
+      <div id="wp-wrap" data-public="1">
+        <!-- hero placeholder -->
+        <section class="hero card" style="overflow:hidden">
           <div class="hero-inner container">
-            <img
-              id="wp-avatar"
-              class="avatar-ring"
-              src="/assets/avatar-fallback.svg"
-              alt="Wrestler avatar"
-            />
+            <img class="avatar-ring" src="/assets/avatar-fallback.svg" alt="Wrestler avatar">
             <div class="hero-meta">
               <h1 id="wp-stage">Loading…</h1>
-              <div id="wp-stats" class="stats-bar" style="display:flex;gap:.5rem;flex-wrap:wrap;"></div>
-              <div id="wp-socials" class="social-row mt-2"></div>
+              <div class="stats-bar" id="wp-stats"></div>
             </div>
           </div>
         </section>
 
-        <!-- BODY -->
         <section class="container" style="max-width:980px;margin-inline:auto">
-          <!-- TABS: About -> Photos -> Videos -> Achievements -->
           <nav class="tabs">
-            <div class="tab-nav" id="wp-tabs">
+            <div class="tab-nav">
               <a href="#about" aria-current="page">About</a>
               <a href="#photos">Photos</a>
-              <a href="#videos">Videos</a>
-              <a href="#achievements" id="tab-achievements" style="display:none">Achievements</a>
+              <a href="#highlights">Videos</a>
+              <!-- JS will unhide Achievements if the profile has it -->
+              <a href="#achievements" id="ach-tab" class="is-hidden">Achievements</a>
             </div>
           </nav>
 
           <!-- ABOUT -->
           <div id="about" class="mt-3 card" style="scroll-margin-top:90px;">
             <h2 class="mt-0">About</h2>
-            <dl class="meta-list mt-2" id="wp-about-meta"></dl>
-            <!-- bio should be LAST -->
-            <p id="wp-about" class="muted">No bio yet.</p>
-          </div>
-
-          <!-- PHOTOS (ABOVE videos) -->
-          <div id="photos" class="mt-3" style="scroll-margin-top:90px;">
-            <div class="card" style="padding:1.25rem;">
-              <h2 class="mt-0">Photos</h2>
-              <div id="wp-photos" class="media-grid">
-                <p class="muted">No photos yet.</p>
-              </div>
+            <div id="wp-about">
+              <p class="muted">Loading profile…</p>
             </div>
           </div>
 
-          <!-- VIDEOS -->
-          <div id="videos" class="mt-3" style="scroll-margin-top:90px;">
-            <div class="card" style="padding:1.25rem;">
-              <h2 class="mt-0">Videos</h2>
-              <div id="wp-highlights" class="media-grid">
-                <p class="muted">No highlight videos yet.</p>
-              </div>
-            </div>
+          <!-- PHOTOS -->
+          <div id="photos" class="mt-3 card" style="scroll-margin-top:90px;">
+            <h2 class="mt-0">Photos</h2>
+            <div id="wp-photos"></div>
           </div>
 
-          <!-- ACHIEVEMENTS (hidden until profile has it) -->
-          <div
-            id="achievements"
-            class="mt-3 card"
-            style="scroll-margin-top:90px;display:none;"
-          >
+          <!-- VIDEOS / HIGHLIGHTS -->
+          <div id="highlights" class="mt-3 card" style="scroll-margin-top:90px;">
+            <h2 class="mt-0">Videos</h2>
+            <div id="wp-highlights"></div>
+          </div>
+
+          <!-- ACHIEVEMENTS (hidden until JS says otherwise) -->
+          <div id="achievements" class="mt-3 card is-hidden" style="scroll-margin-top:90px;">
             <h2 class="mt-0">Achievements</h2>
             <div id="wp-achievements"></div>
           </div>
