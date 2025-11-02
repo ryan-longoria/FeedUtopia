@@ -2,13 +2,17 @@
 import { apiFetch } from "/js/api.js";
 import { mediaUrl } from "/js/media.js";
 
-// --- config -------------------------------------------------
+// --------------------------------------------------
+// config
+// --------------------------------------------------
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_HIGHLIGHTS = 12;
 const MAX_PHOTOS = 24;
 const PROFILE_HANDLE_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
-// --- tiny utils ---------------------------------------------
+// --------------------------------------------------
+// tiny utils
+// --------------------------------------------------
 const h = (str) =>
   String(str ?? "").replace(
     /[&<>"]/g,
@@ -19,7 +23,6 @@ const needsBust = (k) =>
   /^public\/wrestlers\/profiles\//.test(String(k)) ||
   /^profiles\//.test(String(k));
 
-// key -> usable <img src="">
 function imgSrcFromKey(key) {
   if (!key) return "/assets/avatar-fallback.svg";
   const s = String(key);
@@ -72,13 +75,11 @@ function toYoutubeEmbed(url) {
 
   if (!isYT) return "";
 
-  // https://youtube.com/watch?v=ID
   if (u.searchParams.has("v")) {
     const id = u.searchParams.get("v");
     return `https://www.youtube.com/embed/${encodeURIComponent(id)}`;
   }
 
-  // https://youtu.be/ID
   if (host === "youtu.be") {
     const id = u.pathname.replace(/^\/+/, "");
     if (id) return `https://www.youtube.com/embed/${encodeURIComponent(id)}`;
@@ -87,18 +88,16 @@ function toYoutubeEmbed(url) {
   return "";
 }
 
-// lenient highlight normalizer: supports strings, objects, keys
+// normalize older highlight shapes
 function normalizeHighlight(item) {
   if (!item) return null;
 
-  // 1) plain string
   if (typeof item === "string") {
     const s = item.trim();
     if (!s) return null;
     return s;
   }
 
-  // 2) object shapes we saw in older saves
   if (typeof item === "object") {
     if (typeof item.url === "string") return item.url;
     if (typeof item.href === "string") return item.href;
@@ -109,14 +108,13 @@ function normalizeHighlight(item) {
   return null;
 }
 
-// turn a normalized highlight string into HTML
 function renderHighlightCard(vRaw) {
   const v = normalizeHighlight(vRaw);
   if (!v) {
     return `<div class="media-card"><p class="muted">Invalid highlight</p></div>`;
   }
 
-  // YouTube first
+  // YouTube
   const yt = toYoutubeEmbed(v);
   if (yt) {
     return `<div class="media-card"><iframe width="100%" height="220" src="${h(
@@ -124,9 +122,8 @@ function renderHighlightCard(vRaw) {
     )}" title="Highlight" frameborder="0" allowfullscreen></iframe></div>`;
   }
 
-  // key-like (previous uploads)
+  // key-like
   if (/^(public|profiles|raw)\//.test(v)) {
-    // raw -> still processing
     if (v.startsWith("raw/")) {
       return `<div class="media-card"><img src="/assets/image-processing.svg" alt="Processing video"></div>`;
     }
@@ -136,16 +133,14 @@ function renderHighlightCard(vRaw) {
     )}" controls preload="metadata"></video></div>`;
   }
 
-  // absolute URL (CDN, CloudFront, S3 website, whatever)
+  // absolute URL
   try {
     const parsed = new URL(v, location.origin);
-    // if it's https, let's just try to show it
     if (parsed.protocol === "https:" || parsed.origin === location.origin) {
       return `<div class="media-card"><video src="${h(
         parsed.href,
       )}" controls preload="metadata"></video></div>`;
     }
-    // anything else -> link
     return `<div class="media-card"><p><a href="${h(
       parsed.href,
     )}" target="_blank" rel="noopener nofollow">View highlight</a></p></div>`;
@@ -161,8 +156,23 @@ async function fetchWithTimeout(url, ms) {
   return Promise.race([apiFetch(url), timeout]);
 }
 
+// get first existing element by id candidates
+function getSlot(ids) {
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el) return el;
+  }
+  return null;
+}
+
+// check if slot already has its own heading so we don't double it
+function slotHasHeading(el) {
+  if (!el) return false;
+  return !!el.querySelector("h1, h2, h3, .section-title");
+}
+
 // ------------------------------------------------------
-// 1) Non-destructive fill (when page already has markup)
+// 1) non-destructive fill
 // ------------------------------------------------------
 function fillExistingSlots(p, handle) {
   let touched = false;
@@ -196,8 +206,8 @@ function fillExistingSlots(p, handle) {
     touched = true;
   }
 
-  // about slot
-  const aboutEl = document.getElementById("wp-about");
+  // ABOUT
+  const aboutEl = getSlot(["wp-about", "about"]);
   if (aboutEl) {
     const realName = [p.firstName, p.middleName, p.lastName]
       .filter(Boolean)
@@ -222,7 +232,6 @@ function fillExistingSlots(p, handle) {
         .join(" ")}</dd>`;
     }
     html += `</dl>`;
-    // bio LAST
     if (p.bio) {
       html += `<p class="mt-3">${h(p.bio).replace(/\n/g, "<br/>")}</p>`;
     } else {
@@ -233,15 +242,17 @@ function fillExistingSlots(p, handle) {
     touched = true;
   }
 
-  // photos slot
-  const photosEl = document.getElementById("wp-photos");
+  // PHOTOS (your HTML used `photosSection`, older version used `wp-photos`)
+  const photosEl = getSlot(["wp-photos", "photosSection", "photos"]);
   if (photosEl) {
     const mediaKeys = Array.isArray(p.mediaKeys)
       ? p.mediaKeys.slice(0, MAX_PHOTOS)
       : [];
+    const hasHeading = slotHasHeading(photosEl);
+
     if (mediaKeys.length) {
       photosEl.innerHTML = `
-        <h2>Photos</h2>
+        ${hasHeading ? "" : "<h2>Photos</h2>"}
         <div class="media-grid">
           ${mediaKeys
             .map(
@@ -254,32 +265,46 @@ function fillExistingSlots(p, handle) {
         </div>
       `;
     } else {
-      photosEl.innerHTML = `<h2>Photos</h2><div class="card"><p class="muted">No photos yet.</p></div>`;
+      photosEl.innerHTML = `
+        ${hasHeading ? "" : "<h2>Photos</h2>"}
+        <div class="card"><p class="muted">No photos yet.</p></div>
+      `;
     }
     touched = true;
   }
 
-  // highlights slot (videos)
-  const highlightsEl = document.getElementById("wp-highlights");
+  // VIDEOS / HIGHLIGHTS
+  // your HTML used `videosSection`, older one used `wp-highlights`
+  const highlightsEl = getSlot([
+    "wp-highlights",
+    "videosSection",
+    "highlights",
+    "wp-videos",
+  ]);
   if (highlightsEl) {
     const highlights = Array.isArray(p.highlights)
       ? p.highlights.map(normalizeHighlight).filter(Boolean).slice(0, MAX_HIGHLIGHTS)
       : [];
+    const hasHeading = slotHasHeading(highlightsEl);
+
     if (highlights.length) {
       highlightsEl.innerHTML = `
-        <h2>Videos</h2>
+        ${hasHeading ? "" : "<h2>Videos</h2>"}
         <div class="media-grid">
           ${highlights.map((v) => renderHighlightCard(v)).join("")}
         </div>
       `;
     } else {
-      highlightsEl.innerHTML = `<h2>Videos</h2><div class="card"><p class="muted">No highlight videos yet.</p></div>`;
+      highlightsEl.innerHTML = `
+        ${hasHeading ? "" : "<h2>Videos</h2>"}
+        <div class="card"><p class="muted">No highlight videos yet.</p></div>
+      `;
     }
     touched = true;
   }
 
-  // achievements slot
-  const achEl = document.getElementById("wp-achievements");
+  // achievements
+  const achEl = getSlot(["wp-achievements", "achievements"]);
   if (achEl) {
     if (p.achievements) {
       achEl.innerHTML = `<h2 class="mt-0">Achievements</h2><p>${h(
@@ -295,7 +320,7 @@ function fillExistingSlots(p, handle) {
 }
 
 // ------------------------------------------------------
-// 2) full render (for totally empty/public container)
+// 2) full render (when container is empty / data-public=1)
 // ------------------------------------------------------
 function renderFullPage(wrap, p, handle) {
   const stage = p.stageName || p.ring || p.name || handle;
@@ -435,7 +460,7 @@ function renderFullPage(wrap, p, handle) {
     </section>
   `;
 
-  // --- Smooth scrolling + active link state ---
+  // Smooth scroll + active tab
   const nav = wrap.querySelector(".tab-nav");
   if (nav) {
     const links = Array.from(nav.querySelectorAll("a"));
@@ -499,13 +524,11 @@ async function run() {
 
   const hadChildrenAtStart = wrap.children.length > 0;
 
-  // get handle from hash or data-handle
   const hashHandle = (location.hash || "").replace(/^#/, "").trim();
   const dataHandle = wrap.dataset?.handle?.trim();
   const handle = hashHandle || dataHandle || "";
 
   if (!handle || !PROFILE_HANDLE_RE.test(handle)) {
-    // no valid handle -> just leave existing layout alone
     return;
   }
 
@@ -520,18 +543,16 @@ async function run() {
     }
 
     const filled = fillExistingSlots(p, handle);
-
     const wantsPublic = wrap.dataset?.public === "1";
+
     if (!filled && (!hadChildrenAtStart || wantsPublic)) {
       renderFullPage(wrap, p, handle);
     }
   } catch (e) {
     const msg = String(e || "");
-    console.error("wrestler_public: fetch failed", { handle, error: msg });
+    console.error("wrestler_public: fetch failed", { error: msg });
 
-    if (hadChildrenAtStart) {
-      return;
-    }
+    if (hadChildrenAtStart) return;
 
     if (msg.includes("API 401")) {
       wrap.innerHTML = `<div class="card"><h2>Sign in required</h2><p class="muted">Please sign in to view this profile.</p></div>`;
