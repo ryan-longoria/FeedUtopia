@@ -43,7 +43,9 @@ import { mediaUrl } from "/js/media.js";
   }
   const MEDIA_BASE = safeMediaBase(window.WU_MEDIA_BASE);
 
-  // Allowed highlight hosts for **user input** only
+  // Allowed highlight hosts (user asked to allow common socials)
+  // We’ll allow: current origin, YouTube, Vimeo, TikTok, Instagram, X/Twitter,
+  // Facebook, Threads, Twitch, Kick, LinkedIn.
   function getHostFromUrl(u) {
     try {
       return new URL(u).host;
@@ -85,53 +87,15 @@ import { mediaUrl } from "/js/media.js";
     // Kick
     "kick.com",
     "www.kick.com",
-    // LinkedIn
+    // LinkedIn (just in case someone drops a video link)
     "www.linkedin.com",
     "linkedin.com",
   ]);
 
+  // if we have a same-origin media base, allow its host too
   if (MEDIA_BASE) {
     const h = getHostFromUrl(MEDIA_BASE);
     if (h) ALLOWED_HIGHLIGHT_HOSTS.add(h);
-  }
-
-  // STRICT: for user-pasted URLs
-  function safeHighlightUrlFromUser(raw) {
-    try {
-      const url = new URL(raw, location.origin);
-      if (url.protocol !== "https:") return null;
-      if (!ALLOWED_HIGHLIGHT_HOSTS.has(url.host)) return null;
-      return url.toString();
-    } catch {
-      return null;
-    }
-  }
-
-  // LOOSE: for backend-provided data – do NOT drop old data
-  function normalizeHighlightFromBackend(item) {
-    if (typeof item !== "string") return null;
-
-    // 1) already an https:// URL? keep it, even if host is older CDN
-    if (/^https?:\/\//i.test(item)) {
-      return item;
-    }
-
-    // 2) old-style key? keep and convert if it's "public/..."
-    if (
-      item.startsWith("public/") ||
-      item.startsWith("profiles/") ||
-      item.startsWith("raw/")
-    ) {
-      // this restores old behavior that kept your videos working
-      if (item.startsWith("public/")) {
-        return mediaUrl(item);
-      }
-      // raw/ or profiles/ we can keep as key and render later
-      return item;
-    }
-
-    // anything else: keep as-is to not lose old data
-    return item;
   }
 
   function isKeyLike(val) {
@@ -189,6 +153,18 @@ import { mediaUrl } from "/js/media.js";
     return null;
   }
 
+  // highlight URL validation
+  function safeHighlightUrl(raw) {
+    try {
+      const url = new URL(raw, location.origin);
+      if (url.protocol !== "https:") return null;
+      if (!ALLOWED_HIGHLIGHT_HOSTS.has(url.host)) return null;
+      return url.toString();
+    } catch {
+      return null;
+    }
+  }
+
   function renderPhotoGrid() {
     const wrap = document.getElementById("photoGrid");
     if (!wrap) return;
@@ -206,7 +182,7 @@ import { mediaUrl } from "/js/media.js";
       })
       .join("");
 
-    // event delegation
+    // event delegation for dynamic DOM
     wrap.onclick = (ev) => {
       const btn = ev.target.closest(".media-remove");
       if (!btn) return;
@@ -224,12 +200,15 @@ import { mediaUrl } from "/js/media.js";
     if (!ul) return;
     ul.innerHTML = (highlights || [])
       .map((item, i) => {
+        // If it looks like a full URL, display as-is.
+        // If it looks like a key, display via mediaUrl.
         let display;
         if (typeof item === "string" && /^https?:\/\//i.test(item)) {
           display = item;
         } else if (isKeyLike(item)) {
           display = mediaUrl(item);
         } else {
+          // fallback display
           display = String(item);
         }
         return `
@@ -253,7 +232,7 @@ import { mediaUrl } from "/js/media.js";
     };
   }
 
-  // Back-compat
+  // Back-compat wrapper if other code ever called photoUrlFromKey()
   function photoUrlFromKey(key) {
     return key ? mediaUrl(String(key)) : "/assets/avatar-fallback.svg";
   }
@@ -338,19 +317,31 @@ import { mediaUrl } from "/js/media.js";
 
       mediaKeys = Array.isArray(me.mediaKeys) ? [...me.mediaKeys] : [];
 
-      // IMPORTANT: for backend data, do NOT drop old highlights
+      // keep backend values but sanitize
       highlights = Array.isArray(me.highlights)
         ? me.highlights
-            .map((item) => normalizeHighlightFromBackend(item))
+            .map((item) => {
+              if (typeof item !== "string") return null;
+
+              // if backend gave full URL, keep it if allowed
+              if (/^https?:\/\//i.test(item)) {
+                const safe = safeHighlightUrl(item);
+                return safe;
+              }
+
+              // if backend gave a key, keep it
+              if (isKeyLike(item)) return item;
+
+              // unknown shape -> drop
+              return null;
+            })
             .filter(Boolean)
         : [];
 
-      // render order: highlights first, photos second
-      // so photos "win" visually when the page is arranged photos-then-highlights
-      renderHighlightList();
       renderPhotoGrid();
+      renderHighlightList();
 
-      // expose for legacy
+      // expose to window for legacy
       window.profile = me;
 
       const map = {
@@ -507,7 +498,7 @@ import { mediaUrl } from "/js/media.js";
             type: "gallery",
           });
           if (key) {
-            mediaKeys.push(key);
+            mediaKeys.push(key); // always store key for gallery
           }
         }
 
@@ -515,14 +506,14 @@ import { mediaUrl } from "/js/media.js";
         if (input) input.value = "";
       });
 
-    // Add highlight by URL (user input → strict)
+    // Add highlight by URL
     document
       .getElementById("addHighlightUrlBtn")
       ?.addEventListener("click", () => {
         const el = document.getElementById("highlightUrl");
         const u = (el?.value || "").trim();
         if (!u) return;
-        const safe = safeHighlightUrlFromUser(u);
+        const safe = safeHighlightUrl(u);
         if (!safe) {
           toast(
             "Highlight URL must be https and from an allowed social/video site",
@@ -530,7 +521,7 @@ import { mediaUrl } from "/js/media.js";
           );
           return;
         }
-        highlights.push(safe);
+        highlights.push(safe); // store full URL from user
         renderHighlightList();
         el.value = "";
       });
@@ -555,7 +546,8 @@ import { mediaUrl } from "/js/media.js";
         });
 
         if (key) {
-          // restore old behavior: convert public/… to URL immediately
+          // IMPORTANT: restore old behavior
+          // If it's a public key, turn it into a full URL right away.
           const val =
             typeof key === "string" && key.startsWith("public/")
               ? mediaUrl(key)
