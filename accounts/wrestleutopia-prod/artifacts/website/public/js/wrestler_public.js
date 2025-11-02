@@ -2,23 +2,25 @@
 import { apiFetch } from "/js/api.js";
 import { mediaUrl } from "/js/media.js";
 
-// --- config ---
+// --- config / SRE bits ---
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_HIGHLIGHTS = 12;
 const MAX_PHOTOS = 24;
 const PROFILE_HANDLE_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
-// --- utils ---
+// escape helper
 const h = (str) =>
   String(str ?? "").replace(
     /[&<>"]/g,
     (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[s],
   );
 
+// which keys need busting
 const needsBust = (k) =>
   /^public\/wrestlers\/profiles\//.test(String(k)) ||
   /^profiles\//.test(String(k));
 
+// media key -> src
 function imgSrcFromKey(key) {
   if (!key) return "/assets/avatar-fallback.svg";
   const s = String(key);
@@ -68,11 +70,13 @@ function toYoutubeEmbed(url) {
 
   if (!isYT) return "";
 
+  // watch?v=...
   if (u.searchParams.has("v")) {
     const id = u.searchParams.get("v");
     return `https://www.youtube.com/embed/${encodeURIComponent(id)}`;
   }
 
+  // youtu.be/<id>
   if (host === "youtu.be") {
     const id = u.pathname.replace(/^\/+/, "");
     if (id) return `https://www.youtube.com/embed/${encodeURIComponent(id)}`;
@@ -81,6 +85,7 @@ function toYoutubeEmbed(url) {
   return "";
 }
 
+// timeout wrapper
 async function fetchWithTimeout(url, ms) {
   const timeout = new Promise((_, reject) =>
     setTimeout(() => reject(new Error("fetch-timeout")), ms),
@@ -89,16 +94,22 @@ async function fetchWithTimeout(url, ms) {
 }
 
 // ------------------------------------------------------
-// 1) Try to fill existing page (dashboard/editor style)
-//    -> non-destructive
+// 1) NON-DESTRUCTIVE RENDER (for pages that ALREADY have HTML)
 // ------------------------------------------------------
-function fillExistingSlots(p, handle) {
+// we'll look for these ids. if they exist, we just fill them.
+function renderIntoExistingLayout(p, handle) {
+  // hero/avatar
+  const heroImg = document.getElementById("wp-avatar");
+  const heroName = document.getElementById("wp-stage");
+  const aboutBox = document.getElementById("wp-about");
+  const highlightsBox = document.getElementById("wp-highlights");
+  const photosBox = document.getElementById("wp-photos");
+  const achievementsBox = document.getElementById("wp-achievements");
+
+  // if none of those exist, caller will fall back to full render
   let touched = false;
 
-  // avatar + name (if page has them)
-  const avatarEl = document.getElementById("wp-avatar");
-  const nameEl = document.getElementById("wp-stage");
-
+  // avatar busting
   const avatarBase = p?.photoKey
     ? mediaUrl(p.photoKey)
     : "/assets/avatar-fallback.svg";
@@ -114,26 +125,25 @@ function fillExistingSlots(p, handle) {
 
   const stage = p.stageName || p.ring || p.name || handle;
 
-  if (avatarEl) {
-    avatarEl.src = avatarSrc;
-    avatarEl.alt = stage;
+  if (heroImg) {
+    heroImg.src = avatarSrc;
+    heroImg.alt = stage;
     touched = true;
   }
-  if (nameEl) {
-    nameEl.textContent = stage;
+  if (heroName) {
+    heroName.textContent = stage;
     touched = true;
   }
 
-  // about slot
-  const aboutEl = document.getElementById("wp-about");
-  if (aboutEl) {
-    const realName = [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ");
-    let html = p.bio
+  // about
+  if (aboutBox) {
+    const name = [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ");
+    let html = "";
+    html += p.bio
       ? `<p>${h(p.bio).replace(/\n/g, "<br/>")}</p>`
       : `<p class="muted">No bio yet.</p>`;
-
     html += `<dl class="meta-list mt-2">`;
-    if (realName) html += `<dt>Name</dt><dd>${h(realName)}</dd>`;
+    if (name) html += `<dt>Name</dt><dd>${h(name)}</dd>`;
     if (p.emailPublic) html += `<dt>Email</dt><dd>${h(p.emailPublic)}</dd>`;
     if (p.phonePublic) html += `<dt>Phone</dt><dd>${h(p.phonePublic)}</dd>`;
     if (p.styles) html += `<dt>Style</dt><dd>${h(p.styles)}</dd>`;
@@ -143,29 +153,32 @@ function fillExistingSlots(p, handle) {
         .join(" ")}</dd>`;
     }
     html += `</dl>`;
-
-    aboutEl.innerHTML = html;
+    aboutBox.innerHTML = html;
     touched = true;
   }
 
-  // highlights slot
-  const highlightsEl = document.getElementById("wp-highlights");
-  if (highlightsEl) {
+  // highlights
+  if (highlightsBox) {
     const highlights = Array.isArray(p.highlights)
       ? p.highlights.slice(0, MAX_HIGHLIGHTS)
       : [];
     if (highlights.length) {
-      highlightsEl.innerHTML = `
+      highlightsBox.innerHTML = `
         <div class="media-grid">
           ${highlights
             .map((vRaw) => {
               const v = String(vRaw || "");
               const yt = toYoutubeEmbed(v);
               if (yt) {
-                return `<div class="media-card"><iframe width="100%" height="220" src="${h(
-                  yt,
-                )}" title="Highlight" frameborder="0" allowfullscreen></iframe></div>`;
+                return `
+                  <div class="media-card">
+                    <iframe width="100%" height="220" src="${h(
+                      yt,
+                    )}" title="Highlight" frameborder="0" allowfullscreen></iframe>
+                  </div>
+                `;
               }
+              // only same-origin video embeds
               try {
                 const parsed = new URL(v, location.origin);
                 if (parsed.origin === location.origin) {
@@ -184,19 +197,18 @@ function fillExistingSlots(p, handle) {
         </div>
       `;
     } else {
-      highlightsEl.innerHTML = `<div class="card"><p class="muted">No highlight videos yet.</p></div>`;
+      highlightsBox.innerHTML = `<div class="card"><p class="muted">No highlight videos yet.</p></div>`;
     }
     touched = true;
   }
 
-  // photos slot
-  const photosEl = document.getElementById("wp-photos");
-  if (photosEl) {
+  // photos
+  if (photosBox) {
     const mediaKeys = Array.isArray(p.mediaKeys)
       ? p.mediaKeys.slice(0, MAX_PHOTOS)
       : [];
     if (mediaKeys.length) {
-      photosEl.innerHTML = `
+      photosBox.innerHTML = `
         <div class="media-grid">
           ${mediaKeys
             .map(
@@ -209,20 +221,19 @@ function fillExistingSlots(p, handle) {
         </div>
       `;
     } else {
-      photosEl.innerHTML = `<div class="card"><p class="muted">No photos yet.</p></div>`;
+      photosBox.innerHTML = `<div class="card"><p class="muted">No photos yet.</p></div>`;
     }
     touched = true;
   }
 
-  // achievements slot
-  const achEl = document.getElementById("wp-achievements");
-  if (achEl) {
+  // achievements
+  if (achievementsBox) {
     if (p.achievements) {
-      achEl.innerHTML = `<h2 class="mt-0">Achievements</h2><p>${h(
+      achievementsBox.innerHTML = `<h2 class="mt-0">Achievements</h2><p>${h(
         p.achievements,
       ).replace(/\n/g, "<br/>")}</p>`;
     } else {
-      achEl.innerHTML = `<p class="muted">No achievements listed.</p>`;
+      achievementsBox.innerHTML = `<p class="muted">No achievements listed.</p>`;
     }
     touched = true;
   }
@@ -231,7 +242,7 @@ function fillExistingSlots(p, handle) {
 }
 
 // ------------------------------------------------------
-// 2) Full render (only when container is empty or opted in)
+// 2) DESTRUCTIVE / FULL RENDER (for real public profile page)
 // ------------------------------------------------------
 function renderFullPage(wrap, p, handle) {
   const stage = p.stageName || p.ring || p.name || handle;
@@ -382,7 +393,7 @@ function renderFullPage(wrap, p, handle) {
     </section>
   `;
 
-  // nav wiring same as before
+  // wire nav (same as before)
   const nav = wrap.querySelector(".tab-nav");
   if (nav) {
     const links = Array.from(nav.querySelectorAll("a"));
@@ -444,16 +455,16 @@ async function run() {
   const wrap = document.getElementById("wp-wrap");
   if (!wrap) return;
 
-  // if page is already populated, we must not destroy it
-  const hadChildrenAtStart = wrap.children.length > 0;
-
-  // get handle from hash or data-handle
+  // how do we get the handle?
+  // 1) from hash: /wrestler.html#foo
+  // 2) OR from data-handle on the wrapper: <div id="wp-wrap" data-handle="foo">
   const hashHandle = (location.hash || "").replace(/^#/, "").trim();
   const dataHandle = wrap.dataset?.handle?.trim();
   const handle = hashHandle || dataHandle || "";
 
+  // IMPORTANT: if we can't find a handle, DO NOT nuke page
   if (!handle || !PROFILE_HANDLE_RE.test(handle)) {
-    // no valid handle -> just leave existing layout alone
+    console.warn("wrestler_public: no valid handle, leaving existing DOM alone");
     return;
   }
 
@@ -464,24 +475,24 @@ async function run() {
     );
 
     if (!p || typeof p !== "object") {
-      // don't nuke current page
+      console.warn("wrestler_public: empty payload for", handle);
+      // don't destroy existing layout
       return;
     }
 
-    // 1) try to fill slots (non-destructive)
-    const filled = fillExistingSlots(p, handle);
-
-    // 2) if we didn't fill AND the container was empty OR explicitly public, render full
-    const wantsPublic = wrap.dataset?.public === "1";
-    if (!filled && (!hadChildrenAtStart || wantsPublic)) {
+    // first try to fill existing dashboard-style layout
+    const filled = renderIntoExistingLayout(p, handle);
+    if (!filled) {
+      // if there was nothing to fill, we assume this is the standalone public page
       renderFullPage(wrap, p, handle);
     }
   } catch (e) {
     const msg = String(e || "");
     console.error("wrestler_public: fetch failed", { handle, error: msg });
 
-    // if page already had content, we don't overwrite it on error
-    if (hadChildrenAtStart) {
+    // if this is an edit/dashboard page, don't overwrite it on error
+    if (document.getElementById("wp-about") || document.getElementById("wp-photos")) {
+      // maybe show a small toast somewhere if you have one
       return;
     }
 
