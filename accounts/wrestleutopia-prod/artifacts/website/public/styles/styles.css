@@ -838,6 +838,3 @@ label {
   .locked-card { transition: box-shadow .2s ease, transform .2s ease; }
   .locked-card:hover { transform: translateY(-1px); }
 }
-
-#photosSection { order: 0 !important; }
-#videosSection { order: 1 !important; }
