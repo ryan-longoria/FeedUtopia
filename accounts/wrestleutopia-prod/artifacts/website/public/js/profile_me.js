@@ -1,8 +1,10 @@
+// /js/profile_me.js
 import { apiFetch, uploadToS3, uploadAvatar } from "/js/api.js";
 import { getAuthState, isWrestler } from "/js/roles.js";
 import { mediaUrl } from "/js/media.js";
 
 (() => {
+  // ---------- tiny DOM helpers ----------
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   const setVal = (id, v = "") => {
@@ -10,9 +12,12 @@ import { mediaUrl } from "/js/media.js";
     if (el) el.value = v ?? "";
   };
 
+  // avatar cache-bust every 5 minutes (not every render)
   const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
-  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-  const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+
+  // upload limits
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+  const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
   const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
   const VIDEO_TYPES = new Set([
     "video/mp4",
@@ -21,10 +26,11 @@ import { mediaUrl } from "/js/media.js";
     "video/ogg",
   ]);
 
+  // --- gallery / highlights state ---
   let mediaKeys = [];
   let highlights = [];
-  let originalHighlightsJSON = "[]";
 
+  // sanitize media base
   function safeMediaBase(raw) {
     if (typeof raw !== "string" || !raw) return "";
     try {
@@ -37,6 +43,7 @@ import { mediaUrl } from "/js/media.js";
   }
   const MEDIA_BASE = safeMediaBase(window.WU_MEDIA_BASE);
 
+  // Allowed highlight hosts for **user input** only
   function getHostFromUrl(u) {
     try {
       return new URL(u).host;
@@ -47,24 +54,40 @@ import { mediaUrl } from "/js/media.js";
 
   const ALLOWED_HIGHLIGHT_HOSTS = new Set([
     location.host,
+    // YouTube
     "www.youtube.com",
     "youtube.com",
     "youtu.be",
+    // Vimeo
     "vimeo.com",
     "www.vimeo.com",
+    // TikTok
     "www.tiktok.com",
     "tiktok.com",
     "vm.tiktok.com",
+    // Instagram
     "www.instagram.com",
     "instagram.com",
+    // Threads
     "www.threads.net",
     "threads.net",
+    // X / Twitter
     "x.com",
     "www.x.com",
     "twitter.com",
     "www.twitter.com",
+    // Facebook
     "www.facebook.com",
     "facebook.com",
+    // Twitch
+    "www.twitch.tv",
+    "twitch.tv",
+    // Kick
+    "kick.com",
+    "www.kick.com",
+    // LinkedIn
+    "www.linkedin.com",
+    "linkedin.com",
   ]);
 
   if (MEDIA_BASE) {
@@ -72,6 +95,7 @@ import { mediaUrl } from "/js/media.js";
     if (h) ALLOWED_HIGHLIGHT_HOSTS.add(h);
   }
 
+  // STRICT: for user-pasted URLs
   function safeHighlightUrlFromUser(raw) {
     try {
       const url = new URL(raw, location.origin);
@@ -81,6 +105,33 @@ import { mediaUrl } from "/js/media.js";
     } catch {
       return null;
     }
+  }
+
+  // LOOSE: for backend-provided data – do NOT drop old data
+  function normalizeHighlightFromBackend(item) {
+    if (typeof item !== "string") return null;
+
+    // 1) already an https:// URL? keep it, even if host is older CDN
+    if (/^https?:\/\//i.test(item)) {
+      return item;
+    }
+
+    // 2) old-style key? keep and convert if it's "public/..."
+    if (
+      item.startsWith("public/") ||
+      item.startsWith("profiles/") ||
+      item.startsWith("raw/")
+    ) {
+      // this restores old behavior that kept your videos working
+      if (item.startsWith("public/")) {
+        return mediaUrl(item);
+      }
+      // raw/ or profiles/ we can keep as key and render later
+      return item;
+    }
+
+    // anything else: keep as-is to not lose old data
+    return item;
   }
 
   function isKeyLike(val) {
@@ -128,6 +179,7 @@ import { mediaUrl } from "/js/media.js";
     return s;
   }
 
+  // file validation
   function assertFileAllowed(file, kind = "image") {
     if (!file) return "No file selected";
     const typeSet = kind === "video" ? VIDEO_TYPES : IMAGE_TYPES;
@@ -140,6 +192,7 @@ import { mediaUrl } from "/js/media.js";
   function renderPhotoGrid() {
     const wrap = document.getElementById("photoGrid");
     if (!wrap) return;
+
     wrap.innerHTML = (mediaKeys || [])
       .map((k, i) => {
         const raw = typeof k === "string" && k.startsWith("raw/");
@@ -152,6 +205,8 @@ import { mediaUrl } from "/js/media.js";
         `;
       })
       .join("");
+
+    // event delegation
     wrap.onclick = (ev) => {
       const btn = ev.target.closest(".media-remove");
       if (!btn) return;
@@ -185,6 +240,7 @@ import { mediaUrl } from "/js/media.js";
         `;
       })
       .join("");
+
     ul.onclick = (ev) => {
       const btn = ev.target.closest("button");
       if (!btn) return;
@@ -197,6 +253,7 @@ import { mediaUrl } from "/js/media.js";
     };
   }
 
+  // Back-compat
   function photoUrlFromKey(key) {
     return key ? mediaUrl(String(key)) : "/assets/avatar-fallback.svg";
   }
@@ -205,15 +262,22 @@ import { mediaUrl } from "/js/media.js";
     const fd = new FormData(form);
     const o = {};
     for (const [k, v] of fd.entries()) o[k] = v;
+
+    // numbers -> normalize
     o.heightIn = Number(o.heightIn);
     if (!Number.isFinite(o.heightIn)) delete o.heightIn;
+
     o.weightLb = Number(o.weightLb);
     if (!Number.isFinite(o.weightLb)) delete o.weightLb;
+
+    // optionals
     o.bio = (o.bio || "").trim() || null;
     o.gimmicks = (o.gimmicks || "")
       .split(",")
       .map((x) => x.trim())
       .filter(Boolean);
+
+    // socials
     o.socials = {
       twitter: (o.social_twitter || "").trim() || null,
       instagram: (o.social_instagram || "").trim() || null,
@@ -224,6 +288,8 @@ import { mediaUrl } from "/js/media.js";
     Object.keys(o.socials).forEach((k) => {
       if (!o.socials[k]) delete o.socials[k];
     });
+
+    // experience
     const exp = (o.experienceYears || "").toString().trim();
     if (exp === "") {
       o.experienceYears = null;
@@ -231,7 +297,9 @@ import { mediaUrl } from "/js/media.js";
       const n = Number(exp);
       o.experienceYears = Number.isFinite(n) ? n : null;
     }
+
     o.achievements = (o.achievements || "").trim() || null;
+
     return o;
   }
 
@@ -253,11 +321,13 @@ import { mediaUrl } from "/js/media.js";
     const fileInput = document.getElementById("avatar");
     const file = fileInput?.files?.[0];
     if (!file) return null;
+
     const err = assertFileAllowed(file, "image");
     if (err) {
       toast(err, "error");
       return null;
     }
+
     return await uploadAvatar(file);
   }
 
@@ -267,12 +337,20 @@ import { mediaUrl } from "/js/media.js";
       if (!me || !me.userId) return;
 
       mediaKeys = Array.isArray(me.mediaKeys) ? [...me.mediaKeys] : [];
-      highlights = Array.isArray(me.highlights) ? [...me.highlights] : [];
-      originalHighlightsJSON = JSON.stringify(highlights);
 
-      renderPhotoGrid();
+      // IMPORTANT: for backend data, do NOT drop old highlights
+      highlights = Array.isArray(me.highlights)
+        ? me.highlights
+            .map((item) => normalizeHighlightFromBackend(item))
+            .filter(Boolean)
+        : [];
+
+      // render order: highlights first, photos second
+      // so photos "win" visually when the page is arranged photos-then-highlights
       renderHighlightList();
+      renderPhotoGrid();
 
+      // expose for legacy
       window.profile = me;
 
       const map = {
@@ -291,6 +369,7 @@ import { mediaUrl } from "/js/media.js";
         achievements: "achievements",
       };
 
+      // socials
       if (me.socials) {
         const s = me.socials;
         if (s.twitter) setVal("social_twitter", s.twitter);
@@ -310,6 +389,7 @@ import { mediaUrl } from "/js/media.js";
         setVal("gimmicks", me.gimmicks.join(", "));
       }
 
+      // avatar
       setImg(
         "#avatarPreview",
         me.photoKey ||
@@ -349,6 +429,7 @@ import { mediaUrl } from "/js/media.js";
     const avatarInput = document.getElementById("avatar");
     const avatarPreview = document.getElementById("avatarPreview");
 
+    // live avatar preview
     avatarInput?.addEventListener("change", () => {
       const f = avatarInput.files?.[0];
       if (f && avatarPreview) {
@@ -369,6 +450,7 @@ import { mediaUrl } from "/js/media.js";
         return;
       }
 
+      // build preview
       const stageName = $("#stageName")?.value || "Wrestler";
       const first = $("#firstName")?.value || "";
       const middle = $("#middleName")?.value || "";
@@ -403,32 +485,17 @@ import { mediaUrl } from "/js/media.js";
       `;
       const box = document.getElementById("preview-content");
       if (box) box.innerHTML = html;
-      document.getElementById("preview-modal")?.showDialog?.() ||
-        document.getElementById("preview-modal")?.showModal();
+      document.getElementById("preview-modal")?.showModal();
     });
 
-    // 🟣 THIS WAS THE LAYOUT-BREAKING PART
-    // Old code was guessing parents with very broad selectors.
-    // New code: ONLY reorder if we have the exact sections by ID.
-    {
-      const photosWrap = document.getElementById("photosSection");
-      const videosWrap = document.getElementById("videosSection");
-      if (photosWrap && videosWrap) {
-        const photosAfterVideos =
-          !!(photosWrap.compareDocumentPosition(videosWrap) &
-            Node.DOCUMENT_POSITION_PRECEDING);
-        if (photosAfterVideos) {
-          videosWrap.parentNode.insertBefore(photosWrap, videosWrap);
-        }
-      }
-    }
-
+    // Add gallery photos
     document
       .getElementById("addPhotosBtn")
       ?.addEventListener("click", async () => {
         const input = document.getElementById("photoFiles");
         const files = Array.from(input?.files || []);
         if (!files.length) return;
+
         for (const f of files) {
           const err = assertFileAllowed(f, "image");
           if (err) {
@@ -443,10 +510,12 @@ import { mediaUrl } from "/js/media.js";
             mediaKeys.push(key);
           }
         }
+
         renderPhotoGrid();
         if (input) input.value = "";
       });
 
+    // Add highlight by URL (user input → strict)
     document
       .getElementById("addHighlightUrlBtn")
       ?.addEventListener("click", () => {
@@ -466,6 +535,7 @@ import { mediaUrl } from "/js/media.js";
         el.value = "";
       });
 
+    // Upload highlight video file
     document
       .getElementById("uploadHighlightBtn")
       ?.addEventListener("click", async () => {
@@ -485,6 +555,7 @@ import { mediaUrl } from "/js/media.js";
         });
 
         if (key) {
+          // restore old behavior: convert public/… to URL immediately
           const val =
             typeof key === "string" && key.startsWith("public/")
               ? mediaUrl(key)
@@ -500,16 +571,20 @@ import { mediaUrl } from "/js/media.js";
 
     form?.addEventListener("submit", async (e) => {
       e.preventDefault();
+
       const now = Date.now();
       if (now - lastSaveAt < SAVE_COOLDOWN_MS) {
         toast("Saving too fast. Try again.", "error");
         return;
       }
       lastSaveAt = now;
+
       setDisabled(saveBtn, true, "Saving…");
 
       try {
         const data = formToObj(form);
+
+        // Upload avatar first
         const key = await uploadAvatarIfAny().catch(() => null);
         if (key) {
           data.photoKey = key;
@@ -539,12 +614,8 @@ import { mediaUrl } from "/js/media.js";
           photo_key: data.photo_key || null,
           avatar_key: data.avatar_key || null,
           mediaKeys,
+          highlights,
         };
-
-        const currentHighlightsJSON = JSON.stringify(highlights || []);
-        if (currentHighlightsJSON !== originalHighlightsJSON) {
-          payload.highlights = highlights;
-        }
 
         const saved = await apiFetch("/profiles/wrestlers/me", {
           method: "PUT",
@@ -577,8 +648,6 @@ import { mediaUrl } from "/js/media.js";
         if (newKey && avatarPreview) {
           avatarPreview.src = photoUrlFromKey(newKey);
         }
-
-        originalHighlightsJSON = currentHighlightsJSON;
       } catch (err) {
         console.error("profile save failed", err);
         toast("Save failed. Try again in a moment.", "error");
@@ -590,6 +659,7 @@ import { mediaUrl } from "/js/media.js";
     await loadMe();
   }
 
+  // Ensure DOM exists before running
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init, { once: true });
   } else {
