@@ -23,22 +23,119 @@
     <meta name="wu-page" content="w_index">
     
     
+    <title>Wrestler Profile | Wrestle Utopia</title>
     <script type="module" crossorigin src="/js/styles.js"></script>
+    <script type="module" crossorigin src="/js/auth-bridge.js"></script>
+    <script type="module" crossorigin src="/js/api.js"></script>
+    <script type="module" crossorigin src="/js/media.js"></script>
+    <script type="module" crossorigin src="/js/wrestler_public.js"></script>
     <link rel="stylesheet" crossorigin href="/styles/styles.css">
   </head>
   <body>
     <div data-include="/partials/nav.html"></div>
+    
+    <main class="section" style="padding-inline: 0;">
+      <div id="wp-wrap" class="section" data-public="1">
+        <section
+          class="hero card"
+          style="max-width: 980px; margin-inline: auto; overflow: hidden;"
+        >
+          <img
+            id="wp-cover"
+            class="cover"
+            src=""
+            alt=""
+            style="display: none;"
+          />
 
-    <main class="section container">
-      <div
-        id="wp-wrap"
-        class="card"
-        style="max-width: 920px; margin-inline: auto"
-      >
-        <div class="muted">Loading profile…</div>
+          <div class="hero-inner container" style="display: flex; gap: 1.5rem;">
+            <img
+              id="wp-avatar"
+              class="avatar-ring"
+              src="/assets/avatar-fallback.svg"
+              alt="Wrestler avatar"
+              style="width: 120px; height: 120px; border-radius: 999px; object-fit: cover;"
+            />
+
+            <div class="hero-meta" style="flex: 1 1 auto;">
+              <h1 id="wp-stage" style="margin-bottom: .5rem;">Loading…</h1>
+
+              <div id="wp-stats" class="stats-bar" style="display: flex; gap: .5rem; flex-wrap: wrap;">
+              </div>
+
+              <div id="wp-socials" class="social-row mt-2" style="margin-top: .75rem;">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          class="container"
+          style="max-width: 980px; margin-inline: auto;"
+        >
+          <nav class="tabs" style="margin-top: 1.5rem;">
+            <div class="tab-nav" id="wp-tabs" style="display: flex; gap: 1rem;">
+              <a href="#about" aria-current="page">About</a>
+              <a href="#highlights">Highlights</a>
+              <a href="#photos">Photos</a>
+              <a href="#achievements" id="tab-achievements" style="display: none;">Achievements</a>
+            </div>
+          </nav>
+
+          <div
+            id="about"
+            class="mt-3 card"
+            style="scroll-margin-top: 90px; padding: 1.5rem;"
+          >
+            <h2 class="mt-0">About</h2>
+            <p id="wp-about">
+              Loading profile…
+            </p>
+
+            <dl class="meta-list mt-2" id="wp-about-meta">
+            </dl>
+          </div>
+
+          <div
+            id="highlights"
+            class="mt-3"
+            style="scroll-margin-top: 90px;"
+          >
+            <div class="card" style="padding: 1.5rem;">
+              <h2 class="mt-0">Highlights</h2>
+              <div id="wp-highlights" class="media-grid">
+                <p class="muted">No highlight videos yet.</p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            id="photos"
+            class="mt-3"
+            style="scroll-margin-top: 90px;"
+          >
+            <div class="card" style="padding: 1.5rem;">
+              <h2 class="mt-0">Photos</h2>
+              <div id="wp-photos" class="media-grid">
+                <p class="muted">No photos yet.</p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            id="achievements"
+            class="mt-3 card"
+            style="scroll-margin-top: 90px; display: none; padding: 1.5rem;"
+          >
+            <h2 class="mt-0">Achievements</h2>
+            <div id="wp-achievements">
+            </div>
+          </div>
+        </section>
       </div>
     </main>
 
     <div data-include="/partials/footer.html"></div>
+
   </body>
 </html>
