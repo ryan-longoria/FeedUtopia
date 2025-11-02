@@ -47,29 +47,22 @@ import { mediaUrl } from "/js/media.js";
 
   const ALLOWED_HIGHLIGHT_HOSTS = new Set([
     location.host,
-    // YouTube
     "www.youtube.com",
     "youtube.com",
     "youtu.be",
-    // Vimeo
     "vimeo.com",
     "www.vimeo.com",
-    // TikTok
     "www.tiktok.com",
     "tiktok.com",
     "vm.tiktok.com",
-    // Instagram
     "www.instagram.com",
     "instagram.com",
-    // Threads
     "www.threads.net",
     "threads.net",
-    // X / Twitter
     "x.com",
     "www.x.com",
     "twitter.com",
     "www.twitter.com",
-    // Facebook
     "www.facebook.com",
     "facebook.com",
   ]);
@@ -414,23 +407,22 @@ import { mediaUrl } from "/js/media.js";
         document.getElementById("preview-modal")?.showModal();
     });
 
+    // 🟣 THIS WAS THE LAYOUT-BREAKING PART
+    // Old code was guessing parents with very broad selectors.
+    // New code: ONLY reorder if we have the exact sections by ID.
     {
-      const photoGrid = document.getElementById("photoGrid");
-      const highlightList = document.getElementById("highlightList");
-
-      const photosWrap =
-        photoGrid?.closest("#photosSection, .section, section, .card, .panel, .block") || null;
-      const videosWrap =
-        highlightList?.closest("#videosSection, .section, section, .card, .panel, .block") || null;
-
+      const photosWrap = document.getElementById("photosSection");
+      const videosWrap = document.getElementById("videosSection");
       if (photosWrap && videosWrap) {
         const photosAfterVideos =
-          !!(photosWrap.compareDocumentPosition(videosWrap) & Node.DOCUMENT_POSITION_PRECEDING);
+          !!(photosWrap.compareDocumentPosition(videosWrap) &
+            Node.DOCUMENT_POSITION_PRECEDING);
         if (photosAfterVideos) {
-          videosWrap.before(photosWrap);
+          videosWrap.parentNode.insertBefore(photosWrap, videosWrap);
         }
       }
     }
+
     document
       .getElementById("addPhotosBtn")
       ?.addEventListener("click", async () => {
