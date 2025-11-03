@@ -16,6 +16,7 @@ import { mediaUrl } from "/js/media.js";
   const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
   const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
   const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm", "video/ogg"]);
+  const ENABLE_PRESIGN = false;
 
   let mediaKeys = [];
   let highlights = [];
@@ -254,20 +255,24 @@ import { mediaUrl } from "/js/media.js";
     const err = assertFileAllowed(file, kind);
     if (err) throw new Error(err);
 
-    const md5b64 = await md5Base64(file).catch(() => null);
-    const presign = await apiFetch("/media/presign", {
-      method: "POST",
-      body: {
-        filename: file.name,
-        contentType: file.type || "application/octet-stream",
-        md5: md5b64 || undefined,
-        ...meta,
-      },
-    }).catch(() => null);
-
-    if (presign?.uploadUrl && presign?.objectKey) {
-      await putViaPresign(presign, file, md5b64 || "");
-      return presign.objectKey;
+    if (ENABLE_PRESIGN) {
+      try {
+        const md5b64 = await md5Base64(file).catch(() => null);
+        const presign = await apiFetch("/media/presign", {
+          method: "POST",
+          body: {
+            filename: file.name,
+            contentType: file.type || "application/octet-stream",
+            md5: md5b64 || undefined,
+            ...meta,
+          },
+        });
+        if (presign?.uploadUrl && presign?.objectKey) {
+          await putViaPresign(presign, file, md5b64 || "");
+          return presign.objectKey;
+        }
+      } catch (_) {
+      }
     }
 
     return uploadToS3(file.name, file.type || "application/octet-stream", file, meta);
