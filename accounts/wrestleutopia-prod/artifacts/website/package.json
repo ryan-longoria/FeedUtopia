@@ -5,13 +5,17 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "bundle-auth": "esbuild public/js/auth-modal.src.js --bundle --format=esm --platform=browser --target=es2020 --main-fields=browser,module,main --external:/js/* --outfile=public/js/auth-modal.js --log-level=info",
+    "prebuild": "node tools/build-geo-na.mjs && npm run bundle-auth",
+    "bundle-auth:watch": "esbuild public/js/auth-modal.src.js --bundle --format=esm --platform=browser --target=es2020 --main-fields=browser,module,main --external:/js/* --outfile=public/js/auth-modal.js --log-level=info --watch"
   },
   "dependencies": {
     "@countrystatecity/countries": "^1.0.4",
     "aws-amplify": "^6.0.0"
   },
   "devDependencies": {
+    "esbuild": "^0.25.12",
     "postcss": "^8.5.6",
     "postcss-cli": "^11.0.1",
     "purgecss": "^7.0.2",

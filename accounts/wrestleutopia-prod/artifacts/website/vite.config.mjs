@@ -108,6 +108,10 @@ export default defineConfig({
 
     viteStaticCopy({
       targets: [
+        ...(fs.existsSync(r("public/geo"))
+          ? [{ src: r("public/geo/**/*"), dest: "geo" }]
+          : []),
+          
         ...(fs.existsSync(r("public/js"))       ? [{ src: r("public/js/**/*"),       dest: "js" }]       : []),
         ...(fs.existsSync(r("public/styles"))   ? [{ src: r("public/styles/**/*"),   dest: "styles" }]   : []),
         ...(fs.existsSync(r("public/assets"))   ? [{ src: r("public/assets/**/*"),   dest: "assets" }]   : []),
