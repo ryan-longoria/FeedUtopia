@@ -68,12 +68,36 @@
 })();
 
 window.addEventListener("auth:changed", async (e) => {
-  if (e?.detail?.type !== "signedIn") return;
+  const evt = e?.detail || {};
+  const becameSignedIn = evt.status === "signedIn" || evt.type === "signedIn";
+  if (!becameSignedIn) return;
 
   try {
     const { getAuthState, isPromoter, isWrestler } = await import("/js/roles.js");
     const s = await getAuthState();
-    const dest = isPromoter(s) ? "dashboard_wrestler.html" : isWrestler(s) ? "dashboard_promoter.html" : "/index.html";
-    if (location.pathname !== dest) location.replace(dest);
+    const dest = isPromoter(s)
+      ? "/dashboard_promoter.html"
+      : isWrestler(s)
+      ? "/dashboard_wrestler.html"
+      : "/index.html";
+
+    if (dest && location.pathname !== dest) location.replace(dest);
+  } catch (err) {
+    console.error("[auth-boot] redirect after login failed", err);
+  }
+});
+
+window.addEventListener("auth:changed", (e) => {
+  const evt = e?.detail || {};
+  const becameSignedOut = evt.status === "signedOut" || evt.type === "signedOut";
+  if (!becameSignedOut) return;
+
+  try {
+    sessionStorage.clear();
+    localStorage.removeItem("wuUser");
   } catch {}
+
+  if (location.pathname !== "/index.html") {
+    location.replace("/index.html");
+  }
 });
