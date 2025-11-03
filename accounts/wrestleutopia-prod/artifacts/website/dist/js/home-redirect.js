@@ -1,6 +1,6 @@
 import { getAuthState, isPromoter, isWrestler } from "/js/roles.js";
 
-const AUTH_TIMEOUT_MS = 1500;
+const AUTH_TIMEOUT_MS = 8000;
 const ONCE_KEY = "__home_redirect_done";
 
 const isHomePath = () => {
@@ -52,4 +52,4 @@ if (document.readyState === "loading") {
   schedule(go);
 }
 
-window.addEventListener("auth:ready", () => schedule(go), { once: true });
+window.addEventListener("auth:changed", () => schedule(go), { once: true });
