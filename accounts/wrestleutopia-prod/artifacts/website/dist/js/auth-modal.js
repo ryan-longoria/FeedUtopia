@@ -7,6 +7,14 @@ import {
   signOut,
 } from "/js/auth-bridge.js";
 
+import {
+  getCountries,
+  getStatesOfCountry,
+  getCitiesOfState,
+  isValidCountryCode,
+  isValidStateCode,
+} from "https://esm.sh/@countrystatecity/countries@1.0.4?bundle";
+
 if (window._wuAuthWired) {
   console.debug("[auth] already wired, skipping");
 } else {
@@ -27,47 +35,7 @@ if (window._wuAuthWired) {
   const regionSel  = document.getElementById("signup-region");
   const citySel    = document.getElementById("signup-city");
 
-  const GEO = {
-    countries: [
-      { code: "US", name: "United States" },
-      { code: "CA", name: "Canada" },
-      { code: "MX", name: "Mexico" },
-    ],
-    regionsByCountry: {
-      US: [
-        { code: "TX", name: "Texas" },
-        { code: "CA", name: "California" },
-        { code: "NY", name: "New York" },
-      ],
-      CA: [
-        { code: "ON", name: "Ontario" },
-        { code: "QC", name: "Quebec" },
-        { code: "BC", name: "British Columbia" },
-      ],
-      MX: [
-        { code: "CMX", name: "Ciudad de México" },
-        { code: "JAL", name: "Jalisco" },
-        { code: "NLE", name: "Nuevo León" },
-      ],
-    },
-    citiesByRegion: {
-      US: {
-        TX: ["San Antonio", "Austin", "Houston", "Dallas"],
-        CA: ["Los Angeles", "San Francisco", "San Diego"],
-        NY: ["New York", "Buffalo", "Rochester"],
-      },
-      CA: {
-        ON: ["Toronto", "Ottawa", "Hamilton"],
-        QC: ["Montreal", "Quebec City", "Laval"],
-        BC: ["Vancouver", "Victoria", "Burnaby"],
-      },
-      MX: {
-        CMX: ["Mexico City"],
-        JAL: ["Guadalajara", "Zapopan"],
-        NLE: ["Monterrey", "San Nicolás"],
-      },
-    },
-  };
+  const geoCache = new Map();
 
   function resetSel(sel, placeholder, disabled = false) {
     if (!sel) return;
@@ -75,56 +43,98 @@ if (window._wuAuthWired) {
     sel.disabled = !!disabled;
   }
 
-  function populateCountries() {
-    if (!countrySel) return;
+  async function loadCountriesNA() {
+    const key = "countries";
+    if (geoCache.has(key)) return geoCache.get(key);
+    const all = await getCountries();
+    const na = all.filter((c) => ["US", "CA", "MX"].includes(c.iso2));
+    na.sort((a, b) => a.name.localeCompare(b.name));
+    geoCache.set(key, na);
+    return na;
+  }
+
+  async function loadStates(cc) {
+    const key = `${cc}:states`;
+    if (geoCache.has(key)) return geoCache.get(key);
+    const states = await getStatesOfCountry(cc);
+    states.sort((a, b) => a.name.localeCompare(b.name));
+    geoCache.set(key, states);
+    return states;
+  }
+
+  async function loadCities(cc, stateCode) {
+    const key = `${cc}:${stateCode}:cities`;
+    if (geoCache.has(key)) return geoCache.get(key);
+    const cities = await getCitiesOfState(cc, stateCode);
+    cities.sort((a, b) => a.name.localeCompare(b.name));
+    geoCache.set(key, cities);
+    return cities;
+  }
+
+  async function populateCountries() {
     resetSel(countrySel, "Select Country");
-    GEO.countries.forEach(({ code, name }) => {
+    const list = await loadCountriesNA();
+    for (const c of list) {
       const opt = document.createElement("option");
-      opt.value = code; opt.textContent = name;
+      opt.value = c.iso2;
+      opt.textContent = c.name;
       countrySel.appendChild(opt);
-    });
+    }
+    countrySel.disabled = false;
   }
 
-  function populateRegions(countryCode) {
-    if (!regionSel || !citySel) return;
-    resetSel(regionSel, "Select State/Region", !countryCode);
-    resetSel(citySel,   "Select City",        true);
-    if (!countryCode) return;
-    const regions = GEO.regionsByCountry[countryCode] || [];
-    regions.forEach(({ code, name }) => {
+  async function populateRegions(cc) {
+    resetSel(regionSel, "Select State/Region", !cc);
+    resetSel(citySel, "Select City", true);
+    if (!cc) return;
+
+    const ok = await isValidCountryCode(cc).catch(() => false);
+    if (!ok) return;
+
+    const states = await loadStates(cc);
+    for (const s of states) {
       const opt = document.createElement("option");
-      opt.value = code; opt.textContent = name;
+      opt.value = s.iso2;
+      opt.textContent = s.name;
       regionSel.appendChild(opt);
-    });
-    regionSel.disabled = regions.length === 0;
+    }
+    regionSel.disabled = states.length === 0;
   }
 
-  function populateCities(countryCode, regionCode) {
-    if (!citySel) return;
-    resetSel(citySel, "Select City", !countryCode || !regionCode);
-    if (!countryCode || !regionCode) return;
-    const cities = GEO.citiesByRegion[countryCode]?.[regionCode] || [];
-    cities.forEach((name) => {
+  async function populateCities(cc, stateCode) {
+    resetSel(citySel, "Select City", !cc || !stateCode);
+    if (!cc || !stateCode) return;
+
+    const ok = await isValidStateCode(cc, stateCode).catch(() => false);
+    if (!ok) return;
+
+    const cities = await loadCities(cc, stateCode);
+    for (const city of cities) {
       const opt = document.createElement("option");
-      opt.value = name; opt.textContent = name;
+      opt.value = city.name;
+      opt.textContent = city.name;
       citySel.appendChild(opt);
-    });
+    }
     citySel.disabled = cities.length === 0;
   }
 
-  function initGeoIfNeeded() {
+  async function initGeoIfNeeded() {
     if (countrySel && countrySel.options.length <= 1) {
-      populateCountries();
-      populateRegions("");
-      populateCities("", "");
+      await populateCountries();
+      resetSel(regionSel, "Select State/Region", true);
+      resetSel(citySel, "Select City", true);
     }
   }
 
   countrySel?.addEventListener("change", () => {
-    populateRegions(countrySel.value);
+    const cc = countrySel.value;
+    populateRegions(cc);
   });
+
   regionSel?.addEventListener("change", () => {
-    populateCities(countrySel.value, regionSel.value);
+    const cc = countrySel.value;
+    const sc = regionSel.value;
+    populateCities(cc, sc);
   });
 
   let signupEmailForConfirm = "";
@@ -250,7 +260,6 @@ if (window._wuAuthWired) {
         const stage = String(fd.get("stageName") || "").trim();
         const dob = String(fd.get("dob") || "").trim();
 
-        // NOTE: These now come from <select> only
         const country = String(fd.get("country") || "").trim();
         const region  = String(fd.get("region") || "").trim();
         const city    = String(fd.get("city") || "").trim();
