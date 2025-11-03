@@ -25,12 +25,12 @@ function openSignup(intent = "generic") {
   }
 }
 
-window.addEventListener("auth:ready", () => {
+window.addEventListener("auth:changed", () => {
   if (queuedOpen && window.Auth?.open) {
     try {
       window.Auth.open("signup", { intent: queuedOpen.intent });
     } catch (e) {
-      logErr("auth:ready", e, { intent: queuedOpen.intent });
+      logErr("auth:changed", e, { intent: queuedOpen?.intent });
     } finally {
       queuedOpen = null;
     }

@@ -1,44 +1,32 @@
-// /public/js/api.js
 import { fetchAuthSession } from "/js/auth-bridge.js";
 
-/** ------- API base resolution (no import-time throws) ------- */
 function resolveApiBase() {
-  // 1) Explicit global from config.js (your current setup)
   if (typeof window !== "undefined" && window.WU_API) return window.WU_API;
 
-  // 2) Optional global config object, if you ever use it
   if (typeof window !== "undefined" && window.__CONFIG?.WU_API) {
     return window.__CONFIG.WU_API;
   }
 
-  // 3) Optional <meta name="wu-api" content="...">
   if (typeof document !== "undefined") {
     const meta = document.querySelector('meta[name="wu-api"]');
     if (meta?.content) return meta.content;
   }
 
-  // 4) Fallback disabled intentionally to avoid surprises:
-  // return location.origin + "/api";
-
   return "";
 }
 
-// current base (lazily read at first call)
 let __API_BASE = "";
 
-/** Get the API base. If `strict` is true and base is empty, throws at *call time* */
 export function getApiBase(strict = false) {
   if (!__API_BASE) __API_BASE = resolveApiBase();
   if (!__API_BASE && strict) throw new Error("WU_API base URL missing");
   return __API_BASE;
 }
 
-/** Allow runtime override (handy for tests or env switches) */
 export function setApiBase(url) {
   __API_BASE = url || "";
 }
 
-/** Safe URL join that preserves protocol and collapses duplicate slashes */
 export function joinUrl(...parts) {
   const filtered = parts.filter(Boolean).map((p) => String(p));
   if (filtered.length === 0) return "";
@@ -47,11 +35,9 @@ export function joinUrl(...parts) {
     const seg = filtered[i];
     out = out.replace(/\/+$/, "") + "/" + seg.replace(/^\/+/, "");
   }
-  // collapse duplicate slashes except after protocol (e.g., https://)
   return out.replace(/([^:]\/)\/+/g, "$1");
 }
 
-/** ------- Auth helpers ------- */
 async function authToken() {
   const s = await fetchAuthSession();
   return (
@@ -61,7 +47,6 @@ async function authToken() {
   );
 }
 
-/** ------- MD5 (S3 Content-MD5) ------- */
 export async function md5Base64(blob) {
   if (!window.SparkMD5) {
     await new Promise((res, rej) => {
@@ -90,7 +75,6 @@ export async function md5Base64(blob) {
   return btoa(bin);
 }
 
-/** ------- Query string helper ------- */
 export function qs(params = {}) {
   const u = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -102,7 +86,6 @@ export function qs(params = {}) {
   return s ? `?${s}` : "";
 }
 
-/** ------- Core fetch wrapper (now lazy-reads base) ------- */
 export async function apiFetch(
   path,
   { method = "GET", body = null, headers: extraHeaders = {} } = {},
@@ -152,7 +135,6 @@ export async function apiFetch(
   return res.json();
 }
 
-/** ------- S3 upload helpers ------- */
 export async function uploadAvatar(file) {
   const md5b64 = await md5Base64(file);
 
@@ -232,7 +214,6 @@ export async function uploadToS3(filename, contentType, file, opts = {}) {
   return objectKey;
 }
 
-/** ------- misc helpers ------- */
 export function asItems(x) {
   if (Array.isArray(x)) return x;
   if (x && Array.isArray(x.items)) return x.items;
@@ -248,5 +229,4 @@ export const api = {
   delete: (p) => apiFetch(p, { method: "DELETE" }),
 };
 
-// Optional flag some of your code checks
 window.WU_API_READY = true;

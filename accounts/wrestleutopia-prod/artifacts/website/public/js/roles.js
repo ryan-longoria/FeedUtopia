@@ -22,6 +22,10 @@ const EMPTY_STATE = freeze({ signedIn: false, groups: [], role: null, sub: null 
 let _memo = { until: 0, state: EMPTY_STATE };
 let _inflight = null;
 
+window.addEventListener("auth:changed", () => {
+  _memo = { until: 0, state: EMPTY_STATE };
+});
+
 async function _resolveAuthState() {
   try {
     const s = await fetchAuthSession();

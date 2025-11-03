@@ -1,4 +1,3 @@
-// /js/dashboard_promoter_apps.js
 import { apiFetch, asItems } from "/js/api.js";
 import { getAuthState, isPromoter } from "/js/roles.js";
 
@@ -130,20 +129,17 @@ async function openApplicantsModal(tryoutId, meta = {}) {
   } catch (e) {
     console.error(e);
     renderAppsIntoModal([], meta);
-    // Optional toast:
     if (typeof window.toast === "function") {
       window.toast("Could not load applications", "error");
     }
   }
 }
-// expose to other modules
 window.openApplicantsModal = openApplicantsModal;
 
 async function loadTryoutOptionsAndPick() {
   const sel = document.getElementById("apps-filter");
   if (!sel) return "";
 
-  // Clear stale options (keep the "All my tryouts" placeholder)
   sel.querySelectorAll("option:not(:first-child)").forEach((o) => o.remove());
 
   try {
@@ -158,16 +154,15 @@ async function loadTryoutOptionsAndPick() {
       sel.appendChild(opt);
     }
 
-    // If we have at least one tryout, select the first one by default
     const first = sel.querySelector('option[value]:not([value=""])');
     if (first) {
       sel.value = first.value;
-      return sel.value; // the chosen tryoutId
+      return sel.value;
     }
   } catch (e) {
     console.debug("loadTryoutOptionsAndPick:", e?.message || e);
   }
-  return ""; // none available
+  return "";
 }
 
 async function loadApplications(tryoutId = "") {
@@ -181,14 +176,13 @@ async function init() {
   if (!isPromoter(s)) return;
 
   const sel = document.getElementById("apps-filter");
-  const chosen = await loadTryoutOptionsAndPick(); // <-- pick a tryout
-  if (chosen) await loadApplications(chosen); // <-- load promoter view
+  const chosen = await loadTryoutOptionsAndPick();
+  if (chosen) await loadApplications(chosen);
 
   sel?.addEventListener("change", () => {
     const id = sel.value.trim();
     if (id) loadApplications(id);
     else {
-      // Optional: show a friendly message when “All my tryouts” is selected
       document.getElementById("app-list").innerHTML =
         `<div class="card"><p class="muted">Choose a tryout to see applicants.</p></div>`;
     }

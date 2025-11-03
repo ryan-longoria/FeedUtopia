@@ -31,7 +31,6 @@
   async function showLogin() {
     const dlg = await getDlg();
     try {
-      // If your auth-modal.js exposes these helpers, call them; else just open.
       (window.authShowLogin?.() ?? (() => {}))();
       dlg.showModal();
     } catch (e) {
@@ -49,25 +48,32 @@
     }
   }
 
-  // Expose safe openers for any existing code (e.g., home-auth-cta.js)
   window.openLogin = showLogin;
   window.openSignup = showSignup;
 
-  // Make the header “Log In” button work even if original wiring ran too early
   document.addEventListener("click", (e) => {
     const loginBtn = e.target?.closest?.("#login-btn,[data-k='sticky_join_talent'],[data-k='sticky_join_promoter']");
     if (!loginBtn) return;
     e.preventDefault();
-    // Decide login vs signup intent from the clicked element if needed
     const intent = loginBtn.matches("[data-k='sticky_join_promoter']") ? "promoter" :
                    loginBtn.matches("[data-k='sticky_join_talent']") ? "wrestler" : undefined;
     intent ? showSignup(intent) : showLogin();
   }, { capture: true });
 
-  // Optional: global event API your app already uses
   window.addEventListener("auth:open", (e) => {
     const intent = (e?.detail?.intent || "").toString().toLowerCase();
     if (intent === "promoter" || intent === "wrestler") showSignup(intent);
     else showLogin();
   });
 })();
+
+window.addEventListener("auth:changed", async (e) => {
+  if (e?.detail?.type !== "signedIn") return;
+
+  try {
+    const { getAuthState, isPromoter, isWrestler } = await import("/js/roles.js");
+    const s = await getAuthState();
+    const dest = isPromoter(s) ? "/p" : isWrestler(s) ? "/w" : "/index.html";
+    if (location.pathname !== dest) location.replace(dest);
+  } catch {}
+});
