@@ -1,4 +1,3 @@
-// /js/dashboard_promoter_mytryouts.js
 import { apiFetch, asItems } from "/js/api.js";
 import { getAuthState, isPromoter } from "/js/roles.js";
 
@@ -9,6 +8,35 @@ const fmtDate = (iso) => {
     return iso || "";
   }
 };
+
+let CACHED_PROMOTER = null;
+
+async function setWelcomeFromProfile() {
+  try {
+    const [auth, profile] = await Promise.all([
+      getAuthState().catch(() => null),
+      (CACHED_PROMOTER
+        ? Promise.resolve(CACHED_PROMOTER)
+        : apiFetch("/profiles/promoters/me").catch(() => null)),
+    ]);
+
+    if (!CACHED_PROMOTER && profile) CACHED_PROMOTER = profile;
+
+    const contact = profile?.contactName || profile?.contact || "";
+    const org = profile?.orgName || profile?.org || "";
+    const authName =
+      auth?.user?.given_name ||
+      auth?.user?.name ||
+      (auth?.user?.email ? String(auth.user.email).split("@")[0] : "");
+
+    const name = contact || org || authName || "Promoter";
+
+    const el = document.getElementById("welcome");
+    if (el) el.textContent = `Welcome back, ${name}`;
+  } catch (e) {
+    console.debug("setWelcomeFromProfile:", e?.message || e);
+  }
+}
 
 function cardForTryout(t) {
   const id = t.tryoutId || t.id || "";
@@ -39,7 +67,6 @@ function cardForTryout(t) {
       ${slots}
     </div>`;
 
-  // wire the modal opener
   const btn = div.querySelector("[data-view-applicants]");
   btn?.addEventListener("click", (e) => {
     const b = e.currentTarget;
@@ -65,7 +92,9 @@ async function loadMyOrgIntoForm() {
   const orgInput = document.getElementById("org");
   const hint = document.getElementById("org-hint");
   try {
-    const me = await apiFetch("/profiles/promoters/me"); // requires JWT (you have a route for this)
+    const me = CACHED_PROMOTER || (await apiFetch("/profiles/promoters/me"));
+    CACHED_PROMOTER = me || CACHED_PROMOTER;
+
     const org = me?.orgName || "";
     if (orgInput) {
       orgInput.value = org;
@@ -125,7 +154,6 @@ async function loadMyTryouts() {
       })
       .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // Render Active
     if (active.length === 0) {
       emptyState(
         activeEl,
@@ -137,7 +165,6 @@ async function loadMyTryouts() {
       active.forEach((t) => activeEl.appendChild(cardForTryout(t)));
     }
 
-    // Render Previous
     if (previous.length === 0) {
       emptyState(
         prevEl,
@@ -162,7 +189,6 @@ function serializeForm(form) {
 }
 
 function toastInline(text, type = "success") {
-  // Minimal inline toast (optional); replace with your global toast if present
   const el = document.createElement("div");
   el.textContent = text;
   el.style.cssText = `position:fixed;right:16px;bottom:16px;padding:10px 14px;border-radius:8px;
@@ -175,7 +201,6 @@ async function wireTryoutForm() {
   const form = document.getElementById("tryout-form-dash");
   if (!form) return;
 
-  // preload org name (and keep it locked)
   let orgName = await loadMyOrgIntoForm();
 
   form.addEventListener("submit", async (e) => {
@@ -187,7 +212,6 @@ async function wireTryoutForm() {
       return;
     }
 
-    // ensure we have orgName from profile
     if (!orgName) {
       orgName = await loadMyOrgIntoForm();
       if (!orgName) {
@@ -198,9 +222,9 @@ async function wireTryoutForm() {
 
     const data = new FormData(form);
     const body = {
-      orgName, // <-- always from profile
+      orgName,
       city: (data.get("city") || "").trim(),
-      date: (data.get("date") || "").trim(), // YYYY-MM-DD
+      date: (data.get("date") || "").trim(),
       slots: Number(data.get("slots") || 0),
       requirements: (data.get("requirements") || "").trim(),
       contact: (data.get("contact") || "").trim(),
@@ -217,7 +241,6 @@ async function wireTryoutForm() {
       await apiFetch("/tryouts", { method: "POST", body });
       toastInline("Tryout posted!");
       form.reset();
-      // restore org field after reset
       document.getElementById("org").value = orgName;
       await loadMyTryouts();
     } catch (err) {
@@ -233,6 +256,8 @@ async function wireTryoutForm() {
 }
 
 async function initDash() {
+  setWelcomeFromProfile();
+
   await loadMyTryouts();
   await wireTryoutForm();
 }
