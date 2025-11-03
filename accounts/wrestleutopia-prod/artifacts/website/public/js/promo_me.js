@@ -3,370 +3,569 @@ import { apiFetch, uploadToS3, md5Base64 } from "/js/api.js";
 import { getAuthState, isPromoter } from "/js/roles.js";
 import { mediaUrl } from "/js/media.js";
 
-// ---------- tiny DOM helpers ----------
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-const setVal = (id, v = "") => {
-  const el = document.getElementById(id);
-  if (el) el.value = v ?? "";
-};
-const getVal = (id) => (document.getElementById(id)?.value ?? "").trim();
-const setDisabled = (el, on, labelBusy = "Saving…") => {
-  if (!el) return;
-  el.disabled = !!on;
-  if (on) {
-    el.dataset.prevText = el.textContent;
-    el.textContent = labelBusy;
-  } else {
-    el.textContent = el.dataset.prevText || el.textContent;
+(() => {
+  // ---------- tiny DOM helpers ----------
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const setVal = (id, v = "") => {
+    const el = document.getElementById(id);
+    if (el) el.value = v ?? "";
+  };
+
+  // Cache-bust logos/covers on ~5 min boundaries (like profile_me)
+  const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
+
+  // Limits/allow-lists aligned with profile_me.js
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+  const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
+  const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+  const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm", "video/ogg"]);
+
+  // State for gallery photos and highlight videos/links
+  let mediaKeys = [];   // array of S3 object keys (images)
+  let highlights = [];  // array of https URLs or keys
+
+  // -------- media base guard (like profile_me) --------
+  function safeMediaBase(raw) {
+    if (typeof raw !== "string" || !raw) return "";
+    try {
+      const url = new URL(raw, location.origin);
+      if (url.origin !== location.origin) return "";
+      return url.toString().replace(/\/+$/, "");
+    } catch {
+      return "";
+    }
   }
-};
+  const MEDIA_BASE = safeMediaBase(window.WU_MEDIA_BASE);
 
-function normalizeS3Key(uriOrKey, sub) {
-  if (!uriOrKey) return null;
-  let raw = String(uriOrKey).trim();
-
-  // Strip "s3://bucket/" → leave just the key
-  if (raw.startsWith("s3://")) {
-    raw = raw.slice("s3://".length);
-    const firstSlash = raw.indexOf("/");
-    raw = firstSlash >= 0 ? raw.slice(firstSlash + 1) : raw; // remove "<bucket>/"
-  }
-
-  if (/^(public\/(wrestlers|promoters)\/|raw\/uploads\/)/.test(raw)) return raw;
-
-  if (/^user\//.test(raw)) return raw;
-
-  // Fallback: force "user/<sub>/<filename>"
-  const fname = raw.split("/").pop() || `file-${Date.now()}`;
-  return sub ? `user/${sub}/${fname}` : `user/unknown/${fname}`;
-}
-
-function toast(text, type = "success") {
-  const t = document.querySelector("#toast");
-  if (!t) return console[type === "error" ? "error" : "log"](text);
-  t.textContent = text;
-  t.classList.toggle("error", type === "error");
-  t.style.display = "block";
-  setTimeout(() => (t.style.display = "none"), 2400);
-}
-
-// ---------- media helpers (logos/photos/videos) ----------
-const MEDIA_BASE = (window.WU_MEDIA_BASE || "").replace(/\/+$/, "");
-const setLogoImg = (el, key) => {
-  if (!el) return;
-  if (!key) {
-    el.src = "/assets/avatar-fallback.svg";
-    return;
-  }
-  const url = mediaUrl(String(key));
-  const needsBust =
-    /^public\/promoters\/profiles\//.test(String(key)) ||
-    /^profiles\//.test(String(key)); // legacy
-  el.src = needsBust ? `${url}?v=${Date.now()}` : url;
-};
-
-// State for gallery (photos) + highlights (video links or absolute URLs)
-let mediaKeys = []; // array of S3 object keys (images)
-let highlights = []; // array of URLs (YouTube or absolute video URLs)
-
-function wrap(tag, className, children) {
-  const el = document.createElement(tag);
-  if (className) el.className = className;
-
-  if (children != null) {
-    if (Array.isArray(children)) {
-      children.forEach((c) => {
-        if (c == null) return;
-        el.appendChild(
-          typeof c === "string" ? document.createTextNode(c) : c
-        );
-      });
-    } else {
-      el.appendChild(
-        typeof children === "string" ? document.createTextNode(children) : children
-      );
+  function getHostFromUrl(u) {
+    try {
+      return new URL(u).host;
+    } catch {
+      return null;
     }
   }
 
-  return el;
-}
+  const ALLOWED_HIGHLIGHT_HOSTS = new Set([
+    location.host,
+    // YouTube
+    "www.youtube.com", "youtube.com", "youtu.be",
+    // Vimeo
+    "vimeo.com", "www.vimeo.com",
+    // TikTok
+    "www.tiktok.com", "tiktok.com", "vm.tiktok.com",
+    // Instagram
+    "www.instagram.com", "instagram.com",
+    // Threads
+    "www.threads.net", "threads.net",
+    // X / Twitter
+    "x.com", "www.x.com", "twitter.com", "www.twitter.com",
+    // Facebook
+    "www.facebook.com", "facebook.com",
+    // LinkedIn
+    "www.linkedin.com", "linkedin.com",
+  ]);
+  if (MEDIA_BASE) {
+    const h = getHostFromUrl(MEDIA_BASE);
+    if (h) ALLOWED_HIGHLIGHT_HOSTS.add(h);
+  }
 
-function renderPhotoGrid() {
-  const wrap = document.getElementById("photoGrid");
-  if (!wrap) return;
-  wrap.innerHTML = (mediaKeys || [])
-    .map((k, i) => {
-      const raw = typeof k === "string" && k.startsWith("raw/");
-      const imgSrc = raw ? "/assets/image-processing.svg" : mediaUrl(k);
-      return `
-      <div class="media-card">
-        <img src="${imgSrc}" alt="">
-        <button class="btn secondary media-remove" type="button" data-i="${i}">Remove</button>
-      </div>
-    `;
-    })
-    .join("");
-}
+  function isKeyLike(val) {
+    return (
+      typeof val === "string" &&
+      (val.startsWith("public/") || val.startsWith("profiles/") || val.startsWith("raw/") || val.startsWith("user/"))
+    );
+  }
 
-function renderHighlightList() {
-  const ul = document.getElementById("highlightList");
-  if (!ul) return;
-  ul.innerHTML = (highlights || [])
-    .map(
-      (u, i) => `
-    <li>
-      <span style="flex:1; word-break:break-all">${u}</span>
-      <button class="btn secondary" type="button" data-i="${i}">Remove</button>
-    </li>
-  `,
-    )
-    .join("");
+  // ---------- image helpers ----------
+  function setLogoImg(sel, key) {
+    const el = typeof sel === "string" ? $(sel) : sel;
+    if (!el) return;
+    if (!key) {
+      el.src = "/assets/avatar-fallback.svg";
+      return;
+    }
+    const url = mediaUrl(String(key));
+    const needsBust =
+      /^public\/promoters\/profiles\//.test(String(key)) || /^profiles\//.test(String(key));
+    el.src = needsBust ? `${url}?v=${AVATAR_BUST}` : url;
+  }
 
-  ul.querySelectorAll("button").forEach((btn) => {
-    btn.onclick = () => {
-      highlights.splice(Number(btn.dataset.i), 1);
-      renderHighlightList();
-    };
-  });
-}
-  
-async function uploadLogoIfAny() {
-  const file = document.getElementById("logo")?.files?.[0];
-  if (!file) return null;
-  try {
-    const md5b64 = await md5Base64(file);
+  function photoUrlFromKey(key) {
+    return key ? mediaUrl(String(key)) : "/assets/avatar-fallback.svg";
+  }
 
-    if (typeof apiFetch === "function") {
-      // If you add a route like POST /profiles/promoters/me/logo-url (mirroring wrestlers)
-      const presign = await apiFetch("/profiles/promoters/me/logo-url", {
-        method: "POST",
-        headers: { "Content-MD5": md5b64 },
-        body: { contentType: file.type || "image/jpeg" },
-      });
-      if (presign?.uploadUrl && presign?.objectKey) {
-        await fetch(presign.uploadUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": presign.contentType || file.type || "image/jpeg",
-            "x-amz-server-side-encryption": "AES256",
-            "Content-MD5": md5b64,
-          },
-          body: file,
-        });
-        return presign.objectKey; // e.g., public/promoters/profiles/<sub>/logo.png
+  // ---------- UX helpers ----------
+  function toast(text, type = "success") {
+    const t = $("#toast");
+    if (!t) {
+      console.log(`[toast:${type}]`, text);
+      return;
+    }
+    t.textContent = text;
+    t.classList.toggle("error", type === "error");
+    t.style.display = "block";
+    setTimeout(() => (t.style.display = "none"), 2400);
+  }
+
+  function setDisabled(el, on, labelBusy) {
+    if (!el) return;
+    el.disabled = !!on;
+    if (labelBusy) {
+      const prev = el.dataset.prevText || el.textContent;
+      if (on) {
+        el.dataset.prevText = prev;
+        el.textContent = labelBusy;
+      } else {
+        el.textContent = el.dataset.prevText || el.textContent;
       }
     }
-  } catch (_) {
-    /* fall through to generic */
   }
 
-  // Fallback: generic presign (likely lands in raw/uploads or legacy user/<sub>/)
-  return await uploadToS3(file.name, file.type || "image/jpeg", file);
-}
+  // ---------- role/auth ----------
+  async function ensurePromoter() {
+    const s = await getAuthState();
+    if (!isPromoter(s)) {
+      toast("Promoter role required", "error");
+      // mirror profile_me behavior when not authorized
+      location.replace("/login.html?next=/promo_me.html");
+      return null;
+    }
+    return s;
+  }
 
-// ---------- auth gate ----------
-async function ensurePromoter() {
-  const state = await getAuthState();
-  if (!state || !isPromoter(state)) {
-    toast("Please sign in as a promoter.", "error");
+  // ---------- validation ----------
+  function assertFileAllowed(file, kind = "image") {
+    if (!file) return "No file selected";
+    const typeSet = kind === "video" ? VIDEO_TYPES : IMAGE_TYPES;
+    const max = kind === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    if (!typeSet.has(file.type)) return "Unsupported file type";
+    if (file.size > max) return "File too large";
     return null;
   }
-  document.body.classList.add("authenticated");
-  return state;
-}
 
-// ---------- load existing profile ----------
-async function loadMe() {
-  try {
-    const me = await apiFetch("/profiles/promoters/me", { method: "GET" });
+  // Normalize/validate external highlight URLs (https + allowlist)
+  function safeHighlightUrl(raw) {
+    try {
+      const url = new URL(raw, location.origin);
+      if (url.protocol !== "https:") return null;
 
-    // Core fields
-    setVal("orgName", me.orgName);
-    setVal("address", me.address);
-    setVal("city", me.city);
-    setVal("region", me.region);
-    setVal("country", me.country);
-    setVal("website", me.website);
-    setVal("contact", me.contact);
-    setVal("bio", me.bio);
+      // Allow same-origin absolute media links
+      if (url.origin === location.origin) return url.toString();
 
-    // Socials (if your inputs exist)
-    if (me.socials && typeof me.socials === "object") {
-      for (const [k, v] of Object.entries(me.socials)) {
-        setVal(`social_${k}`, v);
+      // Otherwise enforce host allowlist
+      if (!ALLOWED_HIGHLIGHT_HOSTS.has(url.host)) return null;
+
+      // Normalize youtu.be -> youtube watch form (public renderer can embed)
+      if (url.host === "youtu.be") {
+        const id = url.pathname.slice(1);
+        if (!id) return null;
+        return `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
       }
+
+      return url.toString();
+    } catch {
+      return null;
+    }
+  }
+
+  // ---------- DOM renderers (safe, no innerHTML with user HTML) ----------
+  function renderPhotoGrid() {
+    const wrap = document.getElementById("photoGrid");
+    if (!wrap) return;
+    wrap.textContent = ""; // clear safely
+
+    (mediaKeys || []).forEach((k, i) => {
+      const card = document.createElement("div");
+      card.className = "media-card";
+      card.dataset.i = String(i);
+
+      const img = document.createElement("img");
+      img.alt = `Promotion media ${i}`;
+      if (typeof k === "string" && k.startsWith("raw/")) {
+        img.src = "/assets/image-processing.svg";
+      } else {
+        try {
+          img.src = mediaUrl(String(k));
+        } catch {
+          img.src = "/assets/image-broken.svg";
+        }
+      }
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn secondary media-remove";
+      btn.textContent = "Remove";
+      btn.addEventListener("click", () => {
+        mediaKeys = mediaKeys.filter((_, idx) => idx !== i);
+        renderPhotoGrid();
+      });
+
+      card.appendChild(img);
+      card.appendChild(btn);
+      wrap.appendChild(card);
+    });
+  }
+
+  function renderHighlightList() {
+    const ul = document.getElementById("highlightList");
+    if (!ul) return;
+    ul.textContent = "";
+
+    (highlights || []).forEach((item, i) => {
+      let display;
+      if (typeof item === "string" && /^https?:\/\//i.test(item)) {
+        display = item;
+      } else if (isKeyLike(item)) {
+        display = mediaUrl(item);
+      } else {
+        display = String(item);
+      }
+
+      const li = document.createElement("li");
+      li.dataset.i = String(i);
+
+      const span = document.createElement("span");
+      span.style.flex = "1";
+      span.style.wordBreak = "break-all";
+      span.textContent = display;
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn secondary";
+      btn.textContent = "Remove";
+      btn.addEventListener("click", () => {
+        highlights = highlights.filter((_, idx) => idx !== i);
+        renderHighlightList();
+      });
+
+      li.appendChild(span);
+      li.appendChild(btn);
+      ul.appendChild(li);
+    });
+  }
+
+  // ---------- uploads (presign preferred, fallback to uploadToS3) ----------
+  async function putViaPresign(presign, file, md5b64) {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 25_000);
+    try {
+      const res = await fetch(presign.uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": presign.contentType || file.type || "application/octet-stream",
+          "x-amz-server-side-encryption": "AES256",
+          "Content-MD5": md5b64,
+        },
+        body: file,
+        signal: ac.signal,
+      });
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  async function uploadGeneric(file, meta = {}) {
+    const kind = meta.kind || "image";
+    const err = assertFileAllowed(file, kind);
+    if (err) throw new Error(err);
+
+    // Try role-aware presign first
+    const md5b64 = await md5Base64(file).catch(() => null);
+    const presign = await apiFetch("/media/presign", {
+      method: "POST",
+      body: {
+        filename: file.name,
+        contentType: file.type || "application/octet-stream",
+        md5: md5b64 || undefined,
+        ...meta, // e.g., { actor: "promoter", type: "gallery", kind: "image" }
+      },
+    }).catch(() => null);
+
+    if (presign?.uploadUrl && presign?.objectKey) {
+      await putViaPresign(presign, file, md5b64 || "");
+      return presign.objectKey;
     }
 
-    // Logo preview
-    const logoImg = document.getElementById("logoPreview");
-    if (logoImg) setLogoImg(logoImg, me.logoKey);
-
-    // Gallery + Highlights
-    const { sub } = (await getAuthState()) || {};
-    mediaKeys = Array.isArray(me.mediaKeys)
-      ? me.mediaKeys.map((k) => normalizeS3Key(k, sub))
-      : [];
-    highlights = Array.isArray(me.highlights) ? [...me.highlights] : [];
-    renderPhotoGrid();
-    renderHighlightList();
-  } catch (e) {
-    // 404/empty is fine for first-time users
-    console.debug("loadMe:", e.message || e);
+    // Legacy fallback
+    return uploadToS3(file.name, file.type || "application/octet-stream", file, meta);
   }
-}
 
-// ---------- init & events ----------
-async function init() {
-  const state = await ensurePromoter();
-  if (!state) return;
+  let currentLogoObjectUrl = null;
+  async function uploadLogoIfAny() {
+    const input = document.getElementById("logo");
+    const file = input?.files?.[0];
+    if (!file) return null;
 
-  // Live logo preview
-  const logoInput = document.getElementById("logo");
-  const logoPreview = document.getElementById("logoPreview");
-  logoInput?.addEventListener("change", () => {
-    const f = logoInput.files?.[0];
-    if (!f || !logoPreview) return;
-    logoPreview.src = URL.createObjectURL(f);
-  });
+    const err = assertFileAllowed(file, "image");
+    if (err) {
+      toast(err, "error");
+      return null;
+    }
+    return uploadGeneric(file, { actor: "promoter", type: "logo", kind: "image" });
+  }
 
-  // Add gallery photos (multi-upload)
-  document
-    .getElementById("addPhotosBtn")
-    ?.addEventListener("click", async () => {
+  // ---------- load profile ----------
+  async function loadMe() {
+    try {
+      const me = await apiFetch("/profiles/promoters/me");
+      if (!me || !me.userId) return;
+
+      // Base fields
+      setVal("orgName", me.orgName);
+      setVal("address", me.address);
+      setVal("city", me.city);
+      setVal("region", me.region);
+      setVal("country", me.country);
+      setVal("website", me.website);
+      setVal("contact", me.contact);
+      setVal("bio", me.bio);
+
+      // Socials
+      if (me.socials && typeof me.socials === "object") {
+        const s = me.socials;
+        if (s.twitter) setVal("social_twitter", s.twitter);
+        if (s.instagram) setVal("social_instagram", s.instagram);
+        if (s.tiktok) setVal("social_tiktok", s.tiktok);
+        if (s.youtube) setVal("social_youtube", s.youtube);
+        if (s.facebook) setVal("social_facebook", s.facebook);
+        if (s.website) setVal("social_website", s.website);
+      }
+
+      // Media
+      mediaKeys = Array.isArray(me.mediaKeys) ? [...me.mediaKeys] : [];
+
+      // Highlights: normalize to https URLs or keys
+      highlights = Array.isArray(me.highlights)
+        ? me.highlights
+            .map((item) => {
+              if (typeof item === "string") {
+                const s = item.trim();
+                if (!s) return null;
+                try {
+                  const u = new URL(s);
+                  if (u.protocol === "https:") return safeHighlightUrl(u.toString());
+                } catch {
+                  if (isKeyLike(s)) return s;
+                  return null;
+                }
+              }
+              if (item && typeof item === "object") {
+                if (typeof item.url === "string") return safeHighlightUrl(item.url) || null;
+                if (typeof item.href === "string") return safeHighlightUrl(item.href) || null;
+                if (typeof item.src === "string") return safeHighlightUrl(item.src) || null;
+                if (typeof item.key === "string") return item.key;
+              }
+              return null;
+            })
+            .filter(Boolean)
+        : [];
+
+      renderPhotoGrid();
+      renderHighlightList();
+
+      // Logo preview
+      setLogoImg("#logoPreview", me.logoKey || me.logo_key || null);
+    } catch (e) {
+      const status = e?.status || e?.response?.status;
+      if (status === 401 || status === 403) {
+        location.replace("/login.html?next=/promo_me.html");
+        return;
+      }
+      console.debug("loadMe:", e?.message || e);
+    }
+  }
+
+  // ---------- init & events ----------
+  async function init() {
+    const state = await ensurePromoter();
+    if (!state) return;
+
+    const form = document.getElementById("promoForm");
+    const saveBtn = document.getElementById("saveBtn");
+    const logoInput = document.getElementById("logo");
+    const logoPreview = document.getElementById("logoPreview");
+
+    // Live logo preview + object URL cleanup
+    logoInput?.addEventListener("change", () => {
+      const f = logoInput.files?.[0];
+      if (!f || !logoPreview) return;
+
+      const err = assertFileAllowed(f, "image");
+      if (err) {
+        toast(err, "error");
+        logoInput.value = "";
+        return;
+      }
+
+      if (currentLogoObjectUrl) URL.revokeObjectURL(currentLogoObjectUrl);
+      currentLogoObjectUrl = URL.createObjectURL(f);
+      logoPreview.src = currentLogoObjectUrl;
+    });
+
+    // Add gallery photos (multi-upload)
+    document.getElementById("addPhotosBtn")?.addEventListener("click", async () => {
       const input = document.getElementById("photoFiles");
       const files = Array.from(input?.files || []);
       if (!files.length) return;
 
       try {
-        const { sub } = (await getAuthState()) || {};
+        const uploaded = [];
         for (const f of files) {
-          const key = await uploadToS3(f.name, f.type || "image/jpeg", f, {
-            actor: "promoter",
-            type: "gallery",
-          });
-          mediaKeys.push(key);
+          const err = assertFileAllowed(f, "image");
+          if (err) {
+            toast(err, "error");
+            continue;
+          }
+          const key = await uploadGeneric(f, { actor: "promoter", type: "gallery", kind: "image" });
+          if (key) uploaded.push(key);
         }
-        renderPhotoGrid();
-        input.value = "";
-      } catch (err) {
-        console.error(err);
+        if (uploaded.length) {
+          mediaKeys = [...mediaKeys, ...uploaded];
+          renderPhotoGrid();
+        }
+        if (input) input.value = "";
+      } catch (e) {
+        console.error(e);
         toast("Photo upload failed", "error");
       }
     });
 
-  // Add highlight by URL
-  document
-    .getElementById("addHighlightUrlBtn")
-    ?.addEventListener("click", () => {
+    // Add highlight by URL
+    document.getElementById("addHighlightUrlBtn")?.addEventListener("click", () => {
       const el = document.getElementById("highlightUrl");
       const u = (el?.value || "").trim();
       if (!u) return;
-      highlights.push(u);
+      const safe = safeHighlightUrl(u);
+      if (!safe) {
+        toast("Highlight URL must be https and from an allowed social/video site", "error");
+        return;
+      }
+      highlights.push(safe);
       renderHighlightList();
-      el.value = "";
+      if (el) el.value = "";
     });
 
-  // Upload highlight video file
-  document
-    .getElementById("uploadHighlightBtn")
-    ?.addEventListener("click", async () => {
+    // Upload highlight video file
+    document.getElementById("uploadHighlightBtn")?.addEventListener("click", async () => {
       const input = document.getElementById("highlightFile");
       const f = input?.files?.[0];
       if (!f) return;
+
+      const err = assertFileAllowed(f, "video");
+      if (err) {
+        toast(err, "error");
+        return;
+      }
+
       try {
-        const { sub } = (await getAuthState()) || {};
-        const key = await uploadToS3(f.name, f.type || "video/mp4", f, {
-          actor: "promoter",
-          type: "highlight",
-        });
-        const val =
-          typeof key === "string" && key.startsWith("public/")
-            ? mediaUrl(key)
-            : key;
-        highlights.push(val);
-        renderHighlightList();
-        input.value = "";
-      } catch (err) {
-        console.error(err);
+        const key = await uploadGeneric(f, { actor: "promoter", type: "highlight", kind: "video" });
+        if (key) {
+          const val = typeof key === "string" && key.startsWith("public/") ? mediaUrl(key) : key;
+          highlights.push(val);
+          renderHighlightList();
+        }
+        if (input) input.value = "";
+      } catch (e) {
+        console.error(e);
         toast("Video upload failed", "error");
       }
     });
 
-  // Save handler
-  const form = document.getElementById("promoForm");
-  const saveBtn = document.getElementById("saveBtn");
+    // Save handler with cooldown (aligned with profile_me)
+    let lastSaveAt = 0;
+    const SAVE_COOLDOWN_MS = 3000;
+    const SAVE_TIMEOUT_MS = 12_000;
 
-  form?.addEventListener("submit", async (evt) => {
-    evt.preventDefault();
-    setDisabled(saveBtn, true);
-
-    try {
-      // collect core fields
-      const data = {
-        orgName: getVal("orgName"),
-        address: getVal("address"),
-        city: getVal("city"),
-        region: getVal("region"),
-        country: getVal("country"),
-        website: getVal("website"),
-        contact: getVal("contact"),
-        bio: getVal("bio"),
-        mediaKeys,
-        highlights,
-      };
-
-      // socials if present
-      const socialKeys = [
-        "twitter",
-        "instagram",
-        "facebook",
-        "tiktok",
-        "youtube",
-        "website",
-      ];
-      const socials = {};
-      for (const key of socialKeys) {
-        const v = getVal(`social_${key}`);
-        if (v) socials[key] = v;
-      }
-      if (Object.keys(socials).length) data.socials = socials;
-
-      // upload logo if provided
-      const logoKey = await uploadLogoIfAny();
-      if (logoKey) data.logoKey = logoKey;
-
-      // attach gallery + highlights
-      data.mediaKeys = mediaKeys;
-      data.highlights = highlights;
-
-      // Save
-      const saved = await apiFetch("/profiles/promoters", {
-        method: "PUT",
-        body: data,
+    function withTimeout(promise, ms, aborter) {
+      return new Promise((resolve, reject) => {
+        const t = setTimeout(() => {
+          try { aborter?.abort?.(); } catch {}
+          reject(new Error("Request timed out"));
+        }, ms);
+        promise.then((v) => { clearTimeout(t); resolve(v); })
+               .catch((e) => { clearTimeout(t); reject(e); });
       });
-
-      toast("Promotion saved!");
-      // refresh preview/preview button if you have one
-      // (no-op by default)
-
-      // Ensure preview reflects any new logo immediately
-      if (saved?.logoKey && logoPreview) {
-        setLogoImg(logoPreview, saved.logoKey);
-      }
-    } catch (err) {
-      console.error(err);
-      toast(err?.message || "Save failed", "error");
-    } finally {
-      setDisabled(saveBtn, false);
     }
-  });
 
-  await loadMe();
-}
+    form?.addEventListener("submit", async (e) => {
+      e.preventDefault();
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init, { once: true });
-} else {
-  init();
-}
+      const now = Date.now();
+      if (now - lastSaveAt < SAVE_COOLDOWN_MS) {
+        toast("Saving too fast. Try again.", "error");
+        return;
+      }
+      lastSaveAt = now;
+
+      setDisabled(saveBtn, true, "Saving…");
+
+      try {
+        // Collect fields from inputs
+        const data = {
+          orgName: ($("#orgName")?.value || "").trim(),
+          address: ($("#address")?.value || "").trim(),
+          city: ($("#city")?.value || "").trim(),
+          region: ($("#region")?.value || "").trim(),
+          country: ($("#country")?.value || "").trim(),
+          website: ($("#website")?.value || "").trim(),
+          contact: ($("#contact")?.value || "").trim(),
+          bio: ($("#bio")?.value || "").trim() || null,
+        };
+
+        // Socials (only include non-empty)
+        const socials = {
+          twitter: ($("#social_twitter")?.value || "").trim() || null,
+          instagram: ($("#social_instagram")?.value || "").trim() || null,
+          tiktok: ($("#social_tiktok")?.value || "").trim() || null,
+          youtube: ($("#social_youtube")?.value || "").trim() || null,
+          facebook: ($("#social_facebook")?.value || "").trim() || null,
+          website: ($("#social_website")?.value || "").trim() || null,
+        };
+        Object.keys(socials).forEach((k) => {
+          if (!socials[k]) delete socials[k];
+        });
+        if (Object.keys(socials).length) data.socials = socials;
+
+        // Upload logo if provided
+        const logoKey = await uploadLogoIfAny().catch(() => null);
+        if (logoKey) data.logoKey = logoKey;
+
+        // Attach media arrays
+        data.mediaKeys = mediaKeys;
+        data.highlights = highlights;
+
+        // Save with timeout/abort
+        const ac = new AbortController();
+        const saved = await withTimeout(
+          apiFetch("/profiles/promoters", { method: "PUT", body: data, signal: ac.signal }),
+          SAVE_TIMEOUT_MS,
+          ac
+        );
+
+        toast("Promotion saved!");
+
+        // Ensure preview reflects any new logo immediately
+        const newLogo =
+          saved?.logoKey || saved?.logo_key || logoKey || null;
+        if (newLogo && logoPreview) {
+          setLogoImg(logoPreview, newLogo);
+        }
+      } catch (err) {
+        console.error("promo save failed", err);
+        toast(err?.message || "Save failed. Try again in a moment.", "error");
+      } finally {
+        setDisabled(saveBtn, false);
+      }
+    });
+
+    await loadMe();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+})();
