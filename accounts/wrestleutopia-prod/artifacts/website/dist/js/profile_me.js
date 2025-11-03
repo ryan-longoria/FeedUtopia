@@ -1,10 +1,8 @@
-// /js/profile_me.js
 import { apiFetch, uploadToS3, uploadAvatar } from "/js/api.js";
 import { getAuthState, isWrestler } from "/js/roles.js";
 import { mediaUrl } from "/js/media.js";
 
 (() => {
-  // ---------- tiny DOM helpers ----------
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   const setVal = (id, v = "") => {
@@ -12,10 +10,8 @@ import { mediaUrl } from "/js/media.js";
     if (el) el.value = v ?? "";
   };
 
-  // avatar cache-bust every 5 minutes (not every render)
   const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
 
-  // upload limits
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
   const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
   const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -26,11 +22,9 @@ import { mediaUrl } from "/js/media.js";
     "video/ogg",
   ]);
 
-  // --- gallery / highlights state ---
   let mediaKeys = [];
   let highlights = [];
 
-  // sanitize media base
   function safeMediaBase(raw) {
     if (typeof raw !== "string" || !raw) return "";
     try {
@@ -43,9 +37,6 @@ import { mediaUrl } from "/js/media.js";
   }
   const MEDIA_BASE = safeMediaBase(window.WU_MEDIA_BASE);
 
-  // Allowed highlight hosts (user asked to allow common socials)
-  // We’ll allow: current origin, YouTube, Vimeo, TikTok, Instagram, X/Twitter,
-  // Facebook, Threads, Twitch, Kick, LinkedIn.
   function getHostFromUrl(u) {
     try {
       return new URL(u).host;
@@ -81,18 +72,11 @@ import { mediaUrl } from "/js/media.js";
     // Facebook
     "www.facebook.com",
     "facebook.com",
-    // Twitch
-    "www.twitch.tv",
-    "twitch.tv",
-    // Kick
-    "kick.com",
-    "www.kick.com",
     // LinkedIn (just in case someone drops a video link)
     "www.linkedin.com",
     "linkedin.com",
   ]);
 
-  // if we have a same-origin media base, allow its host too
   if (MEDIA_BASE) {
     const h = getHostFromUrl(MEDIA_BASE);
     if (h) ALLOWED_HIGHLIGHT_HOSTS.add(h);
@@ -143,7 +127,6 @@ import { mediaUrl } from "/js/media.js";
     return s;
   }
 
-  // file validation
   function assertFileAllowed(file, kind = "image") {
     if (!file) return "No file selected";
     const typeSet = kind === "video" ? VIDEO_TYPES : IMAGE_TYPES;
@@ -153,7 +136,6 @@ import { mediaUrl } from "/js/media.js";
     return null;
   }
 
-  // highlight URL validation
   function safeHighlightUrl(raw) {
     try {
       const url = new URL(raw, location.origin);
@@ -182,7 +164,6 @@ import { mediaUrl } from "/js/media.js";
       })
       .join("");
 
-    // event delegation for dynamic DOM
     wrap.onclick = (ev) => {
       const btn = ev.target.closest(".media-remove");
       if (!btn) return;
@@ -200,15 +181,12 @@ import { mediaUrl } from "/js/media.js";
     if (!ul) return;
     ul.innerHTML = (highlights || [])
       .map((item, i) => {
-        // If it looks like a full URL, display as-is.
-        // If it looks like a key, display via mediaUrl.
         let display;
         if (typeof item === "string" && /^https?:\/\//i.test(item)) {
           display = item;
         } else if (isKeyLike(item)) {
           display = mediaUrl(item);
         } else {
-          // fallback display
           display = String(item);
         }
         return `
@@ -232,7 +210,6 @@ import { mediaUrl } from "/js/media.js";
     };
   }
 
-  // Back-compat wrapper if other code ever called photoUrlFromKey()
   function photoUrlFromKey(key) {
     return key ? mediaUrl(String(key)) : "/assets/avatar-fallback.svg";
   }
@@ -242,21 +219,18 @@ import { mediaUrl } from "/js/media.js";
     const o = {};
     for (const [k, v] of fd.entries()) o[k] = v;
 
-    // numbers -> normalize
     o.heightIn = Number(o.heightIn);
     if (!Number.isFinite(o.heightIn)) delete o.heightIn;
 
     o.weightLb = Number(o.weightLb);
     if (!Number.isFinite(o.weightLb)) delete o.weightLb;
 
-    // optionals
     o.bio = (o.bio || "").trim() || null;
     o.gimmicks = (o.gimmicks || "")
       .split(",")
       .map((x) => x.trim())
       .filter(Boolean);
 
-    // socials
     o.socials = {
       twitter: (o.social_twitter || "").trim() || null,
       instagram: (o.social_instagram || "").trim() || null,
@@ -268,7 +242,6 @@ import { mediaUrl } from "/js/media.js";
       if (!o.socials[k]) delete o.socials[k];
     });
 
-    // experience
     const exp = (o.experienceYears || "").toString().trim();
     if (exp === "") {
       o.experienceYears = null;
@@ -317,20 +290,16 @@ import { mediaUrl } from "/js/media.js";
 
       mediaKeys = Array.isArray(me.mediaKeys) ? [...me.mediaKeys] : [];
 
-      // keep backend values but sanitize
       highlights = Array.isArray(me.highlights)
         ? me.highlights
             .map((item) => {
-              // plain string
               if (typeof item === "string") {
                 const s = item.trim();
                 if (!s) return null;
-                // try to keep any https
                 try {
                   const u = new URL(s);
                   if (u.protocol === "https:") return u.toString();
                 } catch {
-                  // maybe it was a key like "public/..."
                   if (
                     s.startsWith("public/") ||
                     s.startsWith("profiles/") ||
@@ -341,7 +310,6 @@ import { mediaUrl } from "/js/media.js";
                   return null;
                 }
               }
-              // object shapes
               if (item && typeof item === "object") {
                 if (typeof item.url === "string") return item.url;
                 if (typeof item.href === "string") return item.href;
@@ -356,7 +324,6 @@ import { mediaUrl } from "/js/media.js";
       renderPhotoGrid();
       renderHighlightList();
 
-      // expose to window for legacy
       window.profile = me;
 
       const map = {
@@ -375,7 +342,6 @@ import { mediaUrl } from "/js/media.js";
         achievements: "achievements",
       };
 
-      // socials
       if (me.socials) {
         const s = me.socials;
         if (s.twitter) setVal("social_twitter", s.twitter);
@@ -395,7 +361,6 @@ import { mediaUrl } from "/js/media.js";
         setVal("gimmicks", me.gimmicks.join(", "));
       }
 
-      // avatar
       setImg(
         "#avatarPreview",
         me.photoKey ||
@@ -435,7 +400,6 @@ import { mediaUrl } from "/js/media.js";
     const avatarInput = document.getElementById("avatar");
     const avatarPreview = document.getElementById("avatarPreview");
 
-    // live avatar preview
     avatarInput?.addEventListener("change", () => {
       const f = avatarInput.files?.[0];
       if (f && avatarPreview) {
@@ -456,7 +420,6 @@ import { mediaUrl } from "/js/media.js";
         return;
       }
 
-      // build preview
       const stageName = $("#stageName")?.value || "Wrestler";
       const first = $("#firstName")?.value || "";
       const middle = $("#middleName")?.value || "";
@@ -494,7 +457,6 @@ import { mediaUrl } from "/js/media.js";
       document.getElementById("preview-modal")?.showModal();
     });
 
-    // Add gallery photos
     document
       .getElementById("addPhotosBtn")
       ?.addEventListener("click", async () => {
@@ -513,7 +475,7 @@ import { mediaUrl } from "/js/media.js";
             type: "gallery",
           });
           if (key) {
-            mediaKeys.push(key); // always store key for gallery
+            mediaKeys.push(key);
           }
         }
 
@@ -521,7 +483,6 @@ import { mediaUrl } from "/js/media.js";
         if (input) input.value = "";
       });
 
-    // Add highlight by URL
     document
       .getElementById("addHighlightUrlBtn")
       ?.addEventListener("click", () => {
@@ -536,12 +497,11 @@ import { mediaUrl } from "/js/media.js";
           );
           return;
         }
-        highlights.push(safe); // store full URL from user
+        highlights.push(safe);
         renderHighlightList();
         el.value = "";
       });
 
-    // Upload highlight video file
     document
       .getElementById("uploadHighlightBtn")
       ?.addEventListener("click", async () => {
@@ -561,8 +521,6 @@ import { mediaUrl } from "/js/media.js";
         });
 
         if (key) {
-          // IMPORTANT: restore old behavior
-          // If it's a public key, turn it into a full URL right away.
           const val =
             typeof key === "string" && key.startsWith("public/")
               ? mediaUrl(key)
@@ -591,7 +549,6 @@ import { mediaUrl } from "/js/media.js";
       try {
         const data = formToObj(form);
 
-        // Upload avatar first
         const key = await uploadAvatarIfAny().catch(() => null);
         if (key) {
           data.photoKey = key;
@@ -666,7 +623,6 @@ import { mediaUrl } from "/js/media.js";
     await loadMe();
   }
 
-  // Ensure DOM exists before running
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init, { once: true });
   } else {

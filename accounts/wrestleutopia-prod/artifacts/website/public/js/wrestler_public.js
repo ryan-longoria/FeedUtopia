@@ -1,18 +1,11 @@
-// /js/wrestler_public.js
 import { apiFetch } from "/js/api.js";
 import { mediaUrl } from "/js/media.js";
 
-// --------------------------------------------------
-// config
-// --------------------------------------------------
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_HIGHLIGHTS = 12;
 const MAX_PHOTOS = 24;
 const PROFILE_HANDLE_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
-// --------------------------------------------------
-// tiny utils
-// --------------------------------------------------
 const h = (str) =>
   String(str ?? "").replace(
     /[&<>"]/g,
@@ -57,7 +50,6 @@ function safeLink(url, label) {
   )}</a>`;
 }
 
-// allow only real youtube for embed
 function toYoutubeEmbed(url) {
   if (!url) return "";
   let u;
@@ -88,7 +80,6 @@ function toYoutubeEmbed(url) {
   return "";
 }
 
-// normalize older highlight shapes
 function normalizeHighlight(item) {
   if (!item) return null;
 
@@ -114,7 +105,6 @@ function renderHighlightCard(vRaw) {
     return `<div class="media-card"><p class="muted">Invalid highlight</p></div>`;
   }
 
-  // YouTube
   const yt = toYoutubeEmbed(v);
   if (yt) {
     return `<div class="media-card"><iframe width="100%" height="220" src="${h(
@@ -122,7 +112,6 @@ function renderHighlightCard(vRaw) {
     )}" title="Highlight" frameborder="0" allowfullscreen></iframe></div>`;
   }
 
-  // key-like
   if (/^(public|profiles|raw)\//.test(v)) {
     if (v.startsWith("raw/")) {
       return `<div class="media-card"><img src="/assets/image-processing.svg" alt="Processing video"></div>`;
@@ -133,7 +122,6 @@ function renderHighlightCard(vRaw) {
     )}" controls preload="metadata"></video></div>`;
   }
 
-  // absolute URL
   try {
     const parsed = new URL(v, location.origin);
     if (parsed.protocol === "https:" || parsed.origin === location.origin) {
@@ -156,7 +144,6 @@ async function fetchWithTimeout(url, ms) {
   return Promise.race([apiFetch(url), timeout]);
 }
 
-// get first existing element by id candidates
 function getSlot(ids) {
   for (const id of ids) {
     const el = document.getElementById(id);
@@ -165,34 +152,30 @@ function getSlot(ids) {
   return null;
 }
 
-// check if slot already has its own heading so we don't double it
 function slotHasHeading(el) {
   if (!el) return false;
   return !!el.querySelector("h1, h2, h3, .section-title");
 }
 
-// ------------------------------------------------------
-// 1) non-destructive fill
-// ------------------------------------------------------
 function fillExistingSlots(p, handle) {
   let touched = false;
 
-  // avatar + name
   const avatarEl = document.getElementById("wp-avatar");
-  const nameEl = document.getElementById("wp-stage");
+  const nameEl   = document.getElementById("wp-stage");
 
-  const avatarBase = p?.photoKey
-    ? mediaUrl(p.photoKey)
-    : "/assets/avatar-fallback.svg";
+  const photoKey =
+    p?.photoKey || p?.avatarKey || p?.avatar_key || p?.photo_key || null;
+
+  const avatarBase = photoKey ? mediaUrl(photoKey) : "/assets/avatar-fallback.svg";
   const bustStamp =
     p.photoVersion ||
     p.updatedAt ||
     p.lastChangedAt ||
-    (p.photoKey && needsBust(p.photoKey) ? Date.now() : "");
-  const avatarSrc =
-    p?.photoKey && bustStamp
-      ? `${avatarBase}?v=${encodeURIComponent(bustStamp)}`
-      : avatarBase;
+    (photoKey && needsBust(photoKey) ? Date.now() : "");
+
+  const avatarSrc = photoKey && bustStamp
+    ? `${avatarBase}?v=${encodeURIComponent(bustStamp)}`
+    : avatarBase;
 
   const stage = p.stageName || p.ring || p.name || handle;
 
@@ -270,8 +253,6 @@ function fillExistingSlots(p, handle) {
     touched = true;
   }
 
-  // VIDEOS / HIGHLIGHTS
-  // your HTML used `videosSection`, older one used `wp-highlights`
   const highlightsEl = getSlot([
     "wp-highlights",
     "videosSection",
@@ -300,7 +281,6 @@ function fillExistingSlots(p, handle) {
     touched = true;
   }
 
-  // achievements
   const achEl = getSlot(["wp-achievements", "achievements"]);
   if (achEl) {
     if (p.achievements) {
@@ -316,9 +296,6 @@ function fillExistingSlots(p, handle) {
   return touched;
 }
 
-// ------------------------------------------------------
-// 2) full render (when container is empty / data-public=1)
-// ------------------------------------------------------
 function renderFullPage(wrap, p, handle) {
   const stage = p.stageName || p.ring || p.name || handle;
   const name = [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ");
@@ -457,7 +434,6 @@ function renderFullPage(wrap, p, handle) {
     </section>
   `;
 
-  // Smooth scroll + active tab
   const nav = wrap.querySelector(".tab-nav");
   if (nav) {
     const links = Array.from(nav.querySelectorAll("a"));
@@ -512,9 +488,6 @@ function renderFullPage(wrap, p, handle) {
   }
 }
 
-// ------------------------------------------------------
-// main
-// ------------------------------------------------------
 async function run() {
   const wrap = document.getElementById("wp-wrap");
   if (!wrap) return;
