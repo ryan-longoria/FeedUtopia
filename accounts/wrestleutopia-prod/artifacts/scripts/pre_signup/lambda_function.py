@@ -4,7 +4,7 @@ import os
 import re
 import unicodedata
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Pattern
 
 ALLOWED_ROLES = {
     r.strip().casefold()
@@ -17,21 +17,16 @@ LOG_LEVEL = os.getenv(
 ).upper()
 
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
-logger = logging.getLogger("pre_signup")
+LOGGER = logging.getLogger("pre_signup")
 
-DOB_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-SAFE_TEXT_RE = re.compile(r"^[\w .,'-]{1,80}$", re.UNICODE)
+DOB_RE: Pattern[str] = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+SAFE_TEXT_RE: Pattern[str] = re.compile(r"^[\w .,'-]{1,80}$", re.UNICODE)
 
 
 def jlog(level: int, msg: str, **fields) -> None:
-    """Emit a JSON-encoded log line without PII."""
-    payload = {
-        "msg": msg,
-        "service": "pre-signup",
-        "env": ENVIRONMENT,
-        **fields,
-    }
-    logger.log(level, json.dumps(payload, separators=(",", ":"), ensure_ascii=False))
+    """Emit a structured JSON log line without PII."""
+    payload = {"msg": msg, "service": "pre-signup", "env": ENVIRONMENT, **fields}
+    LOGGER.log(level, json.dumps(payload, separators=(",", ":"), ensure_ascii=False))
 
 
 def norm(value: str) -> str:
@@ -45,16 +40,18 @@ def bad_public(message: str) -> None:
 
 
 def validate_dob(dob: str, missing_labels: List[str]) -> None:
-    """Validate date of birth format and enforce a minimum age requirement."""
-    d = norm(dob)
-    if not DOB_RE.match(d):
+    """Validate YYYY-MM-DD format and enforce a minimum age requirement."""
+    date_str = norm(dob)
+    if not DOB_RE.match(date_str):
         missing_labels.append("DOB format YYYY-MM-DD")
         return
+
     try:
-        dob_dt = datetime.strptime(d, "%Y-%m-%d").date()
+        dob_dt = datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
         missing_labels.append("DOB format YYYY-MM-DD")
         return
+
     today = datetime.now(timezone.utc).date()
     age = (
         today.year
@@ -69,23 +66,22 @@ def validate_field(
     value: str,
     label: str,
     missing_labels: List[str],
-    pattern: re.Pattern = SAFE_TEXT_RE,
+    pattern: Pattern[str] = SAFE_TEXT_RE,
     max_len: int = 80,
 ) -> None:
     """Validate presence, length, and character set for a text field."""
-    v = norm(value)
-    if not v:
+    val = norm(value)
+    if not val:
         missing_labels.append(label)
         return
-    if len(v) > max_len or not pattern.match(v):
+    if len(val) > max_len or not pattern.match(val):
         missing_labels.append(f"{label} (invalid characters/length)")
 
 
 def resolve_role(attrs: Dict[str, str]) -> str:
-    """Resolve and allowlist the user role from custom attributes."""
+    """Resolve and allow-list the user role from custom attributes."""
     role = norm(attrs.get("custom:role", ""))
-    rcf = role.casefold()
-    return rcf if rcf in ALLOWED_ROLES else ""
+    return role.casefold() if role.casefold() in ALLOWED_ROLES else ""
 
 
 def lambda_handler(event: Dict, _ctx) -> Dict:
@@ -106,7 +102,7 @@ def lambda_handler(event: Dict, _ctx) -> Dict:
     jlog(logging.DEBUG, "role.resolved", role=role or "INVALID", **meta)
 
     if not role:
-        jlog(logging.WARN, "role.invalid", **meta)
+        jlog(logging.WARNING, "role.invalid", **meta)
         bad_public("Unknown role; select Wrestler or Promoter.")
 
     missing: List[str] = []
@@ -126,23 +122,25 @@ def lambda_handler(event: Dict, _ctx) -> Dict:
                 validate_dob(attrs.get(key, ""), missing)
             else:
                 validate_field(attrs.get(key, ""), label, missing)
+
         jlog(logging.DEBUG, "validation.wrestler", failedLabels=list(missing), **meta)
 
     elif role == "promoter":
         req_map = {
             "custom:orgName": "Promotion/Org name",
-            "custom:address": "Full address",
+            "custom:city": "City",
+            "custom:region": "State/Region",
+            "custom:country": "Country",
         }
         for key, label in req_map.items():
-            validate_field(attrs.get(key, ""), label, missing, max_len=120)
+            validate_field(attrs.get(key, ""), label, missing, max_len=80)
+
         jlog(logging.DEBUG, "validation.promoter", failedLabels=list(missing), **meta)
 
     if missing:
         level = logging.ERROR if ENVIRONMENT == "prod" else logging.INFO
         jlog(level, "validation.failed", role=role, failedLabels=list(missing), **meta)
-        bad_public(
-            "Missing or invalid required fields: " + ", ".join(missing)
-        )
+        bad_public("Missing or invalid required fields: " + ", ".join(missing))
 
     jlog(logging.INFO, "validation.passed", role=role, **meta)
     return event
