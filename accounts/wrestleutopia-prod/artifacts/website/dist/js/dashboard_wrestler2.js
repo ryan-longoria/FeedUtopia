@@ -103,6 +103,20 @@ async function getMyWrestlerProfile() {
   }
   return null;
 }
+async function setRingNameFromProfile() {
+  var _a2, _b2, _c;
+  try {
+    const [auth, profile] = await Promise.all([
+      getAuthState().catch(() => null),
+      getMyWrestlerProfile().catch(() => null)
+    ]);
+    const ring = (profile == null ? void 0 : profile.stageName) || (profile == null ? void 0 : profile.stage_name) || (profile == null ? void 0 : profile.ringName) || (profile == null ? void 0 : profile.name) || (profile == null ? void 0 : profile.handle) || ((_a2 = auth == null ? void 0 : auth.user) == null ? void 0 : _a2.given_name) || ((_b2 = auth == null ? void 0 : auth.user) == null ? void 0 : _b2.name) || (((_c = auth == null ? void 0 : auth.user) == null ? void 0 : _c.email) ? String(auth.user.email).split("@")[0] : "") || "Wrestler";
+    const el2 = document.getElementById("ring-name");
+    if (el2) el2.textContent = String(ring);
+  } catch (e) {
+    console.debug("setRingNameFromProfile:", (e == null ? void 0 : e.message) || e);
+  }
+}
 function renderTryoutCard(t) {
   const id = String(t.tryoutId ?? t.id ?? "");
   const org = String(t.orgName ?? t.org ?? "Promotion");
@@ -268,6 +282,7 @@ async function loadMyApplications() {
   }
 }
 async function init() {
+  setRingNameFromProfile();
   await Promise.all([loadRecommendedTryouts(), loadMyApplications()]);
 }
 if (document.readyState === "loading") {
