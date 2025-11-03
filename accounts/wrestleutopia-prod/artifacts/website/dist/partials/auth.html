@@ -30,17 +30,8 @@
       <option value="Promoter">Promoter</option>
     </select>
 
-    <fieldset id="wrestler-fields" class="mt-3">
-      <legend class="muted" style="margin-bottom: 6px">Wrestler details</legend>
-      <label>First name</label>
-      <input class="input" name="given_name" required />
-      <label>Last name</label>
-      <input class="input" name="family_name" required />
-      <label>Stage name</label>
-      <input class="input" name="stageName" required />
-      <label>Date of birth (YYYY-MM-DD)</label>
-      <input class="input" name="dob" type="date" required pattern="\d{4}-\d{2}-\d{2}" />
-
+    <fieldset id="location-fields" class="mt-3">
+      <legend class="muted" style="margin-bottom: 6px">Location</legend>
       <div class="grid cols-3" style="gap: 8px">
         <div>
           <label for="signup-country">Country</label>
@@ -63,12 +54,28 @@
       </div>
     </fieldset>
 
+    <fieldset id="wrestler-fields" class="mt-3">
+      <legend class="muted" style="margin-bottom: 6px">Wrestler details</legend>
+      <label>First name</label>
+      <input class="input" name="given_name" required />
+      <label>Last name</label>
+      <input class="input" name="family_name" required />
+      <label>Stage name</label>
+      <input class="input" name="stageName" required />
+      <label>Date of birth (YYYY-MM-DD)</label>
+      <input
+        class="input"
+        name="dob"
+        type="date"
+        required
+        pattern="\d{4}-\d{2}-\d{2}"
+      />
+    </fieldset>
+
     <fieldset id="promoter-fields" class="mt-3 hidden">
       <legend class="muted" style="margin-bottom: 6px">Promotion details</legend>
       <label>Promotion / Org name</label>
-      <input class="input" name="orgName" />
-      <label>Full address</label>
-      <input class="input" name="address" />
+      <input class="input" name="orgName" required />
     </fieldset>
 
     <button class="btn mt-3" type="submit">Create Account</button>
@@ -77,7 +84,13 @@
 
   <form id="form-confirm" class="mt-3 hidden">
     <label>Confirmation Code</label>
-    <input class="input" name="code" inputmode="numeric" autocomplete="one-time-code" required />
+    <input
+      class="input"
+      name="code"
+      inputmode="numeric"
+      autocomplete="one-time-code"
+      required
+    />
     <button class="btn mt-3" type="submit">Confirm</button>
     <button class="btn small secondary" id="resend-code" type="button">Resend code</button>
   </form>

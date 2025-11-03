@@ -192,19 +192,22 @@ if (window._wuAuthWired) {
   function onRoleChange() {
     if (!roleSel || !wf || !pf) return;
     const isW = roleSel.value === "Wrestler";
+
     wf.classList.toggle("hidden", !isW);
     pf.classList.toggle("hidden", isW);
 
     wf.querySelectorAll("input,select").forEach((i) => (i.required = isW));
     pf.querySelectorAll("input,select").forEach((i) => (i.required = !isW));
 
-    if (isW) {
-      initGeoIfNeeded();
-    } else {
-      resetSel(countrySel, "Select Country", true);
-      resetSel(regionSel,  "Select State/Region", true);
-      resetSel(citySel,    "Select City", true);
-    }
+    ["signup-country", "signup-region", "signup-city"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.required = true;
+        el.disabled = false;
+      }
+    });
+
+    initGeoIfNeeded();
   }
 
   roleSel?.addEventListener("change", onRoleChange);
@@ -271,9 +274,15 @@ if (window._wuAuthWired) {
         });
       } else {
         const orgName = String(fd.get("orgName") || "").trim();
-        const address = String(fd.get("address") || "").trim();
+
+        const country = String(fd.get("country") || "").trim();
+        const region  = String(fd.get("region") || "").trim();
+        const city    = String(fd.get("city") || "").trim();
+        
         if (orgName) ua["custom:orgName"] = orgName;
-        if (address) ua["custom:address"] = address;
+        if (country) ua["custom:country"] = country;
+        if (region)  ua["custom:region"]  = region;
+        if (city)    ua["custom:city"]    = city;
       }
 
       try {
