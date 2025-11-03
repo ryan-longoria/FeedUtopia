@@ -1,4 +1,3 @@
-// vite.config.mjs
 import { defineConfig } from "vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +19,6 @@ const posix = (p) =>
     }, [])
     .join("/");
 
-// ── util: does a folder contain any non-HTML files?
 function hasNonHtmlFiles(dir) {
   if (!fs.existsSync(dir)) return false;
   const stack = [dir];
@@ -35,7 +33,6 @@ function hasNonHtmlFiles(dir) {
   return false;
 }
 
-// ── tiny copy report so you can verify outputs in logs
 function copyReportPlugin() {
   return {
     name: "copy-report",
@@ -62,6 +59,14 @@ function copyReportPlugin() {
 
 export default defineConfig({
   root: r("public"),
+
+  optimizeDeps: {
+    include: ["@countrystatecity/countries"],
+  },
+  assetsInclude: [
+    "**/node_modules/@countrystatecity/countries/dist/data/*.json",
+    "**/node_modules/@countrystatecity/countries/es2022/data/*.json",
+  ],
 
   plugins: [
     handlebars({
@@ -90,7 +95,6 @@ export default defineConfig({
           ogTitle: "WrestleUtopia",
           ogDescription: "Profiles • Tryouts • Bookings for indie wrestling",
           ogImage: "/assets/logo.svg",
-          // Single runtime entry + CSS; page-specific JS is loaded by core.js at runtime.
           headExtra: `
             <script type="module" src="/js/core.js"></script>
           `
@@ -102,7 +106,6 @@ export default defineConfig({
       }
     }),
 
-    // Copy runtime files verbatim (so /js/* and /partials/* actually exist in dist)
     viteStaticCopy({
       targets: [
         ...(fs.existsSync(r("public/js"))       ? [{ src: r("public/js/**/*"),       dest: "js" }]       : []),
@@ -113,7 +116,6 @@ export default defineConfig({
           ? [{ src: r("public/manifest.webmanifest"), dest: "" }]
           : []),
 
-        // Only add these targets if there are non-HTML files to copy.
         ...(hasNonHtmlFiles(r("public/w"))
           ? [{ src: r("public/w/**/*"), dest: "w", globOptions: { ignore: ["**/*.html"] } }]
           : []),
@@ -152,7 +154,6 @@ export default defineConfig({
         promoter_index:      r("public/promoter/index.html"),
       },
 
-      // Keep everything reachable from core.js
       treeshake: false,
 
       output: {

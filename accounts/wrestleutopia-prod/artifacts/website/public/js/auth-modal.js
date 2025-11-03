@@ -13,7 +13,7 @@ import {
   getCitiesOfState,
   isValidCountryCode,
   isValidStateCode,
-} from "https://esm.sh/@countrystatecity/countries@1.0.4?bundle";
+} from "@countrystatecity/countries";
 
 if (window._wuAuthWired) {
   console.debug("[auth] already wired, skipping");

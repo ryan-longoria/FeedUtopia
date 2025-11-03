@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@countrystatecity/countries": "^1.0.4",
     "aws-amplify": "^6.0.0"
   },
   "devDependencies": {
