@@ -40,10 +40,26 @@
       <input class="input" name="stageName" required />
       <label>Date of birth (YYYY-MM-DD)</label>
       <input class="input" name="dob" type="date" required pattern="\d{4}-\d{2}-\d{2}" />
+
       <div class="grid cols-3" style="gap: 8px">
-        <div><label>City</label><input class="input" name="city" required /></div>
-        <div><label>State/Region</label><input class="input" name="region" required /></div>
-        <div><label>Country</label><input class="input" name="country" required /></div>
+        <div>
+          <label for="signup-country">Country</label>
+          <select class="input" id="signup-country" name="country" required>
+            <option value="">Select Country</option>
+          </select>
+        </div>
+        <div>
+          <label for="signup-region">State/Region</label>
+          <select class="input" id="signup-region" name="region" required disabled>
+            <option value="">Select State/Region</option>
+          </select>
+        </div>
+        <div>
+          <label for="signup-city">City</label>
+          <select class="input" id="signup-city" name="city" required disabled>
+            <option value="">Select City</option>
+          </select>
+        </div>
       </div>
     </fieldset>
 

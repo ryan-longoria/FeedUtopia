@@ -1,42 +1,3 @@
-const __waitForAuthModal = () =>
-  new Promise((resolve) => {
-    const resolveIfReady = () => {
-      const dlg = document.getElementById("auth-modal");
-      if (dlg) resolve(dlg);
-    };
-
-    resolveIfReady();
-
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", resolveIfReady, { once: true });
-    } else {
-    }
-
-    window.addEventListener("partials:ready", resolveIfReady, { once: true });
-
-    const mo = new MutationObserver(() => {
-      const dlg = document.getElementById("auth-modal");
-      if (dlg) {
-        mo.disconnect();
-        resolve(dlg);
-      }
-    });
-    mo.observe(document.documentElement, { childList: true, subtree: true });
-  });
-
-(async () => {
-  const dlg = await __waitForAuthModal();
-
-  const tabLogin  = document.getElementById("tab-login");
-  const tabSignup = document.getElementById("tab-signup");
-  const fLogin    = document.getElementById("form-login");
-  const fSignup   = document.getElementById("form-signup");
-  const fConfirm  = document.getElementById("form-confirm");
-  const roleSel   = document.getElementById("signup-role");
-  const wf        = document.getElementById("wrestler-fields");
-  const pf        = document.getElementById("promoter-fields");
-
-})();
 import {
   signIn,
   confirmSignIn,
@@ -62,6 +23,110 @@ if (window._wuAuthWired) {
   const wf = document.getElementById("wrestler-fields");
   const pf = document.getElementById("promoter-fields");
 
+  const countrySel = document.getElementById("signup-country");
+  const regionSel  = document.getElementById("signup-region");
+  const citySel    = document.getElementById("signup-city");
+
+  const GEO = {
+    countries: [
+      { code: "US", name: "United States" },
+      { code: "CA", name: "Canada" },
+      { code: "MX", name: "Mexico" },
+    ],
+    regionsByCountry: {
+      US: [
+        { code: "TX", name: "Texas" },
+        { code: "CA", name: "California" },
+        { code: "NY", name: "New York" },
+      ],
+      CA: [
+        { code: "ON", name: "Ontario" },
+        { code: "QC", name: "Quebec" },
+        { code: "BC", name: "British Columbia" },
+      ],
+      MX: [
+        { code: "CMX", name: "Ciudad de México" },
+        { code: "JAL", name: "Jalisco" },
+        { code: "NLE", name: "Nuevo León" },
+      ],
+    },
+    citiesByRegion: {
+      US: {
+        TX: ["San Antonio", "Austin", "Houston", "Dallas"],
+        CA: ["Los Angeles", "San Francisco", "San Diego"],
+        NY: ["New York", "Buffalo", "Rochester"],
+      },
+      CA: {
+        ON: ["Toronto", "Ottawa", "Hamilton"],
+        QC: ["Montreal", "Quebec City", "Laval"],
+        BC: ["Vancouver", "Victoria", "Burnaby"],
+      },
+      MX: {
+        CMX: ["Mexico City"],
+        JAL: ["Guadalajara", "Zapopan"],
+        NLE: ["Monterrey", "San Nicolás"],
+      },
+    },
+  };
+
+  function resetSel(sel, placeholder, disabled = false) {
+    if (!sel) return;
+    sel.innerHTML = `<option value="">${placeholder}</option>`;
+    sel.disabled = !!disabled;
+  }
+
+  function populateCountries() {
+    if (!countrySel) return;
+    resetSel(countrySel, "Select Country");
+    GEO.countries.forEach(({ code, name }) => {
+      const opt = document.createElement("option");
+      opt.value = code; opt.textContent = name;
+      countrySel.appendChild(opt);
+    });
+  }
+
+  function populateRegions(countryCode) {
+    if (!regionSel || !citySel) return;
+    resetSel(regionSel, "Select State/Region", !countryCode);
+    resetSel(citySel,   "Select City",        true);
+    if (!countryCode) return;
+    const regions = GEO.regionsByCountry[countryCode] || [];
+    regions.forEach(({ code, name }) => {
+      const opt = document.createElement("option");
+      opt.value = code; opt.textContent = name;
+      regionSel.appendChild(opt);
+    });
+    regionSel.disabled = regions.length === 0;
+  }
+
+  function populateCities(countryCode, regionCode) {
+    if (!citySel) return;
+    resetSel(citySel, "Select City", !countryCode || !regionCode);
+    if (!countryCode || !regionCode) return;
+    const cities = GEO.citiesByRegion[countryCode]?.[regionCode] || [];
+    cities.forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name; opt.textContent = name;
+      citySel.appendChild(opt);
+    });
+    citySel.disabled = cities.length === 0;
+  }
+
+  function initGeoIfNeeded() {
+    if (countrySel && countrySel.options.length <= 1) {
+      populateCountries();
+      populateRegions("");
+      populateCities("", "");
+    }
+  }
+
+  countrySel?.addEventListener("change", () => {
+    populateRegions(countrySel.value);
+  });
+  regionSel?.addEventListener("change", () => {
+    populateCities(countrySel.value, regionSel.value);
+  });
+
   let signupEmailForConfirm = "";
   let signupPasswordCache = "";
   let submitLock = false;
@@ -80,9 +145,7 @@ if (window._wuAuthWired) {
   const show = (el) => el && el.classList.remove("hidden");
   const hide = (el) => el && el.classList.add("hidden");
   const toast = (msg) => {
-    try {
-      alert(msg);
-    } catch {}
+    try { alert(msg); } catch {}
   };
 
   function showLogin() {
@@ -102,7 +165,11 @@ if (window._wuAuthWired) {
     if (intentRole === "promoter") roleSel.value = "Promoter";
     if (intentRole === "wrestler") roleSel.value = "Wrestler";
     onRoleChange();
+    initGeoIfNeeded();
   }
+
+  window.authShowLogin = showLogin;
+  window.authShowSignup = showSignup;
 
   function showConfirmFor(email, { mode } = {}) {
     signupEmailForConfirm = email || signupEmailForConfirm || "";
@@ -122,8 +189,17 @@ if (window._wuAuthWired) {
     const isW = roleSel.value === "Wrestler";
     wf.classList.toggle("hidden", !isW);
     pf.classList.toggle("hidden", isW);
-    wf.querySelectorAll("input").forEach((i) => (i.required = isW));
-    pf.querySelectorAll("input").forEach((i) => (i.required = !isW));
+
+    wf.querySelectorAll("input,select").forEach((i) => (i.required = isW));
+    pf.querySelectorAll("input,select").forEach((i) => (i.required = !isW));
+
+    if (isW) {
+      initGeoIfNeeded();
+    } else {
+      resetSel(countrySel, "Select Country", true);
+      resetSel(regionSel,  "Select State/Region", true);
+      resetSel(citySel,    "Select City", true);
+    }
   }
 
   roleSel?.addEventListener("change", onRoleChange);
@@ -173,9 +249,12 @@ if (window._wuAuthWired) {
         const family = String(fd.get("family_name") || "").trim();
         const stage = String(fd.get("stageName") || "").trim();
         const dob = String(fd.get("dob") || "").trim();
-        const city = String(fd.get("city") || "").trim();
-        const region = String(fd.get("region") || "").trim();
+
+        // NOTE: These now come from <select> only
         const country = String(fd.get("country") || "").trim();
+        const region  = String(fd.get("region") || "").trim();
+        const city    = String(fd.get("city") || "").trim();
+
         Object.assign(ua, {
           given_name: given,
           family_name: family,
@@ -254,9 +333,7 @@ if (window._wuAuthWired) {
       }
 
       if (!signupEmailForConfirm) {
-        toast(
-          "We lost the email for confirmation; please sign up or log in again.",
-        );
+        toast("We lost the email for confirmation; please sign up or log in again.");
         showSignup();
         return;
       }
@@ -272,16 +349,18 @@ if (window._wuAuthWired) {
             await signIn({
               username: signupEmailForConfirm,
               password: signupPasswordCache,
+              options: {
+                authFlowType: "USER_SRP_AUTH",
+                preferredChallenge: "EMAIL_OTP",
+              },
             });
-          } catch (e2) {
-          }
+          } catch (e2) {}
         }
         dlg.close();
       } catch (err) {
         console.error("[auth] confirmSignUp error", err);
         let m = err?.message || "Confirmation failed.";
-        if (err?.name === "ExpiredCodeException")
-          m = "Code expired. Click “Resend code”.";
+        if (err?.name === "ExpiredCodeException") m = "Code expired. Click “Resend code”.";
         toast(m);
       }
     }),
@@ -311,13 +390,11 @@ if (window._wuAuthWired) {
             toast("Logged in!");
             break;
           }
-
           case "CONFIRM_SIGN_UP": {
             showConfirmFor(email, { mode: "signup" });
             toast("Enter the verification code we just emailed you.");
             break;
           }
-
           case "CONTINUE_SIGN_IN_WITH_MFA_SELECTION": {
             const choice = nextStep.allowedMFATypes?.includes("EMAIL")
               ? "EMAIL"
@@ -328,7 +405,6 @@ if (window._wuAuthWired) {
             toast("Enter the code we emailed you.");
             break;
           }
-
           case "CONFIRM_SIGN_IN_WITH_EMAIL_CODE":
           case "CONFIRM_SIGN_IN_WITH_SMS_CODE":
           case "CONFIRM_SIGN_IN_WITH_TOTP_CODE": {
@@ -337,7 +413,6 @@ if (window._wuAuthWired) {
             toast("Enter the code we emailed you.");
             break;
           }
-
           case "CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION": {
             await confirmSignIn({ challengeResponse: "PASSWORD_SRP" });
             showConfirmFor(email, { mode: "" });
@@ -345,12 +420,10 @@ if (window._wuAuthWired) {
             toast("Enter the code we emailed you.");
             break;
           }
-
           case "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED": {
             toast("A new password is required (UI not implemented yet).");
             break;
           }
-
           default: {
             console.warn("[auth] unhandled nextStep", nextStep);
             toast("Additional verification required (not implemented).");
