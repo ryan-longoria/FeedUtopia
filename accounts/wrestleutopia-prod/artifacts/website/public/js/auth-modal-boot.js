@@ -73,7 +73,7 @@ window.addEventListener("auth:changed", async (e) => {
   try {
     const { getAuthState, isPromoter, isWrestler } = await import("/js/roles.js");
     const s = await getAuthState();
-    const dest = isPromoter(s) ? "/p" : isWrestler(s) ? "/w" : "/index.html";
+    const dest = isPromoter(s) ? "dashboard_wrestler.html" : isWrestler(s) ? "dashboard_promoter.html" : "/index.html";
     if (location.pathname !== dest) location.replace(dest);
   } catch {}
 });
