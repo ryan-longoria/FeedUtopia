@@ -18,6 +18,112 @@ import { mediaUrl } from "/js/media.js";
   const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm", "video/ogg"]);
   const ENABLE_PRESIGN = false;
 
+  const GEO_BASE = "/geo";
+  const geoCache = new Map();
+
+  async function loadJSON(path) {
+    if (geoCache.has(path)) return geoCache.get(path);
+    const res = await fetch(path, { cache: "force-cache" });
+    if (!res.ok) throw new Error(`Geo fetch failed ${res.status} for ${path}`);
+    const data = await res.json();
+    geoCache.set(path, data);
+    return data;
+  }
+  async function loadCountriesNA() {
+    return loadJSON(`${GEO_BASE}/countries.v1.json`);
+  }
+  async function loadStates(cc) {
+    return loadJSON(`${GEO_BASE}/regions_${cc}.v1.json`);
+  }
+  async function loadCities(cc, stateCode) {
+    return loadJSON(`${GEO_BASE}/${cc}/cities_${stateCode}.v1.json`);
+  }
+
+  const countrySel = () => document.getElementById("country");
+  const regionSel  = () => document.getElementById("region");
+  const citySel    = () => document.getElementById("city");
+
+  function resetSel(sel, placeholder, disabled = false) {
+    if (!sel) return;
+    sel.innerHTML = `<option value="">${placeholder}</option>`;
+    sel.disabled = !!disabled;
+  }
+
+  async function populateCountries() {
+    const cSel = countrySel();
+    resetSel(cSel, "Select Country");
+    try {
+      const list = await loadCountriesNA();
+      for (const c of list) {
+        const opt = document.createElement("option");
+        opt.value = c.code;
+        opt.textContent = c.name;
+        cSel.appendChild(opt);
+      }
+      cSel.disabled = false;
+    } catch (err) {
+      console.error("[promo] countries load failed", err);
+      resetSel(cSel, "Country data unavailable", true);
+    }
+  }
+
+  async function populateRegions(cc, preselect) {
+    const rSel = regionSel();
+    const cSel = citySel();
+    resetSel(rSel, "Select State/Region", !cc);
+    resetSel(cSel, "Select City", true);
+    if (!cc) return;
+    try {
+      const states = await loadStates(cc);
+      for (const s of states) {
+        const opt = document.createElement("option");
+        opt.value = s.code;
+        opt.textContent = s.name;
+        rSel.appendChild(opt);
+      }
+      rSel.disabled = states.length === 0;
+      if (preselect && states.some((s) => s.code === preselect)) {
+        rSel.value = preselect;
+      }
+    } catch (err) {
+      console.error("[promo] states load failed", err);
+      resetSel(rSel, "Regions unavailable", true);
+    }
+  }
+
+  async function populateCities(cc, stateCode, preselect) {
+    const cSel = citySel();
+    resetSel(cSel, "Select City", !cc || !stateCode);
+    if (!cc || !stateCode) return;
+    try {
+      const cities = await loadCities(cc, stateCode);
+      for (const name of cities) {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        cSel.appendChild(opt);
+      }
+      cSel.disabled = cities.length === 0;
+      if (preselect && cities.includes(preselect)) {
+        cSel.value = preselect;
+      }
+    } catch (err) {
+      console.error("[promo] cities load failed", err);
+      resetSel(cSel, "Cities unavailable", true);
+    }
+  }
+
+  async function initGeoIfNeeded() {
+    const cSel = countrySel();
+    const rSel = regionSel();
+    const ciSel = citySel();
+    if (cSel && cSel.options.length <= 1) {
+      await populateCountries();
+      resetSel(rSel, "Select State/Region", true);
+      resetSel(ciSel, "Select City", true);
+    }
+  }
+
   let mediaKeys = [];
   let highlights = [];
 
@@ -138,17 +244,13 @@ import { mediaUrl } from "/js/media.js";
     try {
       const url = new URL(raw, location.origin);
       if (url.protocol !== "https:") return null;
-
       if (url.origin === location.origin) return url.toString();
-
       if (!ALLOWED_HIGHLIGHT_HOSTS.has(url.host)) return null;
-
       if (url.host === "youtu.be") {
         const id = url.pathname.slice(1);
         if (!id) return null;
         return `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
       }
-
       return url.toString();
     } catch {
       return null;
@@ -295,16 +397,29 @@ import { mediaUrl } from "/js/media.js";
   async function loadMe() {
     try {
       const me = await apiFetch("/profiles/promoters/me");
-      if (!me || !me.userId) return;
+      if (!me || !me.userId) {
+        await initGeoIfNeeded();
+        return;
+      }
 
       setVal("orgName", me.orgName);
       setVal("address", me.address);
-      setVal("city", me.city);
-      setVal("region", me.region);
-      setVal("country", me.country);
       setVal("website", me.website);
       setVal("contact", me.contact);
       setVal("bio", me.bio);
+
+      await initGeoIfNeeded();
+      const cc = (me.country || "").trim();
+      const st = (me.region || "").trim();
+      const ci = (me.city || "").trim();
+
+      if (cc) {
+        countrySel().value = cc;
+        await populateRegions(cc, st || undefined);
+        if (st) {
+          await populateCities(cc, st, ci || undefined);
+        }
+      }
 
       if (me.socials && typeof me.socials === "object") {
         const s = me.socials;
@@ -354,12 +469,27 @@ import { mediaUrl } from "/js/media.js";
         return;
       }
       console.debug("loadMe:", e?.message || e);
+      await initGeoIfNeeded();
     }
   }
 
   async function init() {
     const state = await ensurePromoter();
     if (!state) return;
+
+    const cSel = countrySel();
+    const rSel = regionSel();
+    const ciSel = citySel();
+
+    cSel?.addEventListener("change", () => {
+      const cc = cSel.value;
+      populateRegions(cc);
+    });
+    rSel?.addEventListener("change", () => {
+      const cc = cSel.value;
+      const sc = rSel.value;
+      populateCities(cc, sc);
+    });
 
     const form = document.getElementById("promoForm");
     const saveBtn = document.getElementById("saveBtn");
@@ -479,9 +609,9 @@ import { mediaUrl } from "/js/media.js";
         const data = {
           orgName: ($("#orgName")?.value || "").trim(),
           address: ($("#address")?.value || "").trim(),
-          city: ($("#city")?.value || "").trim(),
-          region: ($("#region")?.value || "").trim(),
-          country: ($("#country")?.value || "").trim(),
+          city: (citySel()?.value || "").trim(),
+          region: (regionSel()?.value || "").trim(),
+          country: (countrySel()?.value || "").trim(),
           website: ($("#website")?.value || "").trim(),
           contact: ($("#contact")?.value || "").trim(),
           bio: ($("#bio")?.value || "").trim() || null,
@@ -515,8 +645,7 @@ import { mediaUrl } from "/js/media.js";
 
         toast("Promotion saved!");
 
-        const newLogo =
-          saved?.logoKey || saved?.logo_key || logoKey || null;
+        const newLogo = saved?.logoKey || saved?.logo_key || logoKey || null;
         if (newLogo && logoPreview) {
           setLogoImg(logoPreview, newLogo);
         }
@@ -528,6 +657,7 @@ import { mediaUrl } from "/js/media.js";
       }
     });
 
+    await initGeoIfNeeded();
     await loadMe();
   }
 

@@ -123,18 +123,8 @@ function renderHighlightCard(vRaw) {
   }
 }
 
-function buildFullAddress(item = {}) {
-  const composed = [
-    item.street1,
-    item.street2,
-    item.city,
-    item.region,
-    item.postalCode,
-    item.country,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  return item.address ? String(item.address) : composed;
+function buildLocation(item = {}) {
+  return [item.city, item.region, item.country].filter(Boolean).join(", ");
 }
 
 async function fetchWithTimeout(url, ms) {
@@ -232,12 +222,12 @@ function fillExistingSlots(p, tryouts) {
 
   const aboutEl = getSlot(["pp-about", "about"]);
   if (aboutEl) {
-    const addr = buildFullAddress(p);
+    const loc = buildLocation(p);
     const email = p.emailPublic;
     const phone = p.phonePublic;
 
     let html = `<dl class="meta-list mt-2">`;
-    if (addr) html += `<dt>Address</dt><dd>${h(addr)}</dd>`;
+    if (loc) html += `<dt>Location</dt><dd>${h(loc)}</dd>`;
     if (email) html += `<dt>Email</dt><dd>${h(email)}</dd>`;
     if (phone) html += `<dt>Phone</dt><dd>${h(phone)}</dd>`;
     html += `</dl>`;
@@ -369,7 +359,7 @@ function fillExistingSlots(p, tryouts) {
 
 function renderFullPage(wrap, p, tryouts) {
   const orgName = p.orgName || p.name || "Promotion";
-  const addressFull = buildFullAddress(p);
+  const locationLine = buildLocation(p);
 
   const logoBase = p.logoKey ? mediaUrl(p.logoKey) : "/assets/avatar-fallback.svg";
   const bustStamp =
@@ -409,7 +399,7 @@ function renderFullPage(wrap, p, tryouts) {
         <img class="avatar-ring" src="${h(logoSrc)}" alt="${h(orgName)} logo">
         <div class="hero-meta">
           <h1>${h(orgName)}</h1>
-          ${addressFull ? `<div class="handle">${h(addressFull)}</div>` : ""}
+          ${locationLine ? `<div class="handle">${h(locationLine)}</div>` : ""}
           ${socialLinks ? `<div class="social-row mt-2">${socialLinks}</div>` : ""}
         </div>
       </div>
@@ -429,7 +419,7 @@ function renderFullPage(wrap, p, tryouts) {
       <div id="about" class="mt-3 card" style="scroll-margin-top: 90px;">
         <h2 class="mt-0">About</h2>
         <dl class="meta-list mt-2">
-          ${addressFull ? `<dt>Address</dt><dd>${h(addressFull)}</dd>` : ""}
+          ${locationLine ? `<dt>Location</dt><dd>${h(locationLine)}</dd>` : ""}
           ${p.emailPublic ? `<dt>Email</dt><dd>${h(p.emailPublic)}</dd>` : ""}
           ${p.phonePublic ? `<dt>Phone</dt><dd>${h(p.phonePublic)}</dd>` : ""}
         </dl>

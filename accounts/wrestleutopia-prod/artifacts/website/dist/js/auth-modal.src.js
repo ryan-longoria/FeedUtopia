@@ -258,7 +258,6 @@ if (window._wuAuthWired) {
         const stage = String(fd.get("stageName") || "").trim();
         const dob = String(fd.get("dob") || "").trim();
 
-        // From <select> only
         const country = String(fd.get("country") || "").trim();
         const region  = String(fd.get("region") || "").trim();
         const city    = String(fd.get("city") || "").trim();
@@ -278,7 +277,7 @@ if (window._wuAuthWired) {
         const country = String(fd.get("country") || "").trim();
         const region  = String(fd.get("region") || "").trim();
         const city    = String(fd.get("city") || "").trim();
-        
+
         if (orgName) ua["custom:orgName"] = orgName;
         if (country) ua["custom:country"] = country;
         if (region)  ua["custom:region"]  = region;

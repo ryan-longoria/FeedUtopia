@@ -10,6 +10,108 @@ import { mediaUrl } from "/js/media.js";
     if (el) el.value = v ?? "";
   };
 
+  const GEO_BASE = "/geo";
+  const geoCache = new Map();
+
+  async function loadJSON(path) {
+    if (geoCache.has(path)) return geoCache.get(path);
+    const res = await fetch(path, { cache: "force-cache" });
+    if (!res.ok) throw new Error(`Geo fetch failed ${res.status} for ${path}`);
+    const data = await res.json();
+    geoCache.set(path, data);
+    return data;
+  }
+  async function loadCountriesNA() {
+    return loadJSON(`${GEO_BASE}/countries.v1.json`);
+  }
+  async function loadStates(cc) {
+    return loadJSON(`${GEO_BASE}/regions_${cc}.v1.json`);
+  }
+  async function loadCities(cc, stateCode) {
+    return loadJSON(`${GEO_BASE}/${cc}/cities_${stateCode}.v1.json`);
+  }
+  function resetSel(sel, placeholder, disabled = false) {
+    if (!sel) return;
+    sel.innerHTML = `<option value="">${placeholder}</option>`;
+    sel.disabled = !!disabled;
+  }
+  async function initLocationSelects(pref = {}) {
+    const countrySel = document.getElementById("country");
+    const regionSel  = document.getElementById("region");
+    const citySel    = document.getElementById("city");
+    if (!countrySel || !regionSel || !citySel) return;
+
+    resetSel(countrySel, "Select Country");
+    resetSel(regionSel,  "Select State/Region", true);
+    resetSel(citySel,    "Select City", true);
+
+    const countries = await loadCountriesNA().catch(() => []);
+    for (const c of countries) {
+      const opt = document.createElement("option");
+      opt.value = c.code;
+      opt.textContent = c.name;
+      countrySel.appendChild(opt);
+    }
+    countrySel.disabled = countries.length === 0;
+
+    countrySel.addEventListener("change", async () => {
+      const cc = countrySel.value;
+      resetSel(regionSel, "Select State/Region", !cc);
+      resetSel(citySel, "Select City", true);
+      if (!cc) return;
+
+      const states = await loadStates(cc).catch(() => []);
+      for (const s of states) {
+        const opt = document.createElement("option");
+        opt.value = s.code;
+        opt.textContent = s.name;
+        regionSel.appendChild(opt);
+      }
+      regionSel.disabled = states.length === 0;
+    });
+
+    regionSel.addEventListener("change", async () => {
+      const cc = countrySel.value;
+      const sc = regionSel.value;
+      resetSel(citySel, "Select City", !cc || !sc);
+      if (!cc || !sc) return;
+
+      const cities = await loadCities(cc, sc).catch(() => []);
+      for (const name of cities) {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        citySel.appendChild(opt);
+      }
+      citySel.disabled = cities.length === 0;
+    });
+
+    if (pref.country) {
+      countrySel.value = pref.country;
+      const states = await loadStates(pref.country).catch(() => []);
+      resetSel(regionSel, "Select State/Region", false);
+      for (const s of states) {
+        const opt = document.createElement("option");
+        opt.value = s.code;
+        opt.textContent = s.name;
+        regionSel.appendChild(opt);
+      }
+      if (pref.region) regionSel.value = pref.region;
+
+      if (pref.region) {
+        const cities = await loadCities(pref.country, pref.region).catch(() => []);
+        resetSel(citySel, "Select City", false);
+        for (const name of cities) {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          citySel.appendChild(opt);
+        }
+        if (pref.city) citySel.value = pref.city;
+      }
+    }
+  }
+
   const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
 
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -72,7 +174,7 @@ import { mediaUrl } from "/js/media.js";
     // Facebook
     "www.facebook.com",
     "facebook.com",
-    // LinkedIn (just in case someone drops a video link)
+    // LinkedIn
     "www.linkedin.com",
     "linkedin.com",
   ]);
@@ -326,15 +428,18 @@ import { mediaUrl } from "/js/media.js";
 
       window.profile = me;
 
+      await initLocationSelects({
+        country: me.country || "",
+        region:  me.region || "",
+        city:    me.city || "",
+      });
+
       const map = {
         firstName: "firstName",
         middleName: "middleName",
         lastName: "lastName",
         stageName: "stageName",
         dob: "dob",
-        city: "city",
-        region: "region",
-        country: "country",
         heightIn: "heightIn",
         weightLb: "weightLb",
         bio: "bio",
@@ -399,6 +504,8 @@ import { mediaUrl } from "/js/media.js";
     const viewBtn = document.getElementById("viewBtn");
     const avatarInput = document.getElementById("avatar");
     const avatarPreview = document.getElementById("avatarPreview");
+
+    await initLocationSelects({});
 
     avatarInput?.addEventListener("change", () => {
       const f = avatarInput.files?.[0];
