@@ -93,84 +93,41 @@
 
           <div class="grid-2 mt-2">
             <div>
-              <label for="dob"
-                >Date of Birth <span class="muted">(required)</span></label
-              >
+              <label for="dob">Date of Birth <span class="muted">(required)</span></label>
               <input class="input" id="dob" name="dob" type="date" required />
             </div>
             <div class="grid-2">
               <div>
-                <label for="city"
-                  >City <span class="muted">(required)</span></label
-                >
-                <input
-                  class="input"
-                  id="city"
-                  name="city"
-                  required
-                  autocomplete="address-level2"
-                />
+                <label for="city">City <span class="muted">(required)</span></label>
+                <select class="input" id="city" name="city" required disabled>
+                  <option value="">Select City</option>
+                </select>
               </div>
               <div>
-                <label for="region"
-                  >State/Region <span class="muted">(required)</span></label
-                >
-                <input
-                  class="input"
-                  id="region"
-                  name="region"
-                  required
-                  autocomplete="address-level1"
-                />
+                <label for="region">State/Region <span class="muted">(required)</span></label>
+                <select class="input" id="region" name="region" required disabled>
+                  <option value="">Select State/Region</option>
+                </select>
               </div>
             </div>
           </div>
 
           <div class="grid-2 mt-2">
             <div>
-              <label for="country"
-                >Country <span class="muted">(required)</span></label
-              >
-              <input
-                class="input"
-                id="country"
-                name="country"
-                value="US"
-                required
-                autocomplete="country-name"
-              />
+              <label for="country">Country <span class="muted">(required)</span></label>
+              <select class="input" id="country" name="country" required>
+                <option value="">Select Country</option>
+              </select>
             </div>
             <div class="grid-2">
               <div>
-                <label for="heightIn"
-                  >Height (inches) <span class="muted">(required)</span></label
-                >
-                <input
-                  class="input"
-                  id="heightIn"
-                  name="heightIn"
-                  type="number"
-                  min="36"
-                  max="100"
-                  step="1"
-                  required
-                />
+                <label for="heightIn">Height (inches) <span class="muted">(required)</span></label>
+                <input class="input" id="heightIn" name="heightIn" type="number" min="36" max="100" step="1" required />
                 <div class="hint">Tip: 6'0" = 72 inches.</div>
               </div>
               <div>
-                <label for="weightLb"
-                  >Weight (lbs) <span class="muted">(required)</span></label
-                >
-                <input
-                  class="input"
-                  id="weightLb"
-                  name="weightLb"
-                  type="number"
-                  min="50"
-                  max="600"
-                  step="1"
-                  required
-                />
+                <label for="weightLb">Weight (lbs) <span class="muted">(required)</span></label>
+                <input class="input" id="weightLb" name="weightLb" type="number" min="50" max="600" step="1" required />
               </div>
             </div>
           </div>

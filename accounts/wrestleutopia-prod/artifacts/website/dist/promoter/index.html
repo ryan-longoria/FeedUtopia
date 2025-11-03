@@ -34,33 +34,58 @@
         <form id="promoForm" class="card">
           <h2>Promotion Profile</h2>
 
-          <label
-            >Promotion / Org Name <span class="muted">(required)</span>
+          <label>
+            Promotion / Org Name <span class="muted">(required)</span>
             <input id="orgName" name="orgName" required />
           </label>
 
-          <label
-            >Full Address <span class="muted">(required)</span>
-            <input
-              id="address"
-              name="address"
-              placeholder="123 Main St, City, ST 12345, Country"
-              required
-            />
-          </label>
+          <fieldset class="mt-2" style="border:0;padding:0">
+            <legend class="muted" style="font-size:12px;margin-bottom:6px">
+              Location (North America)
+            </legend>
 
-          <div class="grid-3">
-            <label>City <input id="city" name="city" /></label>
-            <label>Region/State <input id="region" name="region" /></label>
-            <label>Country <input id="country" name="country" /></label>
-          </div>
+            <div class="grid-3">
+              <label>
+                Country <span class="muted">(required)</span>
+                <select id="country" name="country" required>
+                  <option value="">Select Country</option>
+                </select>
+              </label>
 
-          <label
-            >Website
+              <label>
+                Region/State <span class="muted">(required)</span>
+                <select id="region" name="region" required disabled>
+                  <option value="">Select State/Region</option>
+                </select>
+              </label>
+
+              <label>
+                City <span class="muted">(required)</span>
+                <select id="city" name="city" required disabled>
+                  <option value="">Select City</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="mt-2">
+              Street Address <span class="muted">(optional)</span>
+              <input
+                id="address"
+                name="address"
+                placeholder="123 Main St, Suite 200"
+                autocomplete="street-address"
+              />
+            </label>
+          </fieldset>
+
+          <label class="mt-2">
+            Website
             <input
               id="website"
               name="website"
               placeholder="https://example.com"
+              inputmode="url"
+              autocomplete="url"
             />
           </label>
 
@@ -69,63 +94,74 @@
               Socials (optional)
             </legend>
             <div class="grid-3">
-              <label
-                >Twitter/X
+              <label>
+                Twitter/X
                 <input
                   id="social_twitter"
                   name="social_twitter"
                   placeholder="https://x.com/yourhandle"
-              /></label>
-              <label
-                >Instagram
+                  inputmode="url"
+                />
+              </label>
+              <label>
+                Instagram
                 <input
                   id="social_instagram"
                   name="social_instagram"
                   placeholder="https://instagram.com/yourhandle"
-              /></label>
-              <label
-                >TikTok
+                  inputmode="url"
+                />
+              </label>
+              <label>
+                TikTok
                 <input
                   id="social_tiktok"
                   name="social_tiktok"
                   placeholder="https://tiktok.com/@yourhandle"
-              /></label>
+                  inputmode="url"
+                />
+              </label>
             </div>
             <div class="grid-2 mt-1">
-              <label
-                >YouTube
+              <label>
+                YouTube
                 <input
                   id="social_youtube"
                   name="social_youtube"
                   placeholder="https://youtube.com/@channel"
-              /></label>
-              <label
-                >Facebook
+                  inputmode="url"
+                />
+              </label>
+              <label>
+                Facebook
                 <input
                   id="social_facebook"
                   name="social_facebook"
                   placeholder="https://facebook.com/yourpage"
-              /></label>
+                  inputmode="url"
+                />
+              </label>
             </div>
           </fieldset>
 
-          <label
-            >Contact (email or link)
+          <label class="mt-2">
+            Contact (email or link)
             <input
               id="contact"
               name="contact"
               placeholder="booking@example.com"
+              autocomplete="email"
             />
           </label>
 
-          <label
-            >About / Bio
+          <label class="mt-2">
+            About / Bio
             <textarea id="bio" name="bio" rows="6" maxlength="1500"></textarea>
           </label>
 
-          <div class="grid-2">
-            <label
-              >Logo (square works best)
+          <div class="grid-2 mt-2">
+            <label>
+              Logo (square works best)
               <input id="logo" name="logo" type="file" accept="image/*" />
             </label>
             <div style="display: flex; align-items: center; gap: 12px">
@@ -207,7 +243,7 @@
           <ul class="muted">
             <li>Use your main city/region so wrestlers know where you run.</li>
             <li>
-              Logo uploads go to your S3 via the existing `uploadToS3` helper.
+              Logo uploads go to your S3 via the existing <code>uploadToS3</code> helper.
             </li>
           </ul>
         </div>
@@ -219,10 +255,7 @@
         <h2 class="mt-0">Public Preview</h2>
         <div id="preview-content" class="mt-2"></div>
         <div class="mt-3" style="text-align: right">
-          <button
-            class="btn secondary"
-            onclick="this.closest('dialog').close()"
-          >
+          <button class="btn secondary" onclick="this.closest('dialog').close()">
             Close
           </button>
         </div>

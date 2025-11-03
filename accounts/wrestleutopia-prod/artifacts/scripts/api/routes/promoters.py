@@ -94,7 +94,7 @@ def _upsert_promoter_profile(sub: str, groups: Set[str], event) -> Dict[str, Any
     data = _json(event) or {}
     org = _safe_str(data.get("orgName"), max_len=256)
     address = _safe_str(data.get("address"), max_len=512)
-    if not org or not address:
+    if not org:
         return _resp(400, {"message": "Missing required fields (orgName, address)"})
 
     try:
