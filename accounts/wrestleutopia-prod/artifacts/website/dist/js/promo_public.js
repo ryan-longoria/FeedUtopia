@@ -1,84 +1,126 @@
-// /js/promo_public.js
 import { apiFetch } from "/js/api.js";
 import { mediaUrl } from "/js/media.js";
 
-const h = (s) =>
-  String(s ?? "").replace(
+const FETCH_TIMEOUT_MS = 8000;
+const MAX_HIGHLIGHTS = 12;
+const MAX_PHOTOS = 24;
+const PROFILE_HANDLE_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
+const h = (str) =>
+  String(str ?? "").replace(
     /[&<>"]/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+    (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[s],
   );
 
-// Cache-bust only profile-like assets so users see new logos/covers immediately
 const needsBust = (k) =>
   /^public\/promoters\/profiles\//.test(String(k)) ||
-  /^profiles\//.test(String(k)); // legacy support
+  /^profiles\//.test(String(k)); // legacy
 
-// External link guard
+function imgSrcFromKey(key) {
+  if (!key) return "/assets/avatar-fallback.svg";
+  const s = String(key);
+  if (s.startsWith("raw/")) return "/assets/image-processing.svg";
+  return mediaUrl(s);
+}
+
 function safeLink(url, label) {
   const u = String(url || "").trim();
-  if (!u) return "";
   try {
     const parsed = new URL(u, location.origin);
     if (!/^https?:$/.test(parsed.protocol)) return "";
   } catch {
     return "";
   }
-  return `<a href="${h(u)}" target="_blank" rel="noopener nofollow">${h(label || u)}</a>`;
+  return `<a href="${h(u)}" target="_blank" rel="noopener nofollow">${h(
+    label || u,
+  )}</a>`;
 }
 
-// Social anchors (caller wraps once)
-function socialsRow(socials) {
-  const s = socials && typeof socials === "object" ? socials : {};
-  return [
-    s.website && safeLink(s.website, "Website"),
-    s.twitter && safeLink(s.twitter, "Twitter"),
-    s.instagram && safeLink(s.instagram, "Instagram"),
-    s.tiktok && safeLink(s.tiktok, "TikTok"),
-    s.youtube && safeLink(s.youtube, "YouTube"),
-    s.facebook && safeLink(s.facebook, "Facebook"),
-  ]
-    .filter(Boolean)
-    .join(" • ");
-}
-
-function fmtDate(d) {
+function toYoutubeEmbed(url) {
+  if (!url) return "";
+  let u;
   try {
-    const dt = new Date(d);
-    if (isNaN(dt)) return "";
-    return dt.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    u = new URL(String(url), "https://youtube.com");
   } catch {
     return "";
   }
+  const host = u.hostname.toLowerCase();
+  const isYT =
+    host === "www.youtube.com" ||
+    host === "youtube.com" ||
+    host === "youtu.be" ||
+    host.endsWith(".youtube.com");
+
+  if (!isYT) return "";
+
+  if (u.searchParams.has("v")) {
+    const id = u.searchParams.get("v");
+    return `https://www.youtube.com/embed/${encodeURIComponent(id)}`;
+  }
+
+  if (host === "youtu.be") {
+    const id = u.pathname.replace(/^\/+/, "");
+    if (id) return `https://www.youtube.com/embed/${encodeURIComponent(id)}`;
+  }
+
+  return "";
 }
 
-function renderTryoutList(list) {
-  if (!Array.isArray(list) || !list.length)
-    return '<p class="muted">No open tryouts.</p>';
-  return `
-    <div class="grid cols-2 mt-2">
-      ${list
-        .map((t) => {
-          const date = t.date ? fmtDate(t.date) : "";
-          const reqs = h(t.requirements || "");
-          const city = h(t.city || "");
-          const title = h(t.orgName || "Tryout");
-          const status = h((t.status || "open").toUpperCase());
-          const tid = h(t.tryoutId || "");
-          return `
-          <div class="card">
-            <div class="badge">${status}</div>
-            <h3 style="margin:6px 0 2px">${title}</h3>
-            <div class="muted">${city}${date ? ` • ${date}` : ""}</div>
-            ${reqs ? `<p class="mt-2">${reqs}</p>` : ""}
-            <a class="btn small mt-2" href="/tryouts.html#${tid}">View</a>
-          </div>`;
-        })
-        .join("")}
-    </div>`;
+function normalizeHighlight(item) {
+  if (!item) return null;
+
+  if (typeof item === "string") {
+    const s = item.trim();
+    if (!s) return null;
+    return s;
+  }
+
+  if (typeof item === "object") {
+    if (typeof item.url === "string") return item.url;
+    if (typeof item.href === "string") return item.href;
+    if (typeof item.src === "string") return item.src;
+    if (typeof item.key === "string") return item.key;
+  }
+
+  return null;
+}
+
+function renderHighlightCard(vRaw) {
+  const v = normalizeHighlight(vRaw);
+  if (!v) {
+    return `<div class="media-card"><p class="muted">Invalid highlight</p></div>`;
+  }
+
+  const yt = toYoutubeEmbed(v);
+  if (yt) {
+    return `<div class="media-card"><iframe width="100%" height="220" src="${h(
+      yt,
+    )}" title="Highlight" frameborder="0" allowfullscreen></iframe></div>`;
+  }
+
+  if (/^(public|profiles|raw)\//.test(v)) {
+    if (v.startsWith("raw/")) {
+      return `<div class="media-card"><img src="/assets/image-processing.svg" alt="Processing video"></div>`;
+    }
+    const src = mediaUrl(v);
+    return `<div class="media-card"><video src="${h(
+      src,
+    )}" controls preload="metadata"></video></div>`;
+  }
+
+  try {
+    const parsed = new URL(v, location.origin);
+    if (parsed.protocol === "https:" || parsed.origin === location.origin) {
+      return `<div class="media-card"><video src="${h(
+        parsed.href,
+      )}" controls preload="metadata"></video></div>`;
+    }
+    return `<div class="media-card"><p><a href="${h(
+      parsed.href,
+    )}" target="_blank" rel="noopener nofollow">View highlight</a></p></div>`;
+  } catch {
+    return `<div class="media-card"><p class="muted">Invalid highlight</p></div>`;
+  }
 }
 
 function buildFullAddress(item = {}) {
@@ -95,67 +137,280 @@ function buildFullAddress(item = {}) {
   return item.address ? String(item.address) : composed;
 }
 
-function idFromPath() {
-  const u = new URL(location.href);
-  const segs = u.pathname.split("/").filter(Boolean);
-  const pathId = (segs[1] || "").trim(); // e.g. /p/<id>
-  const hashId = (u.hash || "").replace(/^#/, "");
-  return pathId || hashId || "";
+async function fetchWithTimeout(url, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("fetch-timeout")), ms),
+  );
+  return Promise.race([apiFetch(url), timeout]);
 }
 
-// Renders the public promoter page into containerEl
-function render(containerEl, item, tryouts = []) {
-  if (!containerEl) return;
-  if (!item?.userId) {
-    containerEl.innerHTML = '<p class="muted">Promotion not found.</p>';
-    return;
+function getSlot(ids) {
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el) return el;
+  }
+  return null;
+}
+
+function slotHasHeading(el) {
+  if (!el) return false;
+  return !!el.querySelector("h1, h2, h3, .section-title");
+}
+
+function renderTryoutsList(list) {
+  if (!Array.isArray(list) || !list.length)
+    return `<div class="card"><p class="muted">No open tryouts.</p></div>`;
+
+  const fmtDate = (d) => {
+    try {
+      const dt = new Date(d);
+      if (isNaN(dt)) return "";
+      return dt.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  return `
+    <div class="grid cols-2 mt-2">
+      ${list
+        .map((t) => {
+          const date = t.date ? fmtDate(t.date) : "";
+          const city = [t.city, t.region, t.country].filter(Boolean).join(", ");
+          const title = h(t.orgName || "Tryout");
+          const status = h((t.status || "open").toUpperCase());
+          const tid = h(t.tryoutId || "");
+          return `
+            <div class="card">
+              <div class="badge">${status}</div>
+              <h3 style="margin:6px 0 2px">${title}</h3>
+              <div class="muted">${h(city)}${date ? ` • ${h(date)}` : ""}</div>
+              ${
+                t.requirements
+                  ? `<p class="mt-2">${h(String(t.requirements)).replace(/\n/g, "<br/>")}</p>`
+                  : ""
+              }
+              ${tid ? `<a class="btn small mt-2" href="/tryouts.html#${tid}">View</a>` : ""}
+            </div>`;
+        })
+        .join("")}
+    </div>`;
+}
+
+function fillExistingSlots(p, tryouts) {
+  let touched = false;
+
+  const logoEl = document.getElementById("pp-logo");
+  const nameEl = document.getElementById("pp-name");
+
+  const orgName = p.orgName || p.name || "Promotion";
+
+  const logoKey = p.logoKey || p.logo_key || null;
+  const logoBase = logoKey ? mediaUrl(logoKey) : "/assets/avatar-fallback.svg";
+  const bustStamp =
+    p.logoVersion ||
+    p.updatedAt ||
+    p.lastChangedAt ||
+    (logoKey && needsBust(logoKey) ? Date.now() : "");
+  const logoSrc = logoKey && bustStamp
+    ? `${logoBase}?v=${encodeURIComponent(bustStamp)}`
+    : logoBase;
+
+  if (logoEl) {
+    logoEl.src = logoSrc;
+    logoEl.alt = orgName;
+    touched = true;
+  }
+  if (nameEl) {
+    nameEl.textContent = orgName;
+    touched = true;
   }
 
-  const orgName = h(item.orgName || "Promotion");
+  const aboutEl = getSlot(["pp-about", "about"]);
+  if (aboutEl) {
+    const addr = buildFullAddress(p);
+    const email = p.emailPublic;
+    const phone = p.phonePublic;
 
-  // Logo + Cover with selective cache-busting
-  const logoBase = item.logoKey
-    ? mediaUrl(item.logoKey)
-    : "/assets/avatar-fallback.svg";
-  const coverBase = item.coverKey ? mediaUrl(item.coverKey) : "";
-  const logo = item.logoKey
-    ? needsBust(item.logoKey)
-      ? `${logoBase}?v=${Date.now()}`
-      : logoBase
-    : logoBase;
-  const cover = item.coverKey
-    ? needsBust(item.coverKey)
-      ? `${coverBase}?v=${Date.now()}`
-      : coverBase
-    : "";
+    let html = `<dl class="meta-list mt-2">`;
+    if (addr) html += `<dt>Address</dt><dd>${h(addr)}</dd>`;
+    if (email) html += `<dt>Email</dt><dd>${h(email)}</dd>`;
+    if (phone) html += `<dt>Phone</dt><dd>${h(phone)}</dd>`;
+    html += `</dl>`;
 
-  const addressFull = h(buildFullAddress(item));
-  const socials = socialsRow({
-    ...(item.website ? { website: item.website } : {}),
-    ...(item.socials || {}),
-  });
+    if (p.description || p.bio) {
+      const desc = p.description || p.bio;
+      html += `<p class="mt-3">${h(desc).replace(/\n/g, "<br/>")}</p>`;
+    } else {
+      html += `<p class="mt-3 muted">No description yet.</p>`;
+    }
 
-  // Build nav tabs (About, Photos, Videos, Tryouts, optional Roster)
-  const order = ["about", "photos", "videos", "tryouts"];
-  if (Array.isArray(item.rosterHandles) && item.rosterHandles.length)
-    order.push("roster");
+    aboutEl.innerHTML = html;
+    touched = true;
+  }
 
-  const tabs = order
-    .map((id, i) => {
-      const title = id[0].toUpperCase() + id.slice(1);
-      return `<a href="#${id}" ${i === 0 ? 'aria-current="page"' : ""}>${title}</a>`;
-    })
-    .join("");
+  const socialsEl = getSlot(["pp-socials", "socials"]);
+  if (socialsEl) {
+    const socials = p.socials || {};
+    const links = [
+      p.website && safeLink(p.website, "Website"),
+      socials.website && safeLink(socials.website, "Website"),
+      socials.twitter && safeLink(socials.twitter, "Twitter"),
+      socials.instagram && safeLink(socials.instagram, "Instagram"),
+      socials.tiktok && safeLink(socials.tiktok, "TikTok"),
+      socials.youtube && safeLink(socials.youtube, "YouTube"),
+      socials.facebook && safeLink(socials.facebook, "Facebook"),
+    ]
+      .filter(Boolean)
+      .join(" • ");
+    socialsEl.innerHTML = links || `<span class="muted">No social links.</span>`;
+    touched = true;
+  }
 
-  containerEl.innerHTML = `
+  const photosEl = getSlot(["pp-photos", "photosSection", "photos"]);
+  if (photosEl) {
+    const mediaKeys = Array.isArray(p.mediaKeys)
+      ? p.mediaKeys.slice(0, MAX_PHOTOS)
+      : [];
+    const hasHeading = slotHasHeading(photosEl);
+
+    if (mediaKeys.length) {
+      photosEl.innerHTML = `
+        ${hasHeading ? "" : "<h2>Photos</h2>"}
+        <div class="media-grid">
+          ${mediaKeys
+            .map(
+              (k) =>
+                `<div class="media-card"><img src="${h(
+                  imgSrcFromKey(k),
+                )}" alt=""></div>`,
+            )
+            .join("")}
+        </div>
+      `;
+    } else {
+      photosEl.innerHTML = `
+        ${hasHeading ? "" : "<h2>Photos</h2>"}
+        <div class="card"><p class="muted">No photos yet.</p></div>
+      `;
+    }
+    touched = true;
+  }
+
+  const videosEl = getSlot(["pp-videos", "videosSection", "highlights"]);
+  if (videosEl) {
+    const highlights = Array.isArray(p.highlights)
+      ? p.highlights.map(normalizeHighlight).filter(Boolean).slice(0, MAX_HIGHLIGHTS)
+      : [];
+    const hasHeading = slotHasHeading(videosEl);
+
+    if (highlights.length) {
+      videosEl.innerHTML = `
+        ${hasHeading ? "" : "<h2>Videos</h2>"}
+        <div class="media-grid">
+          ${highlights.map((v) => renderHighlightCard(v)).join("")}
+        </div>
+      `;
+    } else {
+      videosEl.innerHTML = `
+        ${hasHeading ? "" : "<h2>Videos</h2>"}
+        <div class="card"><p class="muted">No highlight videos yet.</p></div>
+      `;
+    }
+    touched = true;
+  }
+
+  const tryEl = getSlot(["pp-tryouts", "tryoutsSection", "tryouts"]);
+  if (tryEl) {
+    const hasHeading = slotHasHeading(tryEl);
+    tryEl.innerHTML = `
+      ${hasHeading ? "" : "<h2>Upcoming Tryouts</h2>"}
+      ${renderTryoutsList(tryouts)}
+    `;
+    touched = true;
+  }
+
+  const rosterEl = getSlot(["pp-roster", "roster"]);
+  if (rosterEl) {
+    const roster = Array.isArray(p.rosterHandles) ? p.rosterHandles : [];
+    const hasHeading = slotHasHeading(rosterEl);
+    if (roster.length) {
+      rosterEl.innerHTML = `
+        ${hasHeading ? "" : "<h2>Roster</h2>"}
+        <div class="media-grid mt-2">
+          ${roster
+            .slice(0, 48)
+            .map(
+              (hh) => `
+              <a class="media-card" href="/w/#${encodeURIComponent(hh)}" aria-label="View roster profile ${h(
+                hh,
+              )}">
+                <img src="/assets/avatar-fallback.svg" alt="">
+              </a>`,
+            )
+            .join("")}
+        </div>
+      `;
+    } else {
+      rosterEl.innerHTML = `
+        ${hasHeading ? "" : "<h2>Roster</h2>"}
+        <div class="card"><p class="muted">No roster published.</p></div>
+      `;
+    }
+    touched = true;
+  }
+
+  return touched;
+}
+
+function renderFullPage(wrap, p, tryouts) {
+  const orgName = p.orgName || p.name || "Promotion";
+  const addressFull = buildFullAddress(p);
+
+  const logoBase = p.logoKey ? mediaUrl(p.logoKey) : "/assets/avatar-fallback.svg";
+  const bustStamp =
+    p.logoVersion ||
+    p.updatedAt ||
+    p.lastChangedAt ||
+    (p.logoKey && needsBust(p.logoKey) ? Date.now() : "");
+  const logoSrc =
+    p.logoKey && bustStamp ? `${logoBase}?v=${encodeURIComponent(bustStamp)}` : logoBase;
+
+  const cover = p.coverKey ? mediaUrl(p.coverKey) : "";
+
+  const socials = p.socials || {};
+  const socialLinks = [
+    p.website && safeLink(p.website, "Website"),
+    socials.website && safeLink(socials.website, "Website"),
+    socials.twitter && safeLink(socials.twitter, "Twitter"),
+    socials.instagram && safeLink(socials.instagram, "Instagram"),
+    socials.tiktok && safeLink(socials.tiktok, "TikTok"),
+    socials.youtube && safeLink(socials.youtube, "YouTube"),
+    socials.facebook && safeLink(socials.facebook, "Facebook"),
+  ]
+    .filter(Boolean)
+    .join(" • ");
+
+  const highlights = Array.isArray(p.highlights)
+    ? p.highlights.map(normalizeHighlight).filter(Boolean).slice(0, MAX_HIGHLIGHTS)
+    : [];
+  const mediaKeys = Array.isArray(p.mediaKeys) ? p.mediaKeys.slice(0, MAX_PHOTOS) : [];
+
+  document.title = `${orgName} – WrestleUtopia`;
+
+  wrap.innerHTML = `
     <section class="hero card" style="max-width:980px;margin-inline:auto;overflow:hidden">
       ${cover ? `<img class="cover" src="${h(cover)}" alt="">` : ""}
       <div class="hero-inner container">
-        <img class="avatar-ring" src="${h(logo)}" alt="${orgName} logo">
+        <img class="avatar-ring" src="${h(logoSrc)}" alt="${h(orgName)} logo">
         <div class="hero-meta">
-          <h1>${orgName}</h1>
-          ${addressFull ? `<div class="handle">${addressFull}</div>` : ""}
-          ${socials ? `<div class="social-row mt-2">${socials}</div>` : ""}
+          <h1>${h(orgName)}</h1>
+          ${addressFull ? `<div class="handle">${h(addressFull)}</div>` : ""}
+          ${socialLinks ? `<div class="social-row mt-2">${socialLinks}</div>` : ""}
         </div>
       </div>
     </section>
@@ -163,86 +418,77 @@ function render(containerEl, item, tryouts = []) {
     <section class="container" style="max-width:980px;margin-inline:auto">
       <nav class="tabs">
         <div class="tab-nav">
-          ${tabs}
+          <a href="#about" aria-current="page">About</a>
+          <a href="#photos">Photos</a>
+          <a href="#videos">Videos</a>
+          <a href="#tryouts">Tryouts</a>
+          ${Array.isArray(p.rosterHandles) && p.rosterHandles.length ? `<a href="#roster">Roster</a>` : ""}
         </div>
       </nav>
 
-      <!-- Sections: IDs match hrefs so clicks scroll to them -->
       <div id="about" class="mt-3 card" style="scroll-margin-top: 90px;">
         <h2 class="mt-0">About</h2>
-        ${item.description ? `<p>${h(item.description).replace(/\n/g, "<br/>")}</p>` : `<p class="muted">No description yet.</p>`}
         <dl class="meta-list mt-2">
-          ${addressFull ? `<dt>Address</dt><dd>${addressFull}</dd>` : ""}
-          ${item.emailPublic ? `<dt>Email</dt><dd>${h(item.emailPublic)}</dd>` : ""}
-          ${item.phonePublic ? `<dt>Phone</dt><dd>${h(item.phonePublic)}</dd>` : ""}
+          ${addressFull ? `<dt>Address</dt><dd>${h(addressFull)}</dd>` : ""}
+          ${p.emailPublic ? `<dt>Email</dt><dd>${h(p.emailPublic)}</dd>` : ""}
+          ${p.phonePublic ? `<dt>Phone</dt><dd>${h(p.phonePublic)}</dd>` : ""}
         </dl>
+        ${
+          p.description || p.bio
+            ? `<p class="mt-3">${h(p.description || p.bio).replace(/\n/g, "<br/>")}</p>`
+            : `<p class="muted mt-3">No description yet.</p>`
+        }
       </div>
 
-      <div id="photos" class="mt-3 card" style="scroll-margin-top: 90px;">
-        <h2 class="mt-0">Photos</h2>
+      <div id="photos" class="mt-3" style="scroll-margin-top: 90px;">
+        <h2>Photos</h2>
         ${
-          Array.isArray(item.mediaKeys) && item.mediaKeys.length
+          mediaKeys.length
             ? `
-          <div class="media-grid mt-2">
-            ${item.mediaKeys
-              .map((k) => {
-                const s = String(k || "");
-                if (s.startsWith("raw/")) {
-                  return `<div class="media-card"><img src="/assets/image-processing.svg" alt="Processing…"></div>`;
-                }
-                return `<div class="media-card"><img src="${h(mediaUrl(s))}" alt=""></div>`;
-              })
+          <div class="media-grid">
+            ${mediaKeys
+              .map(
+                (k) =>
+                  `<div class="media-card"><img src="${h(
+                    imgSrcFromKey(k),
+                  )}" alt=""></div>`,
+              )
               .join("")}
           </div>`
-            : `<p class="muted">No photos yet.</p>`
+            : `<div class="card"><p class="muted">No photos yet.</p></div>`
         }
       </div>
 
-      <div id="videos" class="mt-3 card" style="scroll-margin-top: 90px;">
-        <h2 class="mt-0">Videos</h2>
+      <div id="videos" class="mt-3" style="scroll-margin-top: 90px;">
+        <h2>Videos</h2>
         ${
-          Array.isArray(item.highlights) && item.highlights.length
+          highlights.length
             ? `
-          <div class="media-grid mt-2">
-            ${item.highlights
-              .map((v) => {
-                const sv = String(v || "");
-                const isYT = /youtube|youtu\.be/i.test(sv);
-                const src =
-                  sv.startsWith("public/") || sv.startsWith("raw/")
-                    ? mediaUrl(sv)
-                    : sv;
-                return `
-                <div class="media-card">
-                  ${
-                    isYT
-                      ? `<iframe width="100%" height="220" src="${h(src).replace("watch?v=", "embed/")}" title="Video" frameborder="0" allowfullscreen></iframe>`
-                      : `<video src="${h(src)}" controls></video>`
-                  }
-                </div>`;
-              })
-              .join("")}
-          </div>
-        `
-            : `<p class="muted">No videos yet.</p>`
+          <div class="media-grid">
+            ${highlights.map((v) => renderHighlightCard(v)).join("")}
+          </div>`
+            : `<div class="card"><p class="muted">No highlight videos yet.</p></div>`
         }
       </div>
 
-      <div id="tryouts" class="mt-3 card" style="scroll-margin-top: 90px;">
-        <h2 class="mt-0">Upcoming Tryouts</h2>
-        ${renderTryoutList(tryouts)}
+      <div id="tryouts" class="mt-3" style="scroll-margin-top: 90px;">
+        <h2>Upcoming Tryouts</h2>
+        ${renderTryoutsList(tryouts)}
       </div>
 
       ${
-        Array.isArray(item.rosterHandles) && item.rosterHandles.length
+        Array.isArray(p.rosterHandles) && p.rosterHandles.length
           ? `
         <div id="roster" class="mt-3 card" style="scroll-margin-top: 90px;">
           <h2 class="mt-0">Roster</h2>
           <div class="media-grid mt-2">
-            ${item.rosterHandles
+            ${p.rosterHandles
+              .slice(0, 48)
               .map(
                 (hh) => `
-              <a class="media-card" href="/w/#${encodeURIComponent(hh)}" aria-label="View roster profile ${h(hh)}">
+              <a class="media-card" href="/w/#${encodeURIComponent(hh)}" aria-label="View roster profile ${h(
+                hh,
+              )}">
                 <img src="/assets/avatar-fallback.svg" alt="">
               </a>`,
               )
@@ -254,88 +500,125 @@ function render(containerEl, item, tryouts = []) {
     </section>
   `;
 
-  // Smooth scrolling + active link state
-  const nav = containerEl.querySelector(".tab-nav");
-  const links = Array.from(nav.querySelectorAll("a"));
-  const sections = links
-    .map((a) =>
-      document.getElementById(a.getAttribute("href").replace("#", "")),
-    )
-    .filter(Boolean);
+  const nav = wrap.querySelector(".tab-nav");
+  if (nav && typeof nav.querySelectorAll === "function") {
+    const links = Array.from(nav.querySelectorAll("a"));
+    const sections = links
+      .map((a) => document.getElementById(a.getAttribute("href").replace("#", "")))
+      .filter(Boolean);
 
-  // Smooth scroll on click
-  links.forEach((a) => {
-    a.addEventListener("click", (e) => {
-      e.preventDefault();
-      const id = a.getAttribute("href").replace("#", "");
-      const target = document.getElementById(id);
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        links.forEach((l) =>
-          l.setAttribute("aria-current", l === a ? "page" : "false"),
-        );
-        history.replaceState(null, "", `#${id}`);
-      }
-    });
-  });
-
-  // Highlight active link while scrolling
-  const io = new IntersectionObserver(
-    (entries) => {
-      let topMost = null;
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          if (
-            !topMost ||
-            entry.boundingClientRect.top < topMost.boundingClientRect.top
-          ) {
-            topMost = entry;
-          }
+    links.forEach((a) => {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        const id = a.getAttribute("href").replace("#", "");
+        const target = document.getElementById(id);
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+          links.forEach((l) =>
+            l.setAttribute("aria-current", l === a ? "page" : "false"),
+          );
+          history.replaceState(null, "", `#${id}`);
         }
-      }
-      if (topMost) {
-        const id = topMost.target.id;
-        links.forEach((l) =>
-          l.setAttribute(
-            "aria-current",
-            l.getAttribute("href") === `#${id}` ? "page" : "false",
-          ),
-        );
-      }
-    },
-    { rootMargin: "-40% 0px -55% 0px", threshold: [0, 1] },
-  );
+      });
+    });
 
-  sections.forEach((sec) => io.observe(sec));
+    if ("IntersectionObserver" in window) {
+      const io = new IntersectionObserver(
+        (entries) => {
+          let topMost = null;
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              if (
+                !topMost ||
+                entry.boundingClientRect.top < topMost.boundingClientRect.top
+              ) {
+                topMost = entry;
+              }
+            }
+          }
+          if (topMost) {
+            const id = topMost.target.id;
+            links.forEach((l) =>
+              l.setAttribute(
+                "aria-current",
+                l.getAttribute("href") === `#${id}` ? "page" : "false",
+              ),
+            );
+          }
+        },
+        { rootMargin: "-40% 0px -55% 0px", threshold: [0, 1] },
+      );
+      sections.forEach((sec) => io.observe(sec));
+    }
+  }
 }
 
-async function init() {
-  const id = idFromPath();
-  const containerEl = document.getElementById("pp-wrap");
-  if (!containerEl) return;
-  if (!id) {
-    containerEl.innerHTML = '<p class="muted">Missing promotion id.</p>';
+function handleFromLocationOrData() {
+  const u = new URL(location.href);
+  const segs = u.pathname.split("/").filter(Boolean);
+  const pathHandle = segs.length >= 2 && segs[0] === "p" ? segs[1] : "";
+  const hashHandle = (u.hash || "").replace(/^#/, "").trim();
+  const dataHandle = document.getElementById("pp-wrap")?.dataset?.handle?.trim();
+  const handle = pathHandle || hashHandle || dataHandle || "";
+  return handle;
+}
+
+async function run() {
+  const wrap = document.getElementById("pp-wrap");
+  if (!wrap) return;
+
+  const hadChildrenAtStart = wrap.children.length > 0;
+  const wantsPublic = wrap.dataset?.public === "1";
+
+  const handle = handleFromLocationOrData();
+  if (!handle || !PROFILE_HANDLE_RE.test(handle)) {
+    if (!hadChildrenAtStart) {
+      wrap.innerHTML = `<div class="card"><h2>Promotion not found</h2><p class="muted">Missing or invalid id.</p></div>`;
+    }
     return;
   }
+
   try {
-    const [item, tryouts] = await Promise.all([
-      apiFetch(`/profiles/promoters/${encodeURIComponent(id)}`),
-      apiFetch(`/promoters/${encodeURIComponent(id)}/tryouts`),
+    const [p, tryouts] = await Promise.all([
+      fetchWithTimeout(`/profiles/promoters/${encodeURIComponent(handle)}`, FETCH_TIMEOUT_MS),
+      fetchWithTimeout(`/promoters/${encodeURIComponent(handle)}/tryouts`, FETCH_TIMEOUT_MS).catch(() => []),
     ]);
-    render(containerEl, item, tryouts);
-  } catch (e) {
-    if (String(e).includes("API 401")) {
-      containerEl.innerHTML =
-        '<p class="muted">Please sign in to view this promotion.</p>';
+
+    if (!p || typeof p !== "object") {
+      if (!hadChildrenAtStart) {
+        wrap.innerHTML = `<div class="card"><h2>Promotion not found</h2><p class="muted">We couldn’t load ${h(
+          handle,
+        )}.</p></div>`;
+      }
       return;
     }
-    containerEl.innerHTML = '<p class="muted">Could not load promotion.</p>';
-    console.error(e);
+
+    const filled = fillExistingSlots(p, Array.isArray(tryouts) ? tryouts : []);
+    if (!filled && (!hadChildrenAtStart || wantsPublic)) {
+      renderFullPage(wrap, p, Array.isArray(tryouts) ? tryouts : []);
+    }
+  } catch (e) {
+    const msg = String(e || "");
+    console.error("promo_public: fetch failed", { error: msg });
+
+    if (hadChildrenAtStart) return;
+
+    if (msg.includes("API 401")) {
+      wrap.innerHTML = `<div class="card"><h2>Sign in required</h2><p class="muted">Please sign in to view this promotion.</p></div>`;
+      return;
+    }
+    if (msg === "fetch-timeout") {
+      wrap.innerHTML = `<div class="card"><h2>Slow response</h2><p class="muted">The profile service did not respond in time. Try again in a moment.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = `<div class="card"><h2>Promotion not found</h2><p class="muted">We couldn’t load ${h(
+      handle,
+    )}.</p></div>`;
   }
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init, { once: true });
+  document.addEventListener("DOMContentLoaded", run);
 } else {
-  init();
+  run();
 }

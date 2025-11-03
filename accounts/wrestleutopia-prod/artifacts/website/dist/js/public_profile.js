@@ -1,30 +1,25 @@
-// /js/public_profile.js
 import { apiFetch } from "/js/api.js";
 import { mediaUrl } from "/js/media.js";
 
 const needsBust = (k) =>
   /^public\/wrestlers\/profiles\//.test(String(k)) ||
-  /^profiles\//.test(String(k)); // legacy keys
+  /^profiles\//.test(String(k));
 
 function getHandleFromUrl() {
   const { pathname, search, hash } = location;
   const parts = pathname.replace(/\/+$/, "").split("/").filter(Boolean);
 
-  // Prefer hash form first
   let handle = hash ? hash.slice(1) : "";
 
-  // If no hash, allow /w/?handle=xyz
   if (!handle) {
     const q = new URLSearchParams(search);
     handle = q.get("handle") || "";
   }
 
-  // If still no handle and URL is /w/<handle>, canonicalize to /w/#<handle>
   if (!handle && parts[0] === "w" && parts[1] && parts[1] !== "index.html") {
     const h = decodeURIComponent(parts[1]);
-    // Rewrite once to the hash form (no history entry to avoid loops)
     location.replace(`/w/#${encodeURIComponent(h)}`);
-    return ""; // stop current init; page will reload with hash
+    return "";
   }
 
   try {
@@ -52,12 +47,10 @@ function toast(text, type = "success") {
 }
 
 async function init() {
-  // Only run on the public page to avoid stray errors
   if (!/\/w(\/|$)/.test(location.pathname)) return;
 
   const handle = getHandleFromUrl();
   if (!handle) {
-    // If we just canonicalized, bail out; otherwise show message
     if (location.hash) return;
     html(
       "profile",

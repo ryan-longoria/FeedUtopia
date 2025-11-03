@@ -1,10 +1,8 @@
-// /js/promo_me.js
 import { apiFetch, uploadToS3, md5Base64 } from "/js/api.js";
 import { getAuthState, isPromoter } from "/js/roles.js";
 import { mediaUrl } from "/js/media.js";
 
 (() => {
-  // ---------- tiny DOM helpers ----------
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   const setVal = (id, v = "") => {
@@ -12,20 +10,16 @@ import { mediaUrl } from "/js/media.js";
     if (el) el.value = v ?? "";
   };
 
-  // Cache-bust logos/covers on ~5 min boundaries (like profile_me)
   const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
 
-  // Limits/allow-lists aligned with profile_me.js
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
   const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
   const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
   const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm", "video/ogg"]);
 
-  // State for gallery photos and highlight videos/links
-  let mediaKeys = [];   // array of S3 object keys (images)
-  let highlights = [];  // array of https URLs or keys
+  let mediaKeys = [];
+  let highlights = [];
 
-  // -------- media base guard (like profile_me) --------
   function safeMediaBase(raw) {
     if (typeof raw !== "string" || !raw) return "";
     try {
@@ -77,7 +71,6 @@ import { mediaUrl } from "/js/media.js";
     );
   }
 
-  // ---------- image helpers ----------
   function setLogoImg(sel, key) {
     const el = typeof sel === "string" ? $(sel) : sel;
     if (!el) return;
@@ -95,7 +88,6 @@ import { mediaUrl } from "/js/media.js";
     return key ? mediaUrl(String(key)) : "/assets/avatar-fallback.svg";
   }
 
-  // ---------- UX helpers ----------
   function toast(text, type = "success") {
     const t = $("#toast");
     if (!t) {
@@ -122,19 +114,16 @@ import { mediaUrl } from "/js/media.js";
     }
   }
 
-  // ---------- role/auth ----------
   async function ensurePromoter() {
     const s = await getAuthState();
     if (!isPromoter(s)) {
       toast("Promoter role required", "error");
-      // mirror profile_me behavior when not authorized
       location.replace("/login.html?next=/promo_me.html");
       return null;
     }
     return s;
   }
 
-  // ---------- validation ----------
   function assertFileAllowed(file, kind = "image") {
     if (!file) return "No file selected";
     const typeSet = kind === "video" ? VIDEO_TYPES : IMAGE_TYPES;
@@ -144,19 +133,15 @@ import { mediaUrl } from "/js/media.js";
     return null;
   }
 
-  // Normalize/validate external highlight URLs (https + allowlist)
   function safeHighlightUrl(raw) {
     try {
       const url = new URL(raw, location.origin);
       if (url.protocol !== "https:") return null;
 
-      // Allow same-origin absolute media links
       if (url.origin === location.origin) return url.toString();
 
-      // Otherwise enforce host allowlist
       if (!ALLOWED_HIGHLIGHT_HOSTS.has(url.host)) return null;
 
-      // Normalize youtu.be -> youtube watch form (public renderer can embed)
       if (url.host === "youtu.be") {
         const id = url.pathname.slice(1);
         if (!id) return null;
@@ -169,11 +154,10 @@ import { mediaUrl } from "/js/media.js";
     }
   }
 
-  // ---------- DOM renderers (safe, no innerHTML with user HTML) ----------
   function renderPhotoGrid() {
     const wrap = document.getElementById("photoGrid");
     if (!wrap) return;
-    wrap.textContent = ""; // clear safely
+    wrap.textContent = "";
 
     (mediaKeys || []).forEach((k, i) => {
       const card = document.createElement("div");
@@ -245,7 +229,6 @@ import { mediaUrl } from "/js/media.js";
     });
   }
 
-  // ---------- uploads (presign preferred, fallback to uploadToS3) ----------
   async function putViaPresign(presign, file, md5b64) {
     const ac = new AbortController();
     const t = setTimeout(() => ac.abort(), 25_000);
@@ -271,7 +254,6 @@ import { mediaUrl } from "/js/media.js";
     const err = assertFileAllowed(file, kind);
     if (err) throw new Error(err);
 
-    // Try role-aware presign first
     const md5b64 = await md5Base64(file).catch(() => null);
     const presign = await apiFetch("/media/presign", {
       method: "POST",
@@ -279,7 +261,7 @@ import { mediaUrl } from "/js/media.js";
         filename: file.name,
         contentType: file.type || "application/octet-stream",
         md5: md5b64 || undefined,
-        ...meta, // e.g., { actor: "promoter", type: "gallery", kind: "image" }
+        ...meta,
       },
     }).catch(() => null);
 
@@ -288,7 +270,6 @@ import { mediaUrl } from "/js/media.js";
       return presign.objectKey;
     }
 
-    // Legacy fallback
     return uploadToS3(file.name, file.type || "application/octet-stream", file, meta);
   }
 
@@ -306,13 +287,11 @@ import { mediaUrl } from "/js/media.js";
     return uploadGeneric(file, { actor: "promoter", type: "logo", kind: "image" });
   }
 
-  // ---------- load profile ----------
   async function loadMe() {
     try {
       const me = await apiFetch("/profiles/promoters/me");
       if (!me || !me.userId) return;
 
-      // Base fields
       setVal("orgName", me.orgName);
       setVal("address", me.address);
       setVal("city", me.city);
@@ -322,7 +301,6 @@ import { mediaUrl } from "/js/media.js";
       setVal("contact", me.contact);
       setVal("bio", me.bio);
 
-      // Socials
       if (me.socials && typeof me.socials === "object") {
         const s = me.socials;
         if (s.twitter) setVal("social_twitter", s.twitter);
@@ -333,10 +311,8 @@ import { mediaUrl } from "/js/media.js";
         if (s.website) setVal("social_website", s.website);
       }
 
-      // Media
       mediaKeys = Array.isArray(me.mediaKeys) ? [...me.mediaKeys] : [];
 
-      // Highlights: normalize to https URLs or keys
       highlights = Array.isArray(me.highlights)
         ? me.highlights
             .map((item) => {
@@ -365,7 +341,6 @@ import { mediaUrl } from "/js/media.js";
       renderPhotoGrid();
       renderHighlightList();
 
-      // Logo preview
       setLogoImg("#logoPreview", me.logoKey || me.logo_key || null);
     } catch (e) {
       const status = e?.status || e?.response?.status;
@@ -377,7 +352,6 @@ import { mediaUrl } from "/js/media.js";
     }
   }
 
-  // ---------- init & events ----------
   async function init() {
     const state = await ensurePromoter();
     if (!state) return;
@@ -387,7 +361,6 @@ import { mediaUrl } from "/js/media.js";
     const logoInput = document.getElementById("logo");
     const logoPreview = document.getElementById("logoPreview");
 
-    // Live logo preview + object URL cleanup
     logoInput?.addEventListener("change", () => {
       const f = logoInput.files?.[0];
       if (!f || !logoPreview) return;
@@ -404,7 +377,6 @@ import { mediaUrl } from "/js/media.js";
       logoPreview.src = currentLogoObjectUrl;
     });
 
-    // Add gallery photos (multi-upload)
     document.getElementById("addPhotosBtn")?.addEventListener("click", async () => {
       const input = document.getElementById("photoFiles");
       const files = Array.from(input?.files || []);
@@ -432,7 +404,6 @@ import { mediaUrl } from "/js/media.js";
       }
     });
 
-    // Add highlight by URL
     document.getElementById("addHighlightUrlBtn")?.addEventListener("click", () => {
       const el = document.getElementById("highlightUrl");
       const u = (el?.value || "").trim();
@@ -447,7 +418,6 @@ import { mediaUrl } from "/js/media.js";
       if (el) el.value = "";
     });
 
-    // Upload highlight video file
     document.getElementById("uploadHighlightBtn")?.addEventListener("click", async () => {
       const input = document.getElementById("highlightFile");
       const f = input?.files?.[0];
@@ -473,7 +443,6 @@ import { mediaUrl } from "/js/media.js";
       }
     });
 
-    // Save handler with cooldown (aligned with profile_me)
     let lastSaveAt = 0;
     const SAVE_COOLDOWN_MS = 3000;
     const SAVE_TIMEOUT_MS = 12_000;
@@ -502,7 +471,6 @@ import { mediaUrl } from "/js/media.js";
       setDisabled(saveBtn, true, "Saving…");
 
       try {
-        // Collect fields from inputs
         const data = {
           orgName: ($("#orgName")?.value || "").trim(),
           address: ($("#address")?.value || "").trim(),
@@ -514,7 +482,6 @@ import { mediaUrl } from "/js/media.js";
           bio: ($("#bio")?.value || "").trim() || null,
         };
 
-        // Socials (only include non-empty)
         const socials = {
           twitter: ($("#social_twitter")?.value || "").trim() || null,
           instagram: ($("#social_instagram")?.value || "").trim() || null,
@@ -528,15 +495,12 @@ import { mediaUrl } from "/js/media.js";
         });
         if (Object.keys(socials).length) data.socials = socials;
 
-        // Upload logo if provided
         const logoKey = await uploadLogoIfAny().catch(() => null);
         if (logoKey) data.logoKey = logoKey;
 
-        // Attach media arrays
         data.mediaKeys = mediaKeys;
         data.highlights = highlights;
 
-        // Save with timeout/abort
         const ac = new AbortController();
         const saved = await withTimeout(
           apiFetch("/profiles/promoters", { method: "PUT", body: data, signal: ac.signal }),
@@ -546,7 +510,6 @@ import { mediaUrl } from "/js/media.js";
 
         toast("Promotion saved!");
 
-        // Ensure preview reflects any new logo immediately
         const newLogo =
           saved?.logoKey || saved?.logo_key || logoKey || null;
         if (newLogo && logoPreview) {
