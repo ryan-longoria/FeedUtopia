@@ -320,36 +320,6 @@ function fillExistingSlots(p, tryouts) {
     touched = true;
   }
 
-  const rosterEl = getSlot(["pp-roster", "roster"]);
-  if (rosterEl) {
-    const roster = Array.isArray(p.rosterHandles) ? p.rosterHandles : [];
-    const hasHeading = slotHasHeading(rosterEl);
-    if (roster.length) {
-      rosterEl.innerHTML = `
-        ${hasHeading ? "" : "<h2>Roster</h2>"}
-        <div class="media-grid mt-2">
-          ${roster
-            .slice(0, 48)
-            .map(
-              (hh) => `
-              <a class="media-card" href="/w/#${encodeURIComponent(hh)}" aria-label="View roster profile ${h(
-                hh,
-              )}">
-                <img src="/assets/avatar-fallback.svg" alt="">
-              </a>`,
-            )
-            .join("")}
-        </div>
-      `;
-    } else {
-      rosterEl.innerHTML = `
-        ${hasHeading ? "" : "<h2>Roster</h2>"}
-        <div class="card"><p class="muted">No roster published.</p></div>
-      `;
-    }
-    touched = true;
-  }
-
   return touched;
 }
 
@@ -408,7 +378,6 @@ function renderFullPage(wrap, p, tryouts) {
           <a href="#photos">Photos</a>
           <a href="#videos">Videos</a>
           <a href="#tryouts">Events</a>
-          ${Array.isArray(p.rosterHandles) && p.rosterHandles.length ? `<a href="#roster">Roster</a>` : ""}
         </div>
       </nav>
 
@@ -461,28 +430,6 @@ function renderFullPage(wrap, p, tryouts) {
         <h2>Upcoming Events</h2>
         ${renderTryoutsList(tryouts)}
       </div>
-
-      ${
-        Array.isArray(p.rosterHandles) && p.rosterHandles.length
-          ? `
-        <div id="roster" class="mt-3 card" style="scroll-margin-top: 90px;">
-          <h2 class="mt-0">Roster</h2>
-          <div class="media-grid mt-2">
-            ${p.rosterHandles
-              .slice(0, 48)
-              .map(
-                (hh) => `
-              <a class="media-card" href="/w/#${encodeURIComponent(hh)}" aria-label="View roster profile ${h(
-                hh,
-              )}">
-                <img src="/assets/avatar-fallback.svg" alt="">
-              </a>`,
-              )
-              .join("")}
-          </div>
-        </div>`
-          : ""
-      }
     </section>
   `;
 
