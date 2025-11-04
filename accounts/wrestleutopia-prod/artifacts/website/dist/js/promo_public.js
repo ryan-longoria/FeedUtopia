@@ -149,7 +149,7 @@ function slotHasHeading(el) {
 
 function renderTryoutsList(list) {
   if (!Array.isArray(list) || !list.length)
-    return `<div class="card"><p class="muted">No open tryouts.</p></div>`;
+    return `<div class="card"><p class="muted">No open events.</p></div>`;
 
   const fmtDate = (d) => {
     try {
@@ -318,7 +318,7 @@ function fillExistingSlots(p, tryouts) {
   if (tryEl) {
     const hasHeading = slotHasHeading(tryEl);
     tryEl.innerHTML = `
-      ${hasHeading ? "" : "<h2>Upcoming Tryouts</h2>"}
+      ${hasHeading ? "" : "<h2>Upcoming Events</h2>"}
       ${renderTryoutsList(tryouts)}
     `;
     touched = true;
@@ -411,7 +411,7 @@ function renderFullPage(wrap, p, tryouts) {
           <a href="#about" aria-current="page">About</a>
           <a href="#photos">Photos</a>
           <a href="#videos">Videos</a>
-          <a href="#tryouts">Tryouts</a>
+          <a href="#tryouts">Events</a>
           ${Array.isArray(p.rosterHandles) && p.rosterHandles.length ? `<a href="#roster">Roster</a>` : ""}
         </div>
       </nav>
@@ -462,7 +462,7 @@ function renderFullPage(wrap, p, tryouts) {
       </div>
 
       <div id="tryouts" class="mt-3" style="scroll-margin-top: 90px;">
-        <h2>Upcoming Tryouts</h2>
+        <h2>Upcoming Events</h2>
         ${renderTryoutsList(tryouts)}
       </div>
 

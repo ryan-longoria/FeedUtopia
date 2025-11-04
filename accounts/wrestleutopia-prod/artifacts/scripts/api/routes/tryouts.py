@@ -25,10 +25,10 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
 _ALLOWED_STATUS = {"open", "closed", "filled"}
 
 _TRYOUT_PROJECTION = (
-    "tryoutId, ownerId, orgName, city, #d, slots, requirements, contact, "
+    "tryoutId, ownerId, orgName, eventName, city, #d, slots, requirements, contact, "
     "#s, createdAt"
 )
-_TRYOUT_EAN = {"#d": "date", "#s": "status"}
+_TRYOUT_EAN = {"#d": "date", "#s": "status", "#e": "eventName"}
 
 
 def _request_id(event: Dict[str, Any]) -> str:
@@ -83,6 +83,8 @@ def _normalize_tryout_item(it: dict) -> dict:
     if "org" not in it and "orgName" in it:
         it["org"] = it.get("orgName")
     it["status"] = (it.get("status") or "open").strip().lower()
+    if it.get("title") and not it.get("eventName"):
+        it["eventName"] = it["title"]
     return it
 
 
@@ -212,6 +214,10 @@ def _post_tryout(sub, groups, event):
     slots = max(0, min(10_000, slots))
 
     org_name = _safe_str(data.get("orgName") or data.get("org"), max_len=128)
+    event_name = _safe_str(
+        data.get("eventName") or data.get("event_name") or data.get("title"),
+        max_len=140,
+    )
     city = _safe_str(data.get("city"), max_len=96)
     requirements = _safe_str(data.get("requirements"), max_len=2048)
     contact = _safe_str(data.get("contact"), max_len=256)
@@ -221,6 +227,7 @@ def _post_tryout(sub, groups, event):
         "tryoutId": tryout_id,
         "ownerId": sub,
         "orgName": org_name,
+        "eventName": event_name,
         "city": city,
         "date": date_in,
         "slots": slots,

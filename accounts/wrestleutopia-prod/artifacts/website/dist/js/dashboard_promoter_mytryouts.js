@@ -38,8 +38,11 @@ async function setWelcomeFromProfile() {
   }
 }
 
+function h(s){return String(s??"").replace(/[&<>"]/g,c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));}
+
 function cardForTryout(t) {
   const id = t.tryoutId || t.id || "";
+  const eventName = t.eventName || t.event_name || t.title || "";
   const org = t.orgName || t.org || "Promotion";
   const ownerId = t.ownerId || "";
   const city = t.city || "—";
@@ -54,14 +57,24 @@ function cardForTryout(t) {
   div.className = "card";
   div.innerHTML = `
     <div class="badge">${status}</div>
-    <h3 style="margin:6px 0 2px">
-      ${ownerId ? `<a href="/p/#${encodeURIComponent(ownerId)}">${org}</a>` : org}
-    </h3>
-    <div class="muted">${city} • ${date}</div>
-    <p class="mt-3">${t.requirements || ""}</p>
+    <h3 style="margin:6px 0 2px">${h(eventName || org)}</h3>
+    <div class="muted">
+      ${eventName && org
+        ? (ownerId
+          ? `<a href="/p/#${encodeURIComponent(ownerId)}">${h(org)}</a>`
+          : h(org)) + " • "
+        : ""}
+      ${h(city)}${city && date ? " • " : ""}${h(date)}
+    </div>
+    <p class="mt-3">${h(t.requirements || "")}</p>
     <div class="mt-3" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <a class="btn small" href="tryouts.html#${id}">View</a>
-      <button class="btn small" type="button" data-view-applicants="${id}" data-org="${org}" data-city="${city}" data-date="${t.date || ""}">
+      <button class="btn small" type="button"
+        data-view-applicants="${encodeURIComponent(id)}"
+        data-event-name="${h(eventName)}"
+        data-org="${h(org)}"
+        data-city="${h(city)}"
+        data-date="${h(t.date || "")}">
         View Applicants
       </button>
       ${slots}
@@ -71,6 +84,7 @@ function cardForTryout(t) {
   btn?.addEventListener("click", (e) => {
     const b = e.currentTarget;
     window.openApplicantsModal?.(b.dataset.viewApplicants, {
+      eventName: b.dataset.eventName,
       org: b.dataset.org,
       city: b.dataset.city,
       date: b.dataset.date,
@@ -104,7 +118,7 @@ async function loadMyOrgIntoForm() {
     if (hint) {
       hint.innerHTML = org
         ? "Pulled from your Promotion profile."
-        : `No promotion profile yet. <a href="/promoter/">Create one</a> to post tryouts.`;
+        : `No promotion profile yet. <a href="/promoter/">Create one</a> to post events.`;
     }
     return org;
   } catch {
@@ -157,8 +171,8 @@ async function loadMyTryouts() {
     if (active.length === 0) {
       emptyState(
         activeEl,
-        "No active tryouts",
-        "Post a new tryout to get started.",
+        "No active events",
+        "Post a new event to get started.",
       );
     } else {
       activeEl.innerHTML = "";
@@ -168,8 +182,8 @@ async function loadMyTryouts() {
     if (previous.length === 0) {
       emptyState(
         prevEl,
-        "No previous tryouts",
-        "Once your tryouts pass, they will appear here.",
+        "No previous events",
+        "Once your events pass, they will appear here.",
       );
     } else {
       prevEl.innerHTML = "";
@@ -177,7 +191,7 @@ async function loadMyTryouts() {
     }
   } catch (e) {
     console.error("loadMyTryouts failed", e);
-    emptyState(activeEl, "Error", "Could not load your tryouts.");
+    emptyState(activeEl, "Error", "Could not load your events.");
   }
 }
 
@@ -223,6 +237,7 @@ async function wireTryoutForm() {
     const data = new FormData(form);
     const body = {
       orgName,
+      eventName: (data.get("event_name") || "").trim(),
       city: (data.get("city") || "").trim(),
       date: (data.get("date") || "").trim(),
       slots: Number(data.get("slots") || 0),
@@ -239,13 +254,13 @@ async function wireTryoutForm() {
     }
     try {
       await apiFetch("/tryouts", { method: "POST", body });
-      toastInline("Tryout posted!");
+      toastInline("Event posted!");
       form.reset();
       document.getElementById("org").value = orgName;
       await loadMyTryouts();
     } catch (err) {
       console.error(err);
-      toastInline("Could not post tryout", "error");
+      toastInline("Could not post event", "error");
     } finally {
       if (btn) {
         btn.disabled = false;

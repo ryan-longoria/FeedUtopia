@@ -33,7 +33,7 @@
       <div class="container">
         <h1 id="welcome">Welcome back…</h1>
         <p class="muted">
-          Here are your tryouts. Manage active ones and review your previous
+          Here are your events. Manage active ones and review your previous
           postings.
         </p>
         <div class="card" style="max-width: 720px">
@@ -47,7 +47,7 @@
           >
             <div class="muted">Need talent for an event?</div>
             <div class="quick">
-              <a class="btn small" href="#post-tryout">Post a Tryout</a>
+              <a class="btn small" href="#post-tryout">Post an Event</a>
               <a class="btn small secondary" href="/talent.html"
                 >Search Talent</a
               >
@@ -64,7 +64,7 @@
             <h2>Your Promotion Profile</h2>
             <p class="muted">
               Update your logo, contact info and bio. Wrestlers will see this
-              when they view your tryouts or click your promotion name.
+              when they view your events or click your promotion name.
             </p>
             <a class="btn small" href="/promoter/index.html"
               >Manage Promotion Profile</a
@@ -72,29 +72,29 @@
           </div>
 
           <div class="card" style="grid-column: 1 / -1">
-            <h2>Active Tryouts</h2>
+            <h2>Active Events</h2>
             <div id="my-active-tryouts" class="grid cols-3 mt-3"></div>
             <div class="mt-3">
               <a class="btn small secondary" href="#post-tryout"
-                >Post a new tryout</a
+                >Post a new event</a
               >
             </div>
           </div>
 
           <div class="card" style="grid-column: 1 / -1">
-            <h2>Previous Tryouts</h2>
+            <h2>Previous Events</h2>
             <div id="my-previous-tryouts" class="grid cols-3 mt-3"></div>
           </div>
 
           <div class="card" style="grid-column: 1 / -1">
             <h2>Applications</h2>
-            <div class="muted">Review applicants. Filter by your tryout.</div>
+            <div class="muted">Review applicants. Filter by your event.</div>
 
             <div class="form-row mt-2">
               <div style="min-width: 260px">
-                <label for="apps-filter">Filter by Tryout</label>
+                <label for="apps-filter">Filter by E</label>
                 <select id="apps-filter" class="input">
-                  <option value="">All my tryouts</option>
+                  <option value="">All my events</option>
                 </select>
               </div>
             </div>
@@ -121,8 +121,23 @@
           </dialog>
 
           <div id="post-tryout" class="card" style="grid-column: 1 / -1">
-            <h2>Post a Tryout</h2>
+            <h2>Post an Event</h2>
             <form id="tryout-form-dash" class="mt-2">
+              <div class="form-row">
+                <div style="grid-column: 1 / -1">
+                  <label for="event_name">Event Name</label>
+                  <input
+                    class="input"
+                    id="event_name"
+                    name="event_name"
+                    maxlength="140"
+                    required
+                    autocomplete="off"
+                    inputmode="text"
+                  />
+                  <div class="muted" style="font-size:12px">This title will appear on your event cards and listings.</div>
+                </div>
+              </div>
               <div class="form-row">
                 <div>
                   <label for="org">Organization</label>
@@ -179,9 +194,8 @@
                   />
                 </div>
               </div>
-              <button class="btn mt-3" type="submit">Post Tryout</button>
+              <button class="btn mt-3" type="submit">Post Event</button>
               <p class="muted mt-2" style="font-size: 12px">
-                Date must be YYYY-MM-DD (the date input will send that format).
               </p>
             </form>
           </div>
