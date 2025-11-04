@@ -297,7 +297,7 @@ function renderTryouts(list) {
   const items = Array.isArray(list) ? list : list ? [list] : [];
 
   if (items.length === 0) {
-    target.appendChild(el("p", { class: "muted", text: "No open tryouts yet." }));
+    target.appendChild(el("p", { class: "muted", text: "No open events yet." }));
     return;
   }
 
@@ -305,6 +305,7 @@ function renderTryouts(list) {
 
   for (const t of items) {
     const id = clean(t.tryoutId || t.id || "", 128);
+    const eventName = clean(t.eventName || t.event_name || t.title || "", 140);
     const org = clean(t.orgName || t.org || "", 140);
     const ownerId = clean(t.ownerId || "", 140);
     const city = clean(t.city || "", 120);
@@ -317,20 +318,15 @@ function renderTryouts(list) {
     const badge = el("div", { class: "badge", text: status });
     card.appendChild(badge);
 
-    const h3 = el("h3", { class: "mt-1 mb-0" });
-    if (ownerId) {
-      const a = el("a", {
-        href: `/p/#${encodeURIComponent(ownerId)}`,
-        text: org || "Organization",
-        rel: "noopener noreferrer"
-      });
-      h3.appendChild(a);
-    } else {
-      h3.textContent = org || "Organization";
+    card.appendChild(el("h3", { class: "mt-1 mb-0", text: eventName || org || "Tryout" }));
+    if (ownerId || org) {
+      const orgLine = ownerId
+        ? el("a", { href: `/p/#${encodeURIComponent(ownerId)}`, rel: "noopener noreferrer" }, org || "Organization")
+        : document.createTextNode(org || "Organization");
+      card.appendChild(el("div", { class: "muted" }, orgLine));
     }
-    card.appendChild(h3);
 
-    card.appendChild(el("div", { class: "muted", text: `${city}${city && dateStr ? " • " : ""}${dateStr}` }));
+    card.appendChild(el("div", { class: "muted", text: [city, dateStr].filter(Boolean).join(" • ") }));
     card.appendChild(el("p", { class: "mt-3", text: reqs }));
 
     const actions = el("div", { class: "mt-3" });
@@ -493,11 +489,11 @@ async function renderTryoutsListPanel() {
     }
   } catch (err) {
     if (String(err).includes("API 401")) {
-      listEl.replaceChildren(el("p", { class: "muted", text: "Please sign in to view tryouts." }));
+      listEl.replaceChildren(el("p", { class: "muted", text: "Please sign in to view events." }));
       return;
     }
     console.error(err);
-    listEl.replaceChildren(el("p", { class: "muted", text: "Could not load tryouts." }));
+    listEl.replaceChildren(el("p", { class: "muted", text: "Could not load events." }));
   }
 }
 
@@ -598,6 +594,7 @@ async function wireForms() {
           const slots = toNum(o.slots, { min: 0, max: 100000 });
 
           const body = {
+            eventName: clean(o.event_name || o.eventName || o.title, 140),
             orgName: clean(o.org, 140),
             city: clean(o.city, 120),
             date: dateIso,
@@ -612,12 +609,12 @@ async function wireForms() {
             body,
             headers: { "Idempotency-Key": crypto.randomUUID() }
           });
-          toast("Tryout posted!");
+          toast("Event posted!");
           tryoutForm.reset();
           await renderTryoutsListPanel();
         } catch (err) {
           console.error(err);
-          toast("Could not post tryout", "error");
+          toast("Could not post event", "error");
         }
       })
     );

@@ -47,11 +47,11 @@ function renderApps(list) {
       <div style="display:flex;gap:12px;align-items:center">
         <img src="${photo}" alt="" width="56" height="56" class="avatar br-full" loading="lazy"/>
         <div style="flex:1">
-          <div class="text-lg">${stage}</div>
-          <div class="muted">${loc || ""}</div>
+          <div class="text-lg">${h(stage)}</div>
+          <div class="muted">${h(loc || "")}</div>
           <div class="muted small mt-1">${when}</div>
-          ${a.notes ? `<p class="mt-2">${String(a.notes).replace(/</g, "&lt;")}</p>` : ""}
-          ${a.reelLink ? `<p class="mt-1"><a href="${a.reelLink}" target="_blank" rel="noopener">Watch Reel</a></p>` : ""}
+          ${a.notes ? `<p class="mt-2">${h(a.notes)}</p>` : ""}
+          ${a.reelLink ? `<p class="mt-1"><a href="${h(a.reelLink)}" target="_blank" rel="noopener">Watch Reel</a></p>` : ""}
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
           ${handle ? `<a class="btn small" href="/w/#${encodeURIComponent(handle)}">View Profile</a>` : ""}
@@ -69,6 +69,7 @@ function renderAppsIntoModal(list, meta = {}) {
   if (!box || !dlg) return;
 
   const labelBits = [
+    meta.eventName && `<strong>${h(meta.eventName)}</strong>`,
     meta.org && `<strong>${h(meta.org)}</strong>`,
     meta.city && h(meta.city),
     meta.date && new Date(meta.date).toLocaleDateString(),
@@ -94,9 +95,7 @@ function renderAppsIntoModal(list, meta = {}) {
       const reel = a.reelLink
         ? `<a href="${h(a.reelLink)}" target="_blank" rel="noopener">Reel</a>`
         : "";
-      const notes = a.notes
-        ? `<div class="muted mt-1">${h(a.notes)}</div>`
-        : "";
+      const notes = a.notes ? `<div class="muted mt-1">${h(a.notes)}</div>` : "";
 
       return `
       <div class="card" style="margin-bottom:10px">
@@ -150,7 +149,9 @@ async function loadTryoutOptionsAndPick() {
       const opt = document.createElement("option");
       opt.value = t.tryoutId || "";
       const date = t.date ? new Date(t.date).toLocaleDateString() : "";
-      opt.textContent = `${t.orgName || "Tryout"} — ${t.city || ""}${date ? ` • ${date}` : ""}`;
+      const title = t.eventName || t.orgName || "Tryout";
+      const org   = t.orgName && t.eventName ? ` (${t.orgName})` : "";
+      opt.textContent = `${title}${org} — ${t.city || ""}${date ? ` • ${date}` : ""}`;
       sel.appendChild(opt);
     }
 
@@ -184,7 +185,7 @@ async function init() {
     if (id) loadApplications(id);
     else {
       document.getElementById("app-list").innerHTML =
-        `<div class="card"><p class="muted">Choose a tryout to see applicants.</p></div>`;
+        `<div class="card"><p class="muted">Choose an event to see applicants.</p></div>`;
     }
   });
 }

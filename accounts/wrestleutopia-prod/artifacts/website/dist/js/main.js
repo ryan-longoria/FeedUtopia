@@ -161,7 +161,7 @@ async function renderHomeTryouts(groups, { signal } = {}) {
     paintTryoutsCards(tryoutList, asItems(cached.data).slice(0, 6));
   } else {
     tryoutList.textContent = "";
-    tryoutList.append(el("p", { class: "muted" }, "Loading tryouts..."));
+    tryoutList.append(el("p", { class: "muted" }, "Loading events..."));
   }
 
   try {
@@ -171,7 +171,7 @@ async function renderHomeTryouts(groups, { signal } = {}) {
     } catch (e) {
       if (String(e).includes("401")) {
         tryoutList.textContent = "";
-        tryoutList.append(el("p", { class: "muted" }, "Sign in to see current tryouts."));
+        tryoutList.append(el("p", { class: "muted" }, "Sign in to see current events."));
         return;
       }
       throw e;
@@ -183,7 +183,7 @@ async function renderHomeTryouts(groups, { signal } = {}) {
   } catch (err) {
     log.error("Failed to load home tryouts", { err: String(err) });
     tryoutList.textContent = "";
-    tryoutList.append(el("p", { class: "muted" }, "Could not load tryouts."));
+    tryoutList.append(el("p", { class: "muted" }, "Could not load events."));
   }
 }
 
@@ -191,13 +191,14 @@ function paintTryoutsCards(container, items) {
   container.textContent = "";
   const top = Array.isArray(items) ? items : [];
   if (top.length === 0) {
-    container.append(el("p", { class: "muted" }, "No open tryouts yet."));
+    container.append(el("p", { class: "muted" }, "No open events yet."));
     return;
   }
 
   const cap = top.slice(0, 6);
   cap.forEach((t) => {
     const id = t.tryoutId || t.id || "";
+    const eventName = t.eventName || t.event_name || t.title || "";
     const org = t.orgName || t.org || "";
     const city = t.city || "";
     const dateText = safeDateText(t.date);
@@ -298,7 +299,7 @@ async function renderTryoutsPage({ signal } = {}) {
     paintTryoutsGrid(grid, asItems(cached.data));
   } else {
     grid.textContent = "";
-    grid.append(el("p", { class: "muted" }, "Loading tryouts..."));
+    grid.append(el("p", { class: "muted" }, "Loading events..."));
   }
 
   try {
@@ -308,7 +309,7 @@ async function renderTryoutsPage({ signal } = {}) {
     } catch (e) {
       if (String(e).includes("401")) {
         grid.textContent = "";
-        grid.append(el("p", { class: "muted" }, "Sign in to see current tryouts."));
+        grid.append(el("p", { class: "muted" }, "Sign in to see current events."));
         return;
       }
       throw e;
@@ -322,7 +323,7 @@ async function renderTryoutsPage({ signal } = {}) {
   } catch (err) {
     log.error("Failed to load tryouts page", { err: String(err) });
     grid.textContent = "";
-    grid.append(el("p", { class: "muted" }, "Could not load tryouts."));
+    grid.append(el("p", { class: "muted" }, "Could not load events."));
   }
 }
 
@@ -330,12 +331,13 @@ function paintTryoutsGrid(grid, list) {
   grid.textContent = "";
   const items = Array.isArray(list) ? list : [];
   if (!items.length) {
-    grid.append(el("p", { class: "muted" }, "No open tryouts yet."));
+    grid.append(el("p", { class: "muted" }, "No open events yet."));
     return;
   }
 
   items.slice(0, 200).forEach((t) => {
     const id = t.tryoutId || t.id || "";
+    const eventName = t.eventName || t.event_name || t.title || "";
     const org = t.orgName || t.org || "";
     const city = t.city || "";
     const dateText = safeDateText(t.date);
@@ -345,8 +347,9 @@ function paintTryoutsGrid(grid, list) {
     const card = el("div", { class: "card" });
     card.append(el("div", { class: "badge" }, status));
 
-    const h3 = el("h3", { style: "margin:6px 0 2px" }, org);
-    const meta = el("div", { class: "muted" }, [city, dateText].filter(Boolean).join(" • "));
+    const h3 = el("h3", { style: "margin:6px 0 2px" }, eventName || org);
+    const metaBits = [org && eventName ? org : null, city, dateText].filter(Boolean);
+    const meta = el("div", { class: "muted" }, metaBits.join(" • "));
     const p = el("p", { class: "mt-3" }, reqs);
 
     const actions = el("div", { class: "mt-3" });

@@ -97,6 +97,7 @@ async function setRingNameFromProfile() {
 
 function renderTryoutCard(t) {
   const id = String(t.tryoutId ?? t.id ?? "");
+  const eventName = String(t.eventName ?? t.event_name ?? t.title ?? "");
   const org = String(t.orgName ?? t.org ?? "Promotion");
   const ownerId = String(t.ownerId ?? "");
   const city = String(t.city ?? "—");
@@ -105,12 +106,13 @@ function renderTryoutCard(t) {
   const status = String(t.status ?? "open").toUpperCase();
   const card = el("div", { className: "card" }, [
     el("div", { className: "badge", text: status }),
-    el("h3", { className: "mt-1" }, [ ownerId ? el("a", { href: `/p/#${encodeURIComponent(ownerId)}`, text: org }) : el("span", { text: org }) ]),
-    el("div", { className: "muted", text: `${city} • ${date}` }),
+    el("h3", { className: "mt-1" }, [ eventName ? el("span", { text: eventName }) : (ownerId ? el("a", { href: `/p/#${encodeURIComponent(ownerId)}`, text: org }) : el("span", { text: org })) ]),
+    el("div", { className: "muted", text: [eventName ? org : null, `${city}`, `${date}`].filter(Boolean).join(" • ") }),
     el("p", { className: "mt-3", text: reqs })
   ]);
+  const applyLabel = eventName ? `Apply to ${eventName}` : `Apply to ${org}`;
   const cta = el("div", { className: "mt-3" }, [
-    el("a", { className: "btn small", href: `tryouts.html#${encodeURIComponent(id)}`, "data-requires": "wrestler", text: "Apply", "aria-label": `Apply to ${org}` })
+    el("a", { className: "btn small", href: `tryouts.html#${encodeURIComponent(id)}`, "data-requires": "wrestler", text: "Apply", "aria-label": applyLabel })
   ]);
   if (typeof t.slots === "number") cta.appendChild(el("span", { className: "muted ml-10", text: `Slots: ${t.slots}` }));
   card.appendChild(cta);
@@ -120,9 +122,9 @@ function renderTryoutCard(t) {
 function renderEmptyTryouts(target, opts = {}) {
   clearNode(target);
   const card = el("div", { className: "card" }, [
-    el("h3", { text: opts.title || "No recommended tryouts yet" }),
-    el("p", { className: "muted", text: opts.desc || "We couldn’t find any upcoming open tryouts right now. Check back soon or browse all tryouts." }),
-    el("div", { className: "mt-3" }, [ el("a", { className: "btn small secondary", href: "tryouts.html", text: "Browse all tryouts" }) ])
+    el("h3", { text: opts.title || "No recommended events yet" }),
+    el("p", { className: "muted", text: opts.desc || "We couldn’t find any upcoming open events right now. Check back soon or browse all events." }),
+    el("div", { className: "mt-3" }, [ el("a", { className: "btn small secondary", href: "tryouts.html", text: "Browse all events" }) ])
   ]);
   target.appendChild(card);
 }
@@ -135,7 +137,7 @@ function scoreTryout(t, profile) {
     if (cityMatch) score += 20;
     const styles = Array.isArray(profile.styles) ? profile.styles.map((s) => String(s).toLowerCase()) : [];
     if (styles.length) {
-      const text = [t.requirements, t.title, t.orgName, t.org].filter(Boolean).join(" ").toLowerCase();
+      const text = [t.requirements, t.eventName, t.title, t.orgName, t.org].filter(Boolean).join(" ").toLowerCase();
       const overlaps = styles.filter((s) => text.includes(s)).length;
       score += Math.min(20, overlaps * 7);
     }
@@ -147,7 +149,7 @@ async function loadRecommendedTryouts() {
   const target = document.getElementById("dash-tryouts");
   if (!target) return;
   clearNode(target);
-  target.appendChild(el("div", { className: "card" }, [ el("h3", { text: "Loading recommended tryouts…" }), el("p", { className: "muted", text: "Fetching the latest openings for you." }) ]));
+  target.appendChild(el("div", { className: "card" }, [ el("h3", { text: "Loading recommended events..." }), el("p", { className: "muted", text: "Fetching the latest openings for you." }) ]));
   try {
     const s = await getAuthState().catch(() => null);
     if (!isWrestler(s)) { renderEmptyTryouts(target); return; }
@@ -164,7 +166,7 @@ async function loadRecommendedTryouts() {
         const msg = String(e);
         if (msg.includes("API 401")) {
           clearNode(target);
-          target.appendChild(el("div", { className: "card" }, [ el("p", { className: "muted", text: "Please sign in to view recommended tryouts." }) ]));
+          target.appendChild(el("div", { className: "card" }, [ el("p", { className: "muted", text: "Please sign in to view recommended events." }) ]));
           return;
         }
         throw e;
@@ -184,24 +186,27 @@ async function loadRecommendedTryouts() {
     console.error("dash recommended tryouts error", { corr: PAGE_CORR_ID, msg });
     const transient = /client-timeout|5\d\d|NetworkError|fetch failed/i.test(msg);
     const corsy = /CORS|TypeError: NetworkError|Failed to fetch|Access-Control-Allow-Origin/i.test(msg);
-    renderEmptyTryouts(target, corsy ? { title: "We can’t reach the API (CORS blocked)", desc: "If you’re the site owner, ensure the API returns the correct CORS headers and avoids 204 on GET." } : transient ? { title: "We’re having trouble loading tryouts", desc: "This might be a temporary issue. Please refresh in a moment." } : undefined);
+    renderEmptyTryouts(target, corsy ? { title: "We can’t reach the API (CORS blocked)", desc: "If you’re the site owner, ensure the API returns the correct CORS headers and avoids 204 on GET." } : transient ? { title: "We’re having trouble loading events", desc: "This might be a temporary issue. Please refresh in a moment." } : undefined);
   }
 }
 
 function renderEmptyApps(target) {
   clearNode(target);
-  const card = el("div", { className: "card" }, [ el("h3", { text: "No applications yet" }), el("p", { className: "muted", text: "When you apply to a tryout, it will show up here." }) ]);
+  const card = el("div", { className: "card" }, [ el("h3", { text: "No applications yet" }), el("p", { className: "muted", text: "When you apply to an event, it will show up here." }) ]);
   target.appendChild(card);
 }
 
 function renderAppCard(a) {
   const reel = a.reelLink || a.reel || "#";
   const when = a.timestamp || a.created_at || a.createdAt || new Date().toISOString();
-  const org = a.tryoutOrg || a.orgName || a.org || "Tryout";
+  const event = a.eventName || a.tryoutEvent || "";
+  const org = a.tryoutOrg || a.orgName || a.org || "";
+  const title = event || org || "Tryout";
   const status = String(a.status ?? "submitted").toUpperCase();
   const card = el("div", { className: "card" }, [
     el("div", { className: "badge", text: status }),
-    el("div", { className: "mt-1" }, [ el("strong", { text: String(org) }) ]),
+    el("div", { className: "mt-1" }, [ el("strong", { text: String(title) }) ]),
+    event && org ? el("div", { className: "muted" , text: org }) : null,
     el("div", { className: "mt-2" }, [ safeLink(reel, "Reel"), document.createTextNode(" • "), el("span", { className: "muted", text: new Date(when).toLocaleString() }) ])
   ]);
   if (a.notes) card.appendChild(el("div", { className: "mt-2", text: String(a.notes) }));
