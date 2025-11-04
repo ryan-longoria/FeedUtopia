@@ -148,18 +148,15 @@ function slotHasHeading(el) {
 }
 
 function renderTryoutsList(list) {
-  if (!Array.isArray(list) || !list.length)
+  if (!Array.isArray(list) || !list.length) {
     return `<div class="card"><p class="muted">No open events.</p></div>`;
+  }
 
   const fmtDate = (d) => {
     try {
       const dt = new Date(d);
       if (isNaN(dt)) return "";
-      return dt.toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
+      return dt.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
     } catch {
       return "";
     }
@@ -167,29 +164,28 @@ function renderTryoutsList(list) {
 
   return `
     <div class="grid cols-2 mt-2">
-      ${list
-        .map((t) => {
-          const date = t.date ? fmtDate(t.date) : "";
-          const city = [t.city, t.region, t.country].filter(Boolean).join(", ");
-          const title = h(t.orgName || "Tryout");
-          const status = h((t.status || "open").toUpperCase());
-          const tid = h(t.tryoutId || "");
-          return `
-            <div class="card">
-              <div class="badge">${status}</div>
-              <h3 style="margin:6px 0 2px">${title}</h3>
-              <div class="muted">${h(city)}${date ? ` • ${h(date)}` : ""}</div>
-              ${
-                t.requirements
-                  ? `<p class="mt-2">${h(String(t.requirements)).replace(/\n/g, "<br/>")}</p>`
-                  : ""
-              }
-              ${tid ? `<a class="btn small mt-2" href="/tryouts.html#${tid}">View</a>` : ""}
-            </div>`;
-        })
-        .join("")}
+      ${list.map((t) => {
+        const eventName = t.eventName || t.event_name || t.title || "";
+        const org = t.orgName || t.org || "Promotion";
+        const date = t.date ? fmtDate(t.date) : "";
+        const city = [t.city, t.region, t.country].filter(Boolean).join(", ");
+        const status = h((t.status || "open").toUpperCase());
+        const tid = t.tryoutId ? encodeURIComponent(String(t.tryoutId)) : "";
+
+        return `
+          <div class="card">
+            <div class="badge">${status}</div>
+            <h3 style="margin:6px 0 2px">${h(eventName || org || "Tryout")}</h3>
+            <div class="muted">
+              ${h(org)}${(org && (city || date)) ? " • " : ""}${h(city)}${(city && date) ? " • " : ""}${h(date)}
+            </div>
+            ${t.requirements ? `<p class="mt-2">${h(String(t.requirements)).replace(/\n/g, "<br/>")}</p>` : ""}
+            ${tid ? `<a class="btn small mt-2" href="/tryouts.html#${tid}">View</a>` : ""}
+          </div>`;
+      }).join("")}
     </div>`;
 }
+
 
 function fillExistingSlots(p, tryouts) {
   let touched = false;
