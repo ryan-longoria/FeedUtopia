@@ -846,3 +846,8 @@ label {
   gap: 10px;
   width: 100%;
 }
+
+input[readonly] {
+  background: #f6f6f6;
+  cursor: not-allowed;
+}

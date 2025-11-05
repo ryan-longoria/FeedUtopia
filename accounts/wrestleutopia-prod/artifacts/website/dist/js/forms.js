@@ -116,6 +116,40 @@ async function userGroups() {
   }
 }
 
+export async function loadMyWrestlerProfile() {
+  try {
+    const prof = await apiFetch("/profiles/wrestlers/me");
+    return {
+      ring: (prof.ring || prof.ringName || prof.stageName || "").toString().slice(0, 80),
+      name: (prof.name || "").toString().slice(0, 120),
+    };
+  } catch {
+    return { ring: "", name: "" };
+  }
+}
+
+export function fillAndLockApplicantFields({ ring, name }) {
+  const ringEl = document.getElementById("ring");
+  const nameEl = document.getElementById("name");
+  if (ringEl) {
+    if (ring) ringEl.value = ring;
+    ringEl.readOnly = true;
+    ringEl.setAttribute("aria-readonly", "true");
+  }
+  if (nameEl) {
+    if (name) nameEl.value = name;
+    nameEl.readOnly = true;
+    nameEl.setAttribute("aria-readonly", "true");
+  }
+}
+
+export function unlockApplicantFields() {
+  const ringEl = document.getElementById("ring");
+  const nameEl = document.getElementById("name");
+  if (ringEl) { ringEl.readOnly = false; ringEl.removeAttribute("aria-readonly"); }
+  if (nameEl) { nameEl.readOnly = false; nameEl.removeAttribute("aria-readonly"); }
+}
+
 function renderTalent(list) {
   const target = document.querySelector("#talent-list");
   if (!target) return;
@@ -405,14 +439,35 @@ function renderApps(list) {
   target.appendChild(frag);
 }
 
-function openApply(id, org) {
+async function openApply(id, org) {
   const f = document.querySelector("#apply-form");
   if (!f) return;
+
   if (id) f.tryout_id.value = id;
+
   const title = document.querySelector("#apply-title");
   if (title) title.textContent = "Apply to " + (org || "Tryout");
+
+  try {
+    const s = await getAuthState();
+    if (isWrestler(s)) {
+      const prof = await loadMyWrestlerProfile();
+      fillAndLockApplicantFields(prof);
+
+      if (!prof.ring && !prof.name) {
+        unlockApplicantFields();
+      }
+    } else {
+      unlockApplicantFields();
+    }
+  } catch {
+    unlockApplicantFields();
+  }
+
   const modal = document.querySelector("#apply-modal");
   modal?.showModal();
+  // Optional: when closed, keep values but unlock
+  modal?.addEventListener("close", () => unlockApplicantFields(), { once: true });
 }
 
 let searchAbort;

@@ -1,4 +1,9 @@
 import { apiFetch, asItems } from "/js/api.js";
+import {
+  loadMyWrestlerProfile,
+  fillAndLockApplicantFields,
+  unlockApplicantFields,
+} from "/js/forms.js";
 
 const TZ = "America/Chicago";
 const DATE_FMT = new Intl.DateTimeFormat("en-US", {
@@ -364,23 +369,26 @@ function paintTryoutsGrid(grid, list) {
 function wireApplyFlow(grid, { signal } = {}) {
   const modal = document.querySelector("#apply-modal");
   const form = document.querySelector("#apply-form");
-
   const supportsDialog = !!(modal && typeof modal.showModal === "function");
 
-  grid.addEventListener("click", (e) => {
+  grid.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-apply]");
-    if (!btn) return;
-    const id = btn.getAttribute("data-apply");
-    if (modal) {
-      const idInput = modal.querySelector('input[name="tryout_id"]');
-      if (idInput) idInput.value = id;
+    if (!btn || !modal) return;
 
-      if (supportsDialog) {
-        modal.showModal();
-      } else {
-        modal.classList.add("open");
-      }
+    const id = btn.getAttribute("data-apply");
+    const idInput = modal.querySelector('input[name="tryout_id"]');
+    if (idInput) idInput.value = id;
+
+    try {
+      const prof = await loadMyWrestlerProfile();
+      fillAndLockApplicantFields(prof);
+      if (!prof.ring && !prof.name) unlockApplicantFields();
+    } catch {
+      unlockApplicantFields();
     }
+
+    if (supportsDialog) modal.showModal();
+    else modal.classList.add("open");
   });
 
   if (!form) return;
@@ -391,10 +399,15 @@ function wireApplyFlow(grid, { signal } = {}) {
     const tryoutId = fd.get("tryout_id");
     const submitBtn = form.querySelector('[type="submit"]');
 
+    let prof = { ring: "", name: "" };
+    try {
+      prof = await loadMyWrestlerProfile();
+    } catch {}
+
     const payload = {
-      ring: (fd.get("ring") || "").toString(),
-      name: (fd.get("name") || "").toString(),
-      reel: (fd.get("reel") || "").toString(), 
+      ring: prof.ring || "",
+      name: prof.name || "",
+      reel: (fd.get("reel") || "").toString(),
       notes: (fd.get("notes") || "").toString(),
     };
 
@@ -405,8 +418,7 @@ function wireApplyFlow(grid, { signal } = {}) {
         signal,
       });
       alert("Application submitted!");
-      if (supportsDialog) modal?.close();
-      else modal?.classList.remove("open");
+      if (supportsDialog) modal?.close(); else modal?.classList.remove("open");
       form.reset();
     } catch (err) {
       log.error("Apply submit failed", { err: String(err) });
