@@ -20,6 +20,9 @@
   --maxw: 1200px;
   --radius: 14px;
   --tap: 48px;
+
+  --input-bg: #0e1328;
+  --input-bg-readonly: color-mix(in oklch, var(--input-bg) 85%, #000 15%);
 }
 
 #nav-toggle {
@@ -54,6 +57,8 @@
     --accent1-600: color-mix(in oklch, var(--accent1) 65%, #000);
     --accent2-400: color-mix(in oklch, var(--accent2) 65%, #fff);
     --accent2-600: color-mix(in oklch, var(--accent2) 65%, #000);
+    --input-bg: #ffffff;
+    --input-bg-readonly: #f2f4fb;
   }
 }
 
@@ -228,10 +233,24 @@ textarea {
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: #0e1328;
+  background: var(--input-bg);
   color: var(--text);
   outline: none;
   min-height: var(--tap);
+}
+.input[readonly],
+textarea[readonly],
+select[readonly] {
+  background: var(--input-bg-readonly);
+  color: var(--text);
+  cursor: default;
+}
+.input[readonly]:focus,
+textarea[readonly]:focus,
+select[readonly]:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: var(--border);
 }
 label {
   display: block;
@@ -845,9 +864,4 @@ label {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 10px;
   width: 100%;
-}
-
-input[readonly] {
-  background: #f6f6f6;
-  cursor: not-allowed;
 }
