@@ -525,15 +525,15 @@ import { mediaUrl } from "/js/media.js";
   }
 
   async function uploadAvatarIfAny() {
+    if (_avatarCroppedBlob) {
+      return await uploadAvatar(new File([_avatarCroppedBlob], "avatar.png", { type: "image/png" }));
+    }
     const fileInput = document.getElementById("avatar");
     const file = fileInput?.files?.[0];
     if (!file) return null;
 
     const err = assertFileAllowed(file, "image");
-    if (err) {
-      toast(err, "error");
-      return null;
-    }
+    if (err) { toast(err, "error"); return null; }
 
     return await uploadAvatar(file);
   }
@@ -665,18 +665,150 @@ import { mediaUrl } from "/js/media.js";
 
     avatarCropper.bindDOM();
 
+    let _avatarCroppedBlob = null;
+
+    async function exportCircularPNGFromCanvas(srcImg, view, outSize = 1024) {
+      const out = document.createElement("canvas");
+      out.width = out.height = outSize;
+      const ctx = out.getContext("2d");
+
+      ctx.clearRect(0, 0, outSize, outSize);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(outSize/2, outSize/2, outSize/2, 0, Math.PI*2);
+      ctx.closePath();
+      ctx.clip();
+
+      const scale = view.scale * (outSize / 512);
+      const tx = view.tx * (outSize / 512);
+      const ty = view.ty * (outSize / 512);
+
+      ctx.translate(outSize/2 + tx, outSize/2 + ty);
+      ctx.scale(scale, scale);
+      ctx.drawImage(srcImg, -srcImg.width/2, -srcImg.height/2);
+      ctx.restore();
+
+      return new Promise((resolve) => out.toBlob((b)=>resolve(b), "image/png"));
+    }
+
+    function renderLivePreview(srcImg, view) {
+      const el = document.getElementById("avatar-preview-live");
+      if (!el) return;
+      const size = 128;
+      const c = document.createElement("canvas");
+      c.width = c.height = size;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0,0,size,size);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size/2, 0, Math.PI*2);
+      ctx.closePath();
+      ctx.clip();
+
+      const scale = view.scale * (size / 512);
+      const tx = view.tx * (size / 512);
+      const ty = view.ty * (size / 512);
+
+      ctx.translate(size/2 + tx, size/2 + ty);
+      ctx.scale(scale, scale);
+      ctx.drawImage(srcImg, -srcImg.width/2, -srcImg.height/2);
+      ctx.restore();
+
+      el.src = c.toDataURL("image/png");
+    }
+
+    async function openAvatarCropper(file) {
+      const dlg = document.getElementById("avatar-cropper");
+      const canvas = document.getElementById("avatar-canvas");
+      if (!dlg || !canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      const bmp = await createImageBitmap(file);
+
+      const fitScale = Math.max(512 / bmp.width, 512 / bmp.height);
+
+      const view = {
+        scale: fitScale,
+        tx: 0,
+        ty: 0
+      };
+
+      let dragging = false;
+      let lastX = 0, lastY = 0;
+
+      function draw() {
+        ctx.clearRect(0,0,512,512);
+        ctx.save();
+        ctx.translate(256 + view.tx, 256 + view.ty);
+        ctx.scale(view.scale, view.scale);
+        ctx.drawImage(bmp, -bmp.width/2, -bmp.height/2);
+        ctx.restore();
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(255,255,255,0.25)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(256, 256, 255, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.restore();
+
+        renderLivePreview(bmp, view);
+      }
+
+      canvas.onpointerdown = (e)=>{ dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture(e.pointerId); };
+      canvas.onpointermove = (e)=>{
+        if (!dragging) return;
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        view.tx += dx;
+        view.ty += dy;
+        draw();
+      };
+      canvas.onpointerup = (e)=>{ dragging = false; canvas.releasePointerCapture(e.pointerId); };
+      canvas.onpointercancel = ()=>{ dragging = false; };
+
+      canvas.onwheel = (e)=>{
+        e.preventDefault();
+        const factor = (e.deltaY < 0) ? 1.07 : 0.93;
+        view.scale = Math.max(fitScale * 0.5, Math.min(view.scale * factor, fitScale * 8));
+        draw();
+      };
+
+      document.getElementById("avatar-zoom-in")?.addEventListener("click", ()=>{ view.scale = Math.min(view.scale * 1.1, fitScale*8); draw(); });
+      document.getElementById("avatar-zoom-out")?.addEventListener("click", ()=>{ view.scale = Math.max(view.scale / 1.1, fitScale*0.5); draw(); });
+      document.getElementById("avatar-reset")?.addEventListener("click", ()=>{ view.scale = fitScale; view.tx = 0; view.ty = 0; draw(); });
+
+      const onCancel = ()=> dlg.close();
+      const onAccept = async ()=>{
+        const blob = await exportCircularPNGFromCanvas(bmp, view, 1024);
+        _avatarCroppedBlob = blob;
+        const url = URL.createObjectURL(blob);
+        const avatarPreview = document.getElementById("avatarPreview");
+        if (avatarPreview) avatarPreview.src = url;
+        dlg.close();
+      };
+
+      const btnCancel = document.getElementById("avatar-cancel");
+      const btnAccept = document.getElementById("avatar-accept");
+      btnCancel?.addEventListener("click", onCancel, { once:true });
+      btnAccept?.addEventListener("click", onAccept, { once:true });
+
+      if (!dlg.open) dlg.showModal();
+      draw();
+    }
+
     avatarInput?.addEventListener("change", () => {
       const f = avatarInput.files?.[0];
-      if (f && avatarPreview) {
-        const err = assertFileAllowed(f, "image");
-        if (err) {
-          toast(err, "error");
-          avatarInput.value = "";
-          return;
-        }
-        avatarPreview.src = URL.createObjectURL(f);
-        avatarCropper.onImageChanged();
+      if (!f) return;
+      const err = assertFileAllowed(f, "image");
+      if (err) {
+        toast(err, "error");
+        avatarInput.value = "";
+        return;
       }
+      openAvatarCropper(f);
     });
 
     viewBtn?.addEventListener("click", () => {
@@ -854,6 +986,7 @@ import { mediaUrl } from "/js/media.js";
           method: "PUT",
           body: payload,
         });
+        _avatarCroppedBlob = null;
 
         toast("Profile saved!");
 
