@@ -1,11 +1,8 @@
 export function enableMediaLightbox(root = document) {
-  const imgs = Array.from(root.querySelectorAll(".media-grid .media-card img"));
-  if (!imgs.length) return;
-
-  imgs.forEach((img) => {
-    img.style.cursor = "zoom-in";
-    img.addEventListener("click", () => openAt(imgs.indexOf(img)));
-  });
+  const nodes = Array.from(
+    root.querySelectorAll(".media-grid .media-card img, .media-grid .media-card video")
+  );
+  if (!nodes.length) return;
 
   let overlay = document.getElementById("wu-lightbox");
   if (!overlay) {
@@ -14,41 +11,66 @@ export function enableMediaLightbox(root = document) {
     overlay.innerHTML = `
       <button class="wu-lb-close" aria-label="Close" title="Close">×</button>
       <button class="wu-lb-prev" aria-label="Previous" title="Previous">‹</button>
-      <img class="wu-lb-img" alt="">
+      <div class="wu-lb-content"></div>
       <button class="wu-lb-next" aria-label="Next" title="Next">›</button>
       <div class="wu-lb-count"></div>
     `;
     document.body.appendChild(overlay);
   }
 
-  const imgEl   = overlay.querySelector(".wu-lb-img");
-  const countEl = overlay.querySelector(".wu-lb-count");
-  const prevBtn = overlay.querySelector(".wu-lb-prev");
-  const nextBtn = overlay.querySelector(".wu-lb-next");
-  const closeBtn= overlay.querySelector(".wu-lb-close");
+  const contentEl = overlay.querySelector(".wu-lb-content");
+  const countEl   = overlay.querySelector(".wu-lb-count");
+  const prevBtn   = overlay.querySelector(".wu-lb-prev");
+  const nextBtn   = overlay.querySelector(".wu-lb-next");
+  const closeBtn  = overlay.querySelector(".wu-lb-close");
 
   let idx = 0;
 
-  function show() {
-    const src = imgs[idx]?.src || "";
-    imgEl.src = src;
-    countEl.textContent = `${idx + 1} / ${imgs.length}`;
+  function render() {
+    const node = nodes[idx];
+    const src = node?.src || "";
+    contentEl.innerHTML = "";
+
+    if (node.tagName.toLowerCase() === "img") {
+      const img = document.createElement("img");
+      img.className = "wu-lb-img";
+      img.src = src;
+      contentEl.appendChild(img);
+    } else {
+      const video = document.createElement("video");
+      video.className = "wu-lb-video";
+      video.src = src;
+      video.controls = true;
+      video.autoplay = true;
+      contentEl.appendChild(video);
+    }
+
+    countEl.textContent = `${idx + 1} / ${nodes.length}`;
     overlay.classList.add("open");
     document.body.style.overflow = "hidden";
   }
+
   function hide() {
     overlay.classList.remove("open");
     document.body.style.overflow = "";
+    contentEl.innerHTML = "";
   }
+
   function openAt(i) {
-    if (i < 0 || i >= imgs.length) return;
+    if (i < 0 || i >= nodes.length) return;
     idx = i;
-    show();
+    render();
   }
+
   function go(delta) {
-    idx = (idx + delta + imgs.length) % imgs.length;
-    show();
+    idx = (idx + delta + nodes.length) % nodes.length;
+    render();
   }
+
+  nodes.forEach((n) => {
+    n.style.cursor = "pointer";
+    n.addEventListener("click", () => openAt(nodes.indexOf(n)));
+  });
 
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) hide();
@@ -57,6 +79,7 @@ export function enableMediaLightbox(root = document) {
     e.stopPropagation();
     hide();
   });
+
   prevBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     go(-1);
@@ -74,11 +97,21 @@ export function enableMediaLightbox(root = document) {
   });
 
   let touchX = 0;
-  overlay.addEventListener("touchstart", (e) => {
-    touchX = e.touches[0].clientX;
-  }, { passive: true });
-  overlay.addEventListener("touchend", (e) => {
-    const dx = e.changedTouches[0].clientX - touchX;
-    if (Math.abs(dx) > 40) go(dx > 0 ? -1 : 1);
-  }, { passive: true });
+  overlay.addEventListener(
+    "touchstart",
+    (e) => {
+      touchX = e.touches[0].clientX;
+    },
+    { passive: true }
+  );
+  overlay.addEventListener(
+    "touchend",
+    (e) => {
+      const dx = e.changedTouches[0].clientX - touchX;
+      if (Math.abs(dx) > 40) go(dx > 0 ? -1 : 1);
+    },
+    { passive: true }
+  );
+
+  return { openAt };
 }
