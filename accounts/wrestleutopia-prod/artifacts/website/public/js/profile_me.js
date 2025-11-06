@@ -114,6 +114,162 @@ import { mediaUrl } from "/js/media.js";
 
   const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
 
+  const avatarCropper = (() => {
+  let stage, imgEl, zoomEl, resetEl, hidX, hidY, hidS;
+
+  const crop = {
+    scale: 1,
+    minScale: 1,
+    offsetX: 0,
+    offsetY: 0,
+    imgW: 0,
+    imgH: 0,
+    stageW: 160,
+    stageH: 160,
+    dragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    startOffsetX: 0,
+    startOffsetY: 0,
+  };
+
+  function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
+  function updateHidden() {
+    if (!hidX || !hidY || !hidS) return;
+    hidX.value = String(Math.round(crop.offsetX));
+    hidY.value = String(Math.round(crop.offsetY));
+    hidS.value = String(Number(crop.scale.toFixed(3)));
+  }
+  function applyTransform() {
+    if (!imgEl) return;
+    imgEl.style.transform =
+      `translate(calc(-50% + ${crop.offsetX}px), calc(-50% + ${crop.offsetY}px)) scale(${crop.scale})`;
+    if (zoomEl) zoomEl.value = String(crop.scale);
+    updateHidden();
+  }
+  function computeMinScale() {
+    if (!crop.imgW || !crop.imgH) return;
+    const needW = crop.stageW / crop.imgW;
+    const needH = crop.stageH / crop.imgH;
+    crop.minScale = Math.max(needW, needH, 1);
+    if (crop.scale < crop.minScale) crop.scale = crop.minScale;
+  }
+  function clampOffsets() {
+    const halfW = (crop.imgW * crop.scale) / 2;
+    const halfH = (crop.imgH * crop.scale) / 2;
+    const maxX = Math.max(0, halfW - crop.stageW / 2);
+    const maxY = Math.max(0, halfH - crop.stageH / 2);
+    crop.offsetX = clamp(crop.offsetX, -maxX, maxX);
+    crop.offsetY = clamp(crop.offsetY, -maxY, maxY);
+  }
+  function recalcAndRender() {
+    computeMinScale();
+    clampOffsets();
+    applyTransform();
+  }
+
+  function bindDOM() {
+    stage   = document.getElementById("avatarStage");
+    imgEl   = document.getElementById("avatarPreview");
+    zoomEl  = document.getElementById("avatarZoom");
+    resetEl = document.getElementById("avatarReset");
+    hidX    = document.getElementById("avatarCropX");
+    hidY    = document.getElementById("avatarCropY");
+    hidS    = document.getElementById("avatarCropScale");
+
+    if (!stage || !imgEl) return;
+
+    zoomEl?.addEventListener("input", () => {
+      const prev = crop.scale;
+      const next = clamp(parseFloat(zoomEl.value) || prev, crop.minScale, 3);
+      const factor = next / prev;
+      crop.offsetX *= factor;
+      crop.offsetY *= factor;
+      crop.scale = next;
+      clampOffsets();
+      applyTransform();
+    });
+
+    stage.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const prev = crop.scale;
+      const next = clamp(prev + (-Math.sign(e.deltaY) * 0.06), crop.minScale, 3);
+      const factor = next / prev;
+      crop.offsetX *= factor;
+      crop.offsetY *= factor;
+      crop.scale = next;
+      clampOffsets();
+      applyTransform();
+    }, { passive: false });
+
+    stage.addEventListener("pointerdown", (e) => {
+      crop.dragging = true;
+      stage.setPointerCapture(e.pointerId);
+      crop.dragStartX = e.clientX;
+      crop.dragStartY = e.clientY;
+      crop.startOffsetX = crop.offsetX;
+      crop.startOffsetY = crop.offsetY;
+    });
+    stage.addEventListener("pointermove", (e) => {
+      if (!crop.dragging) return;
+      const dx = e.clientX - crop.dragStartX;
+      const dy = e.clientY - crop.dragStartY;
+      crop.offsetX = crop.startOffsetX + dx;
+      crop.offsetY = crop.startOffsetY + dy;
+      clampOffsets();
+      applyTransform();
+    });
+    stage.addEventListener("pointerup", (e) => {
+      crop.dragging = false;
+      stage.releasePointerCapture(e.pointerId);
+    });
+    stage.addEventListener("pointercancel", () => { crop.dragging = false; });
+
+    resetEl?.addEventListener("click", () => {
+      crop.offsetX = 0; crop.offsetY = 0; crop.scale = Math.max(1, crop.minScale);
+      recalcAndRender();
+    });
+  }
+
+  function initFromImageNaturalSize() {
+    if (!imgEl) return;
+    const init = () => {
+      crop.imgW = imgEl.naturalWidth || 0;
+      crop.imgH = imgEl.naturalHeight || 0;
+      const r = stage.getBoundingClientRect();
+      crop.stageW = r.width; crop.stageH = r.height;
+      const persistedScale = parseFloat(hidS?.value) || 1;
+      const persistedX = parseFloat(hidX?.value) || 0;
+      const persistedY = parseFloat(hidY?.value) || 0;
+      computeMinScale();
+      crop.scale = Math.max(persistedScale, crop.minScale);
+      crop.offsetX = persistedX;
+      crop.offsetY = persistedY;
+      recalcAndRender();
+    };
+    if (imgEl.naturalWidth && imgEl.naturalHeight) init();
+    else imgEl.addEventListener("load", init, { once: true });
+  }
+
+  return {
+    bindDOM,
+    onImageChanged() { initFromImageNaturalSize(); },
+    loadPersisted(obj) {
+      if (!obj) return;
+      if (typeof obj.x === "number")  hidX && (hidX.value = String(obj.x));
+      if (typeof obj.y === "number")  hidY && (hidY.value = String(obj.y));
+      if (typeof obj.scale === "number") hidS && (hidS.value = String(obj.scale));
+    },
+    readForPayload() {
+      return {
+        x: Number(hidX?.value) || 0,
+        y: Number(hidY?.value) || 0,
+        scale: Number(hidS?.value) || 1,
+      };
+    }
+  };
+})();
+
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
   const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
   const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -472,6 +628,9 @@ import { mediaUrl } from "/js/media.js";
           null,
       );
 
+      if (me.avatarCrop) avatarCropper.loadPersisted(me.avatarCrop);
+      avatarCropper.onImageChanged();
+
       const vb = document.getElementById("viewBtn");
       if (vb) {
         vb.disabled = !me.handle;
@@ -504,6 +663,8 @@ import { mediaUrl } from "/js/media.js";
 
     await initLocationSelects({});
 
+    avatarCropper.bindDOM();
+
     avatarInput?.addEventListener("change", () => {
       const f = avatarInput.files?.[0];
       if (f && avatarPreview) {
@@ -514,6 +675,7 @@ import { mediaUrl } from "/js/media.js";
           return;
         }
         avatarPreview.src = URL.createObjectURL(f);
+        avatarCropper.onImageChanged();
       }
     });
 
@@ -685,6 +847,7 @@ import { mediaUrl } from "/js/media.js";
           avatar_key: data.avatar_key || null,
           mediaKeys,
           highlights,
+          avatarCrop: avatarCropper.readForPayload(),
         };
 
         const saved = await apiFetch("/profiles/wrestlers/me", {

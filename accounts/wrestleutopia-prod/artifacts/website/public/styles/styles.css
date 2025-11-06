@@ -958,3 +958,35 @@ label {
 .media-card.is-video { 
   cursor: pointer;
 }
+
+.avatar-cropper { display: inline-block; }
+.crop-stage {
+  position: relative;
+  width: 160px; height: 160px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #0f1224;
+  border: 1px solid #1f2546;
+  touch-action: none;
+}
+.crop-stage img {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  transform-origin: center center;
+  user-select: none; -webkit-user-drag: none; pointer-events: none;
+}
+.crop-controls { display:flex; align-items:center; gap:8px; }
+.avatar-wrap {
+  width: 128px;
+  height: 128px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.avatar-wrap > img.avatar-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+  transform: translate(calc(-50% + var(--x, 0px)), calc(-50% + var(--y, 0px))) scale(var(--s, 1));
+}

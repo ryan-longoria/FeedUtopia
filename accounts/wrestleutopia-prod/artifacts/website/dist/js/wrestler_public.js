@@ -365,7 +365,24 @@ function renderFullPage(wrap, p, handle) {
     <section class="hero card" style="max-width:980px;margin-inline:auto;overflow:hidden">
       ${p.coverKey ? `<img class="cover" src="${h(mediaUrl(p.coverKey))}" alt="">` : ""}
       <div class="hero-inner container">
-        <img class="avatar-ring" src="${h(avatarSrc)}" alt="${h(stage)} avatar">
+        ${(() => {
+          const c = p.avatarCrop || {};
+          const clamp = (n, lo, hi) => Number.isFinite(+n) ? Math.max(lo, Math.min(hi, +n)) : 0;
+          const x = clamp(c.x, -80, 80);
+          const y = clamp(c.y, -80, 80);
+          const s = (Number.isFinite(+c.scale) && +c.scale > 0.5 && +c.scale <= 4) ? +c.scale : 1;
+
+          return `
+            <div class="avatar-wrap" style="position:relative">
+              <img
+                class="avatar-ring"
+                src="${h(avatarSrc)}"
+                alt="${h(stage)} avatar"
+                style="--x:${x}px; --y:${y}px; --s:${s};"
+              />
+            </div>
+          `;
+        })()}
         <div class="hero-meta">
           <h1>${h(stage)}</h1>
           <div class="stats-bar">

@@ -131,7 +131,7 @@
               placeholder="Describe your gimmick(s) in a sentence or two…"
             ></textarea>
           </div>
-          
+
           <div class="grid-2 mt-2">
             <div>
               <label for="experienceYears"
@@ -212,17 +212,35 @@
             </div>
           </fieldset>
 
-          <div
-            class="mt-3"
-            style="display: flex; gap: 16px; align-items: center"
-          >
-            <img
-              id="avatarPreview"
-              class="avatar"
-              src="/assets/avatar-fallback.svg"
-              alt="Profile avatar"
-            />
-            <div>
+          <div class="mt-3" style="display: flex; gap: 16px; align-items: flex-start">
+            <div
+              id="avatarStage"
+              style="
+                width:140px;
+                height:140px;
+                border-radius:999px;
+                overflow:hidden;
+                background:#0f1224;
+                border:1px solid #1f2546;
+                position:relative;
+              "
+            >
+              <img
+                id="avatarPreview"
+                src="/assets/avatar-fallback.svg"
+                alt="Profile avatar"
+                style="
+                  position:absolute;
+                  top:50%;
+                  left:50%;
+                  transform:translate(-50%, -50%);
+                  user-select:none;
+                  touch-action:none;
+                "
+              />
+            </div>
+
+            <div style="flex:1">
               <label for="avatar"
                 >Profile Photo <span class="muted">(optional)</span></label
               >
@@ -233,9 +251,28 @@
                 type="file"
                 accept="image/*"
               />
-              <div class="hint">
-                JPG/PNG recommended. We’ll upload directly to S3.
+              <div class="hint">Drag to reposition. Scroll / slider to zoom.</div>
+
+              <div class="mt-2">
+                <label class="muted" style="font-size:12px;">Zoom</label>
+                <input
+                  id="avatarZoom"
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="0.01"
+                  value="1"
+                  style="width:160px;"
+                />
               </div>
+
+              <button class="btn secondary small mt-2" type="button" id="avatarReset">
+                Reset
+              </button>
+
+              <input type="hidden" id="avatarCropX"     name="avatarCropX"     value="0" />
+              <input type="hidden" id="avatarCropY"     name="avatarCropY"     value="0" />
+              <input type="hidden" id="avatarCropScale" name="avatarCropScale" value="1" />
             </div>
           </div>
 
