@@ -104,17 +104,23 @@ function renderHighlightCard(vRaw) {
       return `<div class="media-card"><img src="/assets/image-processing.svg" alt="Processing video"></div>`;
     }
     const src = mediaUrl(v);
-    return `<div class="media-card"><video src="${h(
-      src,
-    )}" controls preload="metadata"></video></div>`;
+    return `
+      <div class="media-card is-video">
+        <video src="${h(src)}" preload="metadata" playsinline muted></video>
+        <div class="play-badge" aria-hidden="true">▶</div>
+      </div>
+    `;
   }
 
   try {
     const parsed = new URL(v, location.origin);
     if (parsed.protocol === "https:" || parsed.origin === location.origin) {
-      return `<div class="media-card"><video src="${h(
-        parsed.href,
-      )}" controls preload="metadata"></video></div>`;
+      return `
+        <div class="media-card is-video">
+          <video src="${h(parsed.href)}" preload="metadata" playsinline muted></video>
+          <div class="play-badge" aria-hidden="true">▶</div>
+        </div>
+      `;
     }
     return `<div class="media-card"><p><a href="${h(
       parsed.href,
@@ -309,6 +315,7 @@ function fillExistingSlots(p, tryouts) {
         <div class="card"><p class="muted">No highlight videos yet.</p></div>
       `;
     }
+    enableMediaLightbox(videosEl);
     touched = true;
   }
 
@@ -437,6 +444,9 @@ function renderFullPage(wrap, p, tryouts) {
 
   const photosRoot = wrap.querySelector("#photos");
   if (photosRoot) enableMediaLightbox(photosRoot);
+
+  const videosRoot = wrap.querySelector("#videos");
+  if (videosRoot) enableMediaLightbox(videosRoot);
 
   const nav = wrap.querySelector(".tab-nav");
   if (nav && typeof nav.querySelectorAll === "function") {

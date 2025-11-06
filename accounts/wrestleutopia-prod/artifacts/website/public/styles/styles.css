@@ -932,3 +932,21 @@ label {
 .media-grid .media-card video {
   cursor: pointer;
 }
+
+.media-card.is-video { position: relative; }
+
+.play-badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font-size: 14px;
+  line-height: 28px;
+  text-align: center;
+  pointer-events: none;
+}

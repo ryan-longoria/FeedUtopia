@@ -128,9 +128,12 @@ function renderHighlightCard(vRaw) {
       return `<div class="media-card"><img src="/assets/image-processing.svg" alt="Processing video"></div>`;
     }
     const src = mediaUrl(v);
-    return `<div class="media-card"><video src="${h(
-      src,
-    )}" controls preload="metadata"></video></div>`;
+    return `
+      <div class="media-card is-video">
+        <video src="${h(src)}" preload="metadata" playsinline muted></video>
+        <div class="play-badge" aria-hidden="true">▶</div>
+      </div>
+    `;
   }
 
   try {
@@ -140,9 +143,12 @@ function renderHighlightCard(vRaw) {
         parsed.href,
       )}" controls preload="metadata"></video></div>`;
     }
-    return `<div class="media-card"><p><a href="${h(
-      parsed.href,
-    )}" target="_blank" rel="noopener nofollow">View highlight</a></p></div>`;
+    return `
+      <div class="media-card is-video">
+        <video src="${h(parsed.href)}" preload="metadata" playsinline muted></video>
+        <div class="play-badge" aria-hidden="true">▶</div>
+      </div>
+    `;
   } catch {
     return `<div class="media-card"><p class="muted">Invalid highlight</p></div>`;
   }
