@@ -950,3 +950,11 @@ label {
   text-align: center;
   pointer-events: none;
 }
+
+.media-card.is-video video { 
+  pointer-events: none;
+}
+
+.media-card.is-video { 
+  cursor: pointer;
+}
