@@ -1,5 +1,6 @@
 import { apiFetch } from "/js/api.js";
 import { mediaUrl } from "/js/media.js";
+import { enableMediaLightbox } from "/js/gallery.js";
 
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_HIGHLIGHTS = 12;
@@ -284,6 +285,7 @@ function fillExistingSlots(p, tryouts) {
         <div class="card"><p class="muted">No photos yet.</p></div>
       `;
     }
+    enableMediaLightbox(photosEl);
     touched = true;
   }
 
@@ -432,6 +434,9 @@ function renderFullPage(wrap, p, tryouts) {
       </div>
     </section>
   `;
+
+  const photosRoot = wrap.querySelector("#photos");
+  if (photosRoot) enableMediaLightbox(photosRoot);
 
   const nav = wrap.querySelector(".tab-nav");
   if (nav && typeof nav.querySelectorAll === "function") {

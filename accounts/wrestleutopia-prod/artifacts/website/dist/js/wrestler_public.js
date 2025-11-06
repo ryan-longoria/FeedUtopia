@@ -1,5 +1,6 @@
 import { apiFetch } from "/js/api.js";
 import { mediaUrl } from "/js/media.js";
+import { enableMediaLightbox } from "/js/gallery.js";
 
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_HIGHLIGHTS = 12;
@@ -267,6 +268,8 @@ function fillExistingSlots(p, handle) {
     touched = true;
   }
 
+  enableMediaLightbox(photosEl);
+
   const highlightsEl = getSlot([
     "wp-highlights",
     "videosSection",
@@ -447,6 +450,9 @@ function renderFullPage(wrap, p, handle) {
       }
     </section>
   `;
+
+  const photosRoot = wrap.querySelector("#photos");
+  if (photosRoot) enableMediaLightbox(photosRoot);
 
   const nav = wrap.querySelector(".tab-nav");
   if (nav) {
