@@ -275,7 +275,6 @@ function fillExistingSlots(p, handle) {
   }
 
   enableMediaLightbox(photosEl);
-  enableMediaLightbox(highlightsEl);
 
   const highlightsEl = getSlot([
     "wp-highlights",
@@ -302,6 +301,7 @@ function fillExistingSlots(p, handle) {
         <div class="card"><p class="muted">No highlight videos yet.</p></div>
       `;
     }
+    enableMediaLightbox(highlightsEl);
     touched = true;
   }
 
