@@ -23,6 +23,16 @@ function imgSrcFromKey(key) {
   return mediaUrl(s);
 }
 
+function asGimmicksText(p) {
+  if (typeof p?.gimmicksText === "string" && p.gimmicksText.trim()) {
+    return p.gimmicksText.trim();
+  }
+  if (Array.isArray(p?.gimmicks) && p.gimmicks.length) {
+    return p.gimmicks.filter(Boolean).join(", ");
+  }
+  return "";
+}
+
 function fmtHeight(inches) {
   const n = Math.round(Number(inches));
   if (!Number.isFinite(n) || n <= 0) return null;
@@ -138,10 +148,13 @@ function renderHighlightCard(vRaw) {
 }
 
 async function fetchWithTimeout(url, ms) {
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("fetch-timeout")), ms),
-  );
-  return Promise.race([apiFetch(url), timeout]);
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(new Error("fetch-timeout")), ms);
+  try {
+    return await apiFetch(url, { signal: ac.signal });
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 function getSlot(ids) {
@@ -206,10 +219,11 @@ function fillExistingSlots(p, handle) {
     if (p.emailPublic) html += `<dt>Email</dt><dd>${h(p.emailPublic)}</dd>`;
     if (p.phonePublic) html += `<dt>Phone</dt><dd>${h(p.phonePublic)}</dd>`;
     if (p.styles) html += `<dt>Style</dt><dd>${h(p.styles)}</dd>`;
-    if (p.gimmicks?.length) {
-      html += `<dt>Gimmicks</dt><dd>${p.gimmicks
-        .map((c) => `<span class="chip">${h(c)}</span>`)
-        .join(" ")}</dd>`;
+    {
+      const gt = asGimmicksText(p);
+      if (gt) {
+        html += `<dt>Gimmicks</dt><dd><p style="margin:0">${h(gt).replace(/\n/g, "<br/>")}</p></dd>`;
+      }
     }
     html += `</dl>`;
 
@@ -222,7 +236,7 @@ function fillExistingSlots(p, handle) {
     aboutEl.innerHTML = html;
     touched = true;
   }
-  // PHOTOS (your HTML used `photosSection`, older version used `wp-photos`)
+
   const photosEl = getSlot(["wp-photos", "photosSection", "photos"]);
   if (photosEl) {
     const mediaKeys = Array.isArray(p.mediaKeys)
@@ -349,7 +363,6 @@ function renderFullPage(wrap, p, handle) {
             ${htStr ? `<span class="pill">${htStr}</span>` : ""}
             ${wtStr ? `<span class="pill">${wtStr}</span>` : ""}
             ${Number.isFinite(+p.experienceYears) ? `<span class="pill">${p.experienceYears} yr experience</span>` : ""}
-            ${chips.length ? `<span class="pill">${h(chips.slice(0,3).join(" • "))}</span>` : ""}
           </div>
           ${socialLinks ? `<div class="social-row mt-2">${socialLinks}</div>` : ""}
         </div>
@@ -377,9 +390,10 @@ function renderFullPage(wrap, p, handle) {
           ${p.emailPublic ? `<dt>Email</dt><dd>${h(p.emailPublic)}</dd>` : ""}
           ${p.phonePublic ? `<dt>Phone</dt><dd>${h(p.phonePublic)}</dd>` : ""}
           ${p.styles ? `<dt>Style</dt><dd>${h(p.styles)}</dd>` : ""}
-          ${p.gimmicks?.length ? `<dt>Gimmicks</dt><dd>${p.gimmicks
-            .map((c) => `<span class="chip">${h(c)}</span>`)
-            .join(" ")}</dd>` : ""}
+          ${(() => {
+            const gt = asGimmicksText(p);
+            return gt ? `<dt>Gimmicks</dt><dd><p style="margin:0">${h(gt).replace(/\n/g, "<br/>")}</p></dd>` : "";
+          })()}
         </dl>
         ${
           p.bio

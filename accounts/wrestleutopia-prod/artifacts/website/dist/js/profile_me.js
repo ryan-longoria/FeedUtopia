@@ -328,10 +328,7 @@ import { mediaUrl } from "/js/media.js";
     if (!Number.isFinite(o.weightLb)) delete o.weightLb;
 
     o.bio = (o.bio || "").trim() || null;
-    o.gimmicks = (o.gimmicks || "")
-      .split(",")
-      .map((x) => x.trim())
-      .filter(Boolean);
+    o.gimmicksText = (o.gimmicksText || "").toString().trim().slice(0, 500);
 
     o.socials = {
       twitter: (o.social_twitter || "").trim() || null,
@@ -447,6 +444,10 @@ import { mediaUrl } from "/js/media.js";
         achievements: "achievements",
       };
 
+      const gimmicksTxt = (typeof me.gimmicksText === "string" ? me.gimmicksText : "")
+        || (Array.isArray(me.gimmicks) ? me.gimmicks.filter(Boolean).join(", ") : "");
+      setVal("gimmicksText", gimmicksTxt);
+
       if (me.socials) {
         const s = me.socials;
         if (s.twitter) setVal("social_twitter", s.twitter);
@@ -460,10 +461,6 @@ import { mediaUrl } from "/js/media.js";
         if (me[field] !== undefined && me[field] !== null) {
           setVal(id, me[field]);
         }
-      }
-
-      if (Array.isArray(me.gimmicks) && me.gimmicks.length) {
-        setVal("gimmicks", me.gimmicks.join(", "));
       }
 
       setImg(
@@ -537,10 +534,7 @@ import { mediaUrl } from "/js/media.js";
       const region = $("#region")?.value || "";
       const country = $("#country")?.value || "";
       const bio = $("#bio")?.value || "";
-      const gimmicks = ($("#gimmicks")?.value || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const gimmicksText = $("#gimmicksText")?.value || "";
       const imgSrc = avatarPreview?.src || "/assets/avatar-fallback.svg";
       const loc = [city, region, country].filter(Boolean).join(", ");
 
@@ -550,7 +544,7 @@ import { mediaUrl } from "/js/media.js";
           <div>
             <h2 style="margin:0">${stageName}</h2>
             <div class="muted">${loc}</div>
-            <div class="chips mt-2">${gimmicks.map((g) => `<span class="chip">${g}</span>`).join("")}</div>
+            <div class="mt-2" style="white-space:pre-line">${gimmicksText || '<span class="muted">No gimmicks added.</span>'}</div>
           </div>
         </div>
         <div class="mt-3">${bio ? `<p>${bio.replace(/\n/g, "<br/>")}</p>` : '<p class="muted">No bio yet.</p>'}</div>
@@ -676,7 +670,12 @@ import { mediaUrl } from "/js/media.js";
           heightIn: data.heightIn,
           weightLb: data.weightLb,
           bio: data.bio,
-          gimmicks: data.gimmicks,
+          gimmicksText: data.gimmicksText || null,
+          gimmicks: (data.gimmicksText || "")
+            .split(/[,;\n]/)
+            .map(s => s.trim())
+            .filter(Boolean)
+            .slice(0, 10),
           socials: data.socials,
           experienceYears: data.experienceYears,
           achievements: data.achievements,
