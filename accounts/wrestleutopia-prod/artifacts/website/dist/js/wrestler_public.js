@@ -139,9 +139,9 @@ function renderHighlightCard(vRaw) {
   try {
     const parsed = new URL(v, location.origin);
     if (parsed.protocol === "https:" || parsed.origin === location.origin) {
-      return `<div class="media-card"><video src="${h(
+      return `<div class="media-card is-video"><video src="${h(
         parsed.href,
-      )}" controls preload="metadata"></video></div>`;
+      )}" preload="metadata"></video></div>`;
     }
     return `
       <div class="media-card is-video">
