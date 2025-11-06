@@ -222,7 +222,7 @@ function fillExistingSlots(p, handle) {
     {
       const gt = asGimmicksText(p);
       if (gt) {
-        html += `<dt>Gimmicks</dt><dd><p style="margin:0">${h(gt).replace(/\n/g, "<br/>")}</p></dd>`;
+        html += `<dt>Gimmick</dt><dd><p style="margin:0">${h(gt).replace(/\n/g, "<br/>")}</p></dd>`;
       }
     }
     html += `</dl>`;
@@ -392,7 +392,7 @@ function renderFullPage(wrap, p, handle) {
           ${p.styles ? `<dt>Style</dt><dd>${h(p.styles)}</dd>` : ""}
           ${(() => {
             const gt = asGimmicksText(p);
-            return gt ? `<dt>Gimmicks</dt><dd><p style="margin:0">${h(gt).replace(/\n/g, "<br/>")}</p></dd>` : "";
+            return gt ? `<dt>Gimmick</dt><dd><p style="margin:0">${h(gt).replace(/\n/g, "<br/>")}</p></dd>` : "";
           })()}
         </dl>
         ${
