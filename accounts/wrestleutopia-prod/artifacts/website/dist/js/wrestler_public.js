@@ -275,6 +275,7 @@ function fillExistingSlots(p, handle) {
   }
 
   enableMediaLightbox(photosEl);
+  enableMediaLightbox(highlightsEl);
 
   const highlightsEl = getSlot([
     "wp-highlights",
@@ -459,6 +460,9 @@ function renderFullPage(wrap, p, handle) {
 
   const photosRoot = wrap.querySelector("#photos");
   if (photosRoot) enableMediaLightbox(photosRoot);
+
+  const videosRoot = wrap.querySelector("#videos");
+  if (videosRoot) enableMediaLightbox(videosRoot);
 
   const nav = wrap.querySelector(".tab-nav");
   if (nav) {
