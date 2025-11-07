@@ -1011,8 +1011,8 @@ import { mediaUrl } from "/js/media.js";
           data.avatar_key ||
           data.photo_key;
 
-        if (newKey && avatarPreview) {
-          avatarPreview.src = photoUrlFromKey(newKey);
+        if (newKey) {
+          setImg("#avatarPreview", newKey);
         }
       } catch (err) {
         console.error("profile save failed", err);
