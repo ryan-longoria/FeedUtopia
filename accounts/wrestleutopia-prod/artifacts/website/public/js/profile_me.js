@@ -112,7 +112,7 @@ import { mediaUrl } from "/js/media.js";
     }
   }
 
-  const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
+  const avatarBust = () => String(Date.now());
 
   const avatarCropper = (() => {
   let stage, imgEl, zoomEl, resetEl, hidX, hidY, hidS;
@@ -360,7 +360,7 @@ import { mediaUrl } from "/js/media.js";
     const needsBust =
       /^public\/wrestlers\/profiles\//.test(String(key)) ||
       /^profiles\//.test(String(key));
-    el.src = needsBust ? `${url}?v=${AVATAR_BUST}` : url;
+    el.src = needsBust ? `${url}?v=${avatarBust()}` : url;
   }
 
   function toast(text, type = "success") {
@@ -1011,7 +1011,7 @@ import { mediaUrl } from "/js/media.js";
           data.avatar_key ||
           data.photo_key;
 
-        if (newKey) {
+        if (!_avatarCroppedBlob && newKey) {
           setImg("#avatarPreview", newKey);
         }
       } catch (err) {
