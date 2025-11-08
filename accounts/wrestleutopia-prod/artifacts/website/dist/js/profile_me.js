@@ -3,6 +3,7 @@ import { getAuthState, isWrestler } from "/js/roles.js";
 import { mediaUrl } from "/js/media.js";
 
 (() => {
+  let _avatarCroppedBlob = null;
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   const setVal = (id, v = "") => {
