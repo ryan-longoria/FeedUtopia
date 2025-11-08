@@ -152,7 +152,7 @@
 
           <div class="grid-2 mt-2">
             <label>
-              Logo (square works best)
+              Logo (displayed as a circle)
               <input id="logo" name="logo" type="file" accept="image/*" />
             </label>
             <div style="display: flex; align-items: center; gap: 12px">
@@ -163,7 +163,7 @@
                 style="
                   width: 120px;
                   height: 120px;
-                  border-radius: 16px;
+                  border-radius: 50%;
                   object-fit: cover;
                   background: #0f1224;
                   border: 1px solid #1f2546;
@@ -258,8 +258,8 @@
         <div>
           <div class="muted">Preview (128×128)</div>
           <img id="logo-preview-live" alt="Live preview" width="128" height="128"
-              style="border-radius:12px;background:#0f1224;border:1px solid #1f2546"/>
-          <p class="muted mt-2">Drag the image to position it inside the square. Zoom is disabled.</p>
+              style="border-radius:50%;background:#0f1224;border:1px solid #1f2546"/>
+          <p class="muted mt-2">Drag the image to position it.</p>
         </div>
       </div>
 
