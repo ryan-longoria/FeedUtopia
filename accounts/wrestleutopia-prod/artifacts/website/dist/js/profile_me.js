@@ -665,8 +665,6 @@ import { mediaUrl } from "/js/media.js";
 
     avatarCropper.bindDOM();
 
-    let _avatarCroppedBlob = null;
-
     async function exportCircularPNGFromCanvas(srcImg, view, outSize = 1024) {
       const out = document.createElement("canvas");
       out.width = out.height = outSize;
