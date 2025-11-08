@@ -1008,3 +1008,33 @@ label {
 }
 #avatar-cropper::backdrop { background: rgba(0,0,0,.6); }
 #logoPreview { border-radius: 16px; }
+
+.hero {
+  padding: 0;
+  min-height: 200px;
+  display: grid;
+  place-items: center start;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero .cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.hero-inner {
+  display: grid;
+  grid-template-columns: 128px 1fr;
+  gap: 16px;
+  align-items: center;
+  margin-top: 0;
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
