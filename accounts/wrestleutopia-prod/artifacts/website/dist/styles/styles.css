@@ -23,6 +23,9 @@
 
   --input-bg: #0e1328;
   --input-bg-readonly: color-mix(in oklch, var(--input-bg) 85%, #000 15%);
+
+  --avatar-border: #000;
+  --avatar-border-w: 1.5px;
 }
 
 #nav-toggle {
@@ -660,8 +663,9 @@ label {
   gap: 16px;
   padding: 16px;
   margin-top: -24px;
-  grid-template-columns: 112px 1fr;
-  align-items: end;
+  grid-template-columns: 128px 1fr;
+  align-items: center;
+  min-height: 160px;    
 }
 .avatar-ring {
   width: 128px;
@@ -671,6 +675,10 @@ label {
   border: 3px solid color-mix(in oklch, var(--accent2) 70%, #fff);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   background: #0f1224;
+}
+.avatar-wrap > .avatar-ring,
+.avatar-ring {
+  border: var(--avatar-border-w) solid var(--avatar-border);
 }
 .hero-meta h1 {
   margin: 4px 0 0;
@@ -982,6 +990,7 @@ label {
   height: 128px;
   border-radius: 999px;
   overflow: hidden;
+  position: relative;
 }
 .avatar-wrap > img.avatar-ring {
   position: absolute;
