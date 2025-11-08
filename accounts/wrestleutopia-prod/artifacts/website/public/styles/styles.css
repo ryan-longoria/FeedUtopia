@@ -1009,7 +1009,8 @@ label {
 #avatar-cropper::backdrop { background: rgba(0,0,0,.6); }
 #logoPreview { border-radius: 16px; }
 
-.hero {
+#wp-wrap > .hero,
+#pp-wrap > .hero {
   padding: 0;
   min-height: 200px;
   display: grid;
@@ -1018,7 +1019,8 @@ label {
   overflow: hidden;
 }
 
-.hero .cover {
+#wp-wrap > .hero .cover,
+#pp-wrap > .hero .cover {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -1028,7 +1030,8 @@ label {
   pointer-events: none;
 }
 
-.hero-inner {
+#wp-wrap > .hero .hero-inner,
+#pp-wrap > .hero .hero-inner {
   display: grid;
   grid-template-columns: 128px 1fr;
   gap: 16px;
