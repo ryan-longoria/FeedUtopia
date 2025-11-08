@@ -991,3 +991,4 @@ label {
   transform: translate(calc(-50% + var(--x, 0px)), calc(-50% + var(--y, 0px))) scale(var(--s, 1));
 }
 #avatar-cropper::backdrop { background: rgba(0,0,0,.6); }
+#logoPreview { border-radius: 16px; }

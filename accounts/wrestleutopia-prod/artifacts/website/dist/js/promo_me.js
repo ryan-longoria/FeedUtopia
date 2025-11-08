@@ -178,6 +178,126 @@ import { mediaUrl } from "/js/media.js";
     );
   }
 
+  async function exportSquarePNGFromCanvas(srcBmp, view, outSize = 1024) {
+    const out = document.createElement("canvas");
+    out.width = out.height = outSize;
+    const ctx = out.getContext("2d");
+
+    ctx.clearRect(0, 0, outSize, outSize);
+    ctx.save();
+    const scale = view.scale * (outSize / 512);
+    const tx = view.tx * (outSize / 512);
+    const ty = view.ty * (outSize / 512);
+
+    ctx.translate(outSize / 2 + tx, outSize / 2 + ty);
+    ctx.scale(scale, scale);
+    ctx.drawImage(srcBmp, -srcBmp.width / 2, -srcBmp.height / 2);
+    ctx.restore();
+
+    return new Promise((resolve) => out.toBlob((b) => resolve(b), "image/png"));
+  }
+
+  function renderLogoLivePreview(srcBmp, view) {
+    const imgEl = document.getElementById("logo-preview-live");
+    if (!imgEl) return;
+    const size = 128;
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    const ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, size, size);
+
+    const scale = view.scale * (size / 512);
+    const tx = view.tx * (size / 512);
+    const ty = view.ty * (size / 512);
+
+    ctx.save();
+    ctx.translate(size / 2 + tx, size / 2 + ty);
+    ctx.scale(scale, scale);
+    ctx.drawImage(srcBmp, -srcBmp.width / 2, -srcBmp.height / 2);
+    ctx.restore();
+
+    imgEl.src = c.toDataURL("image/png");
+  }
+
+  async function openLogoCropper(file) {
+    const dlg = document.getElementById("logo-cropper");
+    const canvas = document.getElementById("logo-canvas");
+    if (!dlg || !canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    const bmp = await createImageBitmap(file);
+
+    const fitScale = Math.max(512 / bmp.width, 512 / bmp.height);
+    const view = { scale: fitScale, tx: 0, ty: 0 };
+
+    function clampPan() {
+      const halfW = (bmp.width * view.scale) / 2;
+      const halfH = (bmp.height * view.scale) / 2;
+      const maxTx = Math.max(0, halfW - 256);
+      const maxTy = Math.max(0, halfH - 256);
+      view.tx = Math.min(maxTx, Math.max(-maxTx, view.tx));
+      view.ty = Math.min(maxTy, Math.max(-maxTy, view.ty));
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, 512, 512);
+      ctx.save();
+      ctx.translate(256 + view.tx, 256 + view.ty);
+      ctx.scale(view.scale, view.scale);
+      ctx.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
+      ctx.restore();
+      renderLogoLivePreview(bmp, view);
+    }
+
+    let dragging = false;
+    let lastX = 0, lastY = 0;
+
+    canvas.onpointerdown = (e) => {
+      dragging = true;
+      canvas.setPointerCapture(e.pointerId);
+      lastX = e.clientX; lastY = e.clientY;
+    };
+    canvas.onpointermove = (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      view.tx += dx;
+      view.ty += dy;
+      clampPan();
+      draw();
+    };
+    canvas.onpointerup = (e) => {
+      dragging = false;
+      canvas.releasePointerCapture(e.pointerId);
+    };
+    canvas.onpointercancel = () => { dragging = false; };
+
+    canvas.onwheel = (e) => { e.preventDefault(); };
+
+    const btnCancel = document.getElementById("logo-cancel");
+    const btnAccept = document.getElementById("logo-accept");
+
+    const onCancel = () => dlg.close();
+    const onAccept = async () => {
+      const blob = await exportSquarePNGFromCanvas(bmp, view, 1024);
+      _logoCroppedBlob = blob;
+      const logoPreview = document.getElementById("logoPreview");
+      if (logoPreview) {
+        const url = URL.createObjectURL(blob);
+        logoPreview.src = url;
+      }
+      dlg.close();
+    };
+
+    btnCancel?.addEventListener("click", onCancel, { once: true });
+    btnAccept?.addEventListener("click", onAccept, { once: true });
+
+    if (!dlg.open) dlg.showModal();
+    draw();
+  }
+
+
   function setLogoImg(sel, key) {
     const el = typeof sel === "string" ? $(sel) : sel;
     if (!el) return;
@@ -382,6 +502,11 @@ import { mediaUrl } from "/js/media.js";
 
   let currentLogoObjectUrl = null;
   async function uploadLogoIfAny() {
+    if (_logoCroppedBlob) {
+      const pngFile = new File([_logoCroppedBlob], "logo.png", { type: "image/png" });
+      return uploadGeneric(pngFile, { actor: "promoter", type: "logo", kind: "image" });
+    }
+
     const input = document.getElementById("logo");
     const file = input?.files?.[0];
     if (!file) return null;
@@ -498,7 +623,7 @@ import { mediaUrl } from "/js/media.js";
 
     logoInput?.addEventListener("change", () => {
       const f = logoInput.files?.[0];
-      if (!f || !logoPreview) return;
+      if (!f) return;
 
       const err = assertFileAllowed(f, "image");
       if (err) {
@@ -507,9 +632,7 @@ import { mediaUrl } from "/js/media.js";
         return;
       }
 
-      if (currentLogoObjectUrl) URL.revokeObjectURL(currentLogoObjectUrl);
-      currentLogoObjectUrl = URL.createObjectURL(f);
-      logoPreview.src = currentLogoObjectUrl;
+      openLogoCropper(f);
     });
 
     document.getElementById("addPhotosBtn")?.addEventListener("click", async () => {
@@ -644,6 +767,7 @@ import { mediaUrl } from "/js/media.js";
         );
 
         toast("Promotion saved!");
+        _logoCroppedBlob = null;
 
         const newLogo = saved?.logoKey || saved?.logo_key || logoKey || null;
         if (newLogo && logoPreview) {
