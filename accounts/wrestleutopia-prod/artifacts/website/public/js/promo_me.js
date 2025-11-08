@@ -281,10 +281,35 @@ import { mediaUrl } from "/js/media.js";
       draw();
     }
 
+    const zoomInBtn  = document.getElementById("zoom-in-btn");
+    const zoomOutBtn = document.getElementById("zoom-out-btn");
+
     canvas.addEventListener("wheel", (e) => {
       e.preventDefault();
       zoomAt(e.deltaY, e.clientX, e.clientY);
     }, { passive: false });
+
+    function applyZoom(factor, centerX = 256, centerY = 256) {
+      const prev = view.scale;
+      const next = clamp(prev * factor, MIN_SCALE, MAX_SCALE);
+      if (next === prev) return;
+
+      const k = next / prev - 1;
+      view.tx -= centerX * k;
+      view.ty -= centerY * k;
+
+      clampPan();
+      view.scale = next;
+      draw();
+    }
+
+    zoomInBtn?.addEventListener("click", () => {
+      applyZoom(1.15);
+    });
+
+    zoomOutBtn?.addEventListener("click", () => {
+      applyZoom(1 / 1.15);
+    });
 
     function clampPan() {
       const halfW = (bmp.width * view.scale) / 2;
