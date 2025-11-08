@@ -115,11 +115,6 @@ async function loadMyOrgIntoForm() {
       orgInput.readOnly = true;
       orgInput.placeholder = org ? "" : "Create your promotion profile first";
     }
-    if (hint) {
-      hint.innerHTML = org
-        ? "Pulled from your Promotion profile."
-        : `No promotion profile yet. <a href="/promoter/">Create one</a> to post events.`;
-    }
     return org;
   } catch {
     if (hint)
