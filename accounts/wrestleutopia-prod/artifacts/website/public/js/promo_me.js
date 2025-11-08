@@ -10,7 +10,8 @@ import { mediaUrl } from "/js/media.js";
     if (el) el.value = v ?? "";
   };
 
-  const AVATAR_BUST = Math.floor(Date.now() / (5 * 60 * 1000));
+  const AVATAR_BUST = Math.floor(Date.now());
+  let _logoCroppedBlob = null;
 
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
   const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -178,13 +179,19 @@ import { mediaUrl } from "/js/media.js";
     );
   }
 
-  async function exportSquarePNGFromCanvas(srcBmp, view, outSize = 1024) {
+  async function exportCircularPNGFromCanvas(srcBmp, view, outSize = 1024) {
     const out = document.createElement("canvas");
     out.width = out.height = outSize;
     const ctx = out.getContext("2d");
 
     ctx.clearRect(0, 0, outSize, outSize);
+
     ctx.save();
+    ctx.beginPath();
+    ctx.arc(outSize / 2, outSize / 2, outSize / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+
     const scale = view.scale * (outSize / 512);
     const tx = view.tx * (outSize / 512);
     const ty = view.ty * (outSize / 512);
@@ -200,6 +207,7 @@ import { mediaUrl } from "/js/media.js";
   function renderLogoLivePreview(srcBmp, view) {
     const imgEl = document.getElementById("logo-preview-live");
     if (!imgEl) return;
+
     const size = 128;
     const c = document.createElement("canvas");
     c.width = c.height = size;
@@ -211,9 +219,22 @@ import { mediaUrl } from "/js/media.js";
     const ty = view.ty * (size / 512);
 
     ctx.save();
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+
     ctx.translate(size / 2 + tx, size / 2 + ty);
     ctx.scale(scale, scale);
     ctx.drawImage(srcBmp, -srcBmp.width / 2, -srcBmp.height / 2);
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
 
     imgEl.src = c.toDataURL("image/png");
@@ -246,6 +267,24 @@ import { mediaUrl } from "/js/media.js";
       ctx.scale(view.scale, view.scale);
       ctx.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
       ctx.restore();
+
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath();
+      ctx.rect(0, 0, 512, 512);
+      ctx.moveTo(256, 256);
+      ctx.arc(256, 256, 256, 0, Math.PI * 2, true);
+      ctx.fill("evenodd");
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.6)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(256, 256, 255, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
       renderLogoLivePreview(bmp, view);
     }
 
@@ -255,22 +294,27 @@ import { mediaUrl } from "/js/media.js";
     canvas.onpointerdown = (e) => {
       dragging = true;
       canvas.setPointerCapture(e.pointerId);
-      lastX = e.clientX; lastY = e.clientY;
+      lastX = e.clientX;
+      lastY = e.clientY;
     };
+
     canvas.onpointermove = (e) => {
       if (!dragging) return;
       const dx = e.clientX - lastX;
       const dy = e.clientY - lastY;
-      lastX = e.clientX; lastY = e.clientY;
+      lastX = e.clientX;
+      lastY = e.clientY;
       view.tx += dx;
       view.ty += dy;
       clampPan();
       draw();
     };
+
     canvas.onpointerup = (e) => {
       dragging = false;
       canvas.releasePointerCapture(e.pointerId);
     };
+
     canvas.onpointercancel = () => { dragging = false; };
 
     canvas.onwheel = (e) => { e.preventDefault(); };
@@ -279,8 +323,9 @@ import { mediaUrl } from "/js/media.js";
     const btnAccept = document.getElementById("logo-accept");
 
     const onCancel = () => dlg.close();
+
     const onAccept = async () => {
-      const blob = await exportSquarePNGFromCanvas(bmp, view, 1024);
+      const blob = await exportCircularPNGFromCanvas(bmp, view, 1024);
       _logoCroppedBlob = blob;
       const logoPreview = document.getElementById("logoPreview");
       if (logoPreview) {
