@@ -714,7 +714,6 @@ label {
 }
 .tab-nav a {
   padding: 8px 12px;
-  border: 1px solid var(--border);
   border-radius: 999px;
   text-decoration: none;
   color: var(--text);
@@ -723,7 +722,15 @@ label {
   background: #171d3c;
   border-color: #2a2f5a;
 }
-
+.tabs {
+  padding-bottom: 10px;
+}
+.tab-nav { 
+  margin-bottom: 12px;
+}
+.tabs + * { 
+  margin-top: 12px;
+}
 .media-grid {
   display: grid;
   gap: 8px;
