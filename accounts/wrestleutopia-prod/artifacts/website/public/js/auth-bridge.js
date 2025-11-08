@@ -36,6 +36,7 @@ Amplify.configure({
       loginWith: CFG.loginWith,
       signUpVerificationMethod: CFG.signUpVerificationMethod,
     },
+    storage: CFG.storage,
   },
   Storage: {
     customizedStorage: {
