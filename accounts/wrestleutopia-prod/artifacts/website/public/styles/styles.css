@@ -723,7 +723,9 @@ label {
   background: #171d3c;
   border-color: #2a2f5a;
 }
-
+.tabs {
+  padding-bottom: 10px;
+}
 .media-grid {
   display: grid;
   gap: 8px;
