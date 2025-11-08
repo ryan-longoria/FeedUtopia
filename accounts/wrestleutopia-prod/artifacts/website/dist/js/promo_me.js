@@ -251,6 +251,41 @@ import { mediaUrl } from "/js/media.js";
     const fitScale = Math.max(512 / bmp.width, 512 / bmp.height);
     const view = { scale: fitScale, tx: 0, ty: 0 };
 
+    const MIN_SCALE = fitScale * 0.5;
+    const MAX_SCALE = fitScale * 6;
+
+    function clamp(v, lo, hi) {
+      return Math.min(hi, Math.max(lo, v));
+    }
+
+    function zoomAt(deltaY, clientX, clientY) {
+      const step = (typeof deltaY === "number" ? deltaY : 0);
+      const normalized = step * (event?.deltaMode === 1 ? 16 : 1);
+
+      const factor = Math.exp(-normalized / 300);
+
+      const prev = view.scale;
+      const next = clamp(prev * factor, MIN_SCALE, MAX_SCALE);
+      if (next === prev) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const cx = clientX - rect.left - 256;
+      const cy = clientY - rect.top  - 256;
+
+      const k = next / prev - 1;
+      view.tx -= cx * k;
+      view.ty -= cy * k;
+
+      clampPan();
+      view.scale = next;
+      draw();
+    }
+
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      zoomAt(e.deltaY, e.clientX, e.clientY);
+    }, { passive: false });
+
     function clampPan() {
       const halfW = (bmp.width * view.scale) / 2;
       const halfH = (bmp.height * view.scale) / 2;
@@ -590,7 +625,6 @@ import { mediaUrl } from "/js/media.js";
           await populateCities(cc, st, ci || undefined);
         }
       }
-
       if (me.socials && typeof me.socials === "object") {
         const s = me.socials;
         if (s.twitter) setVal("social_twitter", s.twitter);
